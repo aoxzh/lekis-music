@@ -49,3 +49,21 @@ refactor(ffi): 把 TrackDto 拆成列表用和详情用两种
 - **不要**往仓库里提交任何第三方流媒体（YouTube、网易云、QQ 音乐等）的音源插件或破解代码。
 - **不要**复制 AGPL 项目（MusicFree、mygo-music、SPlayer、Swing Music 等）的代码。只能参考设计。
 - 新增依赖前检查许可证：`cargo deny check licenses` 必须通过；GPL / AGPL 依赖一律不能进核心。
+
+## 7. 隐私自检
+
+这个仓库要公开，提交前会跑一遍 [`tools/check-privacy.sh`](tools/check-privacy.sh)（Windows 上是
+[`tools/check-privacy.ps1`](tools/check-privacy.ps1)），拦截：
+
+- 本机的绝对路径（Windows 盘符路径、`/Users/`、`/home/` 下的家目录）
+- 邮箱、GitHub Token、私钥、疑似 API Key
+- `.env`、`local.properties`、证书和密钥文件
+
+手动检查：
+
+```bash
+./tools/check-privacy.sh            # 检查暂存区
+./tools/check-privacy.sh --tree     # 检查整个仓库
+```
+
+配置和日志里如果要举例路径，用 `~/Music`、`/volume1/music` 这类通用写法。
