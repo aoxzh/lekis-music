@@ -1,0 +1,21 @@
+[package]
+name = "lekis-scanner"
+description = "Lekis 扫描流水线：遍历 → 部分读取 → 解析标签 → 写库；NAS 共享索引。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+lekis-types.workspace = true
+lekis-vfs.workspace = true
+lekis-library.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+bytes.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,87 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/lekis-types",
+  "crates/lekis-vfs",
+  "crates/lekis-library",
+  "crates/lekis-scanner",
+  "crates/lekis-providers",
+  "crates/lekis-enrich",
+  "crates/lekis-playback",
+  "crates/lekis-sync",
+  "crates/lekis-plugin-host",
+  "crates/lekis-core",
+  "crates/lekis-ffi",
+  "bins/lekis-node",
+  "bins/uniffi-bindgen",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+# 许可证待定（见 REQUIREMENTS 第 5 章），确定前不要发布任何 crate。
+
+[workspace.dependencies]
+# ---- 内部 crate ----
+lekis-types = { path = "crates/lekis-types" }
+lekis-vfs = { path = "crates/lekis-vfs" }
+lekis-library = { path = "crates/lekis-library" }
+lekis-scanner = { path = "crates/lekis-scanner" }
+lekis-providers = { path = "crates/lekis-providers" }
+lekis-enrich = { path = "crates/lekis-enrich" }
+lekis-playback = { path = "crates/lekis-playback" }
+lekis-sync = { path = "crates/lekis-sync" }
+lekis-plugin-host = { path = "crates/lekis-plugin-host" }
+lekis-core = { path = "crates/lekis-core" }
+
+# ---- 已经在用的第三方依赖 ----
+async-trait = "0.1"
+bytes = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "io-util"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4", "v7", "serde"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+uniffi = "0.28"
+axum = "0.8"
+anyhow = "1"
+
+# ---- 已经选型、但还没有代码用到的依赖（用到时取消注释，并在对应 crate 里引用）----
+# symphonia = { version = "0.5", features = ["all"] }      # 解码（lekis-playback）
+# cpal = "0.15"                                             # 音频输出（lekis-playback）
+# rubato = "0.16"                                           # 重采样（lekis-playback）
+# ebur128 = "0.1"                                           # 响度分析（lekis-playback / analysis）
+# lofty = "0.22"                                            # 标签读写（lekis-scanner）
+# reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+# ciborium = "0.2"                                          # NAS 共享索引 / 同步日志编码
+# zstd = "0.13"                                             # NAS 共享索引 / 同步日志压缩
+# rquickjs = "0.8"                                          # JS 插件运行时（lekis-plugin-host）
+# wasmtime = "27"                                           # WASM 插件运行时（1.x）
+# mdns-sd = "0.13"                                          # 局域网发现
+# bliss-audio = "0.9"                                       # 声学分析（以后）
+# pinyin = "0.10"                                           # 拼音搜索（lekis-library）
+
+[workspace.lints.rust]
+missing_docs = "warn"
+unsafe_code = "deny" # 需要 unsafe 的 crate（FFI 绑定、音频后端）在自己的 Cargo.toml 里单独放开，并写 ADR
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+dbg_macro = "warn"
+todo = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+
+[profile.release-android]
+inherits = "release"
+opt-level = "s"

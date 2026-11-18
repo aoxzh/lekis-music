@@ -1,0 +1,18 @@
+[package]
+name = "lekis-plugin-host"
+description = "Lekis 插件宿主：清单解析、权限检查、JS / WASM 运行时。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+lekis-types.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+# 已选型，实现时启用：rquickjs（JS 运行时）、wasmtime / wasmi（WASM 运行时，1.x）
+
+[lints]
+workspace = true

@@ -1,0 +1,71 @@
+// Lekis WASM 插件接口（1.x 草案）。
+// JS 插件和 WASM 插件的能力一一对应，参数结构见 plugin-sdk/js/src/index.ts。
+// 为了让两种运行时共用一套宿主实现，复杂参数和返回值都用 JSON 字符串传递。
+
+package lekis:plugin@1.0.0;
+
+interface types {
+  /// 结构化错误，对应 JS SDK 里的 PluginError。
+  variant plugin-error {
+    sign-in,
+    setup,
+    unavailable,
+    unsupported,
+    rate-limited,
+    other(string),
+  }
+}
+
+/// 宿主提供给插件的能力。每次调用都经过权限检查。
+interface host {
+  use types.{plugin-error};
+
+  record http-request {
+    method: string,
+    url: string,
+    headers: list<tuple<string, string>>,
+    body: option<list<u8>>,
+    timeout-ms: option<u32>,
+  }
+
+  record http-response {
+    status: u16,
+    headers: list<tuple<string, string>>,
+    body: list<u8>,
+  }
+
+  /// 只能访问清单 permissions.network 里声明的域名。
+  http-fetch: func(req: http-request) -> result<http-response, plugin-error>;
+
+  /// 读取设置项（JSON 值）。
+  setting: func(key: string) -> option<string>;
+
+  /// 插件私有存储（有配额）。
+  storage-get: func(key: string) -> option<list<u8>>;
+  storage-set: func(key: string, value: list<u8>) -> result<_, plugin-error>;
+  storage-delete: func(key: string);
+
+  /// 多语言文字。
+  t: func(key: string) -> string;
+
+  log: func(level: u8, message: string);
+}
+
+/// 插件导出的能力。没实现的能力返回 unsupported。
+interface capabilities {
+  use types.{plugin-error};
+
+  /// 参数和返回值都是 JSON 字符串，结构和 JS SDK 的同名函数一致。
+  search: func(params-json: string) -> result<string, plugin-error>;
+  browse: func(params-json: string) -> result<string, plugin-error>;
+  %stream: func(params-json: string) -> result<string, plugin-error>;
+  lyrics: func(params-json: string) -> result<option<string>, plugin-error>;
+  artwork: func(params-json: string) -> result<option<string>, plugin-error>;
+  playlist: func(params-json: string) -> result<string, plugin-error>;
+  scrobble: func(params-json: string) -> result<_, plugin-error>;
+}
+
+world plugin {
+  import host;
+  export capabilities;
+}

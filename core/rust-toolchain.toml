@@ -1,0 +1,7 @@
+[toolchain]
+# 跟随稳定版；最低支持版本见 Cargo.toml 的 rust-version。
+channel = "stable"
+components = ["rustfmt", "clippy"]
+# Android 构建需要的目标（tools/build-android-core.sh 会用到）：
+#   rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+# Windows 发布构建使用 MSVC 工具链：x86_64-pc-windows-msvc、aarch64-pc-windows-msvc

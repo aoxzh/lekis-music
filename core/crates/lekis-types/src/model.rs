@@ -1,0 +1,476 @@
+//! 领域模型。和数据库表一一对应的部分见 `lekis-library/migrations/0001_init.sql`。
+
+use crate::ids::*;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+
+// ---------------------------------------------------------------------------
+// 音源
+// ---------------------------------------------------------------------------
+
+/// 音源类型（REQUIREMENTS 3.1 节）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SourceKind {
+    /// 本机文件夹（包括移动硬盘）。
+    Local,
+    /// SMB 2/3 共享。
+    Smb,
+    /// WebDAV（含 Alist/OpenList、Nextcloud）。
+    WebDav,
+    /// NFS。
+    Nfs,
+    /// SFTP。
+    Sftp,
+    /// OpenSubsonic / Subsonic 服务器（Navidrome、gonic……）。
+    OpenSubsonic,
+    /// Jellyfin。
+    Jellyfin,
+    /// Emby。
+    Emby,
+    /// Plex。
+    Plex,
+    /// 网络电台。
+    Radio,
+    /// 插件提供的音源。
+    Plugin,
+}
+
+impl SourceKind {
+    /// 是不是"文件系统类"的源（需要我们自己扫描和解析标签）。
+    pub fn is_filesystem(self) -> bool {
+        matches!(
+            self,
+            Self::Local | Self::Smb | Self::WebDav | Self::Nfs | Self::Sftp
+        )
+    }
+}
+
+/// 音源配置。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SourceConfig {
+    /// 本机 ID；新建时为 `None`。
+    pub id: Option<SourceId>,
+    /// 类型。
+    pub kind: SourceKind,
+    /// 显示名称。
+    pub name: String,
+    /// 访问地址，按优先级排列（SRC-14：在家用局域网地址，在外用 Tailscale 地址……）。
+    /// 本地源是绝对路径；SMB 是 `smb://host/share`；服务器是 `https://host:port`。
+    pub addresses: Vec<String>,
+    /// 源内的根目录（文件系统类源）。
+    pub root_path: String,
+    /// 凭据在系统钥匙串里的引用 ID（不是密码本身）。
+    pub credential_ref: Option<String>,
+    /// 各类型特有的选项。
+    pub options: BTreeMap<String, String>,
+    /// 是否启用。
+    pub enabled: bool,
+}
+
+// ---------------------------------------------------------------------------
+// 音频属性
+// ---------------------------------------------------------------------------
+
+/// 编码格式。
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Codec {
+    /// MP3。
+    Mp3,
+    /// AAC。
+    Aac,
+    /// ALAC。
+    Alac,
+    /// FLAC。
+    Flac,
+    /// WAV（PCM）。
+    Wav,
+    /// AIFF。
+    Aiff,
+    /// Ogg Vorbis。
+    Vorbis,
+    /// Opus。
+    Opus,
+    /// Monkey's Audio。
+    Ape,
+    /// WavPack。
+    WavPack,
+    /// TTA。
+    Tta,
+    /// DSD（DSF / DFF）。
+    Dsd,
+    /// 其他。
+    Other(String),
+}
+
+impl Codec {
+    /// 是否无损。
+    pub fn is_lossless(&self) -> bool {
+        matches!(
+            self,
+            Self::Alac
+                | Self::Flac
+                | Self::Wav
+                | Self::Aiff
+                | Self::Ape
+                | Self::WavPack
+                | Self::Tta
+                | Self::Dsd
+        )
+    }
+}
+
+/// 音频流属性。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AudioProps {
+    /// 编码。
+    pub codec: Codec,
+    /// 采样率（Hz）。
+    pub sample_rate: u32,
+    /// 位深（有损格式为 `None`）。
+    pub bit_depth: Option<u8>,
+    /// 声道数。
+    pub channels: u8,
+    /// 平均码率（kbps）。
+    pub bitrate_kbps: Option<u32>,
+}
+
+impl AudioProps {
+    /// 界面上显示的音质标签，例如 `FLAC 24/96`、`MP3 320`。
+    pub fn quality_badge(&self) -> String {
+        let name = match &self.codec {
+            Codec::Mp3 => "MP3",
+            Codec::Aac => "AAC",
+            Codec::Alac => "ALAC",
+            Codec::Flac => "FLAC",
+            Codec::Wav => "WAV",
+            Codec::Aiff => "AIFF",
+            Codec::Vorbis => "OGG",
+            Codec::Opus => "OPUS",
+            Codec::Ape => "APE",
+            Codec::WavPack => "WV",
+            Codec::Tta => "TTA",
+            Codec::Dsd => "DSD",
+            Codec::Other(s) => s.as_str(),
+        };
+        match (self.codec.is_lossless(), self.bit_depth, self.bitrate_kbps) {
+            (true, Some(bits), _) => {
+                let khz = self.sample_rate as f32 / 1000.0;
+                if khz.fract().abs() < 0.05 {
+                    format!("{name} {bits}/{}", khz.round() as u32)
+                } else {
+                    format!("{name} {bits}/{khz:.1}")
+                }
+            }
+            (false, _, Some(kbps)) => format!("{name} {kbps}"),
+            _ => name.to_string(),
+        }
+    }
+}
+
+/// ReplayGain 信息。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct ReplayGain {
+    /// 曲目增益（dB）。
+    pub track_gain_db: Option<f32>,
+    /// 曲目峰值（线性，0..=1+）。
+    pub track_peak: Option<f32>,
+    /// 专辑增益（dB）。
+    pub album_gain_db: Option<f32>,
+    /// 专辑峰值。
+    pub album_peak: Option<f32>,
+}
+
+// ---------------------------------------------------------------------------
+// 资料库实体
+// ---------------------------------------------------------------------------
+
+/// 艺人在曲目或专辑里的角色。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtistRole {
+    /// 主艺人。
+    Main,
+    /// 合作 / feat.。
+    Featured,
+    /// 作曲。
+    Composer,
+    /// 作词。
+    Lyricist,
+    /// 指挥（古典）。
+    Conductor,
+    /// 演奏者（古典）。
+    Performer,
+    /// 混音。
+    Remixer,
+}
+
+/// 曲目里的一个艺人署名。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ArtistCredit {
+    /// 已经入库的艺人 ID。
+    pub artist_id: Option<ArtistId>,
+    /// 显示名称。
+    pub name: String,
+    /// 角色。
+    pub role: ArtistRole,
+}
+
+/// 曲目（完整信息，详情页用）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Track {
+    /// 本机 ID。
+    pub id: TrackId,
+    /// 跨设备稳定 ID。
+    pub uid: TrackUid,
+    /// 标题。
+    pub title: String,
+    /// 排序用标题。
+    pub sort_title: Option<String>,
+    /// 艺人署名（按顺序）。
+    pub artists: Vec<ArtistCredit>,
+    /// 所属专辑。
+    pub album_id: Option<AlbumId>,
+    /// 专辑名（冗余，方便显示）。
+    pub album_title: Option<String>,
+    /// 曲目号。
+    pub track_no: Option<u32>,
+    /// 碟片号。
+    pub disc_no: Option<u32>,
+    /// 年份。
+    pub year: Option<i32>,
+    /// 时长（毫秒）。
+    pub duration_ms: u64,
+    /// 流派。
+    pub genres: Vec<String>,
+    /// MusicBrainz 录音 ID。
+    pub mbid_recording: Option<String>,
+    /// 最佳文件的音频属性。
+    pub audio: Option<AudioProps>,
+    /// ReplayGain。
+    pub replaygain: ReplayGain,
+    /// 封面。
+    pub artwork_id: Option<ArtworkId>,
+}
+
+/// 曲目（列表用的精简版）。大列表只返回这个，详情页再取 [`Track`]。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TrackRow {
+    /// 本机 ID。
+    pub id: TrackId,
+    /// 标题。
+    pub title: String,
+    /// 艺人显示文字（已经拼好，例如 `周杰伦 / 费玉清`）。
+    pub artist_line: String,
+    /// 专辑名。
+    pub album_title: Option<String>,
+    /// 时长（毫秒）。
+    pub duration_ms: u64,
+    /// 封面。
+    pub artwork_id: Option<ArtworkId>,
+    /// 音质标签。
+    pub quality_badge: Option<String>,
+    /// 是否已收藏。
+    pub loved: bool,
+}
+
+/// 专辑。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Album {
+    /// 本机 ID。
+    pub id: AlbumId,
+    /// 标题。
+    pub title: String,
+    /// 专辑艺人显示文字。
+    pub artist_line: String,
+    /// 年份。
+    pub year: Option<i32>,
+    /// 曲目数。
+    pub track_count: u32,
+    /// 封面。
+    pub artwork_id: Option<ArtworkId>,
+    /// MusicBrainz Release ID。
+    pub mbid_release: Option<String>,
+}
+
+/// 艺人。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Artist {
+    /// 本机 ID。
+    pub id: ArtistId,
+    /// 名称。
+    pub name: String,
+    /// 排序名。
+    pub sort_name: Option<String>,
+    /// 别名（例如 `周杰伦` ↔ `Jay Chou`）。
+    pub aliases: Vec<String>,
+    /// 头像 / 头图。
+    pub artwork_id: Option<ArtworkId>,
+    /// MusicBrainz 艺人 ID。
+    pub mbid: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
+// 歌词与封面
+// ---------------------------------------------------------------------------
+
+/// 歌词格式（ENR-04）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LyricsFormat {
+    /// 纯文本。
+    Plain,
+    /// 逐行 LRC。
+    Lrc,
+    /// 逐字增强 LRC。
+    EnhancedLrc,
+    /// TTML（支持逐字、对唱、背景人声）。
+    Ttml,
+}
+
+/// 一份歌词。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Lyrics {
+    /// 格式。
+    pub format: LyricsFormat,
+    /// 原始内容。
+    pub content: String,
+    /// 来源（`embedded`、`sidecar`、`lrclib`、`plugin:<id>`……）。
+    pub source: String,
+    /// 用户调整过的整体偏移（毫秒，正数表示歌词延后）。
+    pub offset_ms: i32,
+    /// 匹配置信度（0..=1）。
+    pub confidence: f32,
+}
+
+/// 图片尺寸档位。缩略图按这些尺寸预先生成，UI 只取需要的档位。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtworkSize {
+    /// 列表缩略图（96px）。
+    Thumb,
+    /// 网格（320px）。
+    Medium,
+    /// 正在播放页（1024px）。
+    Large,
+    /// 原图。
+    Original,
+}
+
+impl ArtworkSize {
+    /// 边长（像素）；原图返回 `None`。
+    pub fn pixels(self) -> Option<u32> {
+        match self {
+            Self::Thumb => Some(96),
+            Self::Medium => Some(320),
+            Self::Large => Some(1024),
+            Self::Original => None,
+        }
+    }
+}
+
+/// 从封面提取的调色板（正在播放页的动态背景用）。颜色是 `0xRRGGBB`。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Palette {
+    /// 主色。
+    pub primary: u32,
+    /// 辅色。
+    pub secondary: u32,
+    /// 适合放在主色上的文字颜色。
+    pub on_primary: u32,
+    /// 背景渐变用的颜色（3~5 个）。
+    pub gradient: Vec<u32>,
+}
+
+// ---------------------------------------------------------------------------
+// 播放
+// ---------------------------------------------------------------------------
+
+/// 播放状态。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlaybackState {
+    /// 空闲（队列为空）。
+    Idle,
+    /// 正在打开 / 首次缓冲。
+    Loading,
+    /// 播放中。
+    Playing,
+    /// 已暂停。
+    Paused,
+    /// 播放中但缓冲不足（网络卡顿）。
+    Buffering,
+    /// 队列播完了。
+    Ended,
+}
+
+/// 循环模式。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RepeatMode {
+    /// 不循环。
+    #[default]
+    Off,
+    /// 列表循环。
+    All,
+    /// 单曲循环。
+    One,
+}
+
+/// 随机模式（PLY-09）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShuffleMode {
+    /// 顺序。
+    #[default]
+    Off,
+    /// 真随机。
+    Random,
+    /// 智能随机（避免同一艺人连续出现）。
+    Smart,
+}
+
+/// 资料库排序方式。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TrackSort {
+    /// 按标题（拼音 / 字母）。
+    #[default]
+    Title,
+    /// 按艺人。
+    Artist,
+    /// 按专辑。
+    Album,
+    /// 最近添加。
+    RecentlyAdded,
+    /// 最常播放。
+    MostPlayed,
+}
+
+/// 分页查询曲目。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrackQuery {
+    /// 排序。
+    pub sort: TrackSort,
+    /// 偏移。
+    pub offset: u32,
+    /// 每页数量（上限 500）。
+    pub limit: u32,
+}
+
+impl TrackQuery {
+    /// 每页最大数量。
+    pub const MAX_LIMIT: u32 = 500;
+}
+
+/// 搜索结果（按类型分组）。
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct SearchResults {
+    /// 曲目。
+    pub tracks: Vec<TrackRow>,
+    /// 专辑。
+    pub albums: Vec<Album>,
+    /// 艺人。
+    pub artists: Vec<Artist>,
+}

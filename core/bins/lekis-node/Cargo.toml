@@ -1,0 +1,21 @@
+[package]
+name = "lekis-node"
+description = "可选的 headless NAS 节点：同一个核心 + HTTP 服务（OpenSubsonic API、同步中枢、转码）。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+lekis-core.workspace = true
+lekis-types.workspace = true
+anyhow.workspace = true
+axum.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["net", "signal"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

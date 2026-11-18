@@ -1,0 +1,19 @@
+{
+  "$schema": "../../schema/plugin.schema.json",
+  "id": "dev.lekis.example.lrclib",
+  "name": "LRCLIB 歌词（示例）",
+  "version": "1.0.0",
+  "apiVersion": "1.0",
+  "minAppVersion": "0.1.0",
+  "runtime": "js",
+  "entry": "index.ts",
+  "kinds": ["lyrics"],
+  "permissions": {
+    "network": ["lrclib.net"]
+  },
+  "settings": [
+    { "key": "preferSynced", "type": "boolean", "label": "settings.preferSynced", "default": true }
+  ],
+  "locales": "locales/",
+  "author": "Lekis"
+}

@@ -1,0 +1,16 @@
+[package]
+name = "lekis-sync"
+description = "Lekis 无服务器多设备同步：混合逻辑时钟、操作日志、合并、同步通道。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+lekis-types.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

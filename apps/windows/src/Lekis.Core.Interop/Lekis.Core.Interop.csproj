@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Windows 访问 Rust 核心的唯一入口（docs/ARCHITECTURE.md 第 7 节）。
+    - Generated/lekis_ffi.cs：uniffi-bindgen-cs 生成（tools/gen-bindings.ps1），不提交；
+    - native/<rid>/lekis_ffi.dll：tools/build-windows-core.ps1 编译，不提交；
+    - 两者都不存在时项目仍然能编译，CoreServiceFactory 会返回 FakeCoreService。
+  -->
+  <PropertyGroup>
+    <RootNamespace>Lekis.Core</RootNamespace>
+    <!-- uniffi-bindgen-cs 生成的代码使用 unsafe 指针 -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="Exists('Generated\lekis_ffi.cs')">
+    <DefineConstants>$(DefineConstants);LEKIS_BINDINGS</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 生成代码不遵守我们的可空和风格规则 -->
+    <Compile Update="Generated\**\*.cs">
+      <Nullable>disable</Nullable>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('native\$(RuntimeIdentifier)\lekis_ffi.dll')">
+    <None Include="native\$(RuntimeIdentifier)\lekis_ffi.dll" Link="lekis_ffi.dll" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

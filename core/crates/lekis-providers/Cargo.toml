@@ -1,0 +1,14 @@
+[package]
+name = "lekis-providers"
+description = "Lekis 媒体服务器源：OpenSubsonic / Jellyfin / Emby / Plex。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+lekis-types.workspace = true
+async-trait.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,30 @@
+[package]
+name = "lekis-ffi"
+description = "Lekis 的 UniFFI 导出层：Android（Kotlin）和 Windows（C#）通过它调用核心。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "lekis_ffi"
+# cdylib：Android 的 .so、Windows 的 .dll；staticlib：以后的 iOS；lib：给 uniffi-bindgen 读取元数据。
+crate-type = ["cdylib", "staticlib", "lib"]
+
+[dependencies]
+lekis-core.workspace = true
+lekis-types.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+# 注意：uniffi 版本必须和 uniffi-bindgen-cs 支持的版本一致（见 ADR-0005）。
+# uniffi-bindgen-cs v0.9.x 对应 uniffi 0.28.x。
+uniffi.workspace = true
+
+# UniFFI 生成的脚手架代码里有 unsafe 和没有文档的项，所以这个 crate 不继承 workspace 的 lint 配置。
+[lints.rust]
+unsafe_code = "allow"
+missing_docs = "allow"
+
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"

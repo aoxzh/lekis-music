@@ -1,0 +1,47 @@
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.iml
+*.swp
+
+# Rust
+core/target/
+apps/linux/target/
+**/*.rs.bk
+
+# Android
+apps/android/.gradle/
+apps/android/build/
+apps/android/**/build/
+apps/android/local.properties
+apps/android/captures/
+apps/android/.externalNativeBuild/
+apps/android/.cxx/
+# 由 tools/build-android-core.sh 生成
+apps/android/core/bridge/src/main/jniLibs/
+# 由 tools/gen-bindings.sh 生成
+apps/android/core/bridge/src/main/kotlin/uniffi/
+
+# Windows / .NET
+apps/windows/**/bin/
+apps/windows/**/obj/
+apps/windows/.vs/
+*.user
+# 由 tools/build-windows-core.ps1 生成
+apps/windows/src/Lekis.Core.Interop/native/
+# 由 tools/gen-bindings.sh 生成
+apps/windows/src/Lekis.Core.Interop/Generated/*
+!apps/windows/src/Lekis.Core.Interop/Generated/README.md
+
+# JS（插件 SDK）
+node_modules/
+plugin-sdk/js/dist/
+
+# 本地数据
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+.env

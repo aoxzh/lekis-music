@@ -1,0 +1,16 @@
+[package]
+name = "lekis-playback"
+description = "Lekis 播放引擎：队列、解码、DSP、无缝播放、淡入淡出、音频输出。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+lekis-types.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+# 已选型，实现时启用（见 core/Cargo.toml）：symphonia、cpal、rubato、ebur128
+
+[lints]
+workspace = true

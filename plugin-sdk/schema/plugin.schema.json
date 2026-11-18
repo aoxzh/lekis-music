@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lekis.fm/schema/plugin.schema.json",
+  "title": "Lekis plugin manifest (plugin.json)",
+  "description": "Lekis 插件清单 1.0。Rust 端 lekis-plugin-host::manifest::PluginManifest 必须与本文件保持一致。",
+  "type": "object",
+  "required": ["id", "name", "version", "apiVersion", "minAppVersion", "runtime", "kinds"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": {
+      "description": "反向域名格式的唯一 ID，只能包含小写字母、数字和 '-'。",
+      "type": "string",
+      "pattern": "^[a-z0-9-]+(\\.[a-z0-9-]+)+$"
+    },
+    "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "version": { "description": "插件版本（语义化版本）。", "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+([-+].*)?$" },
+    "apiVersion": { "description": "插件 API 版本，例如 1.0。宿主只加载主版本号相同的插件。", "type": "string", "pattern": "^\\d+\\.\\d+$" },
+    "minAppVersion": { "description": "最低 App 版本。", "type": "string" },
+    "runtime": { "enum": ["js", "wasm", "none"] },
+    "entry": { "description": "入口文件（相对插件目录）。runtime 不是 none 时必填。", "type": "string" },
+    "kinds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["source", "lyrics", "artwork", "metadata", "scrobbler", "playlist_importer", "theme", "lyrics_style", "visualizer"]
+      }
+    },
+    "playback": {
+      "description": "stream：插件返回音频地址，由本机播放；remote：插件遥控外部播放器。",
+      "enum": ["stream", "remote"],
+      "default": "stream"
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "network": {
+          "description": "允许访问的域名，支持 *.example.com。只允许 HTTPS。",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "requestHeaders": {
+          "description": "给图片和音频请求附加的请求头，按域名区分。",
+          "type": "object",
+          "additionalProperties": { "type": "object", "additionalProperties": { "type": "string" } }
+        },
+        "process": {
+          "description": "允许启动的外部程序（只在桌面端有效，用户必须在设置里逐个允许）。",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "webSignIn": { "description": "是否需要网页登录（host.webSignIn）。", "type": "boolean" },
+        "storageKb": { "description": "存储配额，默认 1024。", "type": "integer", "minimum": 0, "maximum": 102400 }
+      }
+    },
+    "settings": {
+      "description": "设置项，宿主据此自动生成设置界面。",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "type", "label"],
+        "properties": {
+          "key": { "type": "string", "pattern": "^[a-zA-Z][a-zA-Z0-9_]*$" },
+          "type": { "enum": ["string", "password", "boolean", "select"] },
+          "label": { "description": "显示文字，或 locales 里的键。", "type": "string" },
+          "default": {},
+          "options": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "locales": { "description": "多语言资源目录，里面是 <语言>.json。", "type": "string" },
+    "author": { "type": "string" },
+    "homepage": { "type": "string", "format": "uri" },
+    "updateUrl": { "type": "string", "format": "uri" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "runtime": { "enum": ["js", "wasm"] } } },
+      "then": { "required": ["entry"] }
+    }
+  ]
+}

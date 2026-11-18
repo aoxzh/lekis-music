@@ -1,0 +1,20 @@
+<Project>
+  <!-- 所有 Windows 项目共用的设置。改这里之前先看 apps/windows/README.md。 -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- 可空警告一律当错误：桥接层和 ViewModel 里的 null 问题必须在编译期解决 -->
+    <WarningsAsErrors>$(WarningsAsErrors);nullable</WarningsAsErrors>
+    <Platforms>x64;ARM64</Platforms>
+    <Platform Condition="'$(Platform)' == '' Or '$(Platform)' == 'AnyCPU'">x64</Platform>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And '$(Platform)' == 'x64'">win-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And '$(Platform)' == 'ARM64'">win-arm64</RuntimeIdentifier>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <Version>0.1.0</Version>
+    <InformationalVersion>0.1.0-luna</InformationalVersion>
+  </PropertyGroup>
+</Project>

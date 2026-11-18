@@ -1,0 +1,39 @@
+//! 迁移执行器。新增迁移：在 `migrations/` 下加文件，并在 [`MIGRATIONS`] 末尾追加一行。
+
+use crate::db::DbResultExt;
+use lekis_types::{now_ms, Result};
+use rusqlite::Connection;
+
+/// 所有迁移（版本号严格递增，已合入的不能修改）。
+const MIGRATIONS: &[(i64, &str)] = &[(1, include_str!("../migrations/0001_init.sql"))];
+
+pub(crate) fn run(conn: &mut Connection) -> Result<()> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS schema_migrations (
+           version    INTEGER PRIMARY KEY,
+           applied_at INTEGER NOT NULL
+         );",
+    )
+    .db()?;
+
+    let current: i64 = conn
+        .query_row(
+            "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
+            [],
+            |r| r.get(0),
+        )
+        .db()?;
+
+    for (version, sql) in MIGRATIONS.iter().filter(|(v, _)| *v > current) {
+        tracing::info!(target: "library", version, "applying migration");
+        let tx = conn.transaction().db()?;
+        tx.execute_batch(sql).db()?;
+        tx.execute(
+            "INSERT INTO schema_migrations (version, applied_at) VALUES (?1, ?2)",
+            (version, now_ms()),
+        )
+        .db()?;
+        tx.commit().db()?;
+    }
+    Ok(())
+}

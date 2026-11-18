@@ -1,0 +1,20 @@
+[package]
+name = "lekis-vfs"
+description = "虚拟文件系统：本地 / SMB / WebDAV / NFS / SFTP 的统一读取接口。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+lekis-types.workspace = true
+async-trait.workspace = true
+bytes.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true

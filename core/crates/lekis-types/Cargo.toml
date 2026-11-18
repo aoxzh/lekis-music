@@ -1,0 +1,15 @@
+[package]
+name = "lekis-types"
+description = "Lekis 的领域模型、强类型 ID、错误和事件。纯数据，不做任何 IO。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true
