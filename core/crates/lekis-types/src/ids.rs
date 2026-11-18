@@ -40,7 +40,7 @@ local_id! {
 
 /// 跨设备、跨源稳定的曲目身份。
 ///
-/// 生成优先级（ARCHITECTURE.md 第 5 节）：`mb:<MusicBrainz 录音 ID>` > `ac:<AcoustID>` >
+/// 生成优先级：`mb:<MusicBrainz 录音 ID>` > `ac:<AcoustID>` >
 /// `h:<规范化的 艺人+标题+专辑+时长(取整到 2 秒) 的哈希>`。
 /// 同步日志、歌单、播放历史里引用曲目时**必须**用它。
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
