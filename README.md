@@ -21,8 +21,8 @@
 | 核心（全部业务逻辑）| Rust 2021，tokio，SQLite，symphonia | [`core/`](core/) |
 | 绑定层 | UniFFI（自动生成 Kotlin / C# 绑定）| [`core/crates/lekis-ffi`](core/crates/lekis-ffi) |
 | Android | Kotlin + Jetpack Compose + Media3 + Hilt | [`apps/android/`](apps/android/) |
-| Windows | C# / .NET 8 + WinUI 3（Windows App SDK）+ CommunityToolkit.Mvvm | [`apps/windows/`](apps/windows/) |
-| Linux | Rust + GTK4 + libadwaita（直接调用核心，不经过 FFI）| [`apps/linux/`](apps/linux/) |
+| Windows | C# / .NET 10 + WinUI 3（Windows App SDK）+ CommunityToolkit.Mvvm | [`apps/windows/`](apps/windows/) |
+| Linux | Rust + GTK4 + libadwaita（直接调用核心，不经过 FFI）| `apps/linux/`（未开始）|
 | 可选 NAS 节点 | Rust + axum（和客户端是同一个核心）| [`core/bins/lekis-node`](core/bins/lekis-node) |
 | 插件 SDK | WIT + TypeScript 类型 + JSON Schema | [`plugin-sdk/`](plugin-sdk/) |
 | 设计 Token | 三个平台共用的一份 JSON | [`design/`](design/) |
@@ -50,7 +50,7 @@
 ├── apps/
 │   ├── android/           Kotlin + Compose
 │   ├── windows/           C# + WinUI 3
-│   └── linux/             Rust + GTK4
+│   └── linux/             Rust + GTK4（未开始）
 ├── plugin-sdk/            插件协议（WIT / JSON Schema / TS SDK / 示例）
 ├── design/                设计 Token
 ├── tools/                 构建和代码生成脚本
@@ -63,7 +63,7 @@
 |---|---|
 | 核心 | Rust（版本见 [`core/rust-toolchain.toml`](core/rust-toolchain.toml)），`cargo install cargo-deny` |
 | Android | JDK 17、Android SDK + NDK r27、`cargo install cargo-ndk`、`rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android` |
-| Windows | .NET 8 SDK、Visual Studio 2022（"Windows 应用开发"工作负载）、`cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs` |
+| Windows | .NET 10 SDK、Visual Studio 2022（"Windows 应用开发"工作负载）、`cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs` |
 | Linux | `libgtk-4-dev`、`libadwaita-1-dev`、`libasound2-dev` |
 
 ## 常用命令
