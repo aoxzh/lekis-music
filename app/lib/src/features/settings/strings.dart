@@ -14,7 +14,7 @@ abstract final class SettingsStrings {
   static const modeExclusive = '独占';
   static const modeSharedHint = '和其他应用一起出声，系统会混音并可能重采样。';
   static const modeExclusiveHint =
-      '独占输出设备，音频不经系统混音、按原始采样率直送（比特完美）。播放期间其他应用将无法出声。';
+      '独占输出设备，音频不经系统混音、按原始采样率直送（比特完美）。独占播放时音量与 ReplayGain 不生效；播放期间其他应用将无法出声。';
   static const exclusiveUnsupported = '当前设备不支持独占模式';
   static const gapless = '无缝播放';
   static const gaplessHint = '去掉曲目之间的静音间隙，现场专辑和古典乐更连贯';

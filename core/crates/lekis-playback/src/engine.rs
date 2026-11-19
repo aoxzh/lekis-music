@@ -121,7 +121,7 @@ pub struct PlaybackSnapshot {
     pub volume: f32,
     /// 当前输出设备的 ID（PLY-05）；`None` 表示跟随系统默认设备。
     pub output_device: Option<String>,
-    /// 当前输出模式（PLY-12）。
+    /// 当前输出模式（PLY-12）。这是**实际**使用的模式：请求独占但打开失败时会退回共享。
     pub output_mode: OutputMode,
     /// 循环模式。
     pub repeat: RepeatMode,
@@ -709,6 +709,8 @@ impl State {
         // 上一首预装过的媒体也许正好就是这一首（手动 Next / 回退），`resolve` 会复用它。
         let resolved = self.resolve(track_id).await;
         self.queued_media = None;
+        // 先按用户的请求显示；会话真正开流后如果降级，会用实际模式覆盖。
+        self.snap.output_mode = self.mode;
         let media = match resolved {
             Ok(media) => media,
             Err(e) => {
@@ -740,6 +742,8 @@ impl State {
                     .unwrap_or(0);
                 self.last_audible_splice_count = session.splice_count();
                 self.last_decoded_splice_count = session.splice_count();
+                // 请求独占但设备忙 / 格式不支持时会话已退回共享：快照必须反映实际模式。
+                self.snap.output_mode = session.output_mode();
                 tracing::debug!(
                     target: "playback",
                     %track_id,
@@ -747,6 +751,8 @@ impl State {
                     channels = session.format().channels,
                     device_rate = session.device_format().sample_rate,
                     device_channels = session.device_format().channels,
+                    bit_perfect = session.native_bit_perfect(),
+                    actual_mode = ?session.output_mode(),
                     "playing"
                 );
                 self.session = Some(session);
@@ -845,6 +851,15 @@ impl State {
     /// 只预装一首，样本不会整首缓存；解码线程解多少写多少，环形缓冲仍然只有 300 ms。
     fn pump_gapless(&mut self) {
         if !self.gapless || self.session.is_none() {
+            return;
+        }
+        // 独占 / 比特完美会话暂不支持样本级拼接：预装没有意义，让引擎在 EOF 时
+        // 走普通路径（queue.advance + 重建会话）。
+        if self
+            .session
+            .as_ref()
+            .is_some_and(Session::native_bit_perfect)
+        {
             return;
         }
         // 解码线程可能已经拼上了下一首（还没播到）：先推进内部媒体状态，

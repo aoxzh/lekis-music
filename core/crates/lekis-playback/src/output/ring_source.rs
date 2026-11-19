@@ -13,7 +13,7 @@
 //! // 输出后端：source.fill(buf)（在 cpal 回调里）
 //! ```
 
-use crate::output::SampleSource;
+use crate::output::{NativeSampleSource, SampleSource};
 use ringbuf::traits::{Consumer, Observer, Producer, Split};
 use ringbuf::{HeapCons, HeapProd, HeapRb};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -195,6 +195,12 @@ impl SampleSource for RingSource<f32> {
     }
 }
 
+impl NativeSampleSource for RingSource<i32> {
+    fn fill(&mut self, out: &mut [i32]) -> usize {
+        self.fill_samples(out)
+    }
+}
+
 /// 创建一对（写端, 读端）和一个进度句柄。`capacity` 是**样本数**（帧数 × 声道）。
 pub fn ring_buffer(capacity: usize, channels: u16) -> (RingSourceWriter, RingSource, RingProgress) {
     ring_buffer_of::<f32>(capacity, channels)
@@ -311,5 +317,19 @@ mod tests {
         let stop = AtomicBool::new(false);
         let acked = progress.wait_flush_ack(seq, &stop, Duration::from_millis(20));
         assert!(!acked, "没有消费者时握手必须超时返回，不能卡死");
+    }
+
+    /// 比特完美链路用 i32 环形缓冲：样本必须逐位保持，不能经过任何转换。
+    #[test]
+    fn i32_ring_preserves_bit_patterns() {
+        let (mut writer, mut source, progress) = ring_buffer_of::<i32>(1024, 2);
+        let samples = [0x7f_ff_ff_ff, -0x80_00_00_00, 0x00_00_00_01, -1];
+        assert_eq!(writer.push(&samples), 4);
+        progress.add_pushed(4);
+
+        let mut out = [0i32; 4];
+        assert_eq!(NativeSampleSource::fill(&mut source, &mut out), 4);
+        assert_eq!(out, samples);
+        assert!(progress.drained());
     }
 }

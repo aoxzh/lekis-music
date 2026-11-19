@@ -2,6 +2,9 @@
 //
 // 运行：flutter run -t lib/main_smoke.dart --dart-define=MUSIC_DIR=<音乐目录>
 // 不传 MUSIC_DIR 时：Android 用 /storage/emulated/0/Music，桌面用 ~/Music。
+//
+// CI 用：加 `--dart-define=SMOKE_OK_EXIT=true`，播放进度到 1.5 秒后打印 SMOKE_OK 并退出 0；
+// 加 `--dart-define=SMOKE_LOG=<文件>` 可把日志写进文件（Windows release 没有控制台）。
 
 import 'dart:async';
 import 'dart:io';
@@ -13,6 +16,11 @@ import 'package:lekis/src/bridge/core_init.dart';
 import 'package:lekis/src/rust/api/core.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/rust/frb_generated.dart';
+
+/// 必须是顶层 const，否则 release 下 `fromEnvironment` 读不到 `--dart-define`。
+const bool _smokeOkExit = bool.fromEnvironment('SMOKE_OK_EXIT');
+const bool _smokeExclusive = bool.fromEnvironment('SMOKE_EXCLUSIVE');
+const String _smokeLogPath = String.fromEnvironment('SMOKE_LOG');
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,11 +51,26 @@ class _SmokePageState extends State<SmokePage> {
   String _status = '';
   StreamSubscription<CoreEventDto>? _sub;
   Completer<void>? _scanDone;
+  int _lastPositionSecond = -1;
+  bool _exiting = false;
+  bool _loggedOutputMode = false;
 
   void _add(String line) {
     // ignore: avoid_print
     print('[smoke] $line');
+    _writeLog(line);
     setState(() => _log.add(line));
+  }
+
+  /// 把冒烟结果同时写进文件：Windows release EXE 没有控制台，CI 只能靠文件读结果。
+  static void _writeLog(String line) {
+    if (_smokeLogPath.isEmpty) return;
+    try {
+      File(_smokeLogPath)
+          .writeAsStringSync('[smoke] $line\n', mode: FileMode.append);
+    } on Object {
+      // 日志失败不能影响冒烟流程。
+    }
   }
 
   @override
@@ -73,13 +96,36 @@ class _SmokePageState extends State<SmokePage> {
       _sub = coreEvents().listen((e) {
         switch (e) {
           case CoreEventDto_PositionTick(:final positionMs):
-            setState(() => _status = 'position ${positionMs}ms');
+            final position = positionMs.toInt();
+            setState(() => _status = 'position ${position}ms');
+            final second = position ~/ 1000;
+            if (second != _lastPositionSecond) {
+              _lastPositionSecond = second;
+              // ignore: avoid_print
+              print('[smoke] position ${position}ms');
+              _writeLog('position ${position}ms');
+            }
+            // 可选的 CI 退出：进度真的推进了 1.5 秒才算 Phase 0 冒烟通过。
+            if (_smokeOkExit && position >= 1500 && !_exiting) {
+              _exiting = true;
+              _add('SMOKE_OK position=${position}ms');
+              Future<void>.delayed(
+                const Duration(milliseconds: 200),
+                () => exit(0),
+              );
+            }
           case CoreEventDto_PlaybackChanged(
             :final state,
             :final trackId,
             :final durationMs,
           ):
             _add('playback $state track=$trackId duration=${durationMs}ms');
+            if (state == PlaybackStateDto.playing && !_loggedOutputMode) {
+              _loggedOutputMode = true;
+              // 独占请求被设备拒绝时，核心会把实际模式降级成 shared；这里记录的必须是实际值。
+              final mode = playbackSnapshot().outputMode.name;
+              _add('actual output mode=$mode');
+            }
           case CoreEventDto_ScanProgress(
             :final phase,
             :final done,
@@ -99,6 +145,10 @@ class _SmokePageState extends State<SmokePage> {
       });
 
       final dir = _musicDir();
+      if (_smokeExclusive) {
+        setOutputMode(mode: OutputModeDto.exclusive);
+        _add('requested exclusive output');
+      }
       final sources = await listSources();
       PlatformInt64 sourceId;
       final existing = sources.where((s) => s.addresses.contains(dir)).toList();
