@@ -2,7 +2,7 @@
 
 跨平台、开箱即用的本地 / NAS 音乐播放器。不需要部署服务器，直接播放本机和 NAS（SMB / WebDAV / NFS / SFTP）上的音乐，也能接入 Navidrome、Jellyfin、Plex 等自有服务器；自动补全封面和歌词；支持社区插件。
 
-> 当前状态：**核心可用，UI 正在迁移到 Flutter**。核心（Rust）的扫描、标签解析、资料库、搜索、播放、网络音源、补全、同步、插件运行时都有真实实现。UI 从三套原生改为一套 Flutter（[ADR-0006](docs/adr/0006-flutter-ui.md)），旧的 `apps/` 已冻结。当前阶段和下一步见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+> 当前状态：**Phase 0 已通过，Alpha 收尾中**。核心（Rust）的扫描、标签解析、资料库、搜索、播放、无缝播放、WASAPI 独占、网络音源、补全、同步、插件运行时都有真实实现。Flutter 客户端（`app/`）已覆盖 Windows + Android：播放、歌词、文件夹、NAS 发现、歌单、会话恢复和动态 TabBar 可用；旧的 `apps/` 已冻结。当前阶段和下一步见 [docs/ROADMAP.md](docs/ROADMAP.md)，第三方许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## 必读文档
 
@@ -61,11 +61,12 @@
 | 目标 | 需要安装 |
 |---|---|
 | 核心 | Rust（版本见 [`core/rust-toolchain.toml`](core/rust-toolchain.toml)），`cargo install cargo-deny` |
-| Android | JDK 17、Android SDK + NDK r27、`cargo install cargo-ndk`、`rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android` |
-| Windows | .NET 10 SDK（Windows App SDK 由 NuGet 包提供，**不强制要求 Visual Studio**）、`cargo install uniffi-bindgen-cs --git https://github.com/NordSecurity/uniffi-bindgen-cs` |
-| Linux | `libgtk-4-dev`、`libadwaita-1-dev`、`libasound2-dev` |
+| Flutter App | Flutter stable（3.50+，见 `app/.metadata`）、`dart`；`flutter doctor` 通过 |
+| Android | JDK 17、Android SDK 37 + NDK `28.2.13676358`、`rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android`；Cargokit 会在 `flutter build` 时自动编译 Rust |
+| Windows | Flutter Windows 桌面工具链 + Visual Studio 的 C++ 桌面负载（Cargokit 需要 MSVC）；本机开发和测试 |
+| Linux | 后续 Beta 再补 GTK/Flutter Linux 依赖 |
 
-Windows 上用 `x86_64-pc-windows-gnu` 工具链开发时，先 dot-source [`tools/env-windows-gnu.ps1`](tools/env-windows-gnu.ps1)：它会配好 `dlltool`（**必须用 GNU binutils 的 `dlltool.exe`，`llvm-dlltool` 生成的 import library 会让程序一启动就 `0xC0000005`**）、CC/AR 和 `CARGO_HOME`。
+Windows 上用 GNU Rust 工具链开发核心时，先 dot-source [`tools/env-windows-gnu.ps1`](tools/env-windows-gnu.ps1)：它会配好 `dlltool`（**必须用 GNU binutils 的 `dlltool.exe`，`llvm-dlltool` 生成的 import library 会让程序一启动就 `0xC0000005`**）、CC/AR 和 `CARGO_HOME`。Flutter Windows App 本身用 MSVC 构建。
 
 ## 常用命令
 
@@ -75,16 +76,26 @@ cd core && cargo fmt --all && cargo clippy --workspace --all-targets -- -D warni
 ```
 
 ```bash
-# 生成 Kotlin / C# 绑定（核心的对外接口变了之后必须重新生成）
-./tools/gen-bindings.sh
+# Flutter App：静态分析 + 单元/组件测试
+cd app && flutter pub get && flutter analyze && flutter test
 ```
 
 ```bash
-# Android：先编译核心的 .so，再编译 App
-./tools/build-android-core.sh && cd apps/android && ./gradlew assembleDebug
+# Android：Cargokit 会自动构建 Rust 核心；只打 arm64 最快
+cd app && flutter build apk --release --target-platform android-arm64
+# 安装到主调试机 Fold5（SM-F946N）
+adb -s <fold5-serial> install -r build/app/outputs/flutter-apk/app-release.apk
 ```
 
 ```powershell
-# Windows：先编译核心的 .dll，再编译 App
-./tools/build-windows-core.ps1; dotnet build apps/windows/Lekis.Windows.sln -c Debug -p:Platform=x64
+# Windows：本机 release 构建，产物在 app/build/windows/x64/runner/Release/lekis.exe
+cd app; flutter build windows --release
 ```
+
+```bash
+# 10 万首性能库（可选）：生成到任意本地数据目录（不要提交）
+cd core && cargo run -p lekis-library --example seed_fake_library --release -- <data-dir> 100000
+# 构建时用 --dart-define=LEKIS_DATA_DIR=<data-dir> 指向它；正常安装不要带这个参数
+```
+
+> Android 主调试机是 **Samsung Fold5（SM-F946N）**；Windows 就在本机开发和测试。旧的 `apps/android`、`apps/windows` 是冻结的原生 UI，不再作为日常构建目标。
