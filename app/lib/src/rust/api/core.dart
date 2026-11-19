@@ -208,6 +208,45 @@ Future<String?> getSetting({required String key}) =>
 Future<void> setSetting({required String key, required String value}) =>
     RustLib.instance.api.crateApiCoreSetSetting(key: key, value: value);
 
+/// 已安装插件列表。清单损坏的插件也会返回，错误放在 `error` 字段。
+Future<List<PluginInfoDto>> plugins() =>
+    RustLib.instance.api.crateApiCorePlugins();
+
+/// 从本地文件夹或 `.zip` 安装插件。
+Future<PluginInfoDto> installPluginFromPath({required String path}) =>
+    RustLib.instance.api.crateApiCoreInstallPluginFromPath(path: path);
+
+/// 启用 / 停用插件（状态持久化）。
+Future<void> setPluginEnabled({
+  required String pluginId,
+  required bool enabled,
+}) => RustLib.instance.api.crateApiCoreSetPluginEnabled(
+  pluginId: pluginId,
+  enabled: enabled,
+);
+
+/// 移除插件及其数据目录和设置。
+Future<void> removePlugin({required String pluginId}) =>
+    RustLib.instance.api.crateApiCoreRemovePlugin(pluginId: pluginId);
+
+/// 插件的设置项及当前值（密码项不回传值）。
+Future<List<PluginSettingDto>> pluginSettings({required String pluginId}) =>
+    RustLib.instance.api.crateApiCorePluginSettings(pluginId: pluginId);
+
+/// 保存一个插件设置项。
+Future<void> setPluginSetting({
+  required String pluginId,
+  required String key,
+  required String value,
+}) => RustLib.instance.api.crateApiCoreSetPluginSetting(
+  pluginId: pluginId,
+  key: key,
+  value: value,
+);
+
+/// 本地插件目录（设置页可以复制路径）。
+String pluginsDir() => RustLib.instance.api.crateApiCorePluginsDir();
+
 /// 告诉核心当前的网络环境（`away = true` 表示离开了家庭网络）。
 /// 平台层在 Wi-Fi 切换时调用（SRC-14）。
 void setNetworkAway({required bool away}) =>

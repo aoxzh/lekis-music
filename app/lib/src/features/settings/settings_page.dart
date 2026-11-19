@@ -9,6 +9,7 @@ import '../../shell/app_shell.dart';
 import '../../shell/tab_bar_style.dart';
 import '../../theme/tokens.dart';
 import '../enrich/enrich_providers.dart';
+import '../plugins/plugins_providers.dart';
 import '../sources/common.dart';
 import 'scrobble_providers.dart';
 import 'settings_providers.dart';
@@ -41,6 +42,10 @@ class SettingsPage extends StatelessWidget {
               child: _AppearanceSection(),
             ),
             _Section(title: SettingsStrings.library, child: _LibrarySection()),
+            _Section(
+              title: SettingsStrings.plugins,
+              child: PluginsSettingsTile(),
+            ),
             _Section(
               title: SettingsStrings.scrobbling,
               child: _ScrobbleSection(),
@@ -404,6 +409,36 @@ class _LibrarySection extends ConsumerWidget {
           onTap: () => openEnrichReview(context),
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 插件
+// ---------------------------------------------------------------------------
+
+/// 设置页里的插件入口。放在这里方便单独测试列表摘要状态。
+class PluginsSettingsTile extends ConsumerWidget {
+  const PluginsSettingsTile({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final plugins = ref.watch(pluginListProvider);
+    final count = plugins.value?.length;
+    final subtitle = plugins.hasError
+        ? SettingsStrings.pluginLoadFailed
+        : count == null
+        ? SettingsStrings.unavailable
+        : count == 0
+        ? SettingsStrings.pluginsEmpty
+        : SettingsStrings.pluginsInstalled(count);
+    return ListTile(
+      minTileHeight: LekisSizes.touchTargetMin,
+      leading: const Icon(Icons.extension_outlined),
+      title: const Text(SettingsStrings.plugins),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => openPlugins(context),
     );
   }
 }

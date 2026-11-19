@@ -3,6 +3,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'package:lekis/src/features/enrich/enrich_review_page.dart';
+import 'package:lekis/src/features/plugins/plugins_page.dart';
 
 export 'package:lekis/src/features/now_playing/now_playing_route.dart'
     show NowPlayingRoute, openNowPlaying;
@@ -16,3 +17,11 @@ Future<void> openEnrichReview(BuildContext context) =>
         builder: (_) => const EnrichReviewPage(),
       ),
     );
+
+/// Opens the local plugin manager inside the current tab.
+Future<void> openPlugins(BuildContext context) => Navigator.of(context).push(
+  MaterialPageRoute<void>(
+    settings: const RouteSettings(name: '/plugins'),
+    builder: (_) => const PluginsPage(),
+  ),
+);

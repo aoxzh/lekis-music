@@ -28,6 +28,23 @@ pub enum PluginKind {
     Visualizer,
 }
 
+impl PluginKind {
+    /// 稳定的字符串形式（和清单 JSON 里的值一致）。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Source => "source",
+            Self::Lyrics => "lyrics",
+            Self::Artwork => "artwork",
+            Self::Metadata => "metadata",
+            Self::Scrobbler => "scrobbler",
+            Self::PlaylistImporter => "playlist_importer",
+            Self::Theme => "theme",
+            Self::LyricsStyle => "lyrics_style",
+            Self::Visualizer => "visualizer",
+        }
+    }
+}
+
 /// 能力（= 插件导出的函数名）。新增能力只能往后加。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -64,6 +81,17 @@ pub enum RuntimeKind {
     Wasm,
     /// 不执行代码（主题）。
     None,
+}
+
+impl RuntimeKind {
+    /// 稳定的字符串形式（和清单 JSON 里的值一致）。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Js => "js",
+            Self::Wasm => "wasm",
+            Self::None => "none",
+        }
+    }
 }
 
 /// 播放方式。
@@ -112,6 +140,18 @@ pub enum SettingType {
     Select,
 }
 
+impl SettingType {
+    /// 稳定的字符串形式（和清单 JSON 里的值一致）。
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::String => "string",
+            Self::Password => "password",
+            Self::Boolean => "boolean",
+            Self::Select => "select",
+        }
+    }
+}
+
 /// 一个设置项（宿主据此自动生成设置界面）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SettingSpec {
@@ -122,6 +162,9 @@ pub struct SettingSpec {
     pub kind: SettingType,
     /// 标签（可以是 `locales` 里的键）。
     pub label: String,
+    /// 帮助文本（可选，可以是 `locales` 里的键）。
+    #[serde(default)]
+    pub help: Option<String>,
     /// 默认值。
     #[serde(default)]
     pub default: Option<serde_json::Value>,
@@ -240,5 +283,38 @@ mod tests {
         let json = r#"{"id":"Bad Id","name":"x","version":"1.0.0","apiVersion":"1.0",
             "minAppVersion":"0.1.0","runtime":"js","entry":"index.ts","kinds":["lyrics"]}"#;
         assert!(PluginManifest::parse(json).is_err());
+    }
+
+    #[test]
+    fn rejects_code_plugin_without_entry() {
+        let json = r#"{"id":"dev.lekis.example.no-entry","name":"x","version":"1.0.0",
+            "apiVersion":"1.0","minAppVersion":"0.1.0","runtime":"js","kinds":["lyrics"]}"#;
+        let error = PluginManifest::parse(json).unwrap_err();
+        assert_eq!(error.code, lekis_types::ErrorCode::InvalidArgument);
+    }
+
+    #[test]
+    fn rejects_unsupported_api_major() {
+        let json = r#"{"id":"dev.lekis.example.api2","name":"x","version":"1.0.0",
+            "apiVersion":"2.0","minAppVersion":"0.1.0","runtime":"js","entry":"index.js",
+            "kinds":["lyrics"]}"#;
+        let error = PluginManifest::parse(json).unwrap_err();
+        assert_eq!(error.code, lekis_types::ErrorCode::Unsupported);
+    }
+
+    #[test]
+    fn rejects_empty_kinds() {
+        let json = r#"{"id":"dev.lekis.example.empty","name":"x","version":"1.0.0",
+            "apiVersion":"1.0","minAppVersion":"0.1.0","runtime":"none","kinds":[]}"#;
+        assert!(PluginManifest::parse(json).is_err());
+    }
+
+    #[test]
+    fn accepts_theme_without_entry() {
+        let json = r#"{"id":"dev.lekis.example.theme","name":"x","version":"1.0.0",
+            "apiVersion":"1.0","minAppVersion":"0.1.0","runtime":"none","kinds":["theme"]}"#;
+        let manifest = PluginManifest::parse(json).unwrap();
+        assert_eq!(manifest.runtime, RuntimeKind::None);
+        assert_eq!(manifest.kinds, vec![PluginKind::Theme]);
     }
 }

@@ -1458,6 +1458,130 @@ impl From<t::CoreEvent> for CoreEventDto {
     }
 }
 
+// ---------------------------------------------------------------------------
+// 本地插件（PLG-01~07）
+// ---------------------------------------------------------------------------
+
+/// 插件声明的权限摘要。
+#[derive(Debug, Clone)]
+pub struct PluginPermissionsDto {
+    /// 允许访问的域名。
+    pub network: Vec<String>,
+    /// 允许启动的外部程序。
+    pub process: Vec<String>,
+    /// 需要附加请求头的域名（不包含头的值）。
+    pub request_header_hosts: Vec<String>,
+    /// 是否需要网页登录。
+    pub web_sign_in: bool,
+    /// 存储配额（KB）。
+    pub storage_kb: u32,
+}
+
+impl From<lekis_core::PluginPermissions> for PluginPermissionsDto {
+    fn from(p: lekis_core::PluginPermissions) -> Self {
+        Self {
+            network: p.network,
+            process: p.process,
+            request_header_hosts: p.request_header_hosts,
+            web_sign_in: p.web_sign_in,
+            storage_kb: p.storage_kb,
+        }
+    }
+}
+
+/// 一个插件设置项及当前值。
+#[derive(Debug, Clone)]
+pub struct PluginSettingDto {
+    /// 设置 key。
+    pub key: String,
+    /// 展示标签（可能是 locales 里的键）。
+    pub label: String,
+    /// 帮助文字（可能是 locales 里的键）。
+    pub help: Option<String>,
+    /// `string` / `password` / `boolean` / `select`。
+    pub kind: String,
+    /// 下拉选项。
+    pub options: Vec<String>,
+    /// 默认值（密码为空）。
+    pub default_value: Option<String>,
+    /// 当前值（密码永远为 `None`）。
+    pub value: Option<String>,
+    /// 是否已经保存过值。
+    pub has_value: bool,
+    /// 是否是密码项。
+    pub secret: bool,
+}
+
+impl From<lekis_core::PluginSettingView> for PluginSettingDto {
+    fn from(s: lekis_core::PluginSettingView) -> Self {
+        Self {
+            key: s.key,
+            label: s.label,
+            help: s.help,
+            kind: s.kind,
+            options: s.options,
+            default_value: s.default,
+            value: s.value,
+            has_value: s.has_value,
+            secret: s.secret,
+        }
+    }
+}
+
+/// 已安装的本地插件。
+#[derive(Debug, Clone)]
+pub struct PluginInfoDto {
+    /// 插件 id；清单损坏时是目录名。
+    pub id: String,
+    /// 名称；清单损坏时是目录名。
+    pub name: String,
+    /// 版本。
+    pub version: String,
+    /// 插件 API 版本。
+    pub api_version: String,
+    /// `js` / `wasm` / `none`。
+    pub runtime: String,
+    /// 插件类型。
+    pub kinds: Vec<String>,
+    /// 入口文件。
+    pub entry: Option<String>,
+    /// 是否启用。
+    pub enabled: bool,
+    /// 清单错误（正常为 `None`）。
+    pub error: Option<String>,
+    /// 插件目录名。
+    pub directory: String,
+    /// 作者。
+    pub author: Option<String>,
+    /// 主页。
+    pub homepage: Option<String>,
+    /// 权限摘要。
+    pub permissions: PluginPermissionsDto,
+    /// 设置项。
+    pub settings: Vec<PluginSettingDto>,
+}
+
+impl From<lekis_core::PluginInfo> for PluginInfoDto {
+    fn from(p: lekis_core::PluginInfo) -> Self {
+        Self {
+            id: p.id,
+            name: p.name,
+            version: p.version,
+            api_version: p.api_version,
+            runtime: p.runtime,
+            kinds: p.kinds,
+            entry: p.entry,
+            enabled: p.enabled,
+            error: p.error,
+            directory: p.directory,
+            author: p.author,
+            homepage: p.homepage,
+            permissions: p.permissions.into(),
+            settings: p.settings.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

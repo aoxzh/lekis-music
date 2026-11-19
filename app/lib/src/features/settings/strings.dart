@@ -45,6 +45,11 @@ abstract final class SettingsStrings {
   static const enrichReviewHint = '检查自动找到的封面、歌词和标签';
   static String pendingCount(int n) => '$n 条待确认';
 
+  static const plugins = '插件';
+  static const pluginsEmpty = '未安装插件';
+  static const pluginLoadFailed = '读取插件列表失败';
+  static String pluginsInstalled(int n) => '已安装 $n 个插件';
+
   static const scrobbling = '听歌记录';
   static const scrobbleEnable = '上报听歌记录';
   static const scrobbleEnableHint =
