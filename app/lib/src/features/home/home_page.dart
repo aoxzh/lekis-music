@@ -14,6 +14,7 @@ import 'package:lekis/src/features/player/widgets/player_controls.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/routes.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/brand_mark.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Home: continue listening, recently added, most played.
@@ -57,13 +58,24 @@ class HomePage extends ConsumerWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'LEKIS · 本地资料库',
-                                style: Theme.of(context).textTheme.labelSmall
-                                    ?.copyWith(
-                                      color: context.lekisColors.moon,
-                                      letterSpacing: 1.6,
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const LekisBrandMark(size: 28),
+                                  const SizedBox(width: LekisSpacing.sm),
+                                  Flexible(
+                                    child: Text(
+                                      'LEKIS · 本地资料库',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall
+                                          ?.copyWith(
+                                            color: context.lekisColors.moon,
+                                            letterSpacing: 1.6,
+                                          ),
                                     ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: LekisSpacing.xs),
                               Text(

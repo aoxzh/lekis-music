@@ -5,6 +5,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/brand_mark.dart';
 
 import 'destinations.dart';
 import 'nav_icon.dart';
@@ -189,28 +190,8 @@ class _MoonMark extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = context.lekisColors;
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [
-            colors.moon.withValues(alpha: 0.30),
-            colors.accentSoft.withValues(alpha: 0.35),
-          ],
-        ),
-        border: Border.all(color: colors.moon.withValues(alpha: 0.35)),
-      ),
-      child: Icon(
-        Icons.nightlight_round,
-        size: size * 0.46,
-        color: colors.moon,
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      LekisBrandMark(size: size, glow: true);
 }
 
 class _SidebarItem extends StatelessWidget {

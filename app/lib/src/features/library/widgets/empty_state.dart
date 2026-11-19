@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:lekis/src/rust/api/error.dart';
 import 'package:lekis/src/shell/app_shell.dart';
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/brand_mark.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Shared empty / first-run state: a quiet moonrise instead of a bare icon.
@@ -109,8 +110,8 @@ class _Moonrise extends StatelessWidget {
             ),
           ),
           Container(
-            width: 92,
-            height: 92,
+            width: 96,
+            height: 96,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: RadialGradient(
@@ -122,7 +123,28 @@ class _Moonrise extends StatelessWidget {
               ),
               border: Border.all(color: colors.moon.withValues(alpha: 0.35)),
             ),
-            child: Icon(icon, size: 36, color: colors.moon),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const LekisBrandMark(size: 78, ring: false),
+                Positioned(
+                  right: 3,
+                  bottom: 3,
+                  child: Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: colors.surfaceElevated,
+                      border: Border.all(
+                        color: colors.moon.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Icon(icon, size: 15, color: colors.moon),
+                  ),
+                ),
+              ],
+            ),
           ),
           Positioned(
             right: 24,

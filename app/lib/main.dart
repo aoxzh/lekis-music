@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -30,16 +32,30 @@ Future<void> main() async {
     return;
   }
 
-  // 把保存的设置交还给核心和界面（失败不影响启动）。
+  // 主题要在首帧前恢复，避免先闪一下默认主题；其余服务不阻塞首帧。
   final container = ProviderContainer();
-  await Future.wait([
-    restoreThemePreference(container),
-    restorePlaybackOutput(),
-  ]);
-  // 锁屏 / 通知栏 / 系统媒体控制 / 媒体键。
-  await initSystemMediaSession();
+  await restoreThemePreference(container);
 
   runApp(
     UncontrolledProviderScope(container: container, child: const LekisApp()),
   );
+
+  // 播放输出和锁屏 / 通知栏 / 系统媒体控制可以晚于首帧初始化。
+  // 失败只记日志，不影响界面；这样冷启动只等核心和主题。
+  unawaited(_startBackgroundServices());
+}
+
+Future<void> _startBackgroundServices() async {
+  try {
+    await Future.wait([restorePlaybackOutput(), initSystemMediaSession()]);
+  } catch (error, stack) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stack,
+        library: 'lekis',
+        context: ErrorDescription('while starting background playback services'),
+      ),
+    );
+  }
 }
