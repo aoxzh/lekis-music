@@ -276,6 +276,23 @@ final queuePreviewProvider = FutureProvider.autoDispose<List<TrackRowDto>>((
   return core.queueItems(offset: start, limit: limit);
 });
 
+/// The whole playback queue, paged on demand.
+///
+/// The panel can show a 100k-track queue without loading it all: pages are
+/// fetched when rows scroll into view. Rebuilt after every queue change so
+/// remove / move operations land immediately.
+final queueListProvider = Provider.autoDispose<PagedList<TrackRowDto>>((ref) {
+  ref.watch(playbackProvider.select((s) => s.queueVersion));
+  final length = ref.watch(playbackProvider.select((s) => s.queueLength));
+  final list = PagedList<TrackRowDto>(
+    fetch: (offset, limit) => core.queueItems(offset: offset, limit: limit),
+    pageSize: 100,
+    count: () async => length,
+  );
+  ref.onDispose(list.dispose);
+  return list;
+});
+
 /// Commands. All are fire-and-forget; state comes back through events.
 class PlayerActions {
   PlayerActions(this._ref);
@@ -392,6 +409,54 @@ class PlayerActions {
     bool shuffle = false,
   }) =>
       playTracks([for (final r in rows) r.id], start: start, shuffle: shuffle);
+
+  /// Play an album from the cover wall. The core expands the album into a
+  /// queue itself, so the UI only sends one id even for huge libraries.
+  Future<void> playAlbum(int albumId) async {
+    try {
+      await core.playContext(
+        context: PlayContextDto.album(albumId: albumId),
+        startIndex: 0,
+      );
+    } catch (e) {
+      final message = e is CoreError ? '${e.kind.name}: ${e.detail}' : '$e';
+      debugPrint('player playAlbum failed: $message');
+    }
+  }
+
+  /// Jump to queue row [index].
+  ///
+  /// The bridge has no `play_queue_index` yet. For queues up to 500 rows the
+  /// complete queue is rebuilt and playback starts at the tapped row; larger
+  /// queues restart from a bounded window beginning at that row (the earlier
+  /// history is dropped) instead of materialising 100k ids in Dart.
+  Future<void> playQueueAt(int index) async {
+    final length = _ref.read(playbackProvider).queueLength;
+    if (length == 0) return;
+    final target = index.clamp(0, length - 1);
+    try {
+      if (length <= 500) {
+        final rows = await core.queueItems(offset: 0, limit: length);
+        if (rows.isEmpty) return;
+        playTracks([for (final row in rows) row.id], start: target);
+        return;
+      }
+      final rows = await core.queueItems(offset: target, limit: 500);
+      if (rows.isEmpty) return;
+      playTracks([for (final row in rows) row.id], start: 0);
+    } catch (e) {
+      final message = e is CoreError ? '${e.kind.name}: ${e.detail}' : '$e';
+      debugPrint('player playQueueAt failed: $message');
+    }
+  }
+
+  void removeQueueAt(int index) =>
+      _guard('queueRemove', () => core.queueRemove(index: index));
+
+  void moveQueueItem(int from, int to) {
+    if (from == to) return;
+    _guard('queueMove', () => core.queueMove(from: from, to: to));
+  }
 
   /// 把整个文件夹放进队列并从头播放（目录可以大于内存里的已加载窗口）。
   Future<bool> playFolder(int sourceId, String path) async {

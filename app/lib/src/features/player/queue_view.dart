@@ -1,9 +1,11 @@
-// Queue preview used by the desktop context panel and the mobile bottom sheet.
+// Compact queue preview used by the mobile bottom sheet. Wide windows use
+// the full, paged QueuePanel instead.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/player/queue_panel.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
@@ -138,9 +140,14 @@ class QueueList extends ConsumerWidget {
   }
 }
 
-/// Opens the queue as a bottom sheet (medium / compact windows, or from the
-/// desktop player bar).
+/// Opens the queue: a right-hand side panel on expanded / wide windows, the
+/// familiar bottom sheet on medium / compact ones.
 Future<void> showQueueSheet(BuildContext context) {
+  if (usesQueueSidePanel(context)) return showQueueSidePanel(context);
+  return _showQueueBottomSheet(context);
+}
+
+Future<void> _showQueueBottomSheet(BuildContext context) {
   final length = ProviderScope.containerOf(context)
       .read(playbackProvider)
       .queueLength;

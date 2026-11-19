@@ -56,6 +56,12 @@ abstract final class LekisSizes {
   static const double miniPlayerMargin = 8;
   static const double desktopPlayerBarHeight = 92;
   static const double desktopSidebarWidth = 248;
+
+  /// Right-hand playback queue panel on wide windows.
+  static const double desktopQueuePanelWidth = 320;
+
+  /// Minimum cover side in the Now Playing cover wall.
+  static const double coverWallTileMin = 120;
   static const double touchTargetMin = 48;
 }
 

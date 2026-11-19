@@ -3,6 +3,8 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
+import 'package:lekis/src/features/now_playing/now_playing_layout.dart';
+import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_view.dart';
 import 'package:lekis/src/theme/theme.dart';
@@ -103,6 +105,14 @@ class _NowPlayingArtworkState extends ConsumerState<NowPlayingArtwork>
     _swipe.value += d.delta.dx;
   }
 
+  void _openQueue() {
+    if (usesNowPlayingSidePanels(context)) {
+      ref.read(nowPlayingPaneProvider.notifier).set(NowPlayingPane.queue);
+    } else {
+      showQueueSheet(context);
+    }
+  }
+
   void _onSwipeEnd(DragEndDetails d, {required bool reducedMotion}) {
     final v = d.primaryVelocity ?? 0;
     final dx = _swipe.value;
@@ -176,13 +186,12 @@ class _NowPlayingArtworkState extends ConsumerState<NowPlayingArtwork>
               customSemanticsActions: {
                 const CustomSemanticsAction(label: '上一首'): actions.previous,
                 const CustomSemanticsAction(label: '下一首'): actions.next,
-                const CustomSemanticsAction(label: '播放队列'): () =>
-                    showQueueSheet(context),
+                const CustomSemanticsAction(label: '播放队列'): _openQueue,
               },
               child: ExcludeSemantics(
                 child: GestureDetector(
                   onTap: actions.playPause,
-                  onLongPress: () => showQueueSheet(context),
+                  onLongPress: _openQueue,
                   onHorizontalDragUpdate: _onSwipeUpdate,
                   onHorizontalDragEnd: (d) =>
                       _onSwipeEnd(d, reducedMotion: reducedMotion),
