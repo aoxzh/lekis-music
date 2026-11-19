@@ -72,7 +72,7 @@ flutter:
 
   # The rabbit mascot is the same artwork as the launcher icon.
   assets:
-    - app_icon.png
+    - assets/brand/mark.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

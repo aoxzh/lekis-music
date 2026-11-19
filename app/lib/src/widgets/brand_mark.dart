@@ -22,7 +22,7 @@ class LekisBrandMark extends StatelessWidget {
     final mark = ClipRRect(
       borderRadius: BorderRadius.circular(size * 0.24),
       child: Image.asset(
-        'app_icon.png',
+        'assets/brand/mark.png',
         width: size,
         height: size,
         fit: BoxFit.cover,
