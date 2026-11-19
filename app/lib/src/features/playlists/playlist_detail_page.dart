@@ -1,6 +1,7 @@
 // 歌单详情：普通歌单可增删 / 上下移动；智能歌单展示实时规则结果。
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
@@ -145,6 +146,10 @@ class _StaticPlaylistBody extends ConsumerWidget {
     final entries = ref.watch(playlistEntriesProvider(playlist.id));
     final gutter = pageGutterOf(context);
     final rows = entries.value ?? const <PlaylistEntryDto>[];
+    final downloadIds = rows
+        .where((entry) => entry.track != null)
+        .map((entry) => entry.track!.id)
+        .toList(growable: false);
 
     return CustomScrollView(
       key: PageStorageKey('playlist-${playlist.id}'),
@@ -165,6 +170,9 @@ class _StaticPlaylistBody extends ConsumerWidget {
               onPlay: rows.any((e) => e.track != null)
                   ? () => playPlaylistContext(context, playlist)
                   : null,
+              onDownload: downloadIds.isEmpty
+                  ? null
+                  : () => startDownloads(context, ref, downloadIds),
               onExport: () => exportPlaylistM3uFlow(context, playlist),
             ),
           ),
@@ -293,6 +301,7 @@ class _PlaylistHeader extends ConsumerWidget {
     required this.subtitle,
     required this.onPlay,
     this.onEditRules,
+    this.onDownload,
     this.onExport,
   });
 
@@ -300,6 +309,7 @@ class _PlaylistHeader extends ConsumerWidget {
   final String subtitle;
   final VoidCallback? onPlay;
   final VoidCallback? onEditRules;
+  final VoidCallback? onDownload;
   final VoidCallback? onExport;
 
   @override
@@ -384,6 +394,12 @@ class _PlaylistHeader extends ConsumerWidget {
                     onPressed: onEditRules,
                     icon: const Icon(Icons.tune_rounded),
                     label: const Text('编辑规则'),
+                  ),
+                if (onDownload != null)
+                  OutlinedButton.icon(
+                    onPressed: onDownload,
+                    icon: const Icon(Icons.download_for_offline_outlined),
+                    label: const Text('下载歌单'),
                   ),
                 if (onExport != null)
                   OutlinedButton.icon(

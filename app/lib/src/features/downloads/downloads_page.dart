@@ -1,17 +1,75 @@
 // 下载页：下载队列、已完成、失败和缓存总大小。
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/downloads/downloads_models.dart';
 import 'package:lekis/src/features/downloads/downloads_providers.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/sources/common.dart' hide describeCoreError;
+import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
 
 class DownloadsPage extends ConsumerWidget {
   const DownloadsPage({super.key});
+
+  Future<List<int>> _lovedIds() async {
+    final ids = <int>[];
+    var offset = 0;
+    while (ids.length < 2000) {
+      final page = await core.lovedTracks(offset: offset, limit: 200);
+      ids.addAll(page.map((track) => track.id));
+      if (page.length < 200) break;
+      offset += 200;
+    }
+    return ids;
+  }
+
+  Future<void> _downloadLoved(BuildContext context, WidgetRef ref) async {
+    final ids = await _lovedIds();
+    if (!context.mounted) return;
+    if (ids.isEmpty) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('还没有收藏的歌曲')));
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('下载收藏'),
+        content: Text('把 ${ids.length} 首收藏歌曲加入离线队列？已下载的会跳过。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('加入下载'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      await startDownloads(context, ref, ids);
+    }
+  }
+
+  Future<void> _downloadMostPlayed(BuildContext context, WidgetRef ref) async {
+    final tracks = await core.mostPlayed(limit: 50);
+    final ids = tracks.map((track) => track.id).toList(growable: false);
+    if (!context.mounted) return;
+    if (ids.isEmpty) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('还没有播放记录')));
+      return;
+    }
+    await startDownloads(context, ref, ids);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -20,6 +78,33 @@ class DownloadsPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('下载'),
         actions: [
+          PopupMenuButton<String>(
+            tooltip: '批量下载',
+            onSelected: (value) {
+              switch (value) {
+                case 'loved':
+                  _downloadLoved(context, ref);
+                case 'most-played':
+                  _downloadMostPlayed(context, ref);
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'loved',
+                child: ListTile(
+                  leading: Icon(Icons.favorite_outline),
+                  title: Text('下载收藏'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'most-played',
+                child: ListTile(
+                  leading: Icon(Icons.trending_up_rounded),
+                  title: Text('下载最常听 50 首'),
+                ),
+              ),
+            ],
+          ),
           IconButton(
             tooltip: '刷新',
             onPressed: () =>
