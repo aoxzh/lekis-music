@@ -2,6 +2,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/home/home_providers.dart';
+import 'package:lekis/src/features/home/playback_history_page.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/album_card.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
@@ -113,7 +114,18 @@ class HomePage extends ConsumerWidget {
                       ),
                     if (played.isNotEmpty)
                       SliverToBoxAdapter(
-                        child: TrackShelf(title: '最近播放', tracks: played),
+                        child: TrackShelf(
+                          title: '最近播放',
+                          tracks: played,
+                          trailing: TextButton(
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => const PlaybackHistoryPage(),
+                              ),
+                            ),
+                            child: const Text('查看全部'),
+                          ),
+                        ),
                       ),
                     if (recent.isNotEmpty)
                       SliverToBoxAdapter(
@@ -147,15 +159,22 @@ String _greeting() {
 
 /// Horizontal shelf of track cards; tapping plays the shelf from that card.
 class TrackShelf extends ConsumerWidget {
-  const TrackShelf({super.key, required this.title, required this.tracks});
+  const TrackShelf({
+    super.key,
+    required this.title,
+    required this.tracks,
+    this.trailing,
+  });
 
   final String title;
   final List<TrackRowDto> tracks;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ArtworkShelf(
       title: title,
+      trailing: trailing,
       itemCount: tracks.length,
       itemBuilder: (context, i) {
         final t = tracks[i];
