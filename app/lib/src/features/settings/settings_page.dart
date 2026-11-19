@@ -8,6 +8,7 @@ import '../../rust/api/dto.dart';
 import '../../shell/app_shell.dart';
 import '../../theme/tokens.dart';
 import '../enrich/enrich_providers.dart';
+import '../now_playing/lyrics_stage_settings.dart';
 import '../sources/common.dart';
 import 'settings_providers.dart';
 import 'strings.dart';
@@ -300,37 +301,68 @@ class _AppearanceSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pref = ref.watch(themePreferenceProvider);
-    return _BlockTile(
-      title: SettingsStrings.theme,
-      hint: SettingsStrings.themeOledHint,
-      child: SegmentedButton<ThemePreference>(
-        showSelectedIcon: false,
-        segments: const [
-          ButtonSegment(
-            value: ThemePreference.system,
-            label: Text(SettingsStrings.themeSystem),
-            icon: Icon(Icons.brightness_auto_outlined),
+    final stage = ref.watch(lyricsStageStyleProvider);
+    final sparks = ref.watch(lyricsSparksProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _BlockTile(
+          title: SettingsStrings.theme,
+          hint: SettingsStrings.themeOledHint,
+          child: SegmentedButton<ThemePreference>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(
+                value: ThemePreference.system,
+                label: Text(SettingsStrings.themeSystem),
+                icon: Icon(Icons.brightness_auto_outlined),
+              ),
+              ButtonSegment(
+                value: ThemePreference.light,
+                label: Text(SettingsStrings.themeLight),
+                icon: Icon(Icons.light_mode_outlined),
+              ),
+              ButtonSegment(
+                value: ThemePreference.dark,
+                label: Text(SettingsStrings.themeDark),
+                icon: Icon(Icons.dark_mode_outlined),
+              ),
+              ButtonSegment(
+                value: ThemePreference.oledBlack,
+                label: Text(SettingsStrings.themeOled),
+                icon: Icon(Icons.contrast),
+              ),
+            ],
+            selected: {pref},
+            onSelectionChanged: (s) =>
+                _guard(context, () => setThemePreference(ref, s.first)),
           ),
-          ButtonSegment(
-            value: ThemePreference.light,
-            label: Text(SettingsStrings.themeLight),
-            icon: Icon(Icons.light_mode_outlined),
+        ),
+        _BlockTile(
+          title: SettingsStrings.lyricsStage,
+          hint: SettingsStrings.lyricsStageHint,
+          child: LyricsStageStyleSelector(
+            selected: stage,
+            onChanged: (next) => _guard(
+              context,
+              () => ref
+                  .read(settingProvider(SettingKeys.lyricsStage).notifier)
+                  .set(next.storageValue),
+            ),
           ),
-          ButtonSegment(
-            value: ThemePreference.dark,
-            label: Text(SettingsStrings.themeDark),
-            icon: Icon(Icons.dark_mode_outlined),
+        ),
+        SwitchListTile(
+          title: const Text(SettingsStrings.lyricsSparks),
+          subtitle: const Text(SettingsStrings.lyricsSparksHint),
+          value: sparks,
+          onChanged: (on) => _guard(
+            context,
+            () => ref
+                .read(settingProvider(SettingKeys.lyricsSparks).notifier)
+                .set(on ? 'true' : 'false'),
           ),
-          ButtonSegment(
-            value: ThemePreference.oledBlack,
-            label: Text(SettingsStrings.themeOled),
-            icon: Icon(Icons.contrast),
-          ),
-        ],
-        selected: {pref},
-        onSelectionChanged: (s) =>
-            _guard(context, () => setThemePreference(ref, s.first)),
-      ),
+        ),
+      ],
     );
   }
 }

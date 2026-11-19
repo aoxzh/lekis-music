@@ -20,6 +20,12 @@ abstract final class SettingKeys {
 
   /// `shared` / `exclusive`。
   static const outputMode = 'playback.output_mode';
+
+  /// 歌词舞台样式：`flow`（默认）/ `steps` / `tilt`。
+  static const lyricsStage = 'ui.lyrics_stage';
+
+  /// 歌词舞台火花：`true`（默认）/ `false`。
+  static const lyricsSparks = 'ui.lyrics_sparks';
 }
 
 enum ReplayGainMode {
