@@ -150,6 +150,45 @@ impl FormatConverter {
         }
     }
 
+    /// 曲目结束时把不足一块的尾巴补零、翻出去，供无缝拼接（PLY-01）使用。
+    ///
+    /// 重采样器是按固定块工作的：`process` 会把不足一块的输入留在 `pending` 里。
+    /// 换曲时如果不处理，最多会丢掉一个块（48 kHz ↔ 44.1 kHz 时约 13 ms）的音频。
+    /// 这里补零凑满一块，再按「有效输入帧数 × 输出/输入采样率」截掉补出来的静音。
+    ///
+    /// 只在解码线程、曲目边界调用，可以分配；实时回调不经过这里。
+    pub fn finish(&mut self, out: &mut Vec<f32>) {
+        let in_ch = usize::from(self.content.channels);
+        if in_ch == 0 {
+            return;
+        }
+        let pending_frames = self.pending.len() / in_ch;
+        if pending_frames == 0 {
+            return;
+        }
+        if self.resampler.is_none() {
+            // 只做声道映射：pending 全是真实样本，直接翻出去。
+            self.map_pending(out);
+            return;
+        }
+        let valid_frames = (pending_frames as u64 * u64::from(self.device.sample_rate)
+            + u64::from(self.content.sample_rate) / 2)
+            / u64::from(self.content.sample_rate);
+        let chunk_samples = self.chunk_in * in_ch;
+        let missing = chunk_samples.saturating_sub(self.pending.len());
+        self.pending.extend(std::iter::repeat_n(0.0, missing));
+
+        let mut block = Vec::new();
+        self.resample_pending(&mut block);
+        let device_ch = usize::from(self.device.channels);
+        let keep = usize::try_from(valid_frames)
+            .unwrap_or(usize::MAX)
+            .saturating_mul(device_ch)
+            .min(block.len());
+        out.extend_from_slice(&block[..keep]);
+        self.pending.clear();
+    }
+
     /// 丢弃残留样本并清空重采样器的 overlap（seek 后必须调用，否则会听到上一段的余音）。
     pub fn reset(&mut self) {
         self.pending.clear();
@@ -381,6 +420,43 @@ mod tests {
         converter.process(&[0.0], &mut out);
         assert_eq!(out.len(), 1);
         assert!(out[0].abs() < 1e-6);
+    }
+
+    /// 曲目结束：不足一块的尾巴要补零翻出去，帧数按采样率比例截断。
+    #[test]
+    fn finish_flushes_the_resampler_tail() {
+        let content = format(44_100, 2);
+        let device = format(48_000, 2);
+        let mut converter = FormatConverter::new(content, device)
+            .expect("build converter")
+            .expect("rates differ");
+
+        // 1000 帧 = 一块（588）+ 412 帧尾巴。
+        let frames = 1_000usize;
+        let mut input = Vec::with_capacity(frames * 2);
+        for _ in 0..frames {
+            input.push(0.5);
+            input.push(-0.5);
+        }
+        let mut out = Vec::new();
+        converter.process(&input, &mut out);
+        let before = out.len() / 2;
+        assert!(before > 0, "process 至少应该吐出一块");
+
+        converter.finish(&mut out);
+        let total = out.len() / 2;
+        let expected = frames as f64 * 48_000.0 / 44_100.0;
+        assert!(
+            (total as f64 - expected).abs() <= 2.0,
+            "finish 后总帧数 {total}，期望 ≈ {expected}"
+        );
+        assert!(total > before, "finish 必须把尾巴补出来");
+        // 补的是零，但截断后的尾部仍然应该是原来的常数信号。
+        let tail = &out[out.len() - 128..];
+        assert!(
+            tail.iter().step_by(2).all(|s| (*s - 0.5).abs() < 0.05),
+            "补零不能把有效尾巴盖掉"
+        );
     }
 
     /// reset 之后残留样本必须清干净（seek 到别处不能带上上一段的尾巴）。

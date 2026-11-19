@@ -1,4 +1,7 @@
-//! 播放会话：把「解码线程 + 无锁环形缓冲 + 输出后端」拼成一首歌的完整播放链路。
+//! 播放会话：把「解码线程 + 无锁环形缓冲 + 输出后端」拼成一条连续播放链路。
+//!
+//! 一条会话可以播多首（PLY-01 无缝播放）：下一首在当前曲目 EOF 之前预装好，
+//! EOF 时直接在同一个环形缓冲里接着写，输出流不重建、不插入静音。
 //!
 //! ```text
 //! 解码线程                                        实时回调（cpal）
@@ -22,17 +25,44 @@
 
 use crate::decode::{open_decoder, Decoder, PcmFormat};
 use crate::dsp::{db_to_linear, DspNode, SoftClipper};
+use crate::gapless::{AudibleTrack, TrackTimeline};
 use crate::output::ring_source::{ring_buffer, RingProgress, RingSourceWriter};
 use crate::output::{AudioOutput, CpalOutput, OutputMode};
 use crate::resample::FormatConverter;
 use crate::MediaSource;
-use lekis_types::{AudioProps, LekisError, Result};
+use lekis_types::{AudioProps, LekisError, Result, TrackId};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Handle;
 use tokio::sync::oneshot;
+
+/// 会话输出后端的创建方式。
+///
+/// 生产路径总是 cpal；测试注入一个「空输出」把样本按真实速度拉走并记录下来，
+/// 这样不用声卡也能验证无缝拼接的样本序列（PLY-01）。
+pub trait OutputFactory: Send + Sync + 'static {
+    /// 事先协商设备格式（建环形缓冲之前就要知道）。
+    fn plan_format(&self, device_id: Option<&str>, requested: PcmFormat) -> Result<PcmFormat>;
+
+    /// 创建输出后端实例。
+    fn create(&self) -> Box<dyn AudioOutput>;
+}
+
+/// 默认输出工厂：cpal（Windows 上是 WASAPI 共享模式）。
+#[derive(Debug, Default, Clone, Copy)]
+pub struct CpalOutputFactory;
+
+impl OutputFactory for CpalOutputFactory {
+    fn plan_format(&self, device_id: Option<&str>, requested: PcmFormat) -> Result<PcmFormat> {
+        CpalOutput::new().plan_format(device_id, requested)
+    }
+
+    fn create(&self) -> Box<dyn AudioOutput> {
+        Box::new(CpalOutput::new())
+    }
+}
 
 /// 环形缓冲目标时长（毫秒）。解码线程领先输出这么多，够抵消调度抖动。
 const BUFFER_MS: u64 = 300;
@@ -44,6 +74,18 @@ const PUMP_INTERVAL: Duration = Duration::from_millis(3);
 enum WorkerCmd {
     /// 跳转到指定毫秒并清空缓冲里的旧样本。
     Seek(u64),
+    /// 预装下一首：解码线程在当前曲目结束前打开解码器，EOF 时直接接着写同一条缓冲。
+    ///
+    /// `token` 是引擎侧生成的序号；解码线程在真正拼接前会再核对一次，
+    /// 避免队列被用户改过之后还播旧歌。
+    QueueNext {
+        /// 下一首媒体。
+        media: Box<MediaSource>,
+        /// 预装序号。
+        token: u64,
+    },
+    /// 取消预装（队列被编辑、关闭无缝播放、手动切歌）。
+    ClearNext,
     /// 立即结束解码线程。
     Stop,
 }
@@ -59,14 +101,21 @@ struct WorkerCtx {
     base_ms: Arc<AtomicU64>,
     /// 解码器已到达流结尾。
     eof: Arc<AtomicBool>,
+    /// 曲目边界时间轴（PLY-01）。
+    timeline: TrackTimeline,
+    /// 已完成的自然拼接次数。
+    splices: Arc<AtomicU64>,
+    /// 引擎侧的预装序号。
+    next_token: Arc<AtomicU64>,
 }
 
-/// 一首歌的播放会话。
+/// 一条输出流的播放会话（可以跨多首连续播放）。
 ///
 /// 生命周期：`Session::start()`（打开解码器 → 协商设备格式 → 建模环形缓冲 → 起输出流
-/// → 起解码线程） → `pause` / `resume` / `seek` / `set_volume` → `stop`（或 `Drop`）干净收尾。
+/// → 起解码线程） → `queue_next` 预装下一首 → `pause` / `resume` / `seek` / `set_volume`
+/// → `stop`（或 `Drop`）干净收尾。
 pub struct Session {
-    output: CpalOutput,
+    output: Box<dyn AudioOutput>,
     progress: RingProgress,
     stop: Arc<AtomicBool>,
     volume: Arc<AtomicU32>,
@@ -81,6 +130,12 @@ pub struct Session {
     duration_ms: Option<u64>,
     /// 每毫秒的设备样本数（设备采样率 × 设备声道数 / 1000）。
     samples_per_ms: f64,
+    /// 曲目边界时间轴：引擎按「已播放样本数」取当前可听曲目。
+    timeline: TrackTimeline,
+    /// 自然拼接次数（诊断 / 引擎判断是否需要推进队列）。
+    splices: Arc<AtomicU64>,
+    /// 预装下一首的序号（取消 / 替换时递增）。
+    next_token: Arc<AtomicU64>,
 }
 
 impl Session {
@@ -98,24 +153,52 @@ impl Session {
         volume: f32,
         handle: Handle,
     ) -> Result<Self> {
+        Self::start_with_factory(
+            media,
+            device_id,
+            mode,
+            volume,
+            handle,
+            Arc::new(CpalOutputFactory),
+        )
+        .await
+    }
+
+    /// 和 [`Self::start`] 一样，但输出后端由调用方提供（测试注入空输出）。
+    pub async fn start_with_factory(
+        media: &MediaSource,
+        device_id: Option<&str>,
+        mode: OutputMode,
+        volume: f32,
+        handle: Handle,
+        output_factory: Arc<dyn OutputFactory>,
+    ) -> Result<Self> {
         let stop = Arc::new(AtomicBool::new(false));
         let volume_atom = Arc::new(AtomicU32::new(volume.clamp(0.0, 1.0).to_bits()));
         let eof = Arc::new(AtomicBool::new(false));
         let base_ms = Arc::new(AtomicU64::new(0));
+        let splices = Arc::new(AtomicU64::new(0));
+        let next_token = Arc::new(AtomicU64::new(0));
         let gain_linear = media.gain_db.map(db_to_linear).unwrap_or(1.0);
 
         // 解码线程先把「打开解码器」做完再回报格式，这样引擎能按真实格式建缓冲和输出流。
         let (ready_tx, ready_rx) =
             oneshot::channel::<Result<(PcmFormat, Option<u64>, AudioProps)>>();
         // 引擎侧协商完设备格式后，把写端交给解码线程，然后它才开始解。
-        let (wire_tx, wire_rx) = mpsc::channel::<(RingSourceWriter, RingProgress, PcmFormat)>();
+        let (wire_tx, wire_rx) =
+            mpsc::channel::<(RingSourceWriter, RingProgress, PcmFormat, TrackTimeline)>();
         let (cmd_tx, cmd_rx) = mpsc::channel::<WorkerCmd>();
+        // 预装下一首的「打开解码器」在独立线程里做：网络源探测可能很慢，
+        // 不能卡住正在给环形缓冲供样本的解码线程。
+        let (prepare_tx, prepare_rx) = mpsc::channel::<PreparedResult>();
 
         let thread_media = media.clone();
         let t_stop = stop.clone();
         let t_volume = volume_atom.clone();
         let t_base = base_ms.clone();
         let t_eof = eof.clone();
+        let t_splices = splices.clone();
+        let t_next_token = next_token.clone();
         let join = std::thread::Builder::new()
             .name("lekis-decode".to_string())
             .spawn(move || {
@@ -132,7 +215,7 @@ impl Session {
                 if ready_tx.send(Ok((format, duration, props))).is_err() {
                     return;
                 }
-                let Ok((writer, progress, device_format)) = wire_rx.recv() else {
+                let Ok((writer, progress, device_format, timeline)) = wire_rx.recv() else {
                     return;
                 };
                 let mut ctx = WorkerCtx {
@@ -142,6 +225,9 @@ impl Session {
                     volume: t_volume,
                     base_ms: t_base,
                     eof: t_eof,
+                    timeline: timeline.clone(),
+                    splices: t_splices,
+                    next_token: t_next_token,
                 };
                 // 转换级在解码线程上建（rubato 构造要分配，不能放实时线程），失败就直通。
                 let converter = match FormatConverter::new(format, device_format) {
@@ -155,7 +241,23 @@ impl Session {
                         None
                     }
                 };
-                decode_loop(decoder, &mut ctx, cmd_rx, gain_linear, converter);
+                let active = ActiveTrack {
+                    track_id: thread_media.track_id,
+                    decoder,
+                    converter,
+                    format,
+                    duration_ms: duration,
+                    gain_linear,
+                };
+                decode_loop(
+                    active,
+                    &mut ctx,
+                    cmd_rx,
+                    device_format,
+                    handle,
+                    prepare_tx,
+                    prepare_rx,
+                );
             })
             .map_err(|e| LekisError::internal(format!("cannot spawn decode thread: {e}")))?;
 
@@ -182,8 +284,7 @@ impl Session {
 
         // 先问后端「这份内容格式最终会用哪个设备格式」，再按设备格式建环形缓冲：
         // 缓冲里的样本已经转换过了，容量必须按设备格式算。
-        let mut output = CpalOutput::new();
-        let planned = match output.plan_format(device_id, format) {
+        let planned = match output_factory.plan_format(device_id, format) {
             Ok(planned) => planned,
             Err(e) => {
                 // 没有音频设备（headless / CI）：把解码线程也收掉，向上返回 Unsupported。
@@ -204,6 +305,7 @@ impl Session {
         let capacity = usize::try_from(samples.max(4_096)).unwrap_or(4_096);
         let (writer, source, progress) = ring_buffer(capacity, planned.channels);
 
+        let mut output = output_factory.create();
         let actual = match output.start(device_id, format, mode, Box::new(source)) {
             Ok(actual) => actual,
             Err(e) => {
@@ -234,7 +336,16 @@ impl Session {
             );
         }
 
-        if wire_tx.send((writer, progress.clone(), actual)).is_err() {
+        // 初始曲目也是时间轴上的第一条边界（从样本 0 开始）。
+        let timeline = TrackTimeline::new(
+            media.track_id,
+            duration_ms.or(Some(media.duration_hint_ms).filter(|hint| *hint > 0)),
+            format,
+        );
+        if wire_tx
+            .send((writer, progress.clone(), actual, timeline.clone()))
+            .is_err()
+        {
             let _ = join.join();
             let _ = output.stop();
             return Err(LekisError::internal(
@@ -268,6 +379,9 @@ impl Session {
             device_format: actual,
             duration_ms,
             samples_per_ms,
+            timeline,
+            splices,
+            next_token,
         })
     }
 
@@ -283,23 +397,70 @@ impl Session {
         self.device_format
     }
 
-    /// 解码器给出的时长（毫秒）。
+    /// 当前曲目的时长（毫秒）。无缝切换后是下一首的时长。
     pub fn duration_ms(&self) -> Option<u64> {
-        self.duration_ms
+        self.audible_track()
+            .and_then(|track| track.duration_ms)
+            .or(self.duration_ms)
     }
 
     /// 当前播放位置（毫秒）：已经真正被设备取走的样本对应的内容时间。
+    ///
+    /// 无缝拼接后位置从下一首的第一个样本重新计时（边界之前解码线程提前推送的
+    /// 上一首尾巴不算下一首的时间）。
     pub fn position_ms(&self) -> u64 {
+        let track = self.audible_track();
         let base = self.base_ms.load(Ordering::Acquire) as f64;
         if self.samples_per_ms <= 0.0 {
             return base as u64;
         }
-        let played = self.progress.played_samples() as f64;
-        let pos = (base + played / self.samples_per_ms).max(0.0);
-        match self.duration_ms {
+        let played = self.progress.played_samples();
+        let start = track.as_ref().map(|t| t.start_sample).unwrap_or(0);
+        let in_track = played.saturating_sub(start) as f64;
+        let pos = (base + in_track / self.samples_per_ms).max(0.0);
+        match track.and_then(|t| t.duration_ms.or(self.duration_ms)) {
             Some(duration) if duration > 0 => (pos as u64).min(duration),
             _ => pos as u64,
         }
+    }
+
+    /// 当前**听得见**的曲目边界（不是解码线程提前切到的那首）。
+    pub fn audible_track(&self) -> Option<AudibleTrack> {
+        self.timeline.audible(self.progress.played_samples())
+    }
+
+    /// 解码线程正在解的曲目（可能领先可听位置约 300 ms）。
+    pub fn active_track_id(&self) -> Option<TrackId> {
+        self.timeline.active().map(|track| track.track_id)
+    }
+
+    /// 已完成的自然拼接次数（PLY-01 诊断 / 引擎推进队列用）。
+    pub fn splice_count(&self) -> u64 {
+        self.splices.load(Ordering::Acquire)
+    }
+
+    /// 预装下一首：解码线程会在当前曲目结束前打开它，EOF 时直接接着写同一条缓冲。
+    ///
+    /// 只是「预备」；队列语义仍由引擎控制。再次调用会替换上一首预装。
+    pub fn queue_next(&mut self, media: MediaSource) {
+        let token = self.next_token.fetch_add(1, Ordering::AcqRel) + 1;
+        if self
+            .commands
+            .send(WorkerCmd::QueueNext {
+                media: Box::new(media),
+                token,
+            })
+            .is_err()
+        {
+            tracing::debug!(target: "playback::gapless", "decode thread has stopped, cannot queue next");
+        }
+    }
+
+    /// 取消预装（队列被编辑 / 关闭无缝播放）。已经拼进缓冲的样本无法撤回，
+    /// 但解码线程会在真正切换前核对序号，不会把过期的下一首接上去。
+    pub fn clear_next(&mut self) {
+        self.next_token.fetch_add(1, Ordering::AcqRel);
+        let _ = self.commands.send(WorkerCmd::ClearNext);
     }
 
     /// 跳转到指定位置。真正的解码器 seek 在解码线程上做，这里只投递命令。
@@ -363,80 +524,207 @@ impl Drop for Session {
     }
 }
 
+/// 解码线程当前正在解的一首。
+struct ActiveTrack {
+    track_id: TrackId,
+    decoder: Box<dyn Decoder>,
+    converter: Option<FormatConverter>,
+    format: PcmFormat,
+    duration_ms: Option<u64>,
+    gain_linear: f32,
+}
+
+/// 已经预装好、等当前曲目 EOF 就接上的下一首。
+struct PreparedTrack {
+    /// 引擎侧序号：拼接前再核对一次，防止队列被改过还播旧歌。
+    token: u64,
+    track_id: TrackId,
+    decoder: Box<dyn Decoder>,
+    converter: PreparedConverter,
+    format: PcmFormat,
+    duration_ms: Option<u64>,
+    gain_linear: f32,
+}
+
+/// 预装线程的返回结果。
+struct PreparedResult {
+    token: u64,
+    result: Result<PreparedTrack>,
+}
+
+/// 下一首使用哪个转换级。
+enum PreparedConverter {
+    /// 内容格式和当前曲目相同：沿用当前转换级（连重采样器的 overlap 一起复用，
+    /// 边界处完全连续，不丢一个样本）。
+    Reuse,
+    /// 内容格式不同，但新曲目格式就是设备格式：直通。
+    Direct,
+    /// 内容格式不同：新建转换级。
+    Convert(Box<FormatConverter>),
+}
+
 /// 解码线程主循环。
 ///
-/// `converter` 为 `Some` 时，解出来的内容样本会先做声道映射 / 重采样再进环形缓冲；
-/// 为 `None` 时走直通（内容格式 = 设备格式）。
+/// 当前曲目 EOF 时，如果下一首已经预装好，就在**同一条环形缓冲**里直接接着写，
+/// 输出流和会话都不重建（PLY-01）。只有拿不到预装（关闭无缝、解析失败、坏文件、
+/// 队列被改）时才把 EOF 报给引擎，退回「重建会话」的有缝路径。
 fn decode_loop(
-    mut decoder: Box<dyn Decoder>,
+    mut active: ActiveTrack,
     ctx: &mut WorkerCtx,
     commands: Receiver<WorkerCmd>,
-    gain_linear: f32,
-    mut converter: Option<FormatConverter>,
+    device_format: PcmFormat,
+    handle: Handle,
+    prepare_tx: Sender<PreparedResult>,
+    prepare_rx: Receiver<PreparedResult>,
 ) {
-    let channels = decoder.format().channels.max(1);
-    // 环形缓冲里的声道数（有转换级时是设备声道数）。
-    let device_channels = converter
-        .as_ref()
-        .map(|c| c.device().channels)
-        .unwrap_or(channels)
-        .max(1);
-    let mut buffer: Vec<f32> = Vec::with_capacity(usize::from(channels) * 4_096);
-    let mut converted: Vec<f32> = Vec::with_capacity(usize::from(device_channels) * 8_192);
+    let device_channels = usize::from(device_format.channels.max(1));
+    let mut buffer: Vec<f32> = Vec::with_capacity(device_channels * 4_096);
+    let mut converted: Vec<f32> = Vec::with_capacity(device_channels * 8_192);
     let mut clipper = SoftClipper;
-    let pump_threshold = usize::from(device_channels) * 1_024;
+    let pump_threshold = device_channels * 1_024;
+
+    // 已经预装好、等当前曲目 EOF 的下一首。
+    let mut prepared: Option<PreparedTrack> = None;
 
     loop {
         if ctx.stop.load(Ordering::Relaxed) {
             return;
         }
-        // 1) 处理控制命令（seek / stop）。
+        // 0) 收预装线程的结果（打开解码器可能很慢，不能卡住这里）。
+        while let Ok(message) = prepare_rx.try_recv() {
+            let token_now = ctx.next_token.load(Ordering::Acquire);
+            if message.token != token_now {
+                // 队列已经改过 / 被取消：丢掉过期的预装结果。
+                continue;
+            }
+            match message.result {
+                Ok(track) => {
+                    tracing::debug!(
+                        target: "playback::gapless",
+                        from = %active.track_id,
+                        to = %track.track_id,
+                        content_rate = track.format.sample_rate,
+                        content_channels = track.format.channels,
+                        device_rate = device_format.sample_rate,
+                        device_channels = device_format.channels,
+                        "next track pre-opened for gapless splice"
+                    );
+                    prepared = Some(track);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        target: "playback::gapless",
+                        error = %e,
+                        "cannot pre-open next track; track boundary will fall back to a session restart"
+                    );
+                }
+            }
+        }
+
+        // 1) 处理控制命令（seek / 预装 / 取消预装 / stop）。
         loop {
             match commands.try_recv() {
                 Ok(WorkerCmd::Seek(ms)) => {
-                    apply_seek(&mut *decoder, ctx, ms);
+                    apply_seek(
+                        &mut *active.decoder,
+                        ctx,
+                        ms,
+                        active.track_id,
+                        active.duration_ms,
+                        active.format,
+                    );
                     // seek 后重采样器里的 overlap 和残留样本都是上一段的，必须清掉。
-                    if let Some(converter) = converter.as_mut() {
+                    if let Some(converter) = active.converter.as_mut() {
                         converter.reset();
                     }
+                }
+                Ok(WorkerCmd::QueueNext { media, token }) => {
+                    prepared = None;
+                    let media = *media;
+                    let content_format = active.format;
+                    let handle = handle.clone();
+                    let results = prepare_tx.clone();
+                    let spawned = std::thread::Builder::new()
+                        .name("lekis-prepare".to_string())
+                        .spawn(move || {
+                            let result =
+                                prepare_next(&media, token, content_format, device_format, &handle);
+                            let _ = results.send(PreparedResult { token, result });
+                        });
+                    if let Err(e) = spawned {
+                        tracing::warn!(
+                            target: "playback::gapless",
+                            error = %e,
+                            "cannot spawn pre-open thread; track boundary will fall back to a session restart"
+                        );
+                    } else {
+                        tracing::debug!(
+                            target: "playback::gapless",
+                            token,
+                            "next track queued for gapless playback"
+                        );
+                    }
+                }
+                Ok(WorkerCmd::ClearNext) => {
+                    prepared = None;
+                    tracing::debug!(target: "playback::gapless", "gapless next track cleared");
                 }
                 Ok(WorkerCmd::Stop) | Err(TryRecvError::Disconnected) => return,
                 Err(TryRecvError::Empty) => break,
             }
         }
+
         // 2) 缓冲快满了就等消费者腾地方。
         if ctx.writer.vacant_len() < pump_threshold {
             std::thread::sleep(PUMP_INTERVAL);
             continue;
         }
+
         // 3) 解一块，套上增益/限幅，转成设备格式，写进环形缓冲。
         buffer.clear();
-        match decoder.decode_next(&mut buffer) {
-            Ok(true) => {}
-            Ok(false) => {
-                // 正常结尾：等缓冲被播空后引擎会收到 finished。
-                ctx.eof.store(true, Ordering::Release);
-                return;
-            }
+        let at_end = match active.decoder.decode_next(&mut buffer) {
+            Ok(true) => false,
+            Ok(false) => true,
             Err(e) => {
-                // 坏包/坏文件不阻塞播放：记录后当作本曲结束，让引擎自动跳下一首。
+                // 坏包/坏文件不阻塞播放：记录后当作本曲结束，能接下一首就接。
                 tracing::warn!(target: "playback", error = %e, "decode failed, ending track");
-                ctx.eof.store(true, Ordering::Release);
-                return;
+                true
             }
+        };
+
+        if at_end {
+            let token_now = ctx.next_token.load(Ordering::Acquire);
+            let fresh = prepared
+                .as_ref()
+                .is_some_and(|track| track.token == token_now);
+            if fresh {
+                if let Some(next) = prepared.take() {
+                    if splice_next(&mut active, next, ctx, device_format, &mut converted) {
+                        continue;
+                    }
+                    // 停止标志在拼接过程中被置位：直接收尾。
+                    return;
+                }
+            }
+            // 没有可用的下一首：把转换器尾巴吐完，再把 EOF 报给引擎（有缝回退）。
+            flush_converter_tail(&mut active, ctx);
+            ctx.eof.store(true, Ordering::Release);
+            return;
         }
+
         if buffer.is_empty() {
             continue;
         }
+        let content_channels = active.format.channels.max(1);
         apply_gain(
             &mut buffer,
-            gain_linear,
+            active.gain_linear,
             ctx.volume.load(Ordering::Acquire),
-            channels,
+            content_channels,
             &mut clipper,
         );
         // 重采样在解码线程上做，实时回调只拿已经转好的设备格式样本。
-        let to_push: &[f32] = match converter.as_mut() {
+        let to_push: &[f32] = match active.converter.as_mut() {
             Some(converter) => {
                 converted.clear();
                 converter.process(&buffer, &mut converted);
@@ -448,6 +736,140 @@ fn decode_loop(
             continue;
         }
         let written = ctx.writer.push_blocking(to_push, &ctx.stop);
+        ctx.progress.add_pushed(written as u64);
+    }
+}
+
+/// 打开下一首并准备好它的转换级（在解码线程上调用，可以分配 / 做 IO）。
+fn prepare_next(
+    media: &MediaSource,
+    token: u64,
+    active_format: PcmFormat,
+    device_format: PcmFormat,
+    handle: &Handle,
+) -> Result<PreparedTrack> {
+    let decoder = open_decoder(media, handle)?;
+    let format = decoder.format();
+    if format.sample_rate == 0 || format.channels == 0 {
+        return Err(LekisError::invalid(
+            "next track reported an empty pcm format",
+        ));
+    }
+    let duration_ms = decoder
+        .duration_ms()
+        .or(Some(media.duration_hint_ms).filter(|hint| *hint > 0));
+    let converter = if format == active_format {
+        PreparedConverter::Reuse
+    } else {
+        match FormatConverter::new(format, device_format)? {
+            Some(converter) => PreparedConverter::Convert(Box::new(converter)),
+            None => PreparedConverter::Direct,
+        }
+    };
+    Ok(PreparedTrack {
+        token,
+        track_id: media.track_id,
+        decoder,
+        converter,
+        format,
+        duration_ms,
+        gain_linear: media.gain_db.map(db_to_linear).unwrap_or(1.0),
+    })
+}
+
+/// 把预装好的下一首接进同一条环形缓冲。返回 `false` 表示播放正在停止。
+fn splice_next(
+    active: &mut ActiveTrack,
+    next: PreparedTrack,
+    ctx: &mut WorkerCtx,
+    device_format: PcmFormat,
+    converted: &mut Vec<f32>,
+) -> bool {
+    let format_changed = next.format != active.format;
+    let (converter, flushed) = match next.converter {
+        PreparedConverter::Reuse => (active.converter.take(), None),
+        PreparedConverter::Direct => {
+            let mut tail = Vec::new();
+            if let Some(mut old) = active.converter.take() {
+                old.finish(&mut tail);
+            }
+            (None, Some(tail))
+        }
+        PreparedConverter::Convert(converter) => {
+            let mut tail = Vec::new();
+            if let Some(mut old) = active.converter.take() {
+                old.finish(&mut tail);
+            }
+            (Some(*converter), Some(tail))
+        }
+    };
+    // 换格式时先把上一首转换器里的尾巴（最多一个重采样块）补零翻出去，
+    // 不能直接丢掉；同格式复用转换器时没有尾巴，边界完全连续。
+    if let Some(tail) = flushed {
+        if !tail.is_empty() {
+            let written = ctx.writer.push_blocking(&tail, &ctx.stop);
+            ctx.progress.add_pushed(written as u64);
+            if ctx.stop.load(Ordering::Relaxed) {
+                return false;
+            }
+        }
+    }
+    converted.clear();
+
+    // 时间轴上的拼接点 = 下一首第一个样本的设备样本序号。
+    let start_pushed = ctx.progress.pushed_samples();
+    let splice_count = ctx.splices.fetch_add(1, Ordering::AcqRel) + 1;
+    let generation = ctx.timeline.push_boundary(
+        start_pushed,
+        next.track_id,
+        next.duration_ms,
+        next.format,
+        splice_count,
+    );
+    ctx.base_ms.store(0, Ordering::Release);
+    ctx.eof.store(false, Ordering::Release);
+
+    let buffered_samples = ctx.writer.occupied_len();
+    let device_spm = samples_per_ms(device_format);
+    let buffered_ms = if device_spm > 0.0 {
+        buffered_samples as f64 / device_spm
+    } else {
+        0.0
+    };
+    tracing::info!(
+        target: "playback::gapless",
+        from = %active.track_id,
+        to = %next.track_id,
+        splice_sample = start_pushed,
+        generation,
+        splice_count,
+        buffered_samples,
+        buffered_ms,
+        gap_ms = 0.0,
+        format_changed,
+        "gapless splice: next track continues in the same output stream"
+    );
+
+    *active = ActiveTrack {
+        track_id: next.track_id,
+        decoder: next.decoder,
+        converter,
+        format: next.format,
+        duration_ms: next.duration_ms,
+        gain_linear: next.gain_linear,
+    };
+    true
+}
+
+/// 曲目结束且没有下一首可接时，把转换器里不足一块的尾巴吐出来。
+fn flush_converter_tail(active: &mut ActiveTrack, ctx: &mut WorkerCtx) {
+    let Some(mut converter) = active.converter.take() else {
+        return;
+    };
+    let mut tail = Vec::new();
+    converter.finish(&mut tail);
+    if !tail.is_empty() {
+        let written = ctx.writer.push_blocking(&tail, &ctx.stop);
         ctx.progress.add_pushed(written as u64);
     }
 }
@@ -479,7 +901,18 @@ fn apply_gain(
 }
 
 /// 在解码线程上执行一次 seek：先跳解码器，再清空缓冲里还没播的旧样本。
-fn apply_seek(decoder: &mut dyn Decoder, ctx: &mut WorkerCtx, position_ms: u64) {
+///
+/// `track_id` / `duration` / `format` 是解码线程**正在解**的那一首。它可能已经拼接了
+/// 下一首（缓冲里还有上一首的尾巴），所以 seek 后时间轴要直接落到这一首上，
+/// 把还没播到的旧边界清掉。
+fn apply_seek(
+    decoder: &mut dyn Decoder,
+    ctx: &mut WorkerCtx,
+    position_ms: u64,
+    track_id: TrackId,
+    duration_ms: Option<u64>,
+    format: PcmFormat,
+) {
     match decoder.seek(position_ms) {
         Ok(actual) => {
             // 让实时回调丢掉旧数据（回调若没在跑，握手会超时，也照样继续）。
@@ -489,6 +922,9 @@ fn apply_seek(decoder: &mut dyn Decoder, ctx: &mut WorkerCtx, position_ms: u64) 
                 .wait_flush_ack(seq, &ctx.stop, Duration::from_millis(250));
             ctx.progress.reset_samples();
             ctx.base_ms.store(actual, Ordering::Release);
+            let splice_count = ctx.splices.load(Ordering::Acquire);
+            ctx.timeline
+                .rebase(track_id, duration_ms, format, splice_count);
             if !acked {
                 tracing::debug!(
                     target: "playback",
@@ -562,5 +998,214 @@ mod tests {
             channels: 1,
         };
         assert!((samples_per_ms(mono) * 1_000.0 - 48_000.0).abs() < 1e-6);
+    }
+
+    use crate::test_support::{nonzero_span, temp_dir, write_wav, NullOutputFactory};
+    use crate::MediaLocation;
+    use std::path::Path;
+    use std::time::Instant;
+
+    fn cached_media(track: i64, path: &Path, duration_hint_ms: u64) -> MediaSource {
+        MediaSource {
+            track_id: TrackId(track),
+            location: MediaLocation::CachedFile {
+                path: path.to_string_lossy().into_owned(),
+            },
+            duration_hint_ms,
+            gain_db: None,
+        }
+    }
+
+    /// 最长连续零样本数（真正的断点检测）。
+    fn longest_zero_run(samples: &[f32]) -> usize {
+        let mut run = 0usize;
+        let mut longest = 0usize;
+        for sample in samples {
+            if *sample == 0.0 {
+                run += 1;
+                longest = longest.max(run);
+            } else {
+                run = 0;
+            }
+        }
+        longest
+    }
+
+    /// PLY-01 核心用例：两首同格式 WAV 顺序播放，样本必须一帧不差地接上。
+    ///
+    /// 第一首全是 +0.25，第二首全是 -0.25；如果中间有任何静音（哪怕一帧），
+    /// 非零区间里就会出现 0，长度也会多出来。
+    #[tokio::test]
+    async fn gapless_splices_two_wav_tracks_without_a_zero_gap() {
+        let dir = temp_dir("splice");
+        let frames = 3_200usize; // 400 ms @ 8 kHz
+        let path_a = write_wav(&dir, "a.wav", 8_000, 1, frames, 8_000);
+        let path_b = write_wav(&dir, "b.wav", 8_000, 1, frames, -8_000);
+        let format = PcmFormat {
+            sample_rate: 8_000,
+            channels: 1,
+        };
+        let factory = Arc::new(NullOutputFactory::new(format));
+
+        let media_a = cached_media(1, &path_a, 400);
+        let mut session = Session::start_with_factory(
+            &media_a,
+            None,
+            OutputMode::Shared,
+            1.0,
+            Handle::current(),
+            factory.clone(),
+        )
+        .await
+        .expect("start first track");
+        session.queue_next(cached_media(2, &path_b, 400));
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline && !session.finished() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert!(session.finished(), "两首应该在超时前播完");
+        assert_eq!(session.splice_count(), 1, "必须发生一次样本级拼接");
+        session.stop();
+
+        let captured = factory.captured();
+        let span = nonzero_span(&captured);
+        assert_eq!(
+            span.len(),
+            frames * 2,
+            "输出总帧数必须等于两首之和（{}），实际 {}（含中间静音？）",
+            frames * 2,
+            span.len()
+        );
+        let gap_frames = longest_zero_run(span);
+        // 设备格式 8 kHz：1 帧 = 0.125 ms。这个数字就是实测的拼接空隙。
+        eprintln!(
+            "PLY-01 measurement: {} frames total, splice at frame {}, gap {} frames ({:.3} ms)",
+            span.len(),
+            frames,
+            gap_frames,
+            gap_frames as f64 / 8.0
+        );
+        assert_eq!(gap_frames, 0, "拼接点不能有任何零样本");
+        // 拼接点必须正好在第一首的最后一帧之后。
+        assert!(
+            span[..frames].iter().all(|s| *s > 0.0),
+            "前 {} 帧必须全部来自第一首",
+            frames
+        );
+        assert!(
+            span[frames..].iter().all(|s| *s < 0.0),
+            "第 {} 帧开始必须全部来自第二首",
+            frames
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 预装之后队列被改：`clear_next` 必须让这一首在 EOF 时结束，不能偷偷接上。
+    #[tokio::test]
+    async fn clear_next_cancels_a_pending_splice() {
+        let dir = temp_dir("splice-clear");
+        let frames = 3_200usize;
+        let path_a = write_wav(&dir, "a.wav", 8_000, 1, frames, 8_000);
+        let path_b = write_wav(&dir, "b.wav", 8_000, 1, frames, -8_000);
+        let format = PcmFormat {
+            sample_rate: 8_000,
+            channels: 1,
+        };
+        let factory = Arc::new(NullOutputFactory::new(format));
+        let media_a = cached_media(1, &path_a, 400);
+        let mut session = Session::start_with_factory(
+            &media_a,
+            None,
+            OutputMode::Shared,
+            1.0,
+            Handle::current(),
+            factory.clone(),
+        )
+        .await
+        .expect("start first track");
+        session.queue_next(cached_media(2, &path_b, 400));
+        session.clear_next();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline && !session.finished() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert!(session.finished());
+        assert_eq!(session.splice_count(), 0, "取消后不能再拼接");
+        session.stop();
+
+        let captured = factory.captured();
+        let span = nonzero_span(&captured);
+        assert_eq!(span.len(), frames, "只应该播出第一首");
+        assert!(span.iter().all(|s| *s > 0.0));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 不同采样率 / 声道数：解码线程重采样到设备格式，仍然接在同一条输出流里。
+    ///
+    /// 第二首 16 kHz 立体声，设备是 8 kHz 单声道：期望 1600 个设备帧，
+    /// 总输出 3200 + 1600 = 4800 帧，误差只允许重采样器滤波的个位数样本。
+    #[tokio::test]
+    async fn gapless_resamples_a_different_format_track_into_the_same_stream() {
+        let dir = temp_dir("splice-resample");
+        let frames_a = 3_200usize;
+        let frames_b = 3_200usize; // 16 kHz → 8 kHz 后是一半
+        let path_a = write_wav(&dir, "a.wav", 8_000, 1, frames_a, 8_000);
+        let path_b = write_wav(&dir, "b.wav", 16_000, 2, frames_b, -8_000);
+        let format = PcmFormat {
+            sample_rate: 8_000,
+            channels: 1,
+        };
+        let factory = Arc::new(NullOutputFactory::new(format));
+
+        let media_a = cached_media(1, &path_a, 400);
+        let mut session = Session::start_with_factory(
+            &media_a,
+            None,
+            OutputMode::Shared,
+            1.0,
+            Handle::current(),
+            factory.clone(),
+        )
+        .await
+        .expect("start first track");
+        session.queue_next(cached_media(2, &path_b, 200));
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline && !session.finished() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert!(session.finished());
+        assert_eq!(session.splice_count(), 1);
+        session.stop();
+
+        let captured = factory.captured();
+        let span = nonzero_span(&captured);
+        let expected = frames_a + frames_b / 2;
+        assert!(
+            span.len().abs_diff(expected) <= 4,
+            "重采样后总帧数 {}，期望 {expected}（±4）",
+            span.len()
+        );
+        // 重采样器的初始滤波器可能有 1–2 个接近零的样本，不能要求绝对非零；
+        // 但绝不允许出现可听级别的静音断点（> 4 个样本）。
+        assert!(
+            longest_zero_run(span) <= 4,
+            "不同格式拼接后出现了 {} 帧静音",
+            longest_zero_run(span)
+        );
+        // 第二首是负信号。FFT 重采样器在阶跃处会有短暂的滤波振铃（幅值很小），
+        // 跳过起始的 256 帧后，绝大多数样本必须已经是第二首的负信号。
+        let tail = &span[frames_a + 256..];
+        let negative = tail.iter().filter(|s| **s < 0.0).count();
+        assert!(
+            negative * 100 >= tail.len() * 98,
+            "第二首必须已经在播放：负样本 {negative}/{}",
+            tail.len()
+        );
+        let mean = tail.iter().sum::<f32>() / tail.len() as f32;
+        assert!(mean < -0.1, "第二首的均值应该接近 -0.244，实际 {mean}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
