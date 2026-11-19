@@ -93,22 +93,28 @@ final albumArtworkProvider = FutureProvider.autoDispose
 // ---------------------------------------------------------------------------
 
 typedef PageFetcher<T> = Future<List<T>> Function(int offset, int limit);
+typedef ListCount = Future<int> Function();
 
 /// A sparse, page-cached view over a very long list (100k+ rows).
 ///
 /// * Pages are fetched on demand when [itemAt] hits an unloaded page.
 /// * Only [maxCachedPages] pages are kept (LRU), so memory stays flat.
-/// * The total count is discovered lazily (see [_probeTotal]).
+/// * The total count comes from an exact `count*` bridge call when available;
+///   otherwise it is discovered lazily (see [_probeTotal]).
 class PagedList<T> extends ChangeNotifier {
   PagedList({
     required this._fetch,
     this.pageSize = 200,
     this.maxCachedPages = 40,
+    this.count,
   }) {
     _load(0);
   }
 
   final PageFetcher<T> _fetch;
+
+  /// Exact total row count, when the bridge can provide one.
+  final ListCount? count;
   final int pageSize;
   final int maxCachedPages;
 
@@ -199,14 +205,20 @@ class PagedList<T> extends ChangeNotifier {
     );
   }
 
-  /// Finds the exact row count with ~2·log2(n) single-row queries so the
-  /// scrollbar is accurate and the user can fling straight to the end.
-  ///
-  /// TODO(core): replace with a `trackCount()` / `albumCount()` bridge call.
+  /// Gets the exact row count so the scrollbar is accurate and the user can
+  /// fling straight to the end. Prefers the bridge's `count*` call; the
+  /// single-row binary search is only a fallback for lists without one.
   Future<void> _probeTotal() async {
     if (_probing) return;
     _probing = true;
     try {
+      if (count != null) {
+        final total = await count!();
+        if (_disposed || _total != null) return;
+        _total = total;
+        notifyListeners();
+        return;
+      }
       Future<bool> exists(int i) async => (await _fetch(i, 1)).isNotEmpty;
       var lo = pageSize; // count >= lo
       var hi = pageSize * 2;
@@ -241,19 +253,27 @@ class PagedList<T> extends ChangeNotifier {
   }
 }
 
-PagedList<T> _pagedList<T>(Ref ref, PageFetcher<T> fetch) {
+PagedList<T> _pagedList<T>(
+  Ref ref,
+  PageFetcher<T> fetch, {
+  ListCount? count,
+}) {
   ref.cacheFor(const Duration(minutes: 5));
   ref.invalidateOnCatalogChange();
-  final list = PagedList<T>(fetch: fetch);
+  final list = PagedList<T>(fetch: fetch, count: count);
   ref.onDispose(list.dispose);
   return list;
 }
+
+Future<int> _count(Future<BigInt> Function() call) async =>
+    (await call()).toInt();
 
 final songsListProvider = Provider.autoDispose
     .family<PagedList<TrackRowDto>, TrackSortDto>(
       (ref, sort) => _pagedList(
         ref,
         (o, l) => core.listTracks(sort: sort, offset: o, limit: l),
+        count: () => _count(core.countTracks),
       ),
     );
 
@@ -262,11 +282,16 @@ final albumsListProvider = Provider.autoDispose
       (ref, sort) => _pagedList(
         ref,
         (o, l) => core.listAlbums(sort: sort, offset: o, limit: l),
+        count: () => _count(core.countAlbums),
       ),
     );
 
 final artistsListProvider = Provider.autoDispose<PagedList<ArtistDto>>(
-  (ref) => _pagedList(ref, (o, l) => core.listArtists(offset: o, limit: l)),
+  (ref) => _pagedList(
+    ref,
+    (o, l) => core.listArtists(offset: o, limit: l),
+    count: () => _count(core.countArtists),
+  ),
 );
 
 final genreTracksListProvider = Provider.autoDispose
@@ -274,6 +299,7 @@ final genreTracksListProvider = Provider.autoDispose
       (ref, genre) => _pagedList(
         ref,
         (o, l) => core.genreTracks(name: genre, offset: o, limit: l),
+        count: () => _count(() => core.countGenreTracks(name: genre)),
       ),
     );
 
