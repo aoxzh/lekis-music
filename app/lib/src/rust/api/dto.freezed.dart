@@ -56,7 +56,7 @@ extension CoreEventDtoPatterns on CoreEventDto {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreEventDto_PlaybackChanged value)?  playbackChanged,TResult Function( CoreEventDto_PositionTick value)?  positionTick,TResult Function( CoreEventDto_QueueChanged value)?  queueChanged,TResult Function( CoreEventDto_ScanProgress value)?  scanProgress,TResult Function( CoreEventDto_ScanFinished value)?  scanFinished,TResult Function( CoreEventDto_LibraryChanged value)?  libraryChanged,TResult Function( CoreEventDto_EnrichQueueChanged value)?  enrichQueueChanged,TResult Function( CoreEventDto_SyncStatus value)?  syncStatus,TResult Function( CoreEventDto_SourceReachability value)?  sourceReachability,TResult Function( CoreEventDto_ScanFailed value)?  scanFailed,TResult Function( CoreEventDto_PlaybackOptionsChanged value)?  playbackOptionsChanged,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreEventDto_PlaybackChanged value)?  playbackChanged,TResult Function( CoreEventDto_PositionTick value)?  positionTick,TResult Function( CoreEventDto_QueueChanged value)?  queueChanged,TResult Function( CoreEventDto_ScanProgress value)?  scanProgress,TResult Function( CoreEventDto_ScanFinished value)?  scanFinished,TResult Function( CoreEventDto_LibraryChanged value)?  libraryChanged,TResult Function( CoreEventDto_EnrichQueueChanged value)?  enrichQueueChanged,TResult Function( CoreEventDto_SyncStatus value)?  syncStatus,TResult Function( CoreEventDto_SourceReachability value)?  sourceReachability,TResult Function( CoreEventDto_ScanFailed value)?  scanFailed,TResult Function( CoreEventDto_PlaybackOptionsChanged value)?  playbackOptionsChanged,TResult Function( CoreEventDto_OfflineProgress value)?  offlineProgress,TResult Function( CoreEventDto_OfflineChanged value)?  offlineChanged,TResult Function( CoreEventDto_OfflineRemoved value)?  offlineRemoved,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case CoreEventDto_PlaybackChanged() when playbackChanged != null:
@@ -70,7 +70,10 @@ return enrichQueueChanged(_that);case CoreEventDto_SyncStatus() when syncStatus 
 return syncStatus(_that);case CoreEventDto_SourceReachability() when sourceReachability != null:
 return sourceReachability(_that);case CoreEventDto_ScanFailed() when scanFailed != null:
 return scanFailed(_that);case CoreEventDto_PlaybackOptionsChanged() when playbackOptionsChanged != null:
-return playbackOptionsChanged(_that);case _:
+return playbackOptionsChanged(_that);case CoreEventDto_OfflineProgress() when offlineProgress != null:
+return offlineProgress(_that);case CoreEventDto_OfflineChanged() when offlineChanged != null:
+return offlineChanged(_that);case CoreEventDto_OfflineRemoved() when offlineRemoved != null:
+return offlineRemoved(_that);case _:
   return orElse();
 
 }
@@ -88,7 +91,7 @@ return playbackOptionsChanged(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreEventDto_PlaybackChanged value)  playbackChanged,required TResult Function( CoreEventDto_PositionTick value)  positionTick,required TResult Function( CoreEventDto_QueueChanged value)  queueChanged,required TResult Function( CoreEventDto_ScanProgress value)  scanProgress,required TResult Function( CoreEventDto_ScanFinished value)  scanFinished,required TResult Function( CoreEventDto_LibraryChanged value)  libraryChanged,required TResult Function( CoreEventDto_EnrichQueueChanged value)  enrichQueueChanged,required TResult Function( CoreEventDto_SyncStatus value)  syncStatus,required TResult Function( CoreEventDto_SourceReachability value)  sourceReachability,required TResult Function( CoreEventDto_ScanFailed value)  scanFailed,required TResult Function( CoreEventDto_PlaybackOptionsChanged value)  playbackOptionsChanged,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreEventDto_PlaybackChanged value)  playbackChanged,required TResult Function( CoreEventDto_PositionTick value)  positionTick,required TResult Function( CoreEventDto_QueueChanged value)  queueChanged,required TResult Function( CoreEventDto_ScanProgress value)  scanProgress,required TResult Function( CoreEventDto_ScanFinished value)  scanFinished,required TResult Function( CoreEventDto_LibraryChanged value)  libraryChanged,required TResult Function( CoreEventDto_EnrichQueueChanged value)  enrichQueueChanged,required TResult Function( CoreEventDto_SyncStatus value)  syncStatus,required TResult Function( CoreEventDto_SourceReachability value)  sourceReachability,required TResult Function( CoreEventDto_ScanFailed value)  scanFailed,required TResult Function( CoreEventDto_PlaybackOptionsChanged value)  playbackOptionsChanged,required TResult Function( CoreEventDto_OfflineProgress value)  offlineProgress,required TResult Function( CoreEventDto_OfflineChanged value)  offlineChanged,required TResult Function( CoreEventDto_OfflineRemoved value)  offlineRemoved,}){
 final _that = this;
 switch (_that) {
 case CoreEventDto_PlaybackChanged():
@@ -102,7 +105,10 @@ return enrichQueueChanged(_that);case CoreEventDto_SyncStatus():
 return syncStatus(_that);case CoreEventDto_SourceReachability():
 return sourceReachability(_that);case CoreEventDto_ScanFailed():
 return scanFailed(_that);case CoreEventDto_PlaybackOptionsChanged():
-return playbackOptionsChanged(_that);}
+return playbackOptionsChanged(_that);case CoreEventDto_OfflineProgress():
+return offlineProgress(_that);case CoreEventDto_OfflineChanged():
+return offlineChanged(_that);case CoreEventDto_OfflineRemoved():
+return offlineRemoved(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -116,7 +122,7 @@ return playbackOptionsChanged(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreEventDto_PlaybackChanged value)?  playbackChanged,TResult? Function( CoreEventDto_PositionTick value)?  positionTick,TResult? Function( CoreEventDto_QueueChanged value)?  queueChanged,TResult? Function( CoreEventDto_ScanProgress value)?  scanProgress,TResult? Function( CoreEventDto_ScanFinished value)?  scanFinished,TResult? Function( CoreEventDto_LibraryChanged value)?  libraryChanged,TResult? Function( CoreEventDto_EnrichQueueChanged value)?  enrichQueueChanged,TResult? Function( CoreEventDto_SyncStatus value)?  syncStatus,TResult? Function( CoreEventDto_SourceReachability value)?  sourceReachability,TResult? Function( CoreEventDto_ScanFailed value)?  scanFailed,TResult? Function( CoreEventDto_PlaybackOptionsChanged value)?  playbackOptionsChanged,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreEventDto_PlaybackChanged value)?  playbackChanged,TResult? Function( CoreEventDto_PositionTick value)?  positionTick,TResult? Function( CoreEventDto_QueueChanged value)?  queueChanged,TResult? Function( CoreEventDto_ScanProgress value)?  scanProgress,TResult? Function( CoreEventDto_ScanFinished value)?  scanFinished,TResult? Function( CoreEventDto_LibraryChanged value)?  libraryChanged,TResult? Function( CoreEventDto_EnrichQueueChanged value)?  enrichQueueChanged,TResult? Function( CoreEventDto_SyncStatus value)?  syncStatus,TResult? Function( CoreEventDto_SourceReachability value)?  sourceReachability,TResult? Function( CoreEventDto_ScanFailed value)?  scanFailed,TResult? Function( CoreEventDto_PlaybackOptionsChanged value)?  playbackOptionsChanged,TResult? Function( CoreEventDto_OfflineProgress value)?  offlineProgress,TResult? Function( CoreEventDto_OfflineChanged value)?  offlineChanged,TResult? Function( CoreEventDto_OfflineRemoved value)?  offlineRemoved,}){
 final _that = this;
 switch (_that) {
 case CoreEventDto_PlaybackChanged() when playbackChanged != null:
@@ -130,7 +136,10 @@ return enrichQueueChanged(_that);case CoreEventDto_SyncStatus() when syncStatus 
 return syncStatus(_that);case CoreEventDto_SourceReachability() when sourceReachability != null:
 return sourceReachability(_that);case CoreEventDto_ScanFailed() when scanFailed != null:
 return scanFailed(_that);case CoreEventDto_PlaybackOptionsChanged() when playbackOptionsChanged != null:
-return playbackOptionsChanged(_that);case _:
+return playbackOptionsChanged(_that);case CoreEventDto_OfflineProgress() when offlineProgress != null:
+return offlineProgress(_that);case CoreEventDto_OfflineChanged() when offlineChanged != null:
+return offlineChanged(_that);case CoreEventDto_OfflineRemoved() when offlineRemoved != null:
+return offlineRemoved(_that);case _:
   return null;
 
 }
@@ -147,7 +156,7 @@ return playbackOptionsChanged(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( PlaybackStateDto state,  PlatformInt64? trackId,  BigInt positionMs,  BigInt durationMs)?  playbackChanged,TResult Function( BigInt positionMs,  BigInt bufferedMs)?  positionTick,TResult Function( int length,  int? currentIndex)?  queueChanged,TResult Function( PlatformInt64 sourceId,  ScanPhaseDto phase,  BigInt done,  BigInt? total)?  scanProgress,TResult Function( PlatformInt64 sourceId,  BigInt added,  BigInt updated,  BigInt removed)?  scanFinished,TResult Function( LibraryScopeDto scope)?  libraryChanged,TResult Function( int pending)?  enrichQueueChanged,TResult Function( SyncStateDto state)?  syncStatus,TResult Function( PlatformInt64 sourceId,  bool reachable)?  sourceReachability,TResult Function( PlatformInt64 sourceId,  ErrorKind kind,  String detail)?  scanFailed,TResult Function( RepeatModeDto repeat,  ShuffleModeDto shuffle,  double volume,  bool gapless)?  playbackOptionsChanged,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( PlaybackStateDto state,  PlatformInt64? trackId,  BigInt positionMs,  BigInt durationMs)?  playbackChanged,TResult Function( BigInt positionMs,  BigInt bufferedMs)?  positionTick,TResult Function( int length,  int? currentIndex)?  queueChanged,TResult Function( PlatformInt64 sourceId,  ScanPhaseDto phase,  BigInt done,  BigInt? total)?  scanProgress,TResult Function( PlatformInt64 sourceId,  BigInt added,  BigInt updated,  BigInt removed)?  scanFinished,TResult Function( LibraryScopeDto scope)?  libraryChanged,TResult Function( int pending)?  enrichQueueChanged,TResult Function( SyncStateDto state)?  syncStatus,TResult Function( PlatformInt64 sourceId,  bool reachable)?  sourceReachability,TResult Function( PlatformInt64 sourceId,  ErrorKind kind,  String detail)?  scanFailed,TResult Function( RepeatModeDto repeat,  ShuffleModeDto shuffle,  double volume,  bool gapless)?  playbackOptionsChanged,TResult Function( PlatformInt64 trackId,  BigInt downloaded,  BigInt? total)?  offlineProgress,TResult Function( PlatformInt64 trackId,  OfflineStateDto state,  String? error)?  offlineChanged,TResult Function( PlatformInt64 trackId)?  offlineRemoved,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case CoreEventDto_PlaybackChanged() when playbackChanged != null:
 return playbackChanged(_that.state,_that.trackId,_that.positionMs,_that.durationMs);case CoreEventDto_PositionTick() when positionTick != null:
@@ -160,7 +169,10 @@ return enrichQueueChanged(_that.pending);case CoreEventDto_SyncStatus() when syn
 return syncStatus(_that.state);case CoreEventDto_SourceReachability() when sourceReachability != null:
 return sourceReachability(_that.sourceId,_that.reachable);case CoreEventDto_ScanFailed() when scanFailed != null:
 return scanFailed(_that.sourceId,_that.kind,_that.detail);case CoreEventDto_PlaybackOptionsChanged() when playbackOptionsChanged != null:
-return playbackOptionsChanged(_that.repeat,_that.shuffle,_that.volume,_that.gapless);case _:
+return playbackOptionsChanged(_that.repeat,_that.shuffle,_that.volume,_that.gapless);case CoreEventDto_OfflineProgress() when offlineProgress != null:
+return offlineProgress(_that.trackId,_that.downloaded,_that.total);case CoreEventDto_OfflineChanged() when offlineChanged != null:
+return offlineChanged(_that.trackId,_that.state,_that.error);case CoreEventDto_OfflineRemoved() when offlineRemoved != null:
+return offlineRemoved(_that.trackId);case _:
   return orElse();
 
 }
@@ -178,7 +190,7 @@ return playbackOptionsChanged(_that.repeat,_that.shuffle,_that.volume,_that.gapl
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( PlaybackStateDto state,  PlatformInt64? trackId,  BigInt positionMs,  BigInt durationMs)  playbackChanged,required TResult Function( BigInt positionMs,  BigInt bufferedMs)  positionTick,required TResult Function( int length,  int? currentIndex)  queueChanged,required TResult Function( PlatformInt64 sourceId,  ScanPhaseDto phase,  BigInt done,  BigInt? total)  scanProgress,required TResult Function( PlatformInt64 sourceId,  BigInt added,  BigInt updated,  BigInt removed)  scanFinished,required TResult Function( LibraryScopeDto scope)  libraryChanged,required TResult Function( int pending)  enrichQueueChanged,required TResult Function( SyncStateDto state)  syncStatus,required TResult Function( PlatformInt64 sourceId,  bool reachable)  sourceReachability,required TResult Function( PlatformInt64 sourceId,  ErrorKind kind,  String detail)  scanFailed,required TResult Function( RepeatModeDto repeat,  ShuffleModeDto shuffle,  double volume,  bool gapless)  playbackOptionsChanged,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( PlaybackStateDto state,  PlatformInt64? trackId,  BigInt positionMs,  BigInt durationMs)  playbackChanged,required TResult Function( BigInt positionMs,  BigInt bufferedMs)  positionTick,required TResult Function( int length,  int? currentIndex)  queueChanged,required TResult Function( PlatformInt64 sourceId,  ScanPhaseDto phase,  BigInt done,  BigInt? total)  scanProgress,required TResult Function( PlatformInt64 sourceId,  BigInt added,  BigInt updated,  BigInt removed)  scanFinished,required TResult Function( LibraryScopeDto scope)  libraryChanged,required TResult Function( int pending)  enrichQueueChanged,required TResult Function( SyncStateDto state)  syncStatus,required TResult Function( PlatformInt64 sourceId,  bool reachable)  sourceReachability,required TResult Function( PlatformInt64 sourceId,  ErrorKind kind,  String detail)  scanFailed,required TResult Function( RepeatModeDto repeat,  ShuffleModeDto shuffle,  double volume,  bool gapless)  playbackOptionsChanged,required TResult Function( PlatformInt64 trackId,  BigInt downloaded,  BigInt? total)  offlineProgress,required TResult Function( PlatformInt64 trackId,  OfflineStateDto state,  String? error)  offlineChanged,required TResult Function( PlatformInt64 trackId)  offlineRemoved,}) {final _that = this;
 switch (_that) {
 case CoreEventDto_PlaybackChanged():
 return playbackChanged(_that.state,_that.trackId,_that.positionMs,_that.durationMs);case CoreEventDto_PositionTick():
@@ -191,7 +203,10 @@ return enrichQueueChanged(_that.pending);case CoreEventDto_SyncStatus():
 return syncStatus(_that.state);case CoreEventDto_SourceReachability():
 return sourceReachability(_that.sourceId,_that.reachable);case CoreEventDto_ScanFailed():
 return scanFailed(_that.sourceId,_that.kind,_that.detail);case CoreEventDto_PlaybackOptionsChanged():
-return playbackOptionsChanged(_that.repeat,_that.shuffle,_that.volume,_that.gapless);}
+return playbackOptionsChanged(_that.repeat,_that.shuffle,_that.volume,_that.gapless);case CoreEventDto_OfflineProgress():
+return offlineProgress(_that.trackId,_that.downloaded,_that.total);case CoreEventDto_OfflineChanged():
+return offlineChanged(_that.trackId,_that.state,_that.error);case CoreEventDto_OfflineRemoved():
+return offlineRemoved(_that.trackId);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -205,7 +220,7 @@ return playbackOptionsChanged(_that.repeat,_that.shuffle,_that.volume,_that.gapl
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( PlaybackStateDto state,  PlatformInt64? trackId,  BigInt positionMs,  BigInt durationMs)?  playbackChanged,TResult? Function( BigInt positionMs,  BigInt bufferedMs)?  positionTick,TResult? Function( int length,  int? currentIndex)?  queueChanged,TResult? Function( PlatformInt64 sourceId,  ScanPhaseDto phase,  BigInt done,  BigInt? total)?  scanProgress,TResult? Function( PlatformInt64 sourceId,  BigInt added,  BigInt updated,  BigInt removed)?  scanFinished,TResult? Function( LibraryScopeDto scope)?  libraryChanged,TResult? Function( int pending)?  enrichQueueChanged,TResult? Function( SyncStateDto state)?  syncStatus,TResult? Function( PlatformInt64 sourceId,  bool reachable)?  sourceReachability,TResult? Function( PlatformInt64 sourceId,  ErrorKind kind,  String detail)?  scanFailed,TResult? Function( RepeatModeDto repeat,  ShuffleModeDto shuffle,  double volume,  bool gapless)?  playbackOptionsChanged,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( PlaybackStateDto state,  PlatformInt64? trackId,  BigInt positionMs,  BigInt durationMs)?  playbackChanged,TResult? Function( BigInt positionMs,  BigInt bufferedMs)?  positionTick,TResult? Function( int length,  int? currentIndex)?  queueChanged,TResult? Function( PlatformInt64 sourceId,  ScanPhaseDto phase,  BigInt done,  BigInt? total)?  scanProgress,TResult? Function( PlatformInt64 sourceId,  BigInt added,  BigInt updated,  BigInt removed)?  scanFinished,TResult? Function( LibraryScopeDto scope)?  libraryChanged,TResult? Function( int pending)?  enrichQueueChanged,TResult? Function( SyncStateDto state)?  syncStatus,TResult? Function( PlatformInt64 sourceId,  bool reachable)?  sourceReachability,TResult? Function( PlatformInt64 sourceId,  ErrorKind kind,  String detail)?  scanFailed,TResult? Function( RepeatModeDto repeat,  ShuffleModeDto shuffle,  double volume,  bool gapless)?  playbackOptionsChanged,TResult? Function( PlatformInt64 trackId,  BigInt downloaded,  BigInt? total)?  offlineProgress,TResult? Function( PlatformInt64 trackId,  OfflineStateDto state,  String? error)?  offlineChanged,TResult? Function( PlatformInt64 trackId)?  offlineRemoved,}) {final _that = this;
 switch (_that) {
 case CoreEventDto_PlaybackChanged() when playbackChanged != null:
 return playbackChanged(_that.state,_that.trackId,_that.positionMs,_that.durationMs);case CoreEventDto_PositionTick() when positionTick != null:
@@ -218,7 +233,10 @@ return enrichQueueChanged(_that.pending);case CoreEventDto_SyncStatus() when syn
 return syncStatus(_that.state);case CoreEventDto_SourceReachability() when sourceReachability != null:
 return sourceReachability(_that.sourceId,_that.reachable);case CoreEventDto_ScanFailed() when scanFailed != null:
 return scanFailed(_that.sourceId,_that.kind,_that.detail);case CoreEventDto_PlaybackOptionsChanged() when playbackOptionsChanged != null:
-return playbackOptionsChanged(_that.repeat,_that.shuffle,_that.volume,_that.gapless);case _:
+return playbackOptionsChanged(_that.repeat,_that.shuffle,_that.volume,_that.gapless);case CoreEventDto_OfflineProgress() when offlineProgress != null:
+return offlineProgress(_that.trackId,_that.downloaded,_that.total);case CoreEventDto_OfflineChanged() when offlineChanged != null:
+return offlineChanged(_that.trackId,_that.state,_that.error);case CoreEventDto_OfflineRemoved() when offlineRemoved != null:
+return offlineRemoved(_that.trackId);case _:
   return null;
 
 }
@@ -1004,6 +1022,218 @@ as RepeatModeDto,shuffle: null == shuffle ? _self.shuffle : shuffle // ignore: c
 as ShuffleModeDto,volume: null == volume ? _self.volume : volume // ignore: cast_nullable_to_non_nullable
 as double,gapless: null == gapless ? _self.gapless : gapless // ignore: cast_nullable_to_non_nullable
 as bool,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventDto_OfflineProgress extends CoreEventDto {
+  const CoreEventDto_OfflineProgress({required this.trackId, required this.downloaded, this.total}): super._();
+  
+
+ final  PlatformInt64 trackId;
+ final  BigInt downloaded;
+ final  BigInt? total;
+
+/// Create a copy of CoreEventDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventDto_OfflineProgressCopyWith<CoreEventDto_OfflineProgress> get copyWith => _$CoreEventDto_OfflineProgressCopyWithImpl<CoreEventDto_OfflineProgress>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventDto_OfflineProgress&&(identical(other.trackId, trackId) || other.trackId == trackId)&&(identical(other.downloaded, downloaded) || other.downloaded == downloaded)&&(identical(other.total, total) || other.total == total));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,trackId,downloaded,total);
+}
+
+@override
+String toString() {
+    return 'CoreEventDto.offlineProgress(trackId: $trackId, downloaded: $downloaded, total: $total)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventDto_OfflineProgressCopyWith<$Res> implements $CoreEventDtoCopyWith<$Res> {
+  factory $CoreEventDto_OfflineProgressCopyWith(CoreEventDto_OfflineProgress value, $Res Function(CoreEventDto_OfflineProgress) _then) = _$CoreEventDto_OfflineProgressCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 trackId, BigInt downloaded, BigInt? total
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventDto_OfflineProgressCopyWithImpl<$Res>
+    implements $CoreEventDto_OfflineProgressCopyWith<$Res> {
+  _$CoreEventDto_OfflineProgressCopyWithImpl(this._self, this._then);
+
+  final CoreEventDto_OfflineProgress _self;
+  final $Res Function(CoreEventDto_OfflineProgress) _then;
+
+/// Create a copy of CoreEventDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? trackId = null,Object? downloaded = null,Object? total = freezed,}) {
+  return _then(CoreEventDto_OfflineProgress(
+trackId: null == trackId ? _self.trackId : trackId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,downloaded: null == downloaded ? _self.downloaded : downloaded // ignore: cast_nullable_to_non_nullable
+as BigInt,total: freezed == total ? _self.total : total // ignore: cast_nullable_to_non_nullable
+as BigInt?,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventDto_OfflineChanged extends CoreEventDto {
+  const CoreEventDto_OfflineChanged({required this.trackId, required this.state, this.error}): super._();
+  
+
+ final  PlatformInt64 trackId;
+ final  OfflineStateDto state;
+ final  String? error;
+
+/// Create a copy of CoreEventDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventDto_OfflineChangedCopyWith<CoreEventDto_OfflineChanged> get copyWith => _$CoreEventDto_OfflineChangedCopyWithImpl<CoreEventDto_OfflineChanged>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventDto_OfflineChanged&&(identical(other.trackId, trackId) || other.trackId == trackId)&&(identical(other.state, state) || other.state == state)&&(identical(other.error, error) || other.error == error));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,trackId,state,error);
+}
+
+@override
+String toString() {
+    return 'CoreEventDto.offlineChanged(trackId: $trackId, state: $state, error: $error)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventDto_OfflineChangedCopyWith<$Res> implements $CoreEventDtoCopyWith<$Res> {
+  factory $CoreEventDto_OfflineChangedCopyWith(CoreEventDto_OfflineChanged value, $Res Function(CoreEventDto_OfflineChanged) _then) = _$CoreEventDto_OfflineChangedCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 trackId, OfflineStateDto state, String? error
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventDto_OfflineChangedCopyWithImpl<$Res>
+    implements $CoreEventDto_OfflineChangedCopyWith<$Res> {
+  _$CoreEventDto_OfflineChangedCopyWithImpl(this._self, this._then);
+
+  final CoreEventDto_OfflineChanged _self;
+  final $Res Function(CoreEventDto_OfflineChanged) _then;
+
+/// Create a copy of CoreEventDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? trackId = null,Object? state = null,Object? error = freezed,}) {
+  return _then(CoreEventDto_OfflineChanged(
+trackId: null == trackId ? _self.trackId : trackId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,state: null == state ? _self.state : state // ignore: cast_nullable_to_non_nullable
+as OfflineStateDto,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
+as String?,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventDto_OfflineRemoved extends CoreEventDto {
+  const CoreEventDto_OfflineRemoved({required this.trackId}): super._();
+  
+
+ final  PlatformInt64 trackId;
+
+/// Create a copy of CoreEventDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventDto_OfflineRemovedCopyWith<CoreEventDto_OfflineRemoved> get copyWith => _$CoreEventDto_OfflineRemovedCopyWithImpl<CoreEventDto_OfflineRemoved>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventDto_OfflineRemoved&&(identical(other.trackId, trackId) || other.trackId == trackId));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,trackId);
+}
+
+@override
+String toString() {
+    return 'CoreEventDto.offlineRemoved(trackId: $trackId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventDto_OfflineRemovedCopyWith<$Res> implements $CoreEventDtoCopyWith<$Res> {
+  factory $CoreEventDto_OfflineRemovedCopyWith(CoreEventDto_OfflineRemoved value, $Res Function(CoreEventDto_OfflineRemoved) _then) = _$CoreEventDto_OfflineRemovedCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 trackId
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventDto_OfflineRemovedCopyWithImpl<$Res>
+    implements $CoreEventDto_OfflineRemovedCopyWith<$Res> {
+  _$CoreEventDto_OfflineRemovedCopyWithImpl(this._self, this._then);
+
+  final CoreEventDto_OfflineRemoved _self;
+  final $Res Function(CoreEventDto_OfflineRemoved) _then;
+
+/// Create a copy of CoreEventDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? trackId = null,}) {
+  return _then(CoreEventDto_OfflineRemoved(
+trackId: null == trackId ? _self.trackId : trackId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
   ));
 }
 

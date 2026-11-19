@@ -2,6 +2,7 @@
 
 import 'package:material_ui/material_ui.dart';
 
+import 'package:lekis/src/features/downloads/downloads_page.dart';
 import 'package:lekis/src/features/enrich/enrich_review_page.dart';
 
 export 'package:lekis/src/features/now_playing/now_playing_route.dart'
@@ -14,5 +15,14 @@ Future<void> openEnrichReview(BuildContext context) =>
       MaterialPageRoute<void>(
         settings: const RouteSettings(name: '/enrich-review'),
         builder: (_) => const EnrichReviewPage(),
+      ),
+    );
+
+/// Opens the offline downloads page inside the current tab.
+Future<void> openDownloads(BuildContext context) =>
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        settings: const RouteSettings(name: '/downloads'),
+        builder: (_) => const DownloadsPage(),
       ),
     );

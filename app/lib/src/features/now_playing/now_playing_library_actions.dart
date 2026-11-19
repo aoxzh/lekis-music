@@ -1,6 +1,7 @@
 // 正在播放里的收藏 / 评分 / 添加到歌单。
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
@@ -31,6 +32,7 @@ class NowPlayingLibraryActions extends ConsumerWidget {
           size: 22,
           compact: false,
         ),
+        TrackDownloadButton(trackId: track.id, compact: false),
         IconButton(
           tooltip: '添加到歌单',
           onPressed: () => showAddToPlaylistSheet(

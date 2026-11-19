@@ -11,7 +11,7 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'dto.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `into_rule_group`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `try_from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `try_from`
 
 /// 专辑（LIB-06）。
 class AlbumDto {
@@ -244,6 +244,24 @@ sealed class CoreEventDto with _$CoreEventDto {
     required double volume,
     required bool gapless,
   }) = CoreEventDto_PlaybackOptionsChanged;
+
+  /// 离线下载进度。
+  const factory CoreEventDto.offlineProgress({
+    required PlatformInt64 trackId,
+    required BigInt downloaded,
+    BigInt? total,
+  }) = CoreEventDto_OfflineProgress;
+
+  /// 离线下载状态变了。
+  const factory CoreEventDto.offlineChanged({
+    required PlatformInt64 trackId,
+    required OfflineStateDto state,
+    String? error,
+  }) = CoreEventDto_OfflineChanged;
+
+  /// 离线下载记录被删除。
+  const factory CoreEventDto.offlineRemoved({required PlatformInt64 trackId}) =
+      CoreEventDto_OfflineRemoved;
 }
 
 /// 发现到的服务类型。
@@ -530,6 +548,103 @@ class LyricsRowDto {
           trackId == other.trackId &&
           lyrics == other.lyrics &&
           isActive == other.isActive;
+}
+
+/// 一条离线下载记录。
+class OfflineDownloadDto {
+  /// 曲目。
+  final PlatformInt64 trackId;
+
+  /// 下载时使用的音源。
+  final PlatformInt64 sourceId;
+
+  /// 缓存文件的本机绝对路径。
+  final String cachePath;
+
+  /// 已写字节数。
+  final BigInt bytes;
+
+  /// 源文件总字节数（未知时为 0）。
+  final BigInt totalBytes;
+
+  /// 状态。
+  final OfflineStateDto state;
+
+  /// 最近一次失败 / 取消原因（给开发者看）。
+  final String? error;
+
+  /// 创建时间（Unix 毫秒）。
+  final PlatformInt64 createdAt;
+
+  /// 最后更新时间（Unix 毫秒）。
+  final PlatformInt64 updatedAt;
+
+  const OfflineDownloadDto({
+    required this.trackId,
+    required this.sourceId,
+    required this.cachePath,
+    required this.bytes,
+    required this.totalBytes,
+    required this.state,
+    this.error,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  @override
+  int get hashCode =>
+      trackId.hashCode ^
+      sourceId.hashCode ^
+      cachePath.hashCode ^
+      bytes.hashCode ^
+      totalBytes.hashCode ^
+      state.hashCode ^
+      error.hashCode ^
+      createdAt.hashCode ^
+      updatedAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OfflineDownloadDto &&
+          runtimeType == other.runtimeType &&
+          trackId == other.trackId &&
+          sourceId == other.sourceId &&
+          cachePath == other.cachePath &&
+          bytes == other.bytes &&
+          totalBytes == other.totalBytes &&
+          state == other.state &&
+          error == other.error &&
+          createdAt == other.createdAt &&
+          updatedAt == other.updatedAt;
+}
+
+/// 离线下载状态（OFF-01/02）。
+enum OfflineStateDto { queued, downloading, ready, failed }
+
+/// 离线下载汇总。
+class OfflineStatsDto {
+  /// 已下载曲目数。
+  final BigInt count;
+
+  /// 缓存总字节数。
+  final BigInt bytes;
+
+  const OfflineStatsDto({required this.count, required this.bytes});
+
+  static Future<OfflineStatsDto> default_() =>
+      RustLib.instance.api.crateApiDtoOfflineStatsDtoDefault();
+
+  @override
+  int get hashCode => count.hashCode ^ bytes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OfflineStatsDto &&
+          runtimeType == other.runtimeType &&
+          count == other.count &&
+          bytes == other.bytes;
 }
 
 /// 一个音频输出设备（PLY-12）。

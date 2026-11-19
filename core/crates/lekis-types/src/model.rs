@@ -505,6 +505,43 @@ pub enum ShuffleMode {
     Smart,
 }
 
+/// 离线下载状态（OFF-01/02）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OfflineState {
+    /// 已入队，等待用户重试或开始。
+    Queued,
+    /// 正在写缓存文件。
+    Downloading,
+    /// 缓存文件可用。
+    Ready,
+    /// 下载失败 / 被取消。
+    Failed,
+}
+
+impl OfflineState {
+    /// 数据库里的字符串表示。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Queued => "queued",
+            Self::Downloading => "downloading",
+            Self::Ready => "ready",
+            Self::Failed => "failed",
+        }
+    }
+
+    /// 解析数据库里的字符串；未知值返回 `None`（不让一行坏数据拖垮整个列表）。
+    pub fn from_db(raw: &str) -> Option<Self> {
+        match raw {
+            "queued" => Some(Self::Queued),
+            "downloading" => Some(Self::Downloading),
+            "ready" => Some(Self::Ready),
+            "failed" => Some(Self::Failed),
+            _ => None,
+        }
+    }
+}
+
 /// 资料库排序方式。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

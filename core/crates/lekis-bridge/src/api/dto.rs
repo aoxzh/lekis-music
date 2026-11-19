@@ -397,6 +397,74 @@ impl From<t::Track> for TrackDto {
     }
 }
 
+/// 离线下载状态（OFF-01/02）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OfflineStateDto {
+    Queued,
+    Downloading,
+    Ready,
+    Failed,
+}
+
+mirror_enum!(OfflineStateDto <=> t::OfflineState { Queued, Downloading, Ready, Failed });
+
+/// 一条离线下载记录。
+#[derive(Debug, Clone)]
+pub struct OfflineDownloadDto {
+    /// 曲目。
+    pub track_id: i64,
+    /// 下载时使用的音源。
+    pub source_id: i64,
+    /// 缓存文件的本机绝对路径。
+    pub cache_path: String,
+    /// 已写字节数。
+    pub bytes: u64,
+    /// 源文件总字节数（未知时为 0）。
+    pub total_bytes: u64,
+    /// 状态。
+    pub state: OfflineStateDto,
+    /// 最近一次失败 / 取消原因（给开发者看）。
+    pub error: Option<String>,
+    /// 创建时间（Unix 毫秒）。
+    pub created_at: i64,
+    /// 最后更新时间（Unix 毫秒）。
+    pub updated_at: i64,
+}
+
+impl From<lekis_library::OfflineDownload> for OfflineDownloadDto {
+    fn from(d: lekis_library::OfflineDownload) -> Self {
+        Self {
+            track_id: d.track_id.0,
+            source_id: d.source_id.0,
+            cache_path: d.cache_path,
+            bytes: d.bytes,
+            total_bytes: d.total_bytes,
+            state: d.state.into(),
+            error: d.error,
+            created_at: d.created_at,
+            updated_at: d.updated_at,
+        }
+    }
+}
+
+/// 离线下载汇总。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct OfflineStatsDto {
+    /// 已下载曲目数。
+    pub count: u64,
+    /// 缓存总字节数。
+    pub bytes: u64,
+}
+
+impl From<lekis_library::OfflineStats> for OfflineStatsDto {
+    fn from(s: lekis_library::OfflineStats) -> Self {
+        Self {
+            count: s.count,
+            bytes: s.bytes,
+        }
+    }
+}
+
 /// 专辑（LIB-06）。
 #[derive(Debug, Clone)]
 pub struct AlbumDto {
@@ -1367,6 +1435,22 @@ pub enum CoreEventDto {
         volume: f32,
         gapless: bool,
     },
+    /// 离线下载进度。
+    OfflineProgress {
+        track_id: i64,
+        downloaded: u64,
+        total: Option<u64>,
+    },
+    /// 离线下载状态变了。
+    OfflineChanged {
+        track_id: i64,
+        state: OfflineStateDto,
+        error: Option<String>,
+    },
+    /// 离线下载记录被删除。
+    OfflineRemoved {
+        track_id: i64,
+    },
 }
 
 impl From<t::CoreEvent> for CoreEventDto {
@@ -1453,6 +1537,27 @@ impl From<t::CoreEvent> for CoreEventDto {
                 shuffle: shuffle.into(),
                 volume,
                 gapless,
+            },
+            E::OfflineProgress {
+                track_id,
+                downloaded,
+                total,
+            } => Self::OfflineProgress {
+                track_id: track_id.0,
+                downloaded,
+                total,
+            },
+            E::OfflineChanged {
+                track_id,
+                state,
+                error,
+            } => Self::OfflineChanged {
+                track_id: track_id.0,
+                state: state.into(),
+                error,
+            },
+            E::OfflineRemoved { track_id } => Self::OfflineRemoved {
+                track_id: track_id.0,
             },
         }
     }

@@ -399,6 +399,49 @@ pub async fn sync_now(source_id: i64) -> Result<SyncReportDto, CoreError> {
         .into())
 }
 
+// ---- 离线下载（OFF-01/02/04）----
+
+/// 把一首歌加入离线下载队列。立即返回，进度通过 `coreEvents` 推送。
+pub async fn download_track(track_id: i64) -> Result<(), CoreError> {
+    Ok(core().download_track(lekis_types::TrackId(track_id)).await?)
+}
+
+/// 批量加入离线下载队列，返回成功入队 / 已在下载的条数。
+pub async fn download_tracks(track_ids: Vec<i64>) -> Result<u32, CoreError> {
+    let ids = track_ids.into_iter().map(lekis_types::TrackId).collect();
+    Ok(core().download_tracks(ids).await?)
+}
+
+/// 全部离线记录（下载中 / 排队 / 已完成 / 失败）。
+pub async fn offline_downloads() -> Result<Vec<OfflineDownloadDto>, CoreError> {
+    Ok(core()
+        .offline_downloads()
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// 已下载曲目数 + 缓存总字节数。
+pub async fn offline_stats() -> Result<OfflineStatsDto, CoreError> {
+    Ok(core().offline_stats().await?.into())
+}
+
+/// 某首歌的离线状态；没有记录时为 `null`。
+pub async fn offline_status(track_id: i64) -> Result<Option<OfflineDownloadDto>, CoreError> {
+    Ok(core()
+        .offline_status(lekis_types::TrackId(track_id))
+        .await?
+        .map(Into::into))
+}
+
+/// 删除离线记录和缓存文件；正在下载时同时取消。
+pub async fn remove_download(track_id: i64) -> Result<(), CoreError> {
+    Ok(core()
+        .remove_download(lekis_types::TrackId(track_id))
+        .await?)
+}
+
 // ---- 播放（非阻塞）----
 
 #[frb(sync)]

@@ -8,6 +8,8 @@ import '../../rust/api/dto.dart';
 import '../../shell/app_shell.dart';
 import '../../shell/tab_bar_style.dart';
 import '../../theme/tokens.dart';
+import '../downloads/downloads_models.dart';
+import '../downloads/downloads_providers.dart';
 import '../enrich/enrich_providers.dart';
 import '../now_playing/lyrics_stage_settings.dart';
 import '../player/sleep_timer.dart';
@@ -424,6 +426,7 @@ class _LibrarySection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pending = ref.watch(enrichPendingCountProvider);
+    final downloads = ref.watch(downloadsSummaryProvider);
     return Column(
       children: [
         ListTile(
@@ -433,6 +436,34 @@ class _LibrarySection extends ConsumerWidget {
           subtitle: const Text(SettingsStrings.sourcesHint),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => AppShell.select(context, LekisDestination.sources),
+        ),
+        ListTile(
+          minTileHeight: LekisSizes.touchTargetMin,
+          leading: const Icon(Icons.download_for_offline_outlined),
+          title: const Text(SettingsStrings.downloads),
+          subtitle: Text(
+            downloads.readyCount > 0 || downloads.activeCount > 0
+                ? SettingsStrings.downloadsSummary(
+                    downloads.readyCount,
+                    formatBytes(downloads.totalBytes),
+                    downloads.activeCount,
+                  )
+                : SettingsStrings.downloadsHint,
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (downloads.activeCount > 0) ...[
+                const SizedBox.square(
+                  dimension: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: LekisSpacing.sm),
+              ],
+              const Icon(Icons.chevron_right),
+            ],
+          ),
+          onTap: () => openDownloads(context),
         ),
         ListTile(
           minTileHeight: LekisSizes.touchTargetMin,

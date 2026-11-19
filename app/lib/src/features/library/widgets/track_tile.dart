@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/downloads/download_status.dart';
+import 'package:lekis/src/features/downloads/downloads_providers.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
@@ -17,7 +19,7 @@ String formatDuration(int ms) {
   return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$s' : '$m:$s';
 }
 
-enum _TrackMenuAction { addToPlaylist, rate }
+enum _TrackMenuAction { addToPlaylist, rate, download }
 
 /// Fixed-height song row (so long lists can use `itemExtent`).
 class TrackTile extends ConsumerWidget {
@@ -46,6 +48,7 @@ class TrackTile extends ConsumerWidget {
     final isCurrent = ref.watch(
       playbackProvider.select((s) => s.trackId == track.id),
     );
+    final downloadState = ref.watch(downloadStateProvider(track.id));
     final subtitle = [
       track.artistLine,
       if (track.albumTitle != null && leadingNumber == null) track.albumTitle!,
@@ -126,6 +129,7 @@ class TrackTile extends ConsumerWidget {
                     _QualityBadge(label: track.qualityBadge!),
                   ],
                   const SizedBox(width: LekisSpacing.xs),
+                  CompactDownloadProgress(trackId: track.id),
                   LovedButton(
                     trackId: track.id,
                     initialLoved: track.loved,
@@ -150,10 +154,17 @@ class TrackTile extends ConsumerWidget {
                             trackId: track.id,
                             title: track.title,
                           );
+                        case _TrackMenuAction.download:
+                          runDownloadMenuAction(
+                            context,
+                            ref,
+                            track.id,
+                            downloadState,
+                          );
                       }
                     },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(
                         value: _TrackMenuAction.addToPlaylist,
                         child: ListTile(
                           dense: true,
@@ -162,13 +173,30 @@ class TrackTile extends ConsumerWidget {
                           title: Text('添加到歌单'),
                         ),
                       ),
-                      PopupMenuItem(
+                      const PopupMenuItem(
                         value: _TrackMenuAction.rate,
                         child: ListTile(
                           dense: true,
                           contentPadding: EdgeInsets.zero,
                           leading: Icon(Icons.star_outline_rounded),
                           title: Text('评分'),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: _TrackMenuAction.download,
+                        child: ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            downloadState == null
+                                ? Icons.download_for_offline_outlined
+                                : downloadState == OfflineStateDto.ready
+                                ? Icons.delete_outline_rounded
+                                : downloadState == OfflineStateDto.failed
+                                ? Icons.refresh_rounded
+                                : Icons.download_done_rounded,
+                          ),
+                          title: Text(downloadMenuLabel(downloadState)),
                         ),
                       ),
                     ],

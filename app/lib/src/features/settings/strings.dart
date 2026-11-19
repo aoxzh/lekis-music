@@ -53,6 +53,10 @@ abstract final class SettingsStrings {
   static const enrichReview = '待确认的补全';
   static const enrichReviewHint = '检查自动找到的封面、歌词和标签';
   static String pendingCount(int n) => '$n 条待确认';
+  static const downloads = '下载';
+  static const downloadsHint = '离线缓存、下载队列和失败重试';
+  static String downloadsSummary(int count, String size, int active) =>
+      '$count 首 · $size${active > 0 ? ' · $active 首下载中' : ''}';
 
   static const scrobbling = '听歌记录';
   static const scrobbleEnable = '上报听歌记录';
