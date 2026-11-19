@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'package:lekis/src/app.dart';
 import 'package:lekis/src/bridge/core_init.dart';
+import 'package:lekis/src/features/player/playback_session.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/features/settings/theme_preference.dart';
 import 'package:lekis/src/platform/media_session.dart';
@@ -47,10 +48,10 @@ Future<void> main() async {
 
   // 播放输出和锁屏 / 通知栏 / 系统媒体控制可以晚于首帧初始化。
   // 失败只记日志，不影响界面；这样冷启动只等核心和主题。
-  unawaited(_startBackgroundServices());
+  unawaited(_startBackgroundServices(container));
 }
 
-Future<void> _startBackgroundServices() async {
+Future<void> _startBackgroundServices(ProviderContainer container) async {
   try {
     await Future.wait([restorePlaybackOutput(), initSystemMediaSession()]);
   } catch (error, stack) {
@@ -59,8 +60,14 @@ Future<void> _startBackgroundServices() async {
         exception: error,
         stack: stack,
         library: 'lekis',
-        context: ErrorDescription('while starting background playback services'),
+        context: ErrorDescription(
+          'while starting background playback services',
+        ),
       ),
     );
   }
+
+  // 首帧之后再恢复上次的播放会话（输出设备/模式已就绪）。恢复是暂停状态，
+  // 不会自动出声；没有保存过会话时什么也不做。
+  await container.read(playbackSessionProvider).restore();
 }

@@ -75,6 +75,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlayContextDto dco_decode_box_autoadd_play_context_dto(dynamic raw);
 
   @protected
+  PlaybackSessionDto dco_decode_box_autoadd_playback_session_dto(dynamic raw);
+
+  @protected
   SourceConfigDto dco_decode_box_autoadd_source_config_dto(dynamic raw);
 
   @protected
@@ -233,6 +236,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PaletteDto? dco_decode_opt_box_autoadd_palette_dto(dynamic raw);
 
   @protected
+  PlaybackSessionDto? dco_decode_opt_box_autoadd_playback_session_dto(
+    dynamic raw,
+  );
+
+  @protected
   TrackOverlayDto? dco_decode_opt_box_autoadd_track_overlay_dto(dynamic raw);
 
   @protected
@@ -261,6 +269,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlayContextDto dco_decode_play_context_dto(dynamic raw);
+
+  @protected
+  PlaybackSessionDto dco_decode_playback_session_dto(dynamic raw);
 
   @protected
   PlaybackSnapshotDto dco_decode_playback_snapshot_dto(dynamic raw);
@@ -387,6 +398,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlayContextDto sse_decode_box_autoadd_play_context_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PlaybackSessionDto sse_decode_box_autoadd_playback_session_dto(
     SseDeserializer deserializer,
   );
 
@@ -591,6 +607,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  PlaybackSessionDto? sse_decode_opt_box_autoadd_playback_session_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TrackOverlayDto? sse_decode_opt_box_autoadd_track_overlay_dto(
     SseDeserializer deserializer,
   );
@@ -623,6 +644,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlayContextDto sse_decode_play_context_dto(SseDeserializer deserializer);
+
+  @protected
+  PlaybackSessionDto sse_decode_playback_session_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   PlaybackSnapshotDto sse_decode_playback_snapshot_dto(
@@ -775,6 +801,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_play_context_dto(
     PlayContextDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_playback_session_dto(
+    PlaybackSessionDto self,
     SseSerializer serializer,
   );
 
@@ -1037,6 +1069,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_playback_session_dto(
+    PlaybackSessionDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_track_overlay_dto(
     TrackOverlayDto? self,
     SseSerializer serializer,
@@ -1075,6 +1113,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_play_context_dto(
     PlayContextDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_playback_session_dto(
+    PlaybackSessionDto self,
     SseSerializer serializer,
   );
 

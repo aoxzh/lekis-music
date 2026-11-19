@@ -25,6 +25,7 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final empty = ref.watch(libraryIsEmptyProvider).value ?? false;
     final recent = ref.watch(recentlyAddedProvider).value ?? const [];
+    final played = ref.watch(recentlyPlayedProvider).value ?? const [];
     final most = ref.watch(mostPlayedProvider).value ?? const [];
     final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
     final gutter = pageGutterOf(context);
@@ -40,6 +41,7 @@ class HomePage extends ConsumerWidget {
             : RefreshIndicator(
                 onRefresh: () async {
                   ref.invalidate(recentlyAddedProvider);
+                  ref.invalidate(recentlyPlayedProvider);
                   ref.invalidate(mostPlayedProvider);
                   await ref.read(recentlyAddedProvider.future);
                 },
@@ -108,6 +110,10 @@ class HomePage extends ConsumerWidget {
                           0,
                         ),
                         sliver: const SliverToBoxAdapter(child: _ResumeHero()),
+                      ),
+                    if (played.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: TrackShelf(title: '最近播放', tracks: played),
                       ),
                     if (recent.isNotEmpty)
                       SliverToBoxAdapter(

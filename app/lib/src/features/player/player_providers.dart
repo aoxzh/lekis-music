@@ -18,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge.dart' show Int64List;
 import 'package:lekis/src/bridge/core_events.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
+import 'package:lekis/src/features/player/playback_session.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/rust/api/error.dart';
@@ -146,6 +147,12 @@ class PlaybackController extends Notifier<PlaybackUiState> {
           queueIndex: () => event.currentIndex,
           queueVersion: state.queueVersion + 1,
         );
+      } else if (event is CoreEventDto_PlaybackOptionsChanged) {
+        state = state.copyWith(
+          volume: event.volume,
+          repeat: event.repeat,
+          shuffle: event.shuffle,
+        );
       }
     });
 
@@ -158,6 +165,8 @@ class PlaybackController extends Notifier<PlaybackUiState> {
       queueLength: snap.queueLen,
       queueIndex: snap.queueIndex,
       volume: snap.volume,
+      repeat: snap.repeat,
+      shuffle: snap.shuffle,
     );
   }
 
@@ -287,10 +296,18 @@ class PlayerActions {
     final s = _ref.read(playbackProvider);
     if (!s.hasTrack) return;
     _guard('playPause', s.isPlaying ? core.pause : core.play);
+    // 暂停是重要的落库时机；播放恢复后由定时器负责。
+    if (s.isPlaying) {
+      _ref.read(playbackSessionProvider).scheduleSave(delay: Duration.zero);
+    }
   }
 
   void play() => _guard('play', core.play);
-  void pause() => _guard('pause', core.pause);
+  void pause() {
+    _guard('pause', core.pause);
+    _ref.read(playbackSessionProvider).scheduleSave(delay: Duration.zero);
+  }
+
   void next() => _guard('next', core.next);
   void previous() => _guard('previous', core.previous);
 
@@ -299,6 +316,7 @@ class PlayerActions {
     final ms = duration > 0 ? positionMs.clamp(0, duration) : positionMs;
     _ref.read(positionProvider.notifier)._seekOptimistic(ms);
     _guard('seek', () => core.seek(positionMs: BigInt.from(ms)));
+    _ref.read(playbackSessionProvider).scheduleSave();
   }
 
   void seekRelative(Duration delta) =>
@@ -308,6 +326,7 @@ class PlayerActions {
     final v = volume.clamp(0.0, 1.0);
     _playback._setVolume(v);
     _guard('setVolume', () => core.setVolume(volume: v));
+    _ref.read(playbackSessionProvider).scheduleSave();
   }
 
   void cycleRepeat() {
@@ -318,6 +337,7 @@ class PlayerActions {
     };
     _playback._setRepeat(next);
     _guard('setRepeat', () => core.setRepeat(mode: next));
+    _ref.read(playbackSessionProvider).scheduleSave();
   }
 
   void toggleShuffle() {
@@ -325,6 +345,7 @@ class PlayerActions {
     final next = on ? ShuffleModeDto.off : ShuffleModeDto.random;
     _playback._setShuffle(next);
     _guard('setShuffle', () => core.setShuffle(mode: next));
+    _ref.read(playbackSessionProvider).scheduleSave();
   }
 
   /// Replace the queue with [trackIds] and start at [start].

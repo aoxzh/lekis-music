@@ -493,6 +493,31 @@ pub fn playback_snapshot() -> PlaybackSnapshotDto {
     core().playback_snapshot().into()
 }
 
+// ---- 播放会话持久化（重启后接着听）----
+
+/// 保存当前播放会话（队列、游标、进度、随机 / 循环模式、音量）。
+///
+/// 队列为空时清除旧记录。暂停、跳转、队列变化和退到后台时调用；
+/// 播放中请节流（例如每 10 秒一次），不要每个进度 tick 都写库。
+pub async fn save_playback_state() -> Result<(), CoreError> {
+    Ok(core().save_playback_state().await?)
+}
+
+/// 上次保存的播放会话；没有可恢复的会话时为 `null`。
+pub async fn playback_state() -> Result<Option<PlaybackSessionDto>, CoreError> {
+    Ok(core().playback_state().await?.map(Into::into))
+}
+
+/// 清除已保存的播放会话。
+pub async fn clear_playback_state() -> Result<(), CoreError> {
+    Ok(core().clear_playback_state().await?)
+}
+
+/// 恢复上次的播放会话（暂停在保存的进度上，不自动播放）。返回是否恢复出队列。
+pub async fn restore_playback_state() -> Result<bool, CoreError> {
+    Ok(core().restore_playback_state().await?)
+}
+
 // ---- 输出设备（PLY-05/PLY-12）----
 
 /// 列出所有可用的音频输出设备。

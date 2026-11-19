@@ -34,7 +34,7 @@ pub use sync_engine::SyncReport;
 
 use events::EventBus;
 use lekis_library::{EnrichCandidateRow, Library, LyricsRow, PlaylistEntry};
-pub use lekis_library::{SourceInfo, TrackContext, TrackUserState};
+pub use lekis_library::{PlaybackStateRow, SourceInfo, TrackContext, TrackUserState};
 use lekis_playback::{EngineCommand, OutputDevice, OutputMode, PlaybackEngine};
 use lekis_scanner::{tags::LoftyTagReader, Scanner};
 use lekis_types::*;
@@ -1090,6 +1090,76 @@ impl LekisCore {
         self.services.engine.snapshot()
     }
 
+    /// 保存当前播放会话：队列、游标、进度、随机 / 循环模式和音量。
+    ///
+    /// 队列为空时清除旧记录。这是给 App 在暂停、跳转、队列变化和退到后台时调用的；
+    /// 播放中由 App 节流调用，不要每个进度 tick 都写库。
+    pub async fn save_playback_state(&self) -> Result<()> {
+        let snap = self.services.engine.snapshot();
+        let s = self.services.clone();
+        if snap.queue.is_empty() {
+            return self
+                .run(async move { s.library.clear_playback_state().await })
+                .await;
+        }
+        let state = PlaybackStateRow {
+            queue: snap.queue.to_vec(),
+            current_index: snap.queue_index.unwrap_or(0),
+            position_ms: snap.position_ms,
+            shuffle: snap.shuffle,
+            repeat: snap.repeat,
+            volume: snap.volume,
+            updated_at: now_ms(),
+        };
+        self.run(async move { s.library.save_playback_state(state).await })
+            .await
+    }
+
+    /// 上次保存的播放会话（不恢复、不自动播放）。
+    pub async fn playback_state(&self) -> Result<Option<PlaybackStateRow>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.load_playback_state().await })
+            .await
+    }
+
+    /// 清除保存的播放会话。
+    pub async fn clear_playback_state(&self) -> Result<()> {
+        let s = self.services.clone();
+        self.run(async move { s.library.clear_playback_state().await })
+            .await
+    }
+
+    /// 恢复上次的播放会话：队列、游标、进度、模式和音量，**暂停**在保存的位置。
+    ///
+    /// 返回是否恢复出了队列。曲目已被删除时由资料库过滤并修正游标；
+    /// 队列全部失效时返回 `false`，不会自动开始播放。
+    pub async fn restore_playback_state(&self) -> Result<bool> {
+        let s = self.services.clone();
+        let Some(state) = self
+            .run(async move { s.library.load_playback_state().await })
+            .await?
+        else {
+            return Ok(false);
+        };
+        let engine = &self.services.engine;
+        // 先把音量压到 0 再装队列：SetQueue 会照常打开输出流，压低音量保证
+        // 恢复过程不会漏出一小段声音；暂停后再把用户音量还回去。
+        engine.send(EngineCommand::SetVolume(0.0))?;
+        engine.send(EngineCommand::SetShuffle(state.shuffle))?;
+        engine.send(EngineCommand::SetRepeat(state.repeat))?;
+        engine.send(EngineCommand::SetQueue {
+            tracks: state.queue,
+            start: state.current_index as usize,
+        })?;
+        // 引擎按命令顺序处理：SetQueue 打开输出后立刻暂停，不会继续出声。
+        engine.send(EngineCommand::Pause)?;
+        if state.position_ms > 0 {
+            engine.send(EngineCommand::Seek(state.position_ms))?;
+        }
+        engine.send(EngineCommand::SetVolume(state.volume))?;
+        Ok(true)
+    }
+
     // -----------------------------------------------------------------------
     // 元数据补全（ENR-01/03/06/07）
     // -----------------------------------------------------------------------
@@ -1861,6 +1931,63 @@ mod tests {
         assert!(seen
             .iter()
             .any(|e| matches!(e, CoreEvent::QueueChanged { length: 4, .. })));
+        drop(core);
+        let _ = std::fs::remove_dir_all(&root);
+        Ok(())
+    }
+
+    #[test]
+    fn playback_session_roundtrip_restores_paused() -> Result<()> {
+        let (core, root, _source, _events, rt) =
+            core_with_local_tracks("session", &["01. A.flac", "02. B.flac"])?;
+        rt.block_on(async {
+            let rows = core
+                .list_tracks(TrackQuery {
+                    sort: TrackSort::Title,
+                    offset: 0,
+                    limit: 10,
+                })
+                .await?;
+            let ids: Vec<TrackId> = rows.iter().map(|r| r.id).collect();
+            core.play_tracks(ids.clone(), 0)?;
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+            core.set_repeat(RepeatMode::All)?;
+            core.set_shuffle(ShuffleMode::Random)?;
+            core.set_volume(0.4)?;
+            core.seek(5_000)?;
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+
+            core.save_playback_state().await?;
+            let saved = core.playback_state().await?.expect("saved session");
+            assert_eq!(saved.queue, ids);
+            assert_eq!(saved.current_index, 0);
+            assert_eq!(saved.repeat, RepeatMode::All);
+            assert_eq!(saved.shuffle, ShuffleMode::Random);
+            assert!((saved.volume - 0.4).abs() < 1e-6);
+
+            // 清空引擎里的队列，模拟一次冷启动。
+            core.queue_remove(0)?;
+            core.queue_remove(0)?;
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            assert_eq!(core.playback_snapshot().queue_len, 0);
+
+            assert!(core.restore_playback_state().await?);
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            let snap = core.playback_snapshot();
+            assert_eq!(snap.queue_len, 2);
+            assert_eq!(snap.queue_index, Some(0));
+            assert_eq!(snap.track_id, Some(ids[0]));
+            assert_eq!(snap.position_ms, 5_000);
+            assert_eq!(snap.repeat, RepeatMode::All);
+            assert_eq!(snap.shuffle, ShuffleMode::Random);
+            assert!((snap.volume - 0.4).abs() < 1e-6);
+            // 恢复出来的会话是暂停的，不会自动播放。
+            assert_ne!(snap.state, PlaybackState::Playing);
+
+            core.clear_playback_state().await?;
+            assert_eq!(core.playback_state().await?, None);
+            Ok::<_, LekisError>(())
+        })?;
         drop(core);
         let _ = std::fs::remove_dir_all(&root);
         Ok(())

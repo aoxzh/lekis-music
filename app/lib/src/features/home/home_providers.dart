@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
+import 'package:lekis/src/features/player/playback_session.dart';
+import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 
@@ -14,6 +16,20 @@ final recentlyAddedProvider = FutureProvider.autoDispose<List<TrackRowDto>>((
   return core.recentlyAdded(limit: homeShelfLimit);
 });
 
+/// 首页"最近播放"：core 的 `recentlyPlayed` 按 `last_played` 倒序，
+/// 由播放历史（[playHistoryRevisionProvider]）和资料库变化驱动刷新。
+final recentlyPlayedProvider = FutureProvider.autoDispose<List<TrackRowDto>>((
+  ref,
+) async {
+  ref.invalidateOnCatalogChange();
+  ref.watch(playHistoryRevisionProvider);
+  ref.listen<int>(playbackProvider.select((s) => s.trackId ?? -1), (_, _) {
+    ref.invalidateSelf();
+  });
+  ref.cacheFor(const Duration(minutes: 2));
+  return core.recentlyPlayed(limit: homeShelfLimit);
+});
+
 final mostPlayedProvider = FutureProvider.autoDispose<List<TrackRowDto>>((
   ref,
 ) async {
@@ -21,7 +37,3 @@ final mostPlayedProvider = FutureProvider.autoDispose<List<TrackRowDto>>((
   ref.cacheFor(const Duration(minutes: 5));
   return core.mostPlayed(limit: homeShelfLimit);
 });
-
-// TODO(core): "Continue listening" needs a recently-played history call
-// (e.g. `recentlyPlayed(limit)`). Until then Home shows only the current
-// track in that shelf.
