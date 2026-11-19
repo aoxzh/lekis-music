@@ -148,6 +148,75 @@ impl From<lekis_core::SourceInfo> for SourceInfoDto {
 }
 
 // ---------------------------------------------------------------------------
+// 局域网发现（SRC-01~03）
+// ---------------------------------------------------------------------------
+
+/// 发现到的服务类型。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiscoveredKindDto {
+    /// SMB 文件共享（mDNS `_smb._tcp` 或 WS-Discovery）。
+    Smb,
+    /// WebDAV（http）。
+    WebDav,
+    /// WebDAV（https）。
+    WebDavs,
+    /// UPnP / DLNA 媒体服务器。Lekis 不直接把它当音源，只提示"可能提供 SMB 共享"。
+    MediaServer,
+}
+
+mirror_enum!(DiscoveredKindDto <=> lekis_core::discovery::DiscoveredKind {
+    Smb, WebDav, WebDavs, MediaServer
+});
+
+/// 通过哪种协议发现的。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiscoveryProtocolDto {
+    /// mDNS / DNS-SD。
+    Mdns,
+    /// WS-Discovery。
+    WsDiscovery,
+    /// SSDP（UPnP / DLNA）。
+    Ssdp,
+}
+
+mirror_enum!(DiscoveryProtocolDto <=> lekis_core::discovery::DiscoveryProtocol {
+    Mdns, WsDiscovery, Ssdp
+});
+
+/// 一条局域网发现结果。
+#[derive(Debug, Clone)]
+pub struct DiscoveredServiceDto {
+    /// 服务类型。
+    pub kind: DiscoveredKindDto,
+    /// 显示名称（mDNS 实例名 / DLNA friendlyName；拿不到时是主机地址）。
+    pub name: String,
+    /// 连接用的主机（优先 IPv4 字面量）。
+    pub host: String,
+    /// mDNS 主机名（`nas.local`），没有时为 `None`。
+    pub hostname: Option<String>,
+    /// 端口。
+    pub port: u16,
+    /// WebDAV 的 TXT `path`（如 `/music`），其他类型为 `None`。
+    pub path: Option<String>,
+    /// 发现途径。
+    pub via: DiscoveryProtocolDto,
+}
+
+impl From<lekis_core::discovery::DiscoveredService> for DiscoveredServiceDto {
+    fn from(s: lekis_core::discovery::DiscoveredService) -> Self {
+        Self {
+            kind: s.kind.into(),
+            name: s.name,
+            host: s.host,
+            hostname: s.hostname,
+            port: s.port,
+            path: s.path,
+            via: s.via.into(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // 资料库
 // ---------------------------------------------------------------------------
 

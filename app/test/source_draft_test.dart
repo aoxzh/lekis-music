@@ -25,9 +25,62 @@ void main() {
   });
 
   test('displayAddress never leaks credentials', () {
-    expect(
-      displayAddress('smb://user@nas/music'),
-      'smb://nas/music',
+    expect(displayAddress('smb://user@nas/music'), 'smb://nas/music');
+  });
+
+  test('mDNS WebDAV result prefills http(s)://host:port/path', () {
+    final draft = SourceDraft.fromDiscovered(
+      const DiscoveredServiceDto(
+        kind: DiscoveredKindDto.webDavs,
+        name: 'DS920',
+        host: '192.168.1.10',
+        hostname: 'ds920.local',
+        port: 5006,
+        path: '/music',
+        via: DiscoveryProtocolDto.mdns,
+      ),
     );
+    expect(draft.kind, SourceKindDto.webDav);
+    expect(draft.name, 'DS920');
+    expect(draft.url, 'https://192.168.1.10:5006/music');
+  });
+
+  test('SMB result keeps a non-default port and drops 445', () {
+    final withPort = SourceDraft.fromDiscovered(
+      const DiscoveredServiceDto(
+        kind: DiscoveredKindDto.smb,
+        name: 'NAS',
+        host: '192.168.1.10',
+        port: 4450,
+        via: DiscoveryProtocolDto.wsDiscovery,
+      ),
+    );
+    expect(withPort.kind, SourceKindDto.smb);
+    expect(withPort.host, '192.168.1.10:4450');
+
+    final plain = SourceDraft.fromDiscovered(
+      const DiscoveredServiceDto(
+        kind: DiscoveredKindDto.smb,
+        name: 'NAS',
+        host: '192.168.1.10',
+        port: 445,
+        via: DiscoveryProtocolDto.mdns,
+      ),
+    );
+    expect(plain.host, '192.168.1.10');
+  });
+
+  test('DLNA result only borrows the host for a possible SMB share', () {
+    final draft = SourceDraft.fromDiscovered(
+      const DiscoveredServiceDto(
+        kind: DiscoveredKindDto.mediaServer,
+        name: '客厅 NAS',
+        host: '192.168.1.10',
+        port: 50001,
+        via: DiscoveryProtocolDto.ssdp,
+      ),
+    );
+    expect(draft.kind, SourceKindDto.smb);
+    expect(draft.host, '192.168.1.10');
   });
 }

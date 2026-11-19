@@ -97,6 +97,20 @@ pub async fn test_source(source: SourceConfigDto) -> Result<(), CoreError> {
     Ok(core().test_source(source.into()).await?)
 }
 
+/// 扫描局域网里的 SMB / WebDAV / DLNA 服务，`timeout_ms` 后返回。
+///
+/// 一次性扫描，不注册任何服务。各协议的错误只记日志，不会让整次扫描失败。
+/// Android 上调用前需要持有 `WifiManager.MulticastLock`（由 Dart 侧平台通道
+/// 包住这次调用），否则 mDNS / SSDP 的组播包收不到。
+pub async fn discover_lan(timeout_ms: u32) -> Result<Vec<DiscoveredServiceDto>, CoreError> {
+    let timeout = std::time::Duration::from_millis(u64::from(timeout_ms));
+    Ok(lekis_core::discovery::discover(timeout)
+        .await
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
 /// 音源列表，带最近一次扫描的时间 / 失败信息。
 pub async fn list_source_infos() -> Result<Vec<SourceInfoDto>, CoreError> {
     Ok(core()

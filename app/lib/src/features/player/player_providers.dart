@@ -372,6 +372,21 @@ class PlayerActions {
   }) =>
       playTracks([for (final r in rows) r.id], start: start, shuffle: shuffle);
 
+  /// 把整个文件夹放进队列并从头播放（目录可以大于内存里的已加载窗口）。
+  Future<bool> playFolder(int sourceId, String path) async {
+    try {
+      await core.playContext(
+        context: PlayContextDto.folder(sourceId: sourceId, path: path),
+        startIndex: 0,
+      );
+      return true;
+    } catch (e) {
+      final message = e is CoreError ? '${e.kind.name}: ${e.detail}' : '$e';
+      debugPrint('player playFolder failed: $message');
+      return false;
+    }
+  }
+
   Future<void> setLoved(int trackId, bool loved) async {
     try {
       await core.setLoved(trackId: trackId, loved: loved);

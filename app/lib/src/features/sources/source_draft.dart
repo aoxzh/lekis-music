@@ -18,6 +18,30 @@ class SourceDraft {
     this.guest = false,
   });
 
+  /// 从一条局域网发现结果建一个预填草稿。
+  ///
+  /// SMB → `smb://host`，WebDAV → `http(s)://host:port/path`。
+  /// DLNA 不直接是 Lekis 音源，按「可能有 SMB 共享」预填 SMB 表单。
+  factory SourceDraft.fromDiscovered(DiscoveredServiceDto service) {
+    switch (service.kind) {
+      case DiscoveredKindDto.webDav || DiscoveredKindDto.webDavs:
+        return SourceDraft(
+          kind: SourceKindDto.webDav,
+          name: service.name,
+          url: _webDavUrl(service),
+        );
+      case DiscoveredKindDto.smb || DiscoveredKindDto.mediaServer:
+        return SourceDraft(
+          kind: SourceKindDto.smb,
+          name: service.name,
+          // DLNA 的端口是媒体服务器端口，不是 SMB；只借它的主机地址。
+          host: service.kind == DiscoveredKindDto.mediaServer
+              ? _bracketHost(service.host)
+              : _discoveredHost(service, defaultPort: 445),
+        );
+    }
+  }
+
   final SourceKindDto kind;
   String name;
 
@@ -96,6 +120,36 @@ class SourceDraft {
         final h = parsed?.host ?? '';
         return h.isEmpty ? kind.name : h;
     }
+  }
+
+  static String _webDavUrl(DiscoveredServiceDto service) {
+    final scheme = service.kind == DiscoveredKindDto.webDavs ? 'https' : 'http';
+    final rawPath = (service.path ?? '').trim();
+    final path = rawPath.isEmpty
+        ? null
+        : (rawPath.startsWith('/') ? rawPath : '/$rawPath');
+    return Uri(
+      scheme: scheme,
+      host: service.host,
+      port: service.port > 0 ? service.port : null,
+      path: path,
+    ).toString();
+  }
+
+  static String _discoveredHost(
+    DiscoveredServiceDto service, {
+    required int defaultPort,
+  }) {
+    final host = _bracketHost(service.host);
+    if (service.port == 0 || service.port == defaultPort) return host;
+    return '$host:${service.port}';
+  }
+
+  /// IPv6 地址直接拼进 URL 时要加方括号。
+  static String _bracketHost(String raw) {
+    final host = raw.trim();
+    if (host.isEmpty || host.startsWith('[')) return host;
+    return host.contains(':') ? '[$host]' : host;
   }
 
   String _smbUrl() {

@@ -10,7 +10,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'dto.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 /// 专辑（LIB-06）。
 class AlbumDto {
@@ -243,6 +243,90 @@ sealed class CoreEventDto with _$CoreEventDto {
     required double volume,
     required bool gapless,
   }) = CoreEventDto_PlaybackOptionsChanged;
+}
+
+/// 发现到的服务类型。
+enum DiscoveredKindDto {
+  /// SMB 文件共享（mDNS `_smb._tcp` 或 WS-Discovery）。
+  smb,
+
+  /// WebDAV（http）。
+  webDav,
+
+  /// WebDAV（https）。
+  webDavs,
+
+  /// UPnP / DLNA 媒体服务器。Lekis 不直接把它当音源，只提示"可能提供 SMB 共享"。
+  mediaServer,
+}
+
+/// 一条局域网发现结果。
+class DiscoveredServiceDto {
+  /// 服务类型。
+  final DiscoveredKindDto kind;
+
+  /// 显示名称（mDNS 实例名 / DLNA friendlyName；拿不到时是主机地址）。
+  final String name;
+
+  /// 连接用的主机（优先 IPv4 字面量）。
+  final String host;
+
+  /// mDNS 主机名（`nas.local`），没有时为 `None`。
+  final String? hostname;
+
+  /// 端口。
+  final int port;
+
+  /// WebDAV 的 TXT `path`（如 `/music`），其他类型为 `None`。
+  final String? path;
+
+  /// 发现途径。
+  final DiscoveryProtocolDto via;
+
+  const DiscoveredServiceDto({
+    required this.kind,
+    required this.name,
+    required this.host,
+    this.hostname,
+    required this.port,
+    this.path,
+    required this.via,
+  });
+
+  @override
+  int get hashCode =>
+      kind.hashCode ^
+      name.hashCode ^
+      host.hashCode ^
+      hostname.hashCode ^
+      port.hashCode ^
+      path.hashCode ^
+      via.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DiscoveredServiceDto &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          name == other.name &&
+          host == other.host &&
+          hostname == other.hostname &&
+          port == other.port &&
+          path == other.path &&
+          via == other.via;
+}
+
+/// 通过哪种协议发现的。
+enum DiscoveryProtocolDto {
+  /// mDNS / DNS-SD。
+  mdns,
+
+  /// WS-Discovery。
+  wsDiscovery,
+
+  /// SSDP（UPnP / DLNA）。
+  ssdp,
 }
 
 /// 待确认队列里的一条候选（ENR-06）。
@@ -562,6 +646,12 @@ sealed class PlayContextDto with _$PlayContextDto {
 
   /// 收藏列表（和 `loved_tracks` 一致）。
   const factory PlayContextDto.loved() = PlayContextDto_Loved;
+
+  /// 一个文件夹的直属曲目（和 `folder_tracks` 一致）。
+  const factory PlayContextDto.folder({
+    required PlatformInt64 sourceId,
+    required String path,
+  }) = PlayContextDto_Folder;
 }
 
 class PlaybackSnapshotDto {
