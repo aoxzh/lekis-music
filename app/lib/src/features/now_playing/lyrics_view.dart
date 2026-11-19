@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/now_playing/lyrics_editor_sheet.dart';
 import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
 import 'package:lekis/src/features/now_playing/lyrics_stage.dart';
 import 'package:lekis/src/features/now_playing/lyrics_stage_settings.dart';
@@ -76,11 +77,26 @@ class LyricsView extends ConsumerWidget {
       },
     );
     // Searching → lyrics / empty cross-fades instead of popping in.
-    return AnimatedSwitcher(
-      duration: LekisMotion.normal,
-      layoutBuilder: (current, previous) =>
-          Stack(fit: StackFit.expand, children: [...previous, ?current]),
-      child: body,
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: AnimatedSwitcher(
+            duration: LekisMotion.normal,
+            layoutBuilder: (current, previous) =>
+                Stack(fit: StackFit.expand, children: [...previous, ?current]),
+            child: body,
+          ),
+        ),
+        Positioned(
+          top: LekisSpacing.xs,
+          right: LekisSpacing.xs,
+          child: IconButton.filledTonal(
+            tooltip: '编辑歌词',
+            onPressed: () => showLyricsEditor(context, ref, trackId),
+            icon: const Icon(Icons.edit_note, size: 20),
+          ),
+        ),
+      ],
     );
   }
 }
