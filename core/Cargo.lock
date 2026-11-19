@@ -2486,6 +2486,7 @@ version = "0.1.0"
 dependencies = [
  "ferrous-opencc",
  "lekis-types",
+ "percent-encoding",
  "pinyin",
  "rusqlite",
  "serde",

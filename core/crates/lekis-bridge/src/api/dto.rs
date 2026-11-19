@@ -1020,6 +1020,30 @@ impl From<lekis_library::PlaylistEntry> for PlaylistEntryDto {
     }
 }
 
+/// M3U / M3U8 导入结果。
+#[derive(Debug, Clone)]
+pub struct PlaylistImportReportDto {
+    /// 新建歌单的 ID。
+    pub playlist_id: i64,
+    /// 成功匹配的条目数。
+    pub matched: u32,
+    /// 解析到的条目总数（含未匹配）。
+    pub total: u32,
+    /// 没匹配到本地曲目的原始路径（按 M3U 顺序）。
+    pub missing: Vec<String>,
+}
+
+impl From<lekis_library::PlaylistImportReport> for PlaylistImportReportDto {
+    fn from(r: lekis_library::PlaylistImportReport) -> Self {
+        Self {
+            playlist_id: r.playlist_id.0,
+            matched: r.matched,
+            total: r.total,
+            missing: r.missing,
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // 智能歌单规则（DIS-01）
 //

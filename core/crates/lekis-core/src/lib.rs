@@ -1558,6 +1558,33 @@ impl LekisCore {
     }
 
     // -----------------------------------------------------------------------
+    // M3U / M3U8 导入导出（PL-03）
+    // -----------------------------------------------------------------------
+
+    /// 把普通歌单导出成 M3U8 文本。智能歌单没有固定条目，返回 `invalid`。
+    pub async fn export_playlist_m3u(&self, id: PlaylistId) -> Result<String> {
+        let s = self.services.clone();
+        self.run(async move { s.library.export_playlist_m3u(id).await })
+            .await
+    }
+
+    /// 从 M3U / M3U8 文本新建一个普通歌单，返回匹配统计和缺失路径。
+    pub async fn import_playlist_m3u(
+        &self,
+        name: String,
+        content: String,
+    ) -> Result<lekis_library::PlaylistImportReport> {
+        let s = self.services.clone();
+        let report = self
+            .run(async move { s.library.import_playlist_m3u(&name, &content).await })
+            .await?;
+        self.services.events.emit(CoreEvent::LibraryChanged {
+            scope: LibraryScope::Playlists,
+        });
+        Ok(report)
+    }
+
+    // -----------------------------------------------------------------------
     // 智能歌单（DIS-01）
     // -----------------------------------------------------------------------
 
