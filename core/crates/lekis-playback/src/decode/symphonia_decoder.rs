@@ -8,8 +8,10 @@
 //! 时会在每个包上自动裁掉这些帧（见 symphonia-bundle-mp3 的 `decoder.rs`）。
 //! 所以我们不需要自己算 LAME 延迟，只要别关掉 gapless。
 
-use super::{Decoder, PcmFormat};
+use super::{Decoder, NativeSampleFormat, PcmFormat};
 use lekis_types::{AudioProps, Codec, ErrorCode, LekisError, Result};
+use symphonia::core::audio::sample::SampleFormat;
+use symphonia::core::audio::GenericAudioBufferRef;
 use symphonia::core::codecs::audio::well_known as codec_ids;
 use symphonia::core::codecs::audio::{AudioCodecParameters, AudioDecoder, AudioDecoderOptions};
 use symphonia::core::errors::Error as SymError;
@@ -35,7 +37,21 @@ pub struct SymphoniaDecoder {
     duration_ms: Option<u64>,
     /// 复用缓冲区，避免每包都分配。
     scratch: Vec<f32>,
+    /// 比特完美链路用的复用缓冲区（左对齐 i32 / f32 位模式）。
+    scratch_native: Vec<i32>,
+    /// 浮点源走比特完美链路时的 f32 中转缓冲。
+    scratch_float: Vec<f32>,
+    /// 原生样本格式（PLY-05）。
+    native: Option<NativeSampleFormat>,
     eof: bool,
+}
+
+/// 一次解码要往哪里写。
+enum Sink<'a> {
+    /// 共享模式链路：f32 交错样本。
+    F32(&'a mut Vec<f32>),
+    /// 比特完美链路：左对齐 i32（整数源）或 f32 位模式（浮点源）。
+    Native(&'a mut Vec<i32>, NativeSampleFormat),
 }
 
 impl SymphoniaDecoder {
@@ -115,6 +131,8 @@ impl SymphoniaDecoder {
             .filter(|c| *c > 0)
             .unwrap_or(2) as u16;
 
+        let native = native_format_of(&codec_params);
+
         let props = AudioProps {
             codec: map_codec(&codec_params),
             sample_rate,
@@ -140,6 +158,9 @@ impl SymphoniaDecoder {
             props,
             duration_ms,
             scratch: Vec::new(),
+            scratch_native: Vec::new(),
+            scratch_float: Vec::new(),
+            native,
             eof: false,
         })
     }
@@ -148,22 +169,9 @@ impl SymphoniaDecoder {
     pub fn samples_out(&self) -> u64 {
         self.samples_out
     }
-}
 
-impl Decoder for SymphoniaDecoder {
-    fn props(&self) -> &AudioProps {
-        &self.props
-    }
-
-    fn format(&self) -> PcmFormat {
-        self.pcm
-    }
-
-    fn duration_ms(&self) -> Option<u64> {
-        self.duration_ms
-    }
-
-    fn decode_next(&mut self, out: &mut Vec<f32>) -> Result<bool> {
+    /// 解码下一个包，按 `sink` 要求的表示写出去。
+    fn decode_into(&mut self, sink: Sink<'_>) -> Result<bool> {
         if self.eof {
             return Ok(false);
         }
@@ -203,8 +211,21 @@ impl Decoder for SymphoniaDecoder {
                     let spec_rate = decoded.spec().rate();
                     let spec_channels = decoded.spec().channels().count();
                     let total = decoded.samples_interleaved();
-                    self.scratch.resize(total, 0.0);
-                    decoded.copy_to_slice_interleaved(self.scratch.as_mut_slice());
+                    match &sink {
+                        Sink::F32(_) => {
+                            self.scratch.resize(total, 0.0);
+                            decoded.copy_to_slice_interleaved(self.scratch.as_mut_slice());
+                        }
+                        Sink::Native(_, native) => {
+                            self.scratch_native.resize(total, 0);
+                            copy_native(
+                                &decoded,
+                                *native,
+                                &mut self.scratch_native,
+                                &mut self.scratch_float,
+                            );
+                        }
+                    }
                     if spec_rate > 0
                         && spec_channels > 0
                         && (spec_rate != self.pcm.sample_rate
@@ -220,10 +241,15 @@ impl Decoder for SymphoniaDecoder {
                         let per_frame = usize::from(self.pcm.channels.max(1));
                         let skip = (self.skip_frames as usize).saturating_mul(per_frame);
                         self.skip_frames = 0;
-                        start = skip.min(self.scratch.len());
+                        start = skip.min(total);
                     }
-                    out.extend_from_slice(&self.scratch[start..]);
-                    self.samples_out += (self.scratch.len() - start) as u64;
+                    match sink {
+                        Sink::F32(out) => out.extend_from_slice(&self.scratch[start..]),
+                        Sink::Native(out, _) => {
+                            out.extend_from_slice(&self.scratch_native[start..]);
+                        }
+                    }
+                    self.samples_out += (total - start) as u64;
                     return Ok(true);
                 }
                 Err(SymError::DecodeError(_)) | Err(SymError::IoError(_)) => {
@@ -237,6 +263,119 @@ impl Decoder for SymphoniaDecoder {
                 }
             }
         }
+    }
+}
+
+/// 把一包解码结果按原生格式拷出来（比特完美链路）。
+///
+/// - 整数源：symphonia 的整数 → i32 转换全是无损的**左移**（i16 `<< 16`、i24 `<< 8`，
+///   无符号先减偏置），FLAC 解码器本身就输出左对齐的 i32。所以这里得到的是左对齐 i32，
+///   有效位以下全是零。
+/// - 浮点源：f32 原样拷贝，再取位模式。
+fn copy_native(
+    decoded: &GenericAudioBufferRef<'_>,
+    native: NativeSampleFormat,
+    out: &mut [i32],
+    float_scratch: &mut Vec<f32>,
+) {
+    match native {
+        NativeSampleFormat::Int { .. } => decoded.copy_to_slice_interleaved::<i32, _>(out),
+        NativeSampleFormat::Float32 => {
+            float_scratch.resize(out.len(), 0.0);
+            decoded.copy_to_slice_interleaved::<f32, _>(float_scratch.as_mut_slice());
+            for (dst, src) in out.iter_mut().zip(float_scratch.iter()) {
+                *dst = src.to_bits() as i32;
+            }
+        }
+    }
+}
+
+/// 根据编码参数推断原生样本格式。`None` = 不支持比特完美（f64、未知编码）。
+fn native_format_of(params: &AudioCodecParameters) -> Option<NativeSampleFormat> {
+    let declared_bits = params
+        .bits_per_sample
+        .and_then(|b| u8::try_from(b).ok())
+        .filter(|b| (1..=32).contains(b));
+    if let Some(format) = params.sample_format {
+        let width = match format {
+            SampleFormat::U8 | SampleFormat::S8 => 8,
+            SampleFormat::U16 | SampleFormat::S16 => 16,
+            SampleFormat::U24 | SampleFormat::S24 => 24,
+            SampleFormat::U32 | SampleFormat::S32 => 32,
+            SampleFormat::F32 => return Some(NativeSampleFormat::Float32),
+            SampleFormat::F64 => return None,
+        };
+        let bits = declared_bits.map(|b| b.min(width)).unwrap_or(width);
+        return Some(NativeSampleFormat::Int { bits });
+    }
+    let id = params.codec;
+    if id == codec_ids::CODEC_ID_PCM_F32LE
+        || id == codec_ids::CODEC_ID_PCM_F32BE
+        || id == codec_ids::CODEC_ID_PCM_F32LE_PLANAR
+        || id == codec_ids::CODEC_ID_PCM_F32BE_PLANAR
+    {
+        return Some(NativeSampleFormat::Float32);
+    }
+    if id == codec_ids::CODEC_ID_PCM_F64LE
+        || id == codec_ids::CODEC_ID_PCM_F64BE
+        || id == codec_ids::CODEC_ID_PCM_F64LE_PLANAR
+        || id == codec_ids::CODEC_ID_PCM_F64BE_PLANAR
+    {
+        return None;
+    }
+    // 无损整数编码：位深来自 STREAMINFO / 容器头。
+    let lossless_int = id == codec_ids::CODEC_ID_FLAC
+        || id == codec_ids::CODEC_ID_ALAC
+        || id == codec_ids::CODEC_ID_WAVPACK
+        || id == codec_ids::CODEC_ID_MONKEYS_AUDIO
+        || id == codec_ids::CODEC_ID_TTA
+        || is_pcm(id);
+    if lossless_int {
+        return declared_bits.map(|bits| NativeSampleFormat::Int { bits });
+    }
+    // 有损编码（MP3 / AAC / Vorbis / Opus）：解码器输出就是 f32，这里的"比特完美"
+    // 指的是解码结果原样送到设备，不再经过任何处理。
+    if id == codec_ids::CODEC_ID_MP1
+        || id == codec_ids::CODEC_ID_MP2
+        || id == codec_ids::CODEC_ID_MP3
+        || id == codec_ids::CODEC_ID_AAC
+        || id == codec_ids::CODEC_ID_VORBIS
+        || id == codec_ids::CODEC_ID_OPUS
+    {
+        return Some(NativeSampleFormat::Float32);
+    }
+    None
+}
+
+impl Decoder for SymphoniaDecoder {
+    fn props(&self) -> &AudioProps {
+        &self.props
+    }
+
+    fn format(&self) -> PcmFormat {
+        self.pcm
+    }
+
+    fn duration_ms(&self) -> Option<u64> {
+        self.duration_ms
+    }
+
+    fn decode_next(&mut self, out: &mut Vec<f32>) -> Result<bool> {
+        self.decode_into(Sink::F32(out))
+    }
+
+    fn native_format(&self) -> Option<NativeSampleFormat> {
+        self.native
+    }
+
+    fn decode_next_native(&mut self, out: &mut Vec<i32>) -> Result<bool> {
+        let Some(native) = self.native else {
+            return Err(LekisError::new(
+                ErrorCode::Unsupported,
+                "this stream has no bit-perfect sample format",
+            ));
+        };
+        self.decode_into(Sink::Native(out, native))
     }
 
     fn seek(&mut self, position_ms: u64) -> Result<u64> {
