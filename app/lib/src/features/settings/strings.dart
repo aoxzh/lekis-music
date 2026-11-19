@@ -23,6 +23,8 @@ abstract final class SettingsStrings {
   static const rgTrack = '按曲目';
   static const rgAlbum = '按专辑';
   static const rgOff = '关闭';
+  static const sleepTimer = '睡眠定时';
+  static const sleepTimerHint = '到点自动暂停播放；只在本机生效。';
 
   static const appearance = '外观';
   static const theme = '主题';

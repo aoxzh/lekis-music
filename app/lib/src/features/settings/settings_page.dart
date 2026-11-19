@@ -10,6 +10,7 @@ import '../../shell/tab_bar_style.dart';
 import '../../theme/tokens.dart';
 import '../enrich/enrich_providers.dart';
 import '../now_playing/lyrics_stage_settings.dart';
+import '../player/sleep_timer.dart';
 import '../sources/common.dart';
 import 'scrobble_providers.dart';
 import 'settings_providers.dart';
@@ -291,6 +292,23 @@ class _PlaybackSection extends ConsumerWidget {
                   .read(settingProvider(SettingKeys.replayGain).notifier)
                   .set(s.first.storageValue),
             ),
+          ),
+        ),
+        _BlockTile(
+          title: SettingsStrings.sleepTimer,
+          hint: SettingsStrings.sleepTimerHint,
+          child: Wrap(
+            spacing: LekisSpacing.sm,
+            runSpacing: LekisSpacing.xs,
+            children: [
+              for (final kind in SleepTimerKind.values)
+                ChoiceChip(
+                  label: Text(kind.label),
+                  selected: ref.watch(sleepTimerProvider).kind == kind,
+                  onSelected: (_) =>
+                      ref.read(sleepTimerProvider.notifier).set(kind),
+                ),
+            ],
           ),
         ),
       ],
