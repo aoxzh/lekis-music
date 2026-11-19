@@ -75,7 +75,7 @@ impl Library {
     /// 库里已经不存在的曲目会被丢掉；当前曲目被删时游标落到它后面第一首可播放的，
     /// 没有就从队尾退。过滤后队列为空则返回 `None`。
     pub async fn load_playback_state(&self) -> Result<Option<PlaybackStateRow>> {
-        self.read(|c| load_from(c)).await
+        self.read(load_from).await
     }
 
     /// 清掉保存的播放会话（用户清空队列 / 退出登录 / 资料库重置时用）。
