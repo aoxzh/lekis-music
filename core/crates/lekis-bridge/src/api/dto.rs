@@ -560,6 +560,39 @@ impl From<lekis_core::PlaybackSnapshot> for PlaybackSnapshotDto {
     }
 }
 
+/// 保存下来的播放会话（重启后恢复用）。
+#[derive(Debug, Clone)]
+pub struct PlaybackSessionDto {
+    /// 按播放顺序排列的曲目 ID。
+    pub queue: Vec<i64>,
+    /// 当前曲目在队列里的下标。
+    pub current_index: u32,
+    /// 当前曲目进度（毫秒）。
+    pub position_ms: u64,
+    /// 随机模式。
+    pub shuffle: ShuffleModeDto,
+    /// 循环模式。
+    pub repeat: RepeatModeDto,
+    /// 音量（0..=1）。
+    pub volume: f32,
+    /// 最后一次保存时间（Unix 毫秒）。
+    pub updated_at: i64,
+}
+
+impl From<lekis_core::PlaybackStateRow> for PlaybackSessionDto {
+    fn from(s: lekis_core::PlaybackStateRow) -> Self {
+        Self {
+            queue: s.queue.into_iter().map(|id| id.0).collect(),
+            current_index: s.current_index,
+            position_ms: s.position_ms,
+            shuffle: s.shuffle.into(),
+            repeat: s.repeat.into(),
+            volume: s.volume,
+            updated_at: s.updated_at,
+        }
+    }
+}
+
 /// 输出模式（PLY-05）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputModeDto {

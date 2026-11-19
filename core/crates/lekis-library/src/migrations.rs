@@ -23,6 +23,10 @@ const MIGRATIONS: &[(i64, &str)] = &[
         5,
         include_str!("../migrations/0005_local_track_file_unique.sql"),
     ),
+    (
+        6,
+        include_str!("../migrations/0006_playback_state.sql"),
+    ),
 ];
 
 pub(crate) fn run(conn: &mut Connection) -> Result<()> {
