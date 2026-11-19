@@ -556,12 +556,27 @@ async fn remove_stale_parts(dir: &Path) {
     let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
         return;
     };
+    // 启动恢复和下载可能并发：只清掉明显陈旧的临时文件，避免删掉
+    // 刚创建、正在写入的 `.part`（旧实现会在测试/快速启动时偶发复现）。
+    let cutoff = std::time::SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(600))
+        .unwrap_or(std::time::UNIX_EPOCH);
     while let Ok(Some(entry)) = entries.next_entry().await {
         let name = entry.file_name();
         let Some(name) = name.to_str() else { continue };
-        if name.ends_with(".part") {
-            let _ = tokio::fs::remove_file(entry.path()).await;
+        if !name.ends_with(".part") {
+            continue;
         }
+        let fresh = entry
+            .metadata()
+            .await
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .is_some_and(|m| m > cutoff);
+        if fresh {
+            continue;
+        }
+        let _ = tokio::fs::remove_file(entry.path()).await;
     }
 }
 
