@@ -11,9 +11,10 @@
 //!
 //! - Windows：每条用 DPAPI（`CryptProtectData`，当前用户范围 + 固定熵）加密，
 //!   只有同一 Windows 用户能解开；文件被拷到别的机器 / 别的账号上无法解密。
-//! - 其它平台：TODO(SRC-15)：Android 改用 Android Keystore（或 EncryptedSharedPreferences），
-//!   Linux 改用 libsecret。在那之前退化为 `scheme = "plain"`：值只做 base64（**不是加密**），
-//!   文件放在应用私有目录（Android 的 `filesDir` 其它应用读不到），Unix 上权限设为 0600。
+//! - Android：用 Android Keystore 里的 AES-256-GCM 密钥加密（密钥不出 Keystore）。
+//!   `CredentialCipher.kt` 负责 JNI 调用，IV 和密文一起存进 base64。
+//! - Linux：TODO(SRC-15)：改用 libsecret。在那之前退化为 `scheme = "plain"`：值只做
+//!   base64（**不是加密**），文件放在应用私有目录，Unix 上权限设为 0600。
 //!
 //! 主数据库（`library.sqlite`）里只有 `credential_ref`，从不存密码。
 
@@ -22,14 +23,16 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use base64::Engine as _;
-use lekis_types::{ErrorCode, LekisError, Result};
+use lekis_types::{LekisError, Result};
 
 /// 文件名（放在核心的数据目录里）。
 pub(crate) const FILE_NAME: &str = "credentials.json";
 
 #[cfg(windows)]
 const SCHEME: &str = "dpapi";
-#[cfg(not(windows))]
+#[cfg(target_os = "android")]
+const SCHEME: &str = "android-keystore-aes-gcm-v1";
+#[cfg(all(not(windows), not(target_os = "android")))]
 const SCHEME: &str = "plain";
 
 #[derive(serde::Serialize, serde::Deserialize, Default)]
@@ -157,22 +160,213 @@ impl lekis_core::CredentialStore for FileCredentials {
 #[cfg(windows)]
 use dpapi::{protect, unprotect};
 
-/// TODO(SRC-15)：Android Keystore / libsecret。现在只是原样返回（文件靠目录权限保护）。
-#[cfg(not(windows))]
+#[cfg(target_os = "android")]
+use android_keystore::{protect, unprotect};
+
+/// TODO(SRC-15)：Linux 改用 libsecret。现在只是原样返回（文件靠目录权限保护）。
+#[cfg(all(not(windows), not(target_os = "android")))]
 fn protect(data: &[u8]) -> Result<Vec<u8>> {
     Ok(data.to_vec())
 }
 
-#[cfg(not(windows))]
+#[cfg(all(not(windows), not(target_os = "android")))]
 fn unprotect(data: &[u8]) -> Result<Vec<u8>> {
     Ok(data.to_vec())
+}
+
+/// Android Keystore 加密：真正的密钥在 `CredentialCipher.kt` 里生成并保管，
+/// Rust 只通过 JNI 调 `encrypt` / `decrypt`，拿到的都是 IV + 密文。
+#[cfg(target_os = "android")]
+mod android_keystore {
+    use super::{LekisError, Result};
+    use jni_sys::{
+        jclass, jvalue, JNIEnv, JavaVM, JNI_EDETACHED, JNI_OK, JNI_VERSION_1_6,
+    };
+    use std::ffi::c_void;
+    use std::ptr;
+
+    const METHOD_ENCRYPT: &[u8] = b"encrypt\0";
+    const METHOD_DECRYPT: &[u8] = b"decrypt\0";
+    const SIGNATURE: &[u8] = b"([B)[B\0";
+
+    pub(super) fn protect(data: &[u8]) -> Result<Vec<u8>> {
+        call(data, true)
+    }
+
+    pub(super) fn unprotect(data: &[u8]) -> Result<Vec<u8>> {
+        call(data, false)
+    }
+
+    fn internal(message: &str) -> LekisError {
+        LekisError::internal(format!("android credential cipher: {message}"))
+    }
+
+    fn call(data: &[u8], encrypt: bool) -> Result<Vec<u8>> {
+        let ctx = ndk_context::android_context();
+        let vm = ctx.vm().cast::<JavaVM>();
+        if vm.is_null() {
+            return Err(internal("JavaVM is not initialized"));
+        }
+        let class = crate::android_context::credential_cipher_class()
+            .ok_or_else(|| internal("CredentialCipher class is not available"))?;
+
+        // SAFETY: vm 来自 MainActivity 登记的 ndk-context，存活到进程结束。
+        unsafe {
+            let fns = &**vm;
+            let get_env = fns
+                .GetEnv
+                .ok_or_else(|| internal("JNI GetEnv is unavailable"))?;
+            let attach = fns
+                .AttachCurrentThread
+                .ok_or_else(|| internal("JNI AttachCurrentThread is unavailable"))?;
+            let mut env: JNIEnv = ptr::null();
+            let mut attached = false;
+            let mut status = get_env(
+                vm,
+                (&mut env as *mut JNIEnv).cast::<*mut c_void>(),
+                JNI_VERSION_1_6,
+            );
+            if status == JNI_EDETACHED {
+                status = attach(
+                    vm,
+                    (&mut env as *mut JNIEnv).cast::<*mut c_void>(),
+                    ptr::null_mut(),
+                );
+                if status != JNI_OK {
+                    return Err(internal("cannot attach the credential thread to the JVM"));
+                }
+                attached = true;
+            } else if status != JNI_OK {
+                return Err(internal("cannot get the JNI environment"));
+            }
+
+            let result = call_with_env(env, class, data, encrypt);
+            if attached {
+                if let Some(detach) = fns.DetachCurrentThread {
+                    detach(vm);
+                }
+            }
+            result
+        }
+    }
+
+    /// SAFETY: `env` 必须是已附加到当前线程的 JNIEnv，`class` 是全局类引用。
+    unsafe fn call_with_env(
+        env: JNIEnv,
+        class: jclass,
+        data: &[u8],
+        encrypt: bool,
+    ) -> Result<Vec<u8>> {
+        let mut env = env;
+        let env = &mut env as *mut JNIEnv;
+        // SAFETY: env 由调用方保证有效。
+        let fns = unsafe { &**env };
+        let (
+            Some(new_byte_array),
+            Some(set_region),
+            Some(get_region),
+            Some(new_array_length),
+            Some(get_static_method),
+            Some(call_static),
+            Some(delete_local_ref),
+            Some(exception_check),
+            Some(exception_clear),
+        ) = (
+            fns.NewByteArray,
+            fns.SetByteArrayRegion,
+            fns.GetByteArrayRegion,
+            fns.GetArrayLength,
+            fns.GetStaticMethodID,
+            fns.CallStaticObjectMethodA,
+            fns.DeleteLocalRef,
+            fns.ExceptionCheck,
+            fns.ExceptionClear,
+        )
+        else {
+            return Err(internal("required JNI functions are unavailable"));
+        };
+
+        let len = i32::try_from(data.len())
+            .map_err(|_| internal("credential is too large to encrypt"))?;
+        // SAFETY: 下面每个 JNI 调用都只在 env 的线程栈内使用局部引用。
+        unsafe {
+            let input = new_byte_array(env, len);
+            if input.is_null() {
+                clear_pending(env, exception_check, exception_clear);
+                return Err(internal("cannot allocate the JNI byte array"));
+            }
+            set_region(env, input, 0, len, data.as_ptr().cast());
+            if clear_pending(env, exception_check, exception_clear) {
+                delete_local_ref(env, input);
+                return Err(internal("cannot copy the credential into the JVM"));
+            }
+
+            let method = if encrypt {
+                get_static_method(
+                    env,
+                    class,
+                    METHOD_ENCRYPT.as_ptr().cast(),
+                    SIGNATURE.as_ptr().cast(),
+                )
+            } else {
+                get_static_method(
+                    env,
+                    class,
+                    METHOD_DECRYPT.as_ptr().cast(),
+                    SIGNATURE.as_ptr().cast(),
+                )
+            };
+            if method.is_null() || clear_pending(env, exception_check, exception_clear) {
+                delete_local_ref(env, input);
+                return Err(internal("CredentialCipher method is missing"));
+            }
+
+            let args = [jvalue { l: input }];
+            let sealed = call_static(env, class, method, args.as_ptr());
+            delete_local_ref(env, input);
+            if sealed.is_null() {
+                clear_pending(env, exception_check, exception_clear);
+                return Err(internal("CredentialCipher returned no data"));
+            }
+
+            let out_len = new_array_length(env, sealed);
+            if out_len < 0 {
+                delete_local_ref(env, sealed);
+                clear_pending(env, exception_check, exception_clear);
+                return Err(internal("CredentialCipher returned an invalid byte array"));
+            }
+            let mut out = vec![0u8; out_len as usize];
+            get_region(env, sealed, 0, out_len, out.as_mut_ptr().cast());
+            delete_local_ref(env, sealed);
+            if clear_pending(env, exception_check, exception_clear) {
+                return Err(internal("cannot copy the sealed credential out of the JVM"));
+            }
+            Ok(out)
+        }
+    }
+
+    /// 有挂起的 Java 异常时清掉并返回 `true`；不让它影响后续 JNI 调用。
+    unsafe fn clear_pending(
+        env: *mut JNIEnv,
+        check: unsafe extern "system" fn(*mut JNIEnv) -> u8,
+        clear: unsafe extern "system" fn(*mut JNIEnv),
+    ) -> bool {
+        // SAFETY: env 由调用方保证有效。
+        if unsafe { check(env) } == 0 {
+            return false;
+        }
+        // SAFETY: 同上；清掉异常后线程可以继续执行其它 JNI 调用。
+        unsafe { clear(env) };
+        true
+    }
 }
 
 #[cfg(windows)]
 mod dpapi {
     //! Windows DPAPI（当前用户范围）。
 
-    use super::{ErrorCode, LekisError, Result};
+    use super::{LekisError, Result};
+    use lekis_types::ErrorCode;
     use windows_sys::Win32::Foundation::LocalFree;
     use windows_sys::Win32::Security::Cryptography::{
         CryptProtectData, CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,

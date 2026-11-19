@@ -3,6 +3,7 @@
 abstract final class SourcesStrings {
   static const title = '音源';
   static const addSource = '添加音源';
+  static const editSource = '编辑音源';
   static const emptyTitle = '还没有音源';
   static const emptyBody = '添加一个本地文件夹、NAS 共享或媒体服务器，Lekis 会自动整理你的音乐。';
   static const loadFailed = '读取音源列表失败';
@@ -39,6 +40,25 @@ abstract final class SourcesStrings {
   static const detailPath = '路径';
   static const detailStatus = '状态';
   static const detailLastScan = '上次扫描';
+  static const detailCredential = '密码';
+  static const detailUsername = '用户名';
+  static const credentialSaved = '已保存';
+  static const credentialNotSet = '未保存';
+  static const credentialGuest = '访客连接，无需密码';
+  static const credentialAnonymous = '匿名访问，无需密码';
+
+  // 详情页操作
+  static const testConnection = '测试连接';
+  static const testing = '正在测试…';
+  static const testSuccess = '连接成功';
+  static const edit = '编辑';
+  static const deleteSource = '删除音源';
+  static const deleteTitle = '删除这个音源？';
+  static String deleteBody(String name) =>
+      '“$name”和它的曲目索引会被删除，已保存的密码也会一并清掉。这个操作不能撤销。';
+  static const delete = '删除';
+  static const deleted = '音源已删除';
+  static const deletedCredentialLeft = '音源已删除，但凭据没能清理干净';
 
   // 类型
   static const kindLocal = '本地文件夹';
@@ -83,8 +103,11 @@ abstract final class SourcesStrings {
   static const back = '返回';
   static const cancel = '取消';
   static const testAndSave = '连接并保存';
+  static const saveChanges = '保存修改';
   static const saving = '正在连接…';
+  static const savingChanges = '正在保存…';
   static const saved = '已添加，正在扫描';
+  static const savedChanges = '已保存';
   static const savedButScanFailed = '音源已保存，但第一次扫描没能开始';
 
   // 表单
@@ -110,6 +133,10 @@ abstract final class SourcesStrings {
   static const showPassword = '显示密码';
   static const hidePassword = '隐藏密码';
   static const credentialNotice = '密码只交给 Lekis 核心保存，不会写进界面层的任何文件。';
+  static const credentialSavedNotice = '密码已保存，不需要重新输入。需要修改时点“替换密码”。';
+  static const replacePassword = '替换密码';
+  static const keepPassword = '保留已保存的密码';
+  static const newPassword = '新密码';
 
   // 校验
   static const errHostRequired = '请填写主机地址';

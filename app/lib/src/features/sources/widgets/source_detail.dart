@@ -1,10 +1,11 @@
-// 单个音源的详情：基本信息、状态、扫描进度、重新扫描 / 同步。
+// 单个音源的详情：基本信息、凭据状态、状态、扫描进度，以及测试 / 编辑 / 重新扫描 / 删除。
 
 import 'dart:io' show Platform;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../rust/api/core.dart' as core;
 import '../../../rust/api/dto.dart';
 import '../../../rust/api/error.dart';
 import '../../../theme/tokens.dart';
@@ -13,29 +14,47 @@ import '../source_draft.dart';
 import '../source_kind_info.dart';
 import '../sources_providers.dart';
 import '../strings.dart';
+import 'add_source.dart';
 import 'source_status.dart';
 
-class SourceDetail extends ConsumerWidget {
-  const SourceDetail({super.key, required this.sourceId});
+class SourceDetail extends ConsumerStatefulWidget {
+  const SourceDetail({super.key, required this.sourceId, this.onDeleted});
 
   final int sourceId;
 
+  /// 宽窗口里删除后让父页面把右栏切回占位；窄窗口不传，默认返回上一页。
+  final VoidCallback? onDeleted;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SourceDetail> createState() => _SourceDetailState();
+}
+
+class _SourceDetailState extends ConsumerState<SourceDetail> {
+  bool _testing = false;
+  bool _deleting = false;
+
+  @override
+  Widget build(BuildContext context) {
     final source = ref.watch(
       sourcesProvider.select(
-        (s) => s.value?.where((e) => e.id == sourceId).firstOrNull,
+        (s) => s.value?.where((e) => e.id == widget.sourceId).firstOrNull,
       ),
     );
     if (source == null) {
       return const Center(child: CircularProgressIndicator());
     }
     final runtime =
-        ref.watch(sourceRuntimeProvider.select((m) => m[sourceId])) ??
+        ref.watch(sourceRuntimeProvider.select((m) => m[widget.sourceId])) ??
         const SourceRuntime();
     final theme = Theme.of(context);
     final colors = context.lekisColors;
     final error = runtime.lastError;
+    final username = (source.options['username'] ?? '').trim();
+    final credentialRef = source.credentialRef?.trim() ?? '';
+    final credentialSaved =
+        credentialRef.isNotEmpty &&
+        core.hasCredential(credentialRef: credentialRef);
+    final busy = _testing || _deleting;
 
     return Align(
       alignment: Alignment.topCenter,
@@ -68,6 +87,20 @@ class SourceDetail extends ConsumerWidget {
                     : SourcesStrings.detailAddress,
                 value: displayAddress(a),
               ),
+            if (username.isNotEmpty)
+              _InfoRow(label: SourcesStrings.detailUsername, value: username),
+            if (source.kind != SourceKindDto.local)
+              _InfoRow(
+                label: SourcesStrings.detailCredential,
+                value: _credentialLabel(source, credentialSaved, username),
+                leading: Icon(
+                  credentialSaved ? Icons.lock : Icons.lock_open,
+                  size: LekisSpacing.lg,
+                  color: credentialSaved
+                      ? colors.accent
+                      : colors.onSurfaceVariant,
+                ),
+              ),
             _InfoRow(
               label: SourcesStrings.detailStatus,
               value: reachabilityLabel(source, runtime),
@@ -97,13 +130,40 @@ class SourceDetail extends ConsumerWidget {
               spacing: LekisSpacing.sm,
               runSpacing: LekisSpacing.sm,
               children: [
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, LekisSizes.touchTargetMin),
+                  ),
+                  onPressed: busy ? null : () => _test(context, source),
+                  icon: _testing
+                      ? const SizedBox.square(
+                          dimension: LekisSpacing.lg,
+                          child: CircularProgressIndicator(
+                            strokeWidth: LekisSpacing.xxs,
+                          ),
+                        )
+                      : const Icon(Icons.wifi_tethering),
+                  label: Text(
+                    _testing
+                        ? SourcesStrings.testing
+                        : SourcesStrings.testConnection,
+                  ),
+                ),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, LekisSizes.touchTargetMin),
+                  ),
+                  onPressed: busy ? null : () => _edit(context, source),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text(SourcesStrings.edit),
+                ),
                 FilledButton.tonalIcon(
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(0, LekisSizes.touchTargetMin),
                   ),
-                  onPressed: runtime.scanning
+                  onPressed: runtime.scanning || busy
                       ? null
-                      : () => _rescan(context, ref, source),
+                      : () => _rescan(context, source),
                   icon: const Icon(Icons.refresh),
                   label: const Text(SourcesStrings.rescan),
                 ),
@@ -112,10 +172,26 @@ class SourceDetail extends ConsumerWidget {
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size(0, LekisSizes.touchTargetMin),
                     ),
-                    onPressed: () => _sync(context, ref),
+                    onPressed: busy ? null : () => _sync(context),
                     icon: const Icon(Icons.sync),
                     label: const Text(SourcesStrings.syncNow),
                   ),
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, LekisSizes.touchTargetMin),
+                    foregroundColor: colors.danger,
+                  ),
+                  onPressed: busy ? null : () => _delete(context, source),
+                  icon: _deleting
+                      ? const SizedBox.square(
+                          dimension: LekisSpacing.lg,
+                          child: CircularProgressIndicator(
+                            strokeWidth: LekisSpacing.xxs,
+                          ),
+                        )
+                      : const Icon(Icons.delete_outline),
+                  label: const Text(SourcesStrings.deleteSource),
+                ),
               ],
             ),
           ],
@@ -124,18 +200,98 @@ class SourceDetail extends ConsumerWidget {
     );
   }
 
-  Future<void> _rescan(
-    BuildContext context,
-    WidgetRef ref,
-    SourceConfigDto source,
-  ) async {
+  String _credentialLabel(SourceConfigDto source, bool saved, String username) {
+    if (saved) return SourcesStrings.credentialSaved;
+    if (source.kind == SourceKindDto.smb && username.isEmpty) {
+      return SourcesStrings.credentialGuest;
+    }
+    if (source.kind == SourceKindDto.webDav && username.isEmpty) {
+      return SourcesStrings.credentialAnonymous;
+    }
+    return SourcesStrings.credentialNotSet;
+  }
+
+  Future<void> _test(BuildContext context, SourceConfigDto source) async {
+    setState(() => _testing = true);
     try {
-      await ref.read(sourceActionsProvider).rescan(sourceId);
+      await ref.read(sourceActionsProvider).test(source);
+      if (context.mounted) {
+        showFeatureSnack(context, SourcesStrings.testSuccess);
+      }
     } catch (e) {
       if (!context.mounted) return;
-      if (source.kind == SourceKindDto.local &&
-          Platform.isAndroid &&
-          coreErrorKind(e) == ErrorKind.permissionDenied) {
+      if (_isAndroidPermissionError(source, e)) {
+        await showAndroidPermissionDialog(context);
+      } else {
+        showFeatureSnack(context, describeCoreError(e));
+      }
+    } finally {
+      if (mounted) setState(() => _testing = false);
+    }
+  }
+
+  Future<void> _edit(BuildContext context, SourceConfigDto source) async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(builder: (_) => EditSourcePage(source: source)),
+    );
+  }
+
+  Future<void> _delete(BuildContext context, SourceConfigDto source) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text(SourcesStrings.deleteTitle),
+        content: Text(SourcesStrings.deleteBody(source.name)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text(SourcesStrings.cancel),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: context.lekisColors.danger,
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text(SourcesStrings.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    setState(() => _deleting = true);
+    try {
+      final cleaned = await ref.read(sourceActionsProvider).delete(source);
+      if (!context.mounted) return;
+      showFeatureSnack(
+        context,
+        cleaned ? SourcesStrings.deleted : SourcesStrings.deletedCredentialLeft,
+      );
+      final onDeleted = widget.onDeleted;
+      if (onDeleted != null) {
+        onDeleted();
+      } else {
+        Navigator.of(context).maybePop();
+      }
+    } catch (e) {
+      if (context.mounted) {
+        showFeatureSnack(context, describeCoreError(e));
+      }
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
+  }
+
+  bool _isAndroidPermissionError(SourceConfigDto source, Object error) =>
+      source.kind == SourceKindDto.local &&
+      Platform.isAndroid &&
+      coreErrorKind(error) == ErrorKind.permissionDenied;
+
+  Future<void> _rescan(BuildContext context, SourceConfigDto source) async {
+    try {
+      await ref.read(sourceActionsProvider).rescan(widget.sourceId);
+    } catch (e) {
+      if (!context.mounted) return;
+      if (_isAndroidPermissionError(source, e)) {
         await showAndroidPermissionDialog(context);
       } else {
         showFeatureSnack(context, describeCoreError(e));
@@ -143,9 +299,9 @@ class SourceDetail extends ConsumerWidget {
     }
   }
 
-  Future<void> _sync(BuildContext context, WidgetRef ref) async {
+  Future<void> _sync(BuildContext context) async {
     try {
-      final r = await ref.read(sourceActionsProvider).syncNow(sourceId);
+      final r = await ref.read(sourceActionsProvider).syncNow(widget.sourceId);
       if (context.mounted) {
         showFeatureSnack(
           context,

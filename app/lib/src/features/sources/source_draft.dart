@@ -1,5 +1,7 @@
-// “添加音源”表单背后的纯数据模型：字段校验、默认名称、拼成 SourceConfigDto。
-// 这里不碰任何界面代码，方便单测。
+// “添加 / 编辑音源”表单背后的纯数据模型：字段校验、默认名称、拼成 SourceConfigDto。
+// 这里不碰任何界面代码，也不保存任何密码，方便单测。
+
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 import '../../rust/api/dto.dart';
 import 'strings.dart';
@@ -42,6 +44,45 @@ class SourceDraft {
     }
   }
 
+  /// 从已保存的音源还原表单。**不会**读取凭据明文：密码留在核心的凭据库里，
+  /// 界面只用 `credential_ref` 判断“已保存”。
+  factory SourceDraft.fromConfig(SourceConfigDto config) {
+    final address = config.addresses.isEmpty ? '' : config.addresses.first;
+    final optionUser = (config.options['username'] ?? '').trim();
+    switch (config.kind) {
+      case SourceKindDto.local:
+        return SourceDraft(kind: config.kind, name: config.name, path: address);
+      case SourceKindDto.smb:
+        final uri = Uri.tryParse(address);
+        final user = optionUser.isNotEmpty ? optionUser : _userFromUri(uri);
+        final segments = uri?.pathSegments ?? const <String>[];
+        return SourceDraft(
+          kind: config.kind,
+          name: config.name,
+          host: _uriHost(uri),
+          share: segments.isEmpty ? '' : segments.first,
+          path: segments.skip(1).join('/'),
+          username: user,
+          guest: user.isEmpty,
+        );
+      case SourceKindDto.webDav ||
+          SourceKindDto.openSubsonic ||
+          SourceKindDto.jellyfin ||
+          SourceKindDto.emby ||
+          SourceKindDto.plex:
+        final uri = Uri.tryParse(address);
+        final user = optionUser.isNotEmpty ? optionUser : _userFromUri(uri);
+        return SourceDraft(
+          kind: config.kind,
+          name: config.name,
+          url: displayAddress(address),
+          username: user,
+        );
+      default:
+        return SourceDraft(kind: config.kind, name: config.name, url: address);
+    }
+  }
+
   final SourceKindDto kind;
   String name;
 
@@ -59,17 +100,27 @@ class SourceDraft {
 
   String username;
 
-  /// 密码 / API 密钥 / Token。只在内存里停留到交给核心为止。
+  /// 密码 / API 密钥 / Token。只在内存里停留到交给核心的凭据库为止。
   String secret;
 
   /// SMB 访客模式（不需要账号）。
   bool guest;
 
+  /// 这个源需不需要凭据。WebDAV 允许匿名，所以用户名是开关。
+  bool get usesCredential => switch (kind) {
+    SourceKindDto.local => false,
+    SourceKindDto.smb => !guest && username.trim().isNotEmpty,
+    SourceKindDto.webDav => username.trim().isNotEmpty,
+    _ => true,
+  };
+
   /// 清掉内存里的密码。保存成功或页面关闭时调用。
   void forgetSecret() => secret = '';
 
-  /// 转成核心要的配置。调用前先用 [SourceValidators] 校验过。
-  SourceConfigDto toConfig() {
+  /// 转成核心要的配置。密码永远不会出现在 `addresses` 或 `options` 里：
+  /// 由调用方先 `setCredential(ref, secret)`，这里只带 `credentialRef`。
+  /// 调用前先用 [SourceValidators] 校验过。
+  SourceConfigDto toConfig({String? credentialRef, PlatformInt64? id}) {
     final options = <String, String>{};
     final String address;
     switch (kind) {
@@ -77,26 +128,32 @@ class SourceDraft {
         address = path.trim();
       case SourceKindDto.smb:
         address = _smbUrl();
+        if (!guest && username.trim().isNotEmpty) {
+          options['username'] = username.trim();
+        }
       case SourceKindDto.webDav:
-        address = _withUserInfo(normalizeHttpUrl(url), username.trim(), secret);
+        address = normalizeHttpUrl(url);
+        if (username.trim().isNotEmpty) {
+          options['username'] = username.trim();
+        }
       case SourceKindDto.openSubsonic:
         address = normalizeHttpUrl(url);
-        options['username'] = username.trim();
-        _handOffServerSecret(options, 'token');
-      case SourceKindDto.jellyfin || SourceKindDto.emby:
+        if (username.trim().isNotEmpty) {
+          options['username'] = username.trim();
+        }
+      case SourceKindDto.jellyfin || SourceKindDto.emby || SourceKindDto.plex:
         address = normalizeHttpUrl(url);
-        _handOffServerSecret(options, 'api_key');
-      case SourceKindDto.plex:
-        address = normalizeHttpUrl(url);
-        _handOffServerSecret(options, 'token');
       default:
         address = url.trim();
     }
+    final ref = (credentialRef ?? '').trim();
     return SourceConfigDto(
+      id: id,
       kind: kind,
       name: name.trim().isEmpty ? defaultName() : name.trim(),
       addresses: [address],
       rootPath: '',
+      credentialRef: ref.isEmpty ? null : ref,
       options: options,
       enabled: true,
     );
@@ -152,6 +209,21 @@ class SourceDraft {
     return host.contains(':') ? '[$host]' : host;
   }
 
+  static String _uriHost(Uri? uri) {
+    if (uri == null || uri.host.isEmpty) return '';
+    final host = _bracketHost(uri.host);
+    return uri.port == 0 ? host : '$host:${uri.port}';
+  }
+
+  /// 只取 userinfo 里的用户名；冒号后面的密码一律丢弃。
+  static String _userFromUri(Uri? uri) {
+    final info = uri?.userInfo ?? '';
+    if (info.isEmpty) return '';
+    return Uri.decodeComponent(info.split(':').first);
+  }
+
+  /// 地址里只有用户名、没有密码。核心会从 `options["username"]` 或这里的
+  /// userinfo 取用户名，密码单独按 `credential_ref` 读。
   String _smbUrl() {
     final h = host.trim();
     final s = Uri.encodeComponent(share.trim());
@@ -161,29 +233,7 @@ class SourceDraft {
         .where((p) => p.isNotEmpty)
         .map(Uri.encodeComponent)
         .join('/');
-    final base = 'smb://$h/$s${sub.isEmpty ? '' : '/$sub'}';
-    if (guest) return base;
-    return _withUserInfo(base, username.trim(), secret);
-  }
-
-  // TODO(core-credentials): 核心还没有把凭据写进 CredentialStore 的桥接函数
-  // （SourceConfigDto 只有 credentialRef，没有地方传密码本身）。在那之前，按核心
-  // 文档里约定的兜底方式把密钥交给核心：SMB / WebDAV 放进地址的 userinfo（核心
-  // 解析时会剥掉，不进日志），媒体服务器放进 options。两种方式都会被核心写进
-  // 资料库，所以一旦有了 `set_credential(ref, secret)`，这里改成先存凭据、再只传
-  // credentialRef。Dart 侧不保存任何密码。
-  void _handOffServerSecret(Map<String, String> options, String key) {
-    if (secret.isNotEmpty) options[key] = secret;
-  }
-
-  static String _withUserInfo(String url, String user, String password) {
-    if (user.isEmpty) return url;
-    final uri = Uri.tryParse(url);
-    if (uri == null) return url;
-    final info = password.isEmpty
-        ? Uri.encodeComponent(user)
-        : '${Uri.encodeComponent(user)}:${Uri.encodeComponent(password)}';
-    return uri.replace(userInfo: info).toString();
+    return 'smb://$h/$s${sub.isEmpty ? '' : '/$sub'}';
   }
 }
 
