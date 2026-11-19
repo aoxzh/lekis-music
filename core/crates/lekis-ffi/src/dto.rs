@@ -752,6 +752,17 @@ pub enum SyncStateDto {
 
 mirror_enum!(SyncStateDto <=> SyncState { Idle, Syncing, Unavailable });
 
+/// 离线下载状态（OFF-01/02）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum OfflineStateDto {
+    Queued,
+    Downloading,
+    Ready,
+    Failed,
+}
+
+mirror_enum!(OfflineStateDto <=> t::OfflineState { Queued, Downloading, Ready, Failed });
+
 #[derive(Debug, Clone, uniffi::Enum)]
 pub enum CoreEventDto {
     PlaybackChanged {
@@ -805,6 +816,22 @@ pub enum CoreEventDto {
         shuffle: ShuffleModeDto,
         volume: f32,
         gapless: bool,
+    },
+    /// 离线下载进度（OFF-02）。
+    OfflineProgress {
+        track_id: i64,
+        downloaded: u64,
+        total: Option<u64>,
+    },
+    /// 离线下载状态变了。
+    OfflineChanged {
+        track_id: i64,
+        state: OfflineStateDto,
+        error: Option<String>,
+    },
+    /// 离线下载记录被删除。
+    OfflineRemoved {
+        track_id: i64,
     },
 }
 
@@ -893,6 +920,25 @@ impl From<t::CoreEvent> for CoreEventDto {
                 volume,
                 gapless,
             },
+            E::OfflineProgress {
+                track_id,
+                downloaded,
+                total,
+            } => Self::OfflineProgress {
+                track_id: track_id.0,
+                downloaded,
+                total,
+            },
+            E::OfflineChanged {
+                track_id,
+                state,
+                error,
+            } => Self::OfflineChanged {
+                track_id: track_id.0,
+                state: state.into(),
+                error,
+            },
+            E::OfflineRemoved { track_id } => Self::OfflineRemoved { track_id: track_id.0 },
         }
     }
 }

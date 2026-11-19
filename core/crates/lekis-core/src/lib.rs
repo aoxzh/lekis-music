@@ -583,6 +583,22 @@ impl LekisCore {
             return Ok(());
         }
 
+        // 本地目录被删除/移动后要明确报错并落库，而不是把空目录当成“扫描成功”
+        // （把资料库清空）。`content://` 等非路径地址交给平台 VFS 处理。
+        if source.kind == SourceKind::Local {
+            if let Some(address) = source.addresses.first() {
+                let path = address.strip_prefix("file://").unwrap_or(address);
+                if !path.contains("://") && !std::path::Path::new(path).is_dir() {
+                    let e = LekisError::new(
+                        ErrorCode::NotFound,
+                        format!("local source folder is missing: {path}"),
+                    );
+                    s.scan_failed(source_id, &e).await;
+                    return Err(e);
+                }
+            }
+        }
+
         let vfs = match s.open_vfs(&source) {
             Ok(vfs) => vfs,
             Err(e) => {
@@ -2150,6 +2166,16 @@ mod tests {
                 tokio::time::sleep(std::time::Duration::from_millis(25)).await;
             }
             assert_eq!(core.count_tracks().await? as usize, expected);
+            // 等初始扫描真正结束（ScanFinished 在 mark_scanned 之后发出），
+            // 否则并行测试里后续操作可能被仍在跑的首次扫描覆盖。
+            for _ in 0..400 {
+                if seen(&events).iter().any(
+                    |e| matches!(e, CoreEvent::ScanFinished { source_id, .. } if *source_id == source),
+                ) {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+            }
             Ok::<_, LekisError>(source)
         })?;
         Ok((core, root, source, events, rt))
@@ -2205,8 +2231,8 @@ mod tests {
         std::fs::remove_dir_all(root.join("music"))?;
         rt.block_on(async {
             let started = core.start_scan(source).await;
-            // 整个套件并行跑时后台扫描任务可能被 CPU 抢占；给足 10 秒。
-            for _ in 0..400 {
+            // 整个套件并行跑时后台扫描任务可能被 CPU 抢占；给足 30 秒。
+            for _ in 0..1200 {
                 let info = core.list_source_infos().await?.remove(0);
                 if info.last_scan_error.is_some() {
                     break;
