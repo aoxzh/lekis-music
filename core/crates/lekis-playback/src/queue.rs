@@ -47,8 +47,21 @@ impl Queue {
 
     /// 下一首会是什么（不移动游标）。无缝播放用它提前预加载。
     pub fn peek_next(&self) -> Option<TrackId> {
-        let next = self.next_cursor(false)?;
-        self.items.get(*self.order.get(next)?).copied()
+        self.peek_next_steps(1)
+    }
+
+    /// 从当前曲目往后看第 `steps` 首（不移动游标，重复 / 随机 / 列表循环语义与
+    /// [`Self::advance`] 一致）。
+    ///
+    /// 无缝播放（PLY-01）在解码线程已经拼好下一首、但队列还没推进时，
+    /// 需要预装「下下首」——否则很短的曲目会在引擎推进队列之前就再次 EOF。
+    /// `steps = 0` 等同于 [`Self::current`]。
+    pub fn peek_next_steps(&self, steps: usize) -> Option<TrackId> {
+        let mut cursor = self.cursor?;
+        for _ in 0..steps {
+            cursor = self.next_cursor_from(cursor, false)?;
+        }
+        self.items.get(*self.order.get(cursor)?).copied()
     }
 
     /// 前进到下一首。`user_initiated` 为 `true` 时（用户点了"下一首"），单曲循环也会切歌。
@@ -203,7 +216,10 @@ impl Queue {
     }
 
     fn next_cursor(&self, user_initiated: bool) -> Option<usize> {
-        let cur = self.cursor?;
+        self.next_cursor_from(self.cursor?, user_initiated)
+    }
+
+    fn next_cursor_from(&self, cur: usize, user_initiated: bool) -> Option<usize> {
         if self.repeat == RepeatMode::One && !user_initiated {
             return Some(cur);
         }
@@ -271,6 +287,45 @@ mod tests {
         assert_eq!(q.advance(true), Some(TrackId(2)));
     }
 
+    /// 无缝播放要能往后看两首：repeat-one 看到的是自己，列表循环会绕回队首。
+    #[test]
+    fn peek_next_steps_matches_advance_semantics() {
+        let mut q = Queue::default();
+        q.set(ids(3), 1); // 当前 2
+        assert_eq!(q.peek_next_steps(0), Some(TrackId(2)));
+        assert_eq!(q.peek_next_steps(1), Some(TrackId(3)));
+        assert_eq!(q.peek_next_steps(2), None, "repeat=off 第三首之后没有");
+        assert_eq!(q.current(), Some(TrackId(2)), "peek 不能移动游标");
+
+        q.set_repeat(RepeatMode::All);
+        assert_eq!(q.peek_next_steps(2), Some(TrackId(1)), "列表循环要绕回队首");
+
+        q.set_repeat(RepeatMode::One);
+        assert_eq!(q.peek_next_steps(1), Some(TrackId(2)));
+        assert_eq!(
+            q.peek_next_steps(2),
+            Some(TrackId(2)),
+            "单曲循环看多远都是自己"
+        );
+    }
+
+    /// 无缝播放的「向后看」必须和将来连续调用 `advance(false)` 的结果完全一致
+    /// （随机顺序也一样），否则预装的下一首会和队列推进错位。
+    #[test]
+    fn peek_next_steps_matches_shuffled_advance_order() {
+        let mut q = Queue::default();
+        q.set(ids(6), 2);
+        q.set_shuffle(ShuffleMode::Random, 42);
+        let mut walker = q.clone();
+        for step in 1..=6 {
+            assert_eq!(
+                q.peek_next_steps(step),
+                walker.advance(false),
+                "第 {step} 首不一致"
+            );
+        }
+    }
+
     #[test]
     fn shuffle_keeps_current_and_all_items() {
         let mut q = Queue::default();
@@ -315,7 +370,10 @@ mod tests {
         q.set(ids(5), 2); // current = 3
         assert_eq!(q.remove_at(0), Some(TrackId(1)));
         assert_eq!(q.current(), Some(TrackId(3)));
-        assert_eq!(q.ordered(), vec![TrackId(2), TrackId(3), TrackId(4), TrackId(5)]);
+        assert_eq!(
+            q.ordered(),
+            vec![TrackId(2), TrackId(3), TrackId(4), TrackId(5)]
+        );
         // 删当前：落到下一首。
         assert_eq!(q.remove_at(1), Some(TrackId(3)));
         assert_eq!(q.current(), Some(TrackId(4)));

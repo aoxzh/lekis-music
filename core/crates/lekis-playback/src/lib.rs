@@ -15,20 +15,25 @@
 pub mod decode;
 pub mod dsp;
 pub mod engine;
+pub mod gapless;
 pub mod output;
 pub mod queue;
 pub mod resample;
 pub mod session;
 pub mod vfs_access;
 
+#[cfg(test)]
+pub(crate) mod test_support;
+
 pub use decode::{
     open_decoder, Decoder, HttpRangeSource, PcmFormat, SymphoniaDecoder, VfsMediaSource,
 };
 pub use engine::{list_output_devices, EngineCommand, PlaybackEngine, PlaybackSnapshot};
+pub use gapless::{AudibleTrack, TrackTimeline};
 pub use output::{AudioOutput, CpalOutput, OutputDevice, OutputMode, SampleSource};
 pub use queue::Queue;
 pub use resample::FormatConverter;
-pub use session::Session;
+pub use session::{CpalOutputFactory, OutputFactory, Session};
 
 use lekis_types::TrackId;
 
