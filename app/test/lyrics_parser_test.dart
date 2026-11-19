@@ -29,12 +29,98 @@ void main() {
     expect(l.lines.map((e) => e.startMs), [1000, 30000]);
   });
 
-  test('enhanced LRC drops per-word timestamps', () {
+  test('enhanced LRC exposes per-word timings', () {
     final l = parse(
-      '[00:05.00]<00:05.00>hello <00:05.40>world',
+      '[00:05.00]<00:05.00>hello <00:05.40>world\n[00:06.20]next',
       LyricsFormatDto.enhancedLrc,
     );
-    expect(l.lines.single.text, 'hello world');
+    final line = l.lines.first;
+    expect(line.text, 'hello world');
+    expect(line.words, isNotNull);
+    expect(line.words!.map((w) => w.text), ['hello ', 'world']);
+    expect(line.words!.map((w) => w.startMs), [5000, 5400]);
+    expect(line.words!.map((w) => w.endMs), [5400, 6200]);
+    expect(line.words!.map((w) => w.text).join(), line.text);
+  });
+
+  test('enhanced LRC text before the first tag starts at the line time', () {
+    final l = parse(
+      '[00:10.00]Hello <00:10.60>world',
+      LyricsFormatDto.enhancedLrc,
+    );
+    final words = l.lines.single.words!;
+    expect(words.map((w) => w.text), ['Hello ', 'world']);
+    expect(words.first.startMs, 10000);
+    expect(words.last.startMs, 10600);
+    expect(l.lines.single.text, 'Hello world');
+    expect(words.map((w) => w.text).join(), l.lines.single.text);
+  });
+
+  test('enhanced LRC keeps punctuation and CJK words intact', () {
+    final l = parse(
+      '[00:01.00]Hello, <00:01.40>world! <00:02.00>你好，<00:02.30>世界！'
+      '\n[00:03.00]end',
+      LyricsFormatDto.enhancedLrc,
+    );
+    final line = l.lines.first;
+    expect(line.text, 'Hello, world! 你好，世界！');
+    expect(line.words!.map((w) => w.text), [
+      'Hello, ',
+      'world! ',
+      '你好，',
+      '世界！',
+    ]);
+    expect(line.words!.map((w) => w.startMs), [1000, 1400, 2000, 2300]);
+    expect(line.words!.last.endMs, 3000);
+    expect(line.words!.map((w) => w.text).join(), line.text);
+  });
+
+  test('enhanced LRC words follow file and user offsets', () {
+    final l = parse(
+      '[offset:500]\n'
+      '[00:10.00]<00:10.00>one <00:10.40>two\n'
+      '[00:11.00]next',
+      LyricsFormatDto.enhancedLrc,
+      offset: 250,
+    );
+    final line = l.lines.first;
+    expect(line.startMs, 9250);
+    expect(line.words!.map((w) => w.startMs), [9250, 9650]);
+    expect(line.words!.map((w) => w.endMs), [9650, 10250]);
+  });
+
+  test('enhanced LRC last word falls back without a following line', () {
+    final l = parse('[00:01.00]<00:01.00>solo', LyricsFormatDto.enhancedLrc);
+    final word = l.lines.single.words!.single;
+    expect(word.startMs, 1000);
+    expect(word.endMs, greaterThan(word.startMs));
+  });
+
+  test('line without word tags has no word timings', () {
+    final l = parse('[00:01.00]plain line', LyricsFormatDto.lrc);
+    expect(l.lines.single.words, isNull);
+    expect(l.lines.single.hasWordTimings, isFalse);
+  });
+
+  test('translation fold keeps word timings from the sung line', () {
+    final l = parse(
+      '[00:02.00]<00:02.00>原文 <00:02.50>歌词\n[00:02.00]translation',
+      LyricsFormatDto.enhancedLrc,
+    );
+    expect(l.lines, hasLength(1));
+    expect(l.lines.single.text, '原文 歌词');
+    expect(l.lines.single.translation, 'translation');
+    expect(l.lines.single.words!.map((w) => w.startMs), [2000, 2500]);
+  });
+
+  test('repeated timestamps move word tags along', () {
+    final l = parse(
+      '[00:01.00][00:30.00]<00:01.00>a <00:01.40>b',
+      LyricsFormatDto.enhancedLrc,
+    );
+    expect(l.lines, hasLength(2));
+    expect(l.lines.first.words!.map((w) => w.startMs), [1000, 1400]);
+    expect(l.lines.last.words!.map((w) => w.startMs), [30000, 30400]);
   });
 
   test('lines sharing a timestamp fold into text + translation', () {

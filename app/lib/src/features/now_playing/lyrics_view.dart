@@ -280,7 +280,6 @@ class _PlainLyrics extends StatelessWidget {
   }
 }
 
-
 /// A gap at least this long before the first line (or on an empty
 /// "instrumental" line) shows the breathing-dots interlude.
 const int _interludeMinMs = 3000;
@@ -480,6 +479,7 @@ class _SyncedLyricsState extends ConsumerState<_SyncedLyrics>
                           // intro so the opening lines read as "upcoming".
                           distance: i - active,
                           blur: blurOn,
+                          lowPower: widget.lowPower,
                           onTap: () => actions.seek(lyrics.lines[i].startMs),
                         ),
                     ],
@@ -502,6 +502,7 @@ class _LyricLineTile extends StatelessWidget {
     required this.style,
     required this.distance,
     required this.blur,
+    required this.lowPower,
     required this.onTap,
   });
 
@@ -512,6 +513,7 @@ class _LyricLineTile extends StatelessWidget {
   /// Line index minus the active index (0 = playing now).
   final int distance;
   final bool blur;
+  final bool lowPower;
   final VoidCallback onTap;
 
   bool get active => distance == 0;
@@ -533,12 +535,17 @@ class _LyricLineTile extends StatelessWidget {
     }
 
     final translation = line.translation;
+    // Only the active line gets a word-by-word wipe; everything else is a
+    // plain Text, so resting lines cost nothing extra per playback tick.
+    final primary = active && line.hasWordTimings
+        ? _KaraokeLine(line: line, style: style, lowPower: lowPower)
+        : Text(line.text, style: style);
     Widget child = translation == null
-        ? Text(line.text, style: style)
+        ? primary
         : Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(line.text, style: style),
+              primary,
               const SizedBox(height: LekisSpacing.xs),
               Text(
                 translation,
@@ -599,6 +606,234 @@ class _LyricLineTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Active line with enhanced-LRC word timings.
+///
+/// Watches the raw position itself, so a playback tick rebuilds only this
+/// line instead of the whole list. Ordinary lines never reach this widget.
+class _KaraokeLine extends ConsumerWidget {
+  const _KaraokeLine({
+    required this.line,
+    required this.style,
+    required this.lowPower,
+  });
+
+  final LyricLine line;
+  final TextStyle style;
+  final bool lowPower;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final words = line.words!;
+    final positionMs = ref.watch(positionProvider);
+    final fg =
+        style.color ??
+        DefaultTextStyle.of(context).style.color ??
+        const Color(0xFFFFFFFF);
+    final scaler = MediaQuery.textScalerOf(context);
+    final direction = Directionality.of(context);
+    final locale = Localizations.maybeLocaleOf(context);
+
+    Widget paint(double ms) => _KaraokeText(
+      line: line,
+      style: style,
+      positionMs: ms.round(),
+      sungColor: fg,
+      // Unsung words stay readable but recede until the wipe reaches them.
+      unsungColor: fg.withValues(alpha: 0.5),
+      textScaler: scaler,
+      textDirection: direction,
+      locale: locale,
+    );
+
+    // Low-power skips the between-tick tween; the wipe then steps at the
+    // core's 200 ms cadence instead of running at display refresh rate.
+    if (lowPower) return paint(positionMs.toDouble());
+    final startMs = line.startMs;
+    final endMs = words.last.endMs > startMs ? words.last.endMs : startMs;
+    final target = positionMs < startMs
+        ? startMs.toDouble()
+        : (positionMs > endMs ? endMs.toDouble() : positionMs.toDouble());
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(end: target),
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.linear,
+      builder: (context, value, _) => paint(value),
+    );
+  }
+}
+
+/// Full-width text laid out once for size, then painted in two layers: the
+/// whole line dimmed and the already-sung parts brightened and clipped by
+/// each word's own progress. Wrapped lines and CJK work without extra rules.
+class _KaraokeText extends StatelessWidget {
+  const _KaraokeText({
+    required this.line,
+    required this.style,
+    required this.positionMs,
+    required this.sungColor,
+    required this.unsungColor,
+    required this.textScaler,
+    required this.textDirection,
+    this.locale,
+  });
+
+  final LyricLine line;
+  final TextStyle style;
+  final int positionMs;
+  final Color sungColor;
+  final Color unsungColor;
+  final TextScaler textScaler;
+  final TextDirection textDirection;
+  final Locale? locale;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // Only establishes the wrapped height. The visible glyphs are drawn
+        // by the painter below so their fill can move inside a line.
+        ExcludeSemantics(
+          child: Opacity(
+            opacity: 0,
+            child: Text(line.text, style: style, textScaler: textScaler),
+          ),
+        ),
+        Positioned.fill(
+          child: CustomPaint(
+            painter: _KaraokePainter(
+              text: line.text,
+              words: line.words!,
+              style: style,
+              positionMs: positionMs,
+              sungColor: sungColor,
+              unsungColor: unsungColor,
+              textScaler: textScaler,
+              textDirection: textDirection,
+              locale: locale,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _KaraokePainter extends CustomPainter {
+  _KaraokePainter({
+    required this.text,
+    required this.words,
+    required this.style,
+    required this.positionMs,
+    required this.sungColor,
+    required this.unsungColor,
+    required this.textScaler,
+    required this.textDirection,
+    this.locale,
+  });
+
+  final String text;
+  final List<LyricWord> words;
+  final TextStyle style;
+  final int positionMs;
+  final Color sungColor;
+  final Color unsungColor;
+  final TextScaler textScaler;
+  final TextDirection textDirection;
+  final Locale? locale;
+
+  TextPainter _layout(Color color, double width) => TextPainter(
+    text: TextSpan(
+      text: text,
+      style: style.copyWith(color: color),
+    ),
+    textDirection: textDirection,
+    textScaler: textScaler,
+    locale: locale,
+  )..layout(maxWidth: width);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final base = _layout(unsungColor, size.width);
+    TextPainter? bright;
+    try {
+      base.paint(canvas, Offset.zero);
+      if (words.isEmpty || positionMs < words.first.startMs) return;
+
+      bright = _layout(sungColor, size.width);
+      final sung = Path();
+      var offset = 0;
+      for (final word in words) {
+        final start = offset;
+        final end = offset + word.text.length;
+        offset = end;
+        if (start >= end) continue;
+        final span = word.endMs - word.startMs;
+        final progress = span <= 0
+            ? (positionMs >= word.endMs ? 1.0 : 0.0)
+            : ((positionMs - word.startMs) / span).clamp(0.0, 1.0);
+        if (progress <= 0) continue;
+        final boxes = base.getBoxesForSelection(
+          TextSelection(baseOffset: start, extentOffset: end),
+        );
+        for (final box in boxes) {
+          final rect = box.toRect();
+          if (rect.isEmpty) continue;
+          // RTL lyrics fill from the right edge of each word box; LTR from
+          // the left. Either way progress moves inside the active line.
+          final Rect filled;
+          if (progress >= 1) {
+            filled = rect;
+          } else if (textDirection == TextDirection.rtl) {
+            filled = Rect.fromLTRB(
+              rect.right - rect.width * progress,
+              rect.top,
+              rect.right,
+              rect.bottom,
+            );
+          } else {
+            filled = Rect.fromLTRB(
+              rect.left,
+              rect.top,
+              rect.left + rect.width * progress,
+              rect.bottom,
+            );
+          }
+          if (filled.isEmpty) continue;
+          // A hair of vertical slack keeps anti-aliased glyph edges intact.
+          sung.addRect(
+            Rect.fromLTRB(
+              filled.left,
+              filled.top - 0.5,
+              filled.right,
+              filled.bottom + 0.5,
+            ),
+          );
+        }
+      }
+      if (sung.getBounds().isEmpty) return;
+      canvas.save();
+      canvas.clipPath(sung);
+      bright.paint(canvas, Offset.zero);
+      canvas.restore();
+    } finally {
+      base.dispose();
+      bright?.dispose();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _KaraokePainter old) =>
+      old.positionMs != positionMs ||
+      old.text != text ||
+      old.words != words ||
+      old.style != style ||
+      old.sungColor != sungColor ||
+      old.unsungColor != unsungColor ||
+      old.textScaler != textScaler ||
+      old.textDirection != textDirection ||
+      old.locale != locale;
 }
 
 /// Three breathing dots for the intro and long instrumental breaks. While
