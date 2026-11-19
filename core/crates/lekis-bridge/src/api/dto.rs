@@ -593,6 +593,112 @@ impl From<lekis_core::PlaybackStateRow> for PlaybackSessionDto {
     }
 }
 
+// ---------------------------------------------------------------------------
+// 听歌记录上报（DIS-07）
+// ---------------------------------------------------------------------------
+
+/// 上报设置的安全视图：只有"凭据是否已保存"，没有明文。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScrobbleSettingsDto {
+    /// 是否启用。
+    pub enabled: bool,
+    /// `lastfm` / `listenbrainz` / `librefm`。
+    pub service: String,
+    /// 用户名。
+    pub username: Option<String>,
+    /// 是否发送 now-playing。
+    pub now_playing: bool,
+    /// 是否已保存 API key。
+    pub has_api_key: bool,
+    /// 是否已保存 API secret。
+    pub has_api_secret: bool,
+    /// 是否已保存 session key。
+    pub has_session_key: bool,
+    /// 是否已保存 user token。
+    pub has_user_token: bool,
+}
+
+impl From<lekis_core::ScrobbleSettings> for ScrobbleSettingsDto {
+    fn from(s: lekis_core::ScrobbleSettings) -> Self {
+        Self {
+            enabled: s.enabled,
+            service: s.service,
+            username: s.username,
+            now_playing: s.now_playing,
+            has_api_key: s.has_api_key,
+            has_api_secret: s.has_api_secret,
+            has_session_key: s.has_session_key,
+            has_user_token: s.has_user_token,
+        }
+    }
+}
+
+/// 修改上报设置。凭据是 `Option<String>`：`None` 保留，`Some("")` 清除。
+#[derive(Debug, Clone, Default)]
+pub struct ScrobbleSettingsInputDto {
+    /// 是否启用。
+    pub enabled: bool,
+    /// `lastfm` / `listenbrainz` / `librefm`。
+    pub service: String,
+    /// 用户名（空字符串清除）。
+    pub username: String,
+    /// 是否发送 now-playing。
+    pub now_playing: bool,
+    /// 新 API key。
+    pub api_key: Option<String>,
+    /// 新 API secret。
+    pub api_secret: Option<String>,
+    /// 新 session key。
+    pub session_key: Option<String>,
+    /// 新 user token。
+    pub user_token: Option<String>,
+}
+
+impl From<ScrobbleSettingsInputDto> for lekis_core::ScrobbleSettingsInput {
+    fn from(s: ScrobbleSettingsInputDto) -> Self {
+        Self {
+            enabled: s.enabled,
+            service: s.service,
+            username: s.username,
+            now_playing: s.now_playing,
+            api_key: s.api_key,
+            api_secret: s.api_secret,
+            session_key: s.session_key,
+            user_token: s.user_token,
+        }
+    }
+}
+
+/// 上报状态。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScrobbleStatusDto {
+    /// 是否已配置完整。
+    pub configured: bool,
+    /// 用户是否打开开关。
+    pub enabled: bool,
+    /// 服务标识。
+    pub service: String,
+    /// 待补报条数。
+    pub queued: u32,
+    /// 最近错误（不含凭据）。
+    pub last_error: Option<String>,
+    /// 最近成功上报 / 测试的 Unix 毫秒。
+    pub last_success_at_ms: Option<i64>,
+}
+
+impl From<lekis_core::ScrobbleStatus> for ScrobbleStatusDto {
+    fn from(s: lekis_core::ScrobbleStatus) -> Self {
+        Self {
+            configured: s.configured,
+            enabled: s.enabled,
+            service: s.service,
+            queued: s.queued,
+            last_error: s.last_error,
+            last_success_at_ms: s.last_success_at_ms,
+        }
+    }
+}
+
 /// 输出模式（PLY-05）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputModeDto {

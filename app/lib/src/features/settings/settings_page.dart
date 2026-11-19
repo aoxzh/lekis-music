@@ -10,6 +10,7 @@ import '../../shell/tab_bar_style.dart';
 import '../../theme/tokens.dart';
 import '../enrich/enrich_providers.dart';
 import '../sources/common.dart';
+import 'scrobble_providers.dart';
 import 'settings_providers.dart';
 import 'strings.dart';
 import 'tab_bar_style_picker.dart';
@@ -40,6 +41,10 @@ class SettingsPage extends StatelessWidget {
               child: _AppearanceSection(),
             ),
             _Section(title: SettingsStrings.library, child: _LibrarySection()),
+            _Section(
+              title: SettingsStrings.scrobbling,
+              child: _ScrobbleSection(),
+            ),
             _Section(title: SettingsStrings.about, child: _AboutSection()),
           ],
         ),
@@ -401,6 +406,323 @@ class _LibrarySection extends ConsumerWidget {
       ],
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// 听歌记录（DIS-07）
+// ---------------------------------------------------------------------------
+
+class _ScrobbleSection extends ConsumerStatefulWidget {
+  const _ScrobbleSection();
+
+  @override
+  ConsumerState<_ScrobbleSection> createState() => _ScrobbleSectionState();
+}
+
+class _ScrobbleSectionState extends ConsumerState<_ScrobbleSection> {
+  final _username = TextEditingController();
+  final _apiKey = TextEditingController();
+  final _apiSecret = TextEditingController();
+  final _sessionKey = TextEditingController();
+  final _userToken = TextEditingController();
+
+  bool _loaded = false;
+  bool _enabled = false;
+  bool _nowPlaying = true;
+  String _service = 'lastfm';
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_loaded) return;
+    final settings = ref.read(scrobbleProvider).settings;
+    if (settings == null) return;
+    _enabled = settings.enabled;
+    _nowPlaying = settings.nowPlaying;
+    _service = settings.service;
+    _username.text = settings.username ?? '';
+    _loaded = true;
+  }
+
+  @override
+  void dispose() {
+    _username.dispose();
+    _apiKey.dispose();
+    _apiSecret.dispose();
+    _sessionKey.dispose();
+    _userToken.dispose();
+    super.dispose();
+  }
+
+  String? _secret(TextEditingController controller) {
+    final text = controller.text.trim();
+    return text.isEmpty ? null : text;
+  }
+
+  Future<void> _save({bool snack = false}) async {
+    final settings = ref.read(scrobbleProvider).settings;
+    if (settings == null) return;
+    final input = ScrobbleSettingsInputDto(
+      enabled: _enabled,
+      service: _service,
+      username: _username.text.trim(),
+      nowPlaying: _nowPlaying,
+      apiKey: _secret(_apiKey),
+      apiSecret: _secret(_apiSecret),
+      sessionKey: _secret(_sessionKey),
+      userToken: _secret(_userToken),
+    );
+    await _guard(context, () async {
+      await ref.read(scrobbleProvider.notifier).save(input);
+      // 保存成功后清空输入框里的明文；已保存状态用 has* 布尔值展示。
+      _apiKey.clear();
+      _apiSecret.clear();
+      _sessionKey.clear();
+      _userToken.clear();
+      if (snack && mounted) {
+        showFeatureSnack(context, SettingsStrings.scrobbleSaved);
+      }
+    });
+  }
+
+  Future<void> _clearSecrets() async {
+    final settings = ref.read(scrobbleProvider).settings;
+    if (settings == null) return;
+    final input = ScrobbleSettingsInputDto(
+      enabled: _enabled,
+      service: _service,
+      username: _username.text.trim(),
+      nowPlaying: _nowPlaying,
+      apiKey: '',
+      apiSecret: '',
+      sessionKey: '',
+      userToken: '',
+    );
+    await _guard(context, () async {
+      await ref.read(scrobbleProvider.notifier).save(input);
+      _apiKey.clear();
+      _apiSecret.clear();
+      _sessionKey.clear();
+      _userToken.clear();
+    });
+  }
+
+  Future<void> _test() async {
+    try {
+      await ref.read(scrobbleProvider.notifier).test();
+      final error = ref.read(scrobbleProvider).status?.lastError;
+      if (mounted) {
+        showFeatureSnack(
+          context,
+          error == null
+              ? SettingsStrings.scrobbleTestOk
+              : '${SettingsStrings.scrobbleTestFailed}：$error',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showFeatureSnack(
+          context,
+          '${SettingsStrings.scrobbleTestFailed}：${describeCoreError(e)}',
+        );
+      }
+    }
+  }
+
+  String _statusText(ScrobbleStatusDto? status) {
+    if (status == null) return SettingsStrings.unavailable;
+    final error = status.lastError;
+    if (error != null && error.isNotEmpty) return error;
+    if (!status.enabled) return SettingsStrings.scrobbleDisabled;
+    if (!status.configured) return SettingsStrings.scrobbleNotConfigured;
+    return '${SettingsStrings.scrobbleReady} · ${SettingsStrings.scrobbleQueue(status.queued)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(scrobbleProvider);
+    final settings = state.settings;
+    final status = state.status;
+    final colors = context.lekisColors;
+    final theme = Theme.of(context);
+    if (settings == null) {
+      return const Padding(
+        padding: EdgeInsets.all(LekisSpacing.lg),
+        child: Text(SettingsStrings.unavailable),
+      );
+    }
+    if (!_loaded) {
+      // 核心初始化较慢时，设置可能在第一帧之后才可用。
+      _enabled = settings.enabled;
+      _nowPlaying = settings.nowPlaying;
+      _service = settings.service;
+      _username.text = settings.username ?? '';
+      _loaded = true;
+    }
+
+    final lastFmFamily = _service != 'listenbrainz';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SwitchListTile(
+          title: const Text(SettingsStrings.scrobbleEnable),
+          subtitle: const Text(SettingsStrings.scrobbleEnableHint),
+          value: _enabled,
+          onChanged: (value) async {
+            setState(() => _enabled = value);
+            await _save();
+          },
+        ),
+        _BlockTile(
+          title: SettingsStrings.scrobbleService,
+          child: DropdownButton<String>(
+            value: _service,
+            isExpanded: true,
+            underline: const SizedBox.shrink(),
+            borderRadius: BorderRadius.circular(LekisRadius.md),
+            items: const [
+              DropdownMenuItem(
+                value: 'lastfm',
+                child: Text(SettingsStrings.scrobbleLastFm),
+              ),
+              DropdownMenuItem(
+                value: 'listenbrainz',
+                child: Text(SettingsStrings.scrobbleListenBrainz),
+              ),
+              DropdownMenuItem(
+                value: 'librefm',
+                child: Text(SettingsStrings.scrobbleLibreFm),
+              ),
+            ],
+            onChanged: (value) async {
+              if (value == null) return;
+              setState(() => _service = value);
+              await _save();
+            },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: LekisSpacing.lg,
+            vertical: LekisSpacing.xs,
+          ),
+          child: TextFormField(
+            controller: _username,
+            decoration: const InputDecoration(
+              labelText: SettingsStrings.scrobbleUsername,
+              isDense: true,
+            ),
+            textInputAction: TextInputAction.next,
+          ),
+        ),
+        if (lastFmFamily) ...[
+          _SecretField(
+            controller: _apiKey,
+            label: SettingsStrings.scrobbleApiKey,
+            saved: settings.hasApiKey,
+          ),
+          _SecretField(
+            controller: _apiSecret,
+            label: SettingsStrings.scrobbleApiSecret,
+            saved: settings.hasApiSecret,
+          ),
+          _SecretField(
+            controller: _sessionKey,
+            label: SettingsStrings.scrobbleSessionKey,
+            saved: settings.hasSessionKey,
+          ),
+        ] else
+          _SecretField(
+            controller: _userToken,
+            label: SettingsStrings.scrobbleUserToken,
+            saved: settings.hasUserToken,
+          ),
+        SwitchListTile(
+          title: const Text(SettingsStrings.scrobbleNowPlaying),
+          subtitle: const Text(SettingsStrings.scrobbleNowPlayingHint),
+          value: _nowPlaying,
+          onChanged: (value) async {
+            setState(() => _nowPlaying = value);
+            await _save();
+          },
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: LekisSpacing.lg,
+            vertical: LekisSpacing.xs,
+          ),
+          child: Text(
+            _statusText(status),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: status?.lastError != null ? colors.danger : colors.onSurfaceVariant,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: LekisSpacing.lg,
+            vertical: LekisSpacing.sm,
+          ),
+          child: Wrap(
+            spacing: LekisSpacing.sm,
+            runSpacing: LekisSpacing.sm,
+            children: [
+              FilledButton(
+                onPressed: () => _save(snack: true),
+                child: const Text(SettingsStrings.scrobbleSave),
+              ),
+              OutlinedButton(
+                onPressed: state.testing ? null : _test,
+                child: state.testing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text(SettingsStrings.scrobbleTest),
+              ),
+              TextButton(
+                onPressed: _clearSecrets,
+                child: const Text(SettingsStrings.scrobbleClearSecrets),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SecretField extends StatelessWidget {
+  const _SecretField({
+    required this.controller,
+    required this.label,
+    required this.saved,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final bool saved;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(
+      horizontal: LekisSpacing.lg,
+      vertical: LekisSpacing.xs,
+    ),
+    child: TextFormField(
+      controller: controller,
+      obscureText: true,
+      autocorrect: false,
+      enableSuggestions: false,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: saved ? SettingsStrings.scrobbleSecretKept : null,
+        isDense: true,
+      ),
+      textInputAction: TextInputAction.next,
+    ),
+  );
 }
 
 // ---------------------------------------------------------------------------

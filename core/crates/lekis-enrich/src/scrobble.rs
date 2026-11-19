@@ -39,7 +39,7 @@
 //! - 批量 scrobble 用数组记法 `artist[i]` / `track[i]` / `timestamp[i]`，一次最多 50 条；
 //! - `track.updateNowPlaying` 用非数组参数；`auth.getToken` → `auth.getSession` 换长期 session key。
 //!
-//! ListenBrainz（<https://listenbrainz.readthedocs.io/en/latest/users/api/core.html>）：
+//! ListenBrainz（<https://listenbrainz.readthedocs.io/en/latest/>）：
 //! - `POST /1/submit-listens`，头 `Authorization: Token <user_token>`；
 //! - body `{"listen_type":"single"|"import"|"playing_now","payload":[listen...]}`；
 //!   `single` 恰好 1 条、`import` 用于补报、`playing_now` 恰好 1 条且**不能带 `listened_at`**；
@@ -546,6 +546,50 @@ impl ScrobbleClient {
             target: "lekis_enrich::scrobble",
             service = self.config.service.name(),
             "已上报正在播放",
+        );
+        Ok(())
+    }
+
+    /// 校验配置与网络连通性，**不会**产生任何 scrobble / now-playing 记录。
+    ///
+    /// - ListenBrainz：`GET /1/validate-token`（只验证 token，不写任何数据）；
+    /// - Last.fm / Libre.fm：签名调用 `user.getInfo`（只读，需要用户名）。
+    ///
+    /// # Errors
+    /// 缺凭据 / 用户名 → `Auth`；网络失败 → `Network`；其余同 [`Self::now_playing`]。
+    pub async fn test_connection(&self, username: Option<&str>) -> Result<()> {
+        match self.config.service {
+            ScrobbleService::ListenBrainz => {
+                let token = require(&self.config.user_token, self.config.service, "user_token")?;
+                let url = http::join(&self.config.base_url, "/1/validate-token")?;
+                let request = self.client.get(url).header(
+                    reqwest::header::AUTHORIZATION,
+                    format!("Token {}", token.trim()),
+                );
+                self.execute(request, "校验 ListenBrainz 连接").await?;
+            }
+            _ => {
+                let user = username
+                    .map(str::trim)
+                    .filter(|text| !text.is_empty())
+                    .ok_or_else(|| {
+                        LekisError::new(
+                            ErrorCode::Auth,
+                            format!("{} 需要填写用户名才能测试连接", self.config.service.name()),
+                        )
+                    })?;
+                // user.getInfo 是只读接口，不需要 session key，也不会写用户资料。
+                let params = vec![
+                    ("method".to_string(), "user.getInfo".to_string()),
+                    ("user".to_string(), user.to_string()),
+                ];
+                self.post_signed(params, "校验连接").await?;
+            }
+        }
+        tracing::debug!(
+            target: "lekis_enrich::scrobble",
+            service = self.config.service.name(),
+            "连接测试通过",
         );
         Ok(())
     }
@@ -1084,7 +1128,7 @@ fn encode_pairs(params: &[(String, String)]) -> String {
 
 /// 拼一条 ListenBrainz 的 listen 对象。
 ///
-/// 结构见 <https://listenbrainz.readthedocs.io/en/latest/users/api/core.html>：
+/// 结构见 <https://listenbrainz.readthedocs.io/en/latest/>：
 /// `track_metadata.artist_name` 与 `track_metadata.track_name` 必填；
 /// `additional_info.tracknumber` 是**字符串**（不是数字）；
 /// `playing_now` 类型按规范不能带 `listened_at`，所以由 `source` 是否存在控制。

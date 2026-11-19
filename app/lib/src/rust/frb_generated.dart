@@ -72,7 +72,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -280333410;
+  int get rustContentHash => -985554977;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -351,6 +351,12 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiCoreSavePlaybackState();
 
+  ScrobbleSettingsDto crateApiCoreScrobbleSettings();
+
+  Future<ScrobbleSettingsInputDto> crateApiDtoScrobbleSettingsInputDtoDefault();
+
+  ScrobbleStatusDto crateApiCoreScrobbleStatus();
+
   Future<SearchResultsDto> crateApiCoreSearch({
     required String text,
     required int limit,
@@ -401,6 +407,10 @@ abstract class RustLibApi extends BaseApi {
 
   void crateApiCoreSetRepeat({required RepeatModeDto mode});
 
+  Future<ScrobbleSettingsDto> crateApiCoreSetScrobbleSettings({
+    required ScrobbleSettingsInputDto settings,
+  });
+
   Future<void> crateApiCoreSetSetting({
     required String key,
     required String value,
@@ -433,6 +443,8 @@ abstract class RustLibApi extends BaseApi {
   Future<SyncReportDto> crateApiCoreSyncNow({required PlatformInt64 sourceId});
 
   Future<SyncReportDto> crateApiDtoSyncReportDtoDefault();
+
+  Future<void> crateApiCoreTestScrobble();
 
   Future<void> crateApiCoreTestSource({required SourceConfigDto source});
 
@@ -2875,6 +2887,81 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "save_playback_state", argNames: []);
 
   @override
+  ScrobbleSettingsDto crateApiCoreScrobbleSettings() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 84)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_scrobble_settings_dto,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCoreScrobbleSettingsConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCoreScrobbleSettingsConstMeta =>
+      const TaskConstMeta(debugName: "scrobble_settings", argNames: []);
+
+  @override
+  Future<ScrobbleSettingsInputDto>
+  crateApiDtoScrobbleSettingsInputDtoDefault() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 85,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_scrobble_settings_input_dto,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiDtoScrobbleSettingsInputDtoDefaultConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDtoScrobbleSettingsInputDtoDefaultConstMeta =>
+      const TaskConstMeta(
+        debugName: "scrobble_settings_input_dto_default",
+        argNames: [],
+      );
+
+  @override
+  ScrobbleStatusDto crateApiCoreScrobbleStatus() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 86)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_scrobble_status_dto,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCoreScrobbleStatusConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCoreScrobbleStatusConstMeta =>
+      const TaskConstMeta(debugName: "scrobble_status", argNames: []);
+
+  @override
   Future<SearchResultsDto> crateApiCoreSearch({
     required String text,
     required int limit,
@@ -2888,7 +2975,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 84,
+            funcId: 87,
             port: port_,
           );
         },
@@ -2913,7 +3000,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_u_64(positionMs, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 85)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 88)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2943,7 +3030,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 86,
+            funcId: 89,
             port: port_,
           );
         },
@@ -2977,7 +3064,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 87,
+            funcId: 90,
             port: port_,
           );
         },
@@ -3011,7 +3098,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 88,
+            funcId: 91,
             port: port_,
           );
         },
@@ -3045,7 +3132,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 89,
+            funcId: 92,
             port: port_,
           );
         },
@@ -3073,7 +3160,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_bool(away, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 90)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 93)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -3096,7 +3183,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_opt_String(deviceId, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 91)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 94)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -3122,7 +3209,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_output_mode_dto(mode, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 92)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 95)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -3152,7 +3239,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 93,
+            funcId: 96,
             port: port_,
           );
         },
@@ -3187,7 +3274,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 94,
+            funcId: 97,
             port: port_,
           );
         },
@@ -3222,7 +3309,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 95,
+            funcId: 98,
             port: port_,
           );
         },
@@ -3249,7 +3336,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_repeat_mode_dto(mode, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 96)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 99)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -3266,6 +3353,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "set_repeat", argNames: ["mode"]);
 
   @override
+  Future<ScrobbleSettingsDto> crateApiCoreSetScrobbleSettings({
+    required ScrobbleSettingsInputDto settings,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_box_autoadd_scrobble_settings_input_dto(
+            settings,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 100,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_scrobble_settings_dto,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiCoreSetScrobbleSettingsConstMeta,
+        argValues: [settings],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCoreSetScrobbleSettingsConstMeta =>
+      const TaskConstMeta(
+        debugName: "set_scrobble_settings",
+        argNames: ["settings"],
+      );
+
+  @override
   Future<void> crateApiCoreSetSetting({
     required String key,
     required String value,
@@ -3279,7 +3402,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 97,
+            funcId: 101,
             port: port_,
           );
         },
@@ -3304,7 +3427,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_shuffle_mode_dto(mode, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 98)!;
+          return pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 102,
+          )!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -3334,7 +3461,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 99,
+            funcId: 103,
             port: port_,
           );
         },
@@ -3369,7 +3496,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 100,
+            funcId: 104,
             port: port_,
           );
         },
@@ -3400,7 +3527,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 101,
+            funcId: 105,
           )!;
         },
         codec: SseCodec(
@@ -3433,7 +3560,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 102,
+            funcId: 106,
             port: port_,
           );
         },
@@ -3463,7 +3590,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 103,
+            funcId: 107,
             port: port_,
           );
         },
@@ -3491,7 +3618,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 104,
+            funcId: 108,
             port: port_,
           );
         },
@@ -3519,7 +3646,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 105,
+            funcId: 109,
             port: port_,
           );
         },
@@ -3546,7 +3673,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 106,
+            funcId: 110,
             port: port_,
           );
         },
@@ -3565,6 +3692,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "sync_report_dto_default", argNames: []);
 
   @override
+  Future<void> crateApiCoreTestScrobble() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 111,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiCoreTestScrobbleConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCoreTestScrobbleConstMeta =>
+      const TaskConstMeta(debugName: "test_scrobble", argNames: []);
+
+  @override
   Future<void> crateApiCoreTestSource({required SourceConfigDto source}) {
     return handler.executeNormal(
       NormalTask(
@@ -3574,7 +3728,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 107,
+            funcId: 112,
             port: port_,
           );
         },
@@ -3601,7 +3755,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 108,
+            funcId: 113,
             port: port_,
           );
         },
@@ -3629,7 +3783,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 109,
+            funcId: 114,
             port: port_,
           );
         },
@@ -3790,6 +3944,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   RuleDto dco_decode_box_autoadd_rule_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_rule_dto(raw);
+  }
+
+  @protected
+  ScrobbleSettingsInputDto dco_decode_box_autoadd_scrobble_settings_input_dto(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_scrobble_settings_input_dto(raw);
   }
 
   @protected
@@ -4572,6 +4734,58 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ScrobbleSettingsDto dco_decode_scrobble_settings_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return ScrobbleSettingsDto(
+      enabled: dco_decode_bool(arr[0]),
+      service: dco_decode_String(arr[1]),
+      username: dco_decode_opt_String(arr[2]),
+      nowPlaying: dco_decode_bool(arr[3]),
+      hasApiKey: dco_decode_bool(arr[4]),
+      hasApiSecret: dco_decode_bool(arr[5]),
+      hasSessionKey: dco_decode_bool(arr[6]),
+      hasUserToken: dco_decode_bool(arr[7]),
+    );
+  }
+
+  @protected
+  ScrobbleSettingsInputDto dco_decode_scrobble_settings_input_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return ScrobbleSettingsInputDto(
+      enabled: dco_decode_bool(arr[0]),
+      service: dco_decode_String(arr[1]),
+      username: dco_decode_String(arr[2]),
+      nowPlaying: dco_decode_bool(arr[3]),
+      apiKey: dco_decode_opt_String(arr[4]),
+      apiSecret: dco_decode_opt_String(arr[5]),
+      sessionKey: dco_decode_opt_String(arr[6]),
+      userToken: dco_decode_opt_String(arr[7]),
+    );
+  }
+
+  @protected
+  ScrobbleStatusDto dco_decode_scrobble_status_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return ScrobbleStatusDto(
+      configured: dco_decode_bool(arr[0]),
+      enabled: dco_decode_bool(arr[1]),
+      service: dco_decode_String(arr[2]),
+      queued: dco_decode_u_32(arr[3]),
+      lastError: dco_decode_opt_String(arr[4]),
+      lastSuccessAtMs: dco_decode_opt_box_autoadd_i_64(arr[5]),
+    );
+  }
+
+  @protected
   SearchResultsDto dco_decode_search_results_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -4922,6 +5136,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   RuleDto sse_decode_box_autoadd_rule_dto(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_rule_dto(deserializer));
+  }
+
+  @protected
+  ScrobbleSettingsInputDto sse_decode_box_autoadd_scrobble_settings_input_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_scrobble_settings_input_dto(deserializer));
   }
 
   @protected
@@ -6016,6 +6238,77 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ScrobbleSettingsDto sse_decode_scrobble_settings_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_enabled = sse_decode_bool(deserializer);
+    var var_service = sse_decode_String(deserializer);
+    var var_username = sse_decode_opt_String(deserializer);
+    var var_nowPlaying = sse_decode_bool(deserializer);
+    var var_hasApiKey = sse_decode_bool(deserializer);
+    var var_hasApiSecret = sse_decode_bool(deserializer);
+    var var_hasSessionKey = sse_decode_bool(deserializer);
+    var var_hasUserToken = sse_decode_bool(deserializer);
+    return ScrobbleSettingsDto(
+      enabled: var_enabled,
+      service: var_service,
+      username: var_username,
+      nowPlaying: var_nowPlaying,
+      hasApiKey: var_hasApiKey,
+      hasApiSecret: var_hasApiSecret,
+      hasSessionKey: var_hasSessionKey,
+      hasUserToken: var_hasUserToken,
+    );
+  }
+
+  @protected
+  ScrobbleSettingsInputDto sse_decode_scrobble_settings_input_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_enabled = sse_decode_bool(deserializer);
+    var var_service = sse_decode_String(deserializer);
+    var var_username = sse_decode_String(deserializer);
+    var var_nowPlaying = sse_decode_bool(deserializer);
+    var var_apiKey = sse_decode_opt_String(deserializer);
+    var var_apiSecret = sse_decode_opt_String(deserializer);
+    var var_sessionKey = sse_decode_opt_String(deserializer);
+    var var_userToken = sse_decode_opt_String(deserializer);
+    return ScrobbleSettingsInputDto(
+      enabled: var_enabled,
+      service: var_service,
+      username: var_username,
+      nowPlaying: var_nowPlaying,
+      apiKey: var_apiKey,
+      apiSecret: var_apiSecret,
+      sessionKey: var_sessionKey,
+      userToken: var_userToken,
+    );
+  }
+
+  @protected
+  ScrobbleStatusDto sse_decode_scrobble_status_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_configured = sse_decode_bool(deserializer);
+    var var_enabled = sse_decode_bool(deserializer);
+    var var_service = sse_decode_String(deserializer);
+    var var_queued = sse_decode_u_32(deserializer);
+    var var_lastError = sse_decode_opt_String(deserializer);
+    var var_lastSuccessAtMs = sse_decode_opt_box_autoadd_i_64(deserializer);
+    return ScrobbleStatusDto(
+      configured: var_configured,
+      enabled: var_enabled,
+      service: var_service,
+      queued: var_queued,
+      lastError: var_lastError,
+      lastSuccessAtMs: var_lastSuccessAtMs,
+    );
+  }
+
+  @protected
   SearchResultsDto sse_decode_search_results_dto(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_tracks = sse_decode_list_track_row_dto(deserializer);
@@ -6409,6 +6702,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_box_autoadd_rule_dto(RuleDto self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_rule_dto(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_scrobble_settings_input_dto(
+    ScrobbleSettingsInputDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_scrobble_settings_input_dto(self, serializer);
   }
 
   @protected
@@ -7402,6 +7704,52 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_scan_phase_dto(ScanPhaseDto self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_scrobble_settings_dto(
+    ScrobbleSettingsDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.enabled, serializer);
+    sse_encode_String(self.service, serializer);
+    sse_encode_opt_String(self.username, serializer);
+    sse_encode_bool(self.nowPlaying, serializer);
+    sse_encode_bool(self.hasApiKey, serializer);
+    sse_encode_bool(self.hasApiSecret, serializer);
+    sse_encode_bool(self.hasSessionKey, serializer);
+    sse_encode_bool(self.hasUserToken, serializer);
+  }
+
+  @protected
+  void sse_encode_scrobble_settings_input_dto(
+    ScrobbleSettingsInputDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.enabled, serializer);
+    sse_encode_String(self.service, serializer);
+    sse_encode_String(self.username, serializer);
+    sse_encode_bool(self.nowPlaying, serializer);
+    sse_encode_opt_String(self.apiKey, serializer);
+    sse_encode_opt_String(self.apiSecret, serializer);
+    sse_encode_opt_String(self.sessionKey, serializer);
+    sse_encode_opt_String(self.userToken, serializer);
+  }
+
+  @protected
+  void sse_encode_scrobble_status_dto(
+    ScrobbleStatusDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.configured, serializer);
+    sse_encode_bool(self.enabled, serializer);
+    sse_encode_String(self.service, serializer);
+    sse_encode_u_32(self.queued, serializer);
+    sse_encode_opt_String(self.lastError, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.lastSuccessAtMs, serializer);
   }
 
   @protected

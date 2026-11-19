@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -280333410;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -985554977;
 
 // Section: executor
 
@@ -2992,6 +2992,97 @@ fn wire__crate__api__core__save_playback_state_impl(
         },
     )
 }
+fn wire__crate__api__core__scrobble_settings_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "scrobble_settings",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::core::scrobble_settings())?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__dto__scrobble_settings_input_dto_default_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "scrobble_settings_input_dto_default",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok =
+                        Ok::<_, ()>(crate::api::dto::ScrobbleSettingsInputDto::default())?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__core__scrobble_status_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "scrobble_status",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::core::scrobble_status())?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__core__search_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -3451,6 +3542,44 @@ fn wire__crate__api__core__set_repeat_impl(
         },
     )
 }
+fn wire__crate__api__core__set_scrobble_settings_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "set_scrobble_settings",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_settings =
+                <crate::api::dto::ScrobbleSettingsInputDto>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::CoreError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::core::set_scrobble_settings(api_settings).await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__core__set_setting_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -3804,6 +3933,41 @@ fn wire__crate__api__dto__sync_report_dto_default_impl(
                     let output_ok = Ok::<_, ()>(crate::api::dto::SyncReportDto::default())?;
                     std::result::Result::Ok(output_ok)
                 })())
+            }
+        },
+    )
+}
+fn wire__crate__api__core__test_scrobble_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "test_scrobble",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::CoreError>(
+                    (move || async move {
+                        let output_ok = crate::api::core::test_scrobble().await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
             }
         },
     )
@@ -5222,6 +5386,74 @@ impl SseDecode for crate::api::dto::ScanPhaseDto {
     }
 }
 
+impl SseDecode for crate::api::dto::ScrobbleSettingsDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_enabled = <bool>::sse_decode(deserializer);
+        let mut var_service = <String>::sse_decode(deserializer);
+        let mut var_username = <Option<String>>::sse_decode(deserializer);
+        let mut var_nowPlaying = <bool>::sse_decode(deserializer);
+        let mut var_hasApiKey = <bool>::sse_decode(deserializer);
+        let mut var_hasApiSecret = <bool>::sse_decode(deserializer);
+        let mut var_hasSessionKey = <bool>::sse_decode(deserializer);
+        let mut var_hasUserToken = <bool>::sse_decode(deserializer);
+        return crate::api::dto::ScrobbleSettingsDto {
+            enabled: var_enabled,
+            service: var_service,
+            username: var_username,
+            now_playing: var_nowPlaying,
+            has_api_key: var_hasApiKey,
+            has_api_secret: var_hasApiSecret,
+            has_session_key: var_hasSessionKey,
+            has_user_token: var_hasUserToken,
+        };
+    }
+}
+
+impl SseDecode for crate::api::dto::ScrobbleSettingsInputDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_enabled = <bool>::sse_decode(deserializer);
+        let mut var_service = <String>::sse_decode(deserializer);
+        let mut var_username = <String>::sse_decode(deserializer);
+        let mut var_nowPlaying = <bool>::sse_decode(deserializer);
+        let mut var_apiKey = <Option<String>>::sse_decode(deserializer);
+        let mut var_apiSecret = <Option<String>>::sse_decode(deserializer);
+        let mut var_sessionKey = <Option<String>>::sse_decode(deserializer);
+        let mut var_userToken = <Option<String>>::sse_decode(deserializer);
+        return crate::api::dto::ScrobbleSettingsInputDto {
+            enabled: var_enabled,
+            service: var_service,
+            username: var_username,
+            now_playing: var_nowPlaying,
+            api_key: var_apiKey,
+            api_secret: var_apiSecret,
+            session_key: var_sessionKey,
+            user_token: var_userToken,
+        };
+    }
+}
+
+impl SseDecode for crate::api::dto::ScrobbleStatusDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_configured = <bool>::sse_decode(deserializer);
+        let mut var_enabled = <bool>::sse_decode(deserializer);
+        let mut var_service = <String>::sse_decode(deserializer);
+        let mut var_queued = <u32>::sse_decode(deserializer);
+        let mut var_lastError = <Option<String>>::sse_decode(deserializer);
+        let mut var_lastSuccessAtMs = <Option<i64>>::sse_decode(deserializer);
+        return crate::api::dto::ScrobbleStatusDto {
+            configured: var_configured,
+            enabled: var_enabled,
+            service: var_service,
+            queued: var_queued,
+            last_error: var_lastError,
+            last_success_at_ms: var_lastSuccessAtMs,
+        };
+    }
+}
+
 impl SseDecode for crate::api::dto::SearchResultsDto {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -5573,31 +5805,41 @@ fn pde_ffi_dispatcher_primary_impl(
             wire__crate__api__core__restore_playback_state_impl(port, ptr, rust_vec_len, data_len)
         }
         83 => wire__crate__api__core__save_playback_state_impl(port, ptr, rust_vec_len, data_len),
-        84 => wire__crate__api__core__search_impl(port, ptr, rust_vec_len, data_len),
-        86 => wire__crate__api__core__set_credential_impl(port, ptr, rust_vec_len, data_len),
-        87 => wire__crate__api__core__set_loved_impl(port, ptr, rust_vec_len, data_len),
-        88 => wire__crate__api__core__set_lyrics_impl(port, ptr, rust_vec_len, data_len),
-        89 => wire__crate__api__core__set_lyrics_offset_impl(port, ptr, rust_vec_len, data_len),
-        93 => wire__crate__api__core__set_playlist_artwork_impl(port, ptr, rust_vec_len, data_len),
-        94 => wire__crate__api__core__set_playlist_rules_impl(port, ptr, rust_vec_len, data_len),
-        95 => wire__crate__api__core__set_rating_impl(port, ptr, rust_vec_len, data_len),
-        97 => wire__crate__api__core__set_setting_impl(port, ptr, rust_vec_len, data_len),
-        99 => wire__crate__api__core__set_track_artwork_impl(port, ptr, rust_vec_len, data_len),
-        100 => wire__crate__api__core__set_track_overlay_impl(port, ptr, rust_vec_len, data_len),
-        102 => {
+        85 => wire__crate__api__dto__scrobble_settings_input_dto_default_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        87 => wire__crate__api__core__search_impl(port, ptr, rust_vec_len, data_len),
+        89 => wire__crate__api__core__set_credential_impl(port, ptr, rust_vec_len, data_len),
+        90 => wire__crate__api__core__set_loved_impl(port, ptr, rust_vec_len, data_len),
+        91 => wire__crate__api__core__set_lyrics_impl(port, ptr, rust_vec_len, data_len),
+        92 => wire__crate__api__core__set_lyrics_offset_impl(port, ptr, rust_vec_len, data_len),
+        96 => wire__crate__api__core__set_playlist_artwork_impl(port, ptr, rust_vec_len, data_len),
+        97 => wire__crate__api__core__set_playlist_rules_impl(port, ptr, rust_vec_len, data_len),
+        98 => wire__crate__api__core__set_rating_impl(port, ptr, rust_vec_len, data_len),
+        100 => {
+            wire__crate__api__core__set_scrobble_settings_impl(port, ptr, rust_vec_len, data_len)
+        }
+        101 => wire__crate__api__core__set_setting_impl(port, ptr, rust_vec_len, data_len),
+        103 => wire__crate__api__core__set_track_artwork_impl(port, ptr, rust_vec_len, data_len),
+        104 => wire__crate__api__core__set_track_overlay_impl(port, ptr, rust_vec_len, data_len),
+        106 => {
             wire__crate__api__core__smart_playlist_tracks_impl(port, ptr, rust_vec_len, data_len)
         }
-        103 => wire__crate__api__core__smart_playlists_impl(port, ptr, rust_vec_len, data_len),
-        104 => wire__crate__api__core__start_scan_impl(port, ptr, rust_vec_len, data_len),
-        105 => wire__crate__api__core__sync_now_impl(port, ptr, rust_vec_len, data_len),
-        106 => {
+        107 => wire__crate__api__core__smart_playlists_impl(port, ptr, rust_vec_len, data_len),
+        108 => wire__crate__api__core__start_scan_impl(port, ptr, rust_vec_len, data_len),
+        109 => wire__crate__api__core__sync_now_impl(port, ptr, rust_vec_len, data_len),
+        110 => {
             wire__crate__api__dto__sync_report_dto_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        107 => wire__crate__api__core__test_source_impl(port, ptr, rust_vec_len, data_len),
-        108 => {
+        111 => wire__crate__api__core__test_scrobble_impl(port, ptr, rust_vec_len, data_len),
+        112 => wire__crate__api__core__test_source_impl(port, ptr, rust_vec_len, data_len),
+        113 => {
             wire__crate__api__dto__track_overlay_dto_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        109 => wire__crate__api__core__update_source_impl(port, ptr, rust_vec_len, data_len),
+        114 => wire__crate__api__core__update_source_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -5631,13 +5873,15 @@ fn pde_ffi_dispatcher_sync_impl(
         72 => wire__crate__api__core__queue_move_impl(ptr, rust_vec_len, data_len),
         73 => wire__crate__api__core__queue_remove_impl(ptr, rust_vec_len, data_len),
         81 => wire__crate__api__core__report_source_reachability_impl(ptr, rust_vec_len, data_len),
-        85 => wire__crate__api__core__seek_impl(ptr, rust_vec_len, data_len),
-        90 => wire__crate__api__core__set_network_away_impl(ptr, rust_vec_len, data_len),
-        91 => wire__crate__api__core__set_output_device_impl(ptr, rust_vec_len, data_len),
-        92 => wire__crate__api__core__set_output_mode_impl(ptr, rust_vec_len, data_len),
-        96 => wire__crate__api__core__set_repeat_impl(ptr, rust_vec_len, data_len),
-        98 => wire__crate__api__core__set_shuffle_impl(ptr, rust_vec_len, data_len),
-        101 => wire__crate__api__core__set_volume_impl(ptr, rust_vec_len, data_len),
+        84 => wire__crate__api__core__scrobble_settings_impl(ptr, rust_vec_len, data_len),
+        86 => wire__crate__api__core__scrobble_status_impl(ptr, rust_vec_len, data_len),
+        88 => wire__crate__api__core__seek_impl(ptr, rust_vec_len, data_len),
+        93 => wire__crate__api__core__set_network_away_impl(ptr, rust_vec_len, data_len),
+        94 => wire__crate__api__core__set_output_device_impl(ptr, rust_vec_len, data_len),
+        95 => wire__crate__api__core__set_output_mode_impl(ptr, rust_vec_len, data_len),
+        99 => wire__crate__api__core__set_repeat_impl(ptr, rust_vec_len, data_len),
+        102 => wire__crate__api__core__set_shuffle_impl(ptr, rust_vec_len, data_len),
+        105 => wire__crate__api__core__set_volume_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -6653,6 +6897,85 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::dto::ScanPhaseDto>
     for crate::api::dto::ScanPhaseDto
 {
     fn into_into_dart(self) -> crate::api::dto::ScanPhaseDto {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::dto::ScrobbleSettingsDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.enabled.into_into_dart().into_dart(),
+            self.service.into_into_dart().into_dart(),
+            self.username.into_into_dart().into_dart(),
+            self.now_playing.into_into_dart().into_dart(),
+            self.has_api_key.into_into_dart().into_dart(),
+            self.has_api_secret.into_into_dart().into_dart(),
+            self.has_session_key.into_into_dart().into_dart(),
+            self.has_user_token.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::dto::ScrobbleSettingsDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::dto::ScrobbleSettingsDto>
+    for crate::api::dto::ScrobbleSettingsDto
+{
+    fn into_into_dart(self) -> crate::api::dto::ScrobbleSettingsDto {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::dto::ScrobbleSettingsInputDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.enabled.into_into_dart().into_dart(),
+            self.service.into_into_dart().into_dart(),
+            self.username.into_into_dart().into_dart(),
+            self.now_playing.into_into_dart().into_dart(),
+            self.api_key.into_into_dart().into_dart(),
+            self.api_secret.into_into_dart().into_dart(),
+            self.session_key.into_into_dart().into_dart(),
+            self.user_token.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::dto::ScrobbleSettingsInputDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::dto::ScrobbleSettingsInputDto>
+    for crate::api::dto::ScrobbleSettingsInputDto
+{
+    fn into_into_dart(self) -> crate::api::dto::ScrobbleSettingsInputDto {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::dto::ScrobbleStatusDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.configured.into_into_dart().into_dart(),
+            self.enabled.into_into_dart().into_dart(),
+            self.service.into_into_dart().into_dart(),
+            self.queued.into_into_dart().into_dart(),
+            self.last_error.into_into_dart().into_dart(),
+            self.last_success_at_ms.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::dto::ScrobbleStatusDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::dto::ScrobbleStatusDto>
+    for crate::api::dto::ScrobbleStatusDto
+{
+    fn into_into_dart(self) -> crate::api::dto::ScrobbleStatusDto {
         self
     }
 }
@@ -8071,6 +8394,46 @@ impl SseEncode for crate::api::dto::ScanPhaseDto {
             },
             serializer,
         );
+    }
+}
+
+impl SseEncode for crate::api::dto::ScrobbleSettingsDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.enabled, serializer);
+        <String>::sse_encode(self.service, serializer);
+        <Option<String>>::sse_encode(self.username, serializer);
+        <bool>::sse_encode(self.now_playing, serializer);
+        <bool>::sse_encode(self.has_api_key, serializer);
+        <bool>::sse_encode(self.has_api_secret, serializer);
+        <bool>::sse_encode(self.has_session_key, serializer);
+        <bool>::sse_encode(self.has_user_token, serializer);
+    }
+}
+
+impl SseEncode for crate::api::dto::ScrobbleSettingsInputDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.enabled, serializer);
+        <String>::sse_encode(self.service, serializer);
+        <String>::sse_encode(self.username, serializer);
+        <bool>::sse_encode(self.now_playing, serializer);
+        <Option<String>>::sse_encode(self.api_key, serializer);
+        <Option<String>>::sse_encode(self.api_secret, serializer);
+        <Option<String>>::sse_encode(self.session_key, serializer);
+        <Option<String>>::sse_encode(self.user_token, serializer);
+    }
+}
+
+impl SseEncode for crate::api::dto::ScrobbleStatusDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.configured, serializer);
+        <bool>::sse_encode(self.enabled, serializer);
+        <String>::sse_encode(self.service, serializer);
+        <u32>::sse_encode(self.queued, serializer);
+        <Option<String>>::sse_encode(self.last_error, serializer);
+        <Option<i64>>::sse_encode(self.last_success_at_ms, serializer);
     }
 }
 

@@ -3,6 +3,14 @@
 //! 目标优先级见 [`crate::selection`]：可用性 > 就近程度 > 音质。
 //! 服务器源（OpenSubsonic / Jellyfin / Plex）需要先用 `lekis-providers` 换一个播放地址，
 //! 这一步也在本模块完成。
+//!
+//! ## ReplayGain（PLY-03）
+//!
+//! 解析媒体时按设置项 `playback.replaygain` 从文件的 `TrackFile.replaygain` 里选增益：
+//! `track`（默认）→ 曲目增益，`album` → 专辑增益（缺失时退回曲目），`off` → 不补偿。
+//! 选中的 dB 值放进 [`MediaSource::gain_db`]，播放会话在共享模式的解码线程里
+//! 和用户音量合成一个系数乘一次；比特完美独占链路会明确忽略它（保持源码位模式）。
+//! 设置页已经暴露这个开关，桥接层通过通用的 `get_setting` / `set_setting` 读写。
 
 use crate::selection::{self, NetworkContext, Reachability, SourceHealth};
 use lekis_library::{Library, TrackFile};
@@ -342,6 +350,52 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(ReplayGainMode::Album.pick(&only_track), Some(-2.0));
+    }
+
+    /// ReplayGain 必须真的进入 `MediaSource.gain_db`，而不是只停留在设置解析层。
+    #[tokio::test]
+    async fn media_source_carries_the_selected_replaygain() -> Result<()> {
+        let root = std::env::temp_dir().join(format!(
+            "lekis-resolver-rg-{}-{}",
+            std::process::id(),
+            lekis_types::now_ms()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root)?;
+        let library = Library::open(&root.join("library.sqlite"))?;
+        let resolver = Resolver::new(
+            library,
+            Arc::new(SourceHealth::new()),
+            Arc::new(MemoryCredentialStore::default()),
+        );
+        let mut file = tf(1, SourceKind::Local, 100);
+        file.replaygain = ReplayGain {
+            track_gain_db: Some(-7.5),
+            album_gain_db: Some(-6.0),
+            ..Default::default()
+        };
+
+        resolver.set_replaygain_mode(ReplayGainMode::Track);
+        let media = resolver
+            .media_source(TrackId(1), &file, NetworkContext::Home)
+            .await?;
+        assert_eq!(media.gain_db, Some(-7.5));
+
+        resolver.set_replaygain_mode(ReplayGainMode::Album);
+        let media = resolver
+            .media_source(TrackId(1), &file, NetworkContext::Home)
+            .await?;
+        assert_eq!(media.gain_db, Some(-6.0));
+
+        resolver.set_replaygain_mode(ReplayGainMode::Off);
+        let media = resolver
+            .media_source(TrackId(1), &file, NetworkContext::Home)
+            .await?;
+        assert_eq!(media.gain_db, None, "关闭时不能偷偷套用曲目增益");
+
+        drop(resolver);
+        let _ = std::fs::remove_dir_all(&root);
+        Ok(())
     }
 
     #[test]

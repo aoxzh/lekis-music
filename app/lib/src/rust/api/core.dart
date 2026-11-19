@@ -508,6 +508,22 @@ Future<List<TrackRowDto>> previewSmartRules({
 Future<BigInt> countSmartRules({required SmartRulesDto rules}) =>
     RustLib.instance.api.crateApiCoreCountSmartRules(rules: rules);
 
+/// 当前上报设置（不含明文凭据）。
+ScrobbleSettingsDto scrobbleSettings() =>
+    RustLib.instance.api.crateApiCoreScrobbleSettings();
+
+/// 保存上报设置。凭据字段传 `null` 表示保留已保存的值。
+Future<ScrobbleSettingsDto> setScrobbleSettings({
+  required ScrobbleSettingsInputDto settings,
+}) => RustLib.instance.api.crateApiCoreSetScrobbleSettings(settings: settings);
+
+/// 上报状态（队列条数、最近错误 / 成功时间）。
+ScrobbleStatusDto scrobbleStatus() =>
+    RustLib.instance.api.crateApiCoreScrobbleStatus();
+
+/// 测试当前上报配置：只做只读校验，不会产生 scrobble / now-playing。
+Future<void> testScrobble() => RustLib.instance.api.crateApiCoreTestScrobble();
+
 /// 喜欢的曲目。
 Future<List<TrackRowDto>> lovedTracks({
   required int offset,
