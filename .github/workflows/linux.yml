@@ -1,0 +1,69 @@
+name: linux
+
+# Linux 客户端（Rust + GTK4）：需要 GTK4 开发包。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/linux/**"
+      - "core/**"
+      - ".github/workflows/linux.yml"
+  pull_request:
+    paths:
+      - "apps/linux/**"
+      - "core/**"
+      - ".github/workflows/linux.yml"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+concurrency:
+  group: linux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install GTK4 dev packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libgtk-4-dev \
+            libadwaita-1-dev \
+            libasound2-dev \
+            libsecret-1-dev \
+            libssl-dev
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            core
+            apps/linux
+
+      - name: cargo check
+        working-directory: apps/linux
+        run: cargo check --all-targets
+
+      - name: cargo build
+        working-directory: apps/linux
+        run: cargo build
+
+      - name: cargo clippy
+        working-directory: apps/linux
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo fmt
+        working-directory: apps/linux
+        run: cargo fmt --all --check
