@@ -45,3 +45,6 @@ plugin-sdk/js/dist/
 *.sqlite-wal
 *.sqlite-shm
 .env
+
+# Local agent worktrees / task scratch
+.claude/
