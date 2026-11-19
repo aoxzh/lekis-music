@@ -37,6 +37,13 @@ abstract final class SettingsStrings {
   static const tabBarLiquidHint = '模糊 · 流动 · 弹簧';
   static const tabBarFlat = '扁平';
   static const tabBarFlatHint = '纯色 · 快速 · 低开销';
+  static const lyricsStage = '歌词舞台';
+  static const lyricsStageHint = '逐字跟唱时的排版和进场方式';
+  static const styleFlow = '流动';
+  static const styleSteps = '阶梯';
+  static const styleTilt = '倾斜';
+  static const lyricsSparks = '火花';
+  static const lyricsSparksHint = '唱到每个字时飞出细小的光点，最后一句更明显';
 
   static const library = '资料库';
   static const sources = '音源';

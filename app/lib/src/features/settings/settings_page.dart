@@ -9,6 +9,7 @@ import '../../shell/app_shell.dart';
 import '../../shell/tab_bar_style.dart';
 import '../../theme/tokens.dart';
 import '../enrich/enrich_providers.dart';
+import '../now_playing/lyrics_stage_settings.dart';
 import '../sources/common.dart';
 import 'scrobble_providers.dart';
 import 'settings_providers.dart';
@@ -308,6 +309,8 @@ class _AppearanceSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pref = ref.watch(themePreferenceProvider);
     final tabBarStyle = ref.watch(tabBarStyleProvider);
+    final stage = ref.watch(lyricsStageStyleProvider);
+    final sparks = ref.watch(lyricsSparksProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -357,6 +360,30 @@ class _AppearanceSection extends ConsumerWidget {
               context,
               () => ref.read(tabBarStyleProvider.notifier).set(style),
             ),
+          ),
+        ),
+        _BlockTile(
+          title: SettingsStrings.lyricsStage,
+          hint: SettingsStrings.lyricsStageHint,
+          child: LyricsStageStyleSelector(
+            selected: stage,
+            onChanged: (next) => _guard(
+              context,
+              () => ref
+                  .read(settingProvider(SettingKeys.lyricsStage).notifier)
+                  .set(next.storageValue),
+            ),
+          ),
+        ),
+        SwitchListTile(
+          title: const Text(SettingsStrings.lyricsSparks),
+          subtitle: const Text(SettingsStrings.lyricsSparksHint),
+          value: sparks,
+          onChanged: (on) => _guard(
+            context,
+            () => ref
+                .read(settingProvider(SettingKeys.lyricsSparks).notifier)
+                .set(on ? 'true' : 'false'),
           ),
         ),
       ],
