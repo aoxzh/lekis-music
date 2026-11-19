@@ -13,6 +13,7 @@ import '../now_playing/lyrics_stage_settings.dart';
 import '../player/sleep_timer.dart';
 import '../sources/common.dart';
 import 'scrobble_providers.dart';
+import 'settings_backup.dart';
 import 'settings_providers.dart';
 import 'strings.dart';
 import 'tab_bar_style_picker.dart';
@@ -46,6 +47,10 @@ class SettingsPage extends StatelessWidget {
             _Section(
               title: SettingsStrings.scrobbling,
               child: _ScrobbleSection(),
+            ),
+            _Section(
+              title: SettingsStrings.backup,
+              child: SettingsBackupSection(),
             ),
             _Section(title: SettingsStrings.about, child: _AboutSection()),
           ],

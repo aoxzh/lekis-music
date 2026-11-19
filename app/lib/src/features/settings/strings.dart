@@ -83,6 +83,7 @@ abstract final class SettingsStrings {
   static String scrobbleQueue(int n) => n > 0 ? '待补报 $n 条' : '队列为空';
   static const scrobbleLastSuccess = '最近成功';
 
+  static const backup = '备份与恢复';
   static const about = '关于';
   static const coreVersion = '核心版本';
   static const deviceId = '设备 ID';
