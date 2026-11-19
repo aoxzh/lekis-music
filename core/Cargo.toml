@@ -83,7 +83,8 @@ ringbuf = "0.4"
 # ---- 其他 ----
 lofty = "0.25"
 pinyin = "0.11"
-zhconv = "0.4"
+# 繁简转换：纯 Rust 的 OpenCC 实现（Apache-2.0）。zhconv 是 GPL，不能用。
+ferrous-opencc = "0.4"
 notify = "8"
 image = { version = "0.25", default-features = false, features = ["webp", "jpeg", "png"] }
 rquickjs = "0.14"

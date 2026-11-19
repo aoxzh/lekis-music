@@ -1,7 +1,7 @@
 //! 文本规范化：去重键、排序键、搜索键（LIB-08、LIB-07）。
 //!
 //! 三层转换，逐层叠加：
-//! 1. **简繁归一**：繁体转简体，这样"周杰倫"和"周杰伦"是同一个键（`zhconv`）；
+//! 1. **简繁归一**：繁体转简体，这样"周杰倫"和"周杰伦"是同一个键（`ferrous-opencc`）；
 //! 2. **拼音**：汉字转全拼和首字母，`zhoujielun`、`zjl` 都能搜到"周杰伦"（`pinyin`）；
 //! 3. **折叠**：小写、折叠空白、去首尾空白。
 //!
@@ -10,7 +10,19 @@
 //!
 //! 日文假名 / 罗马字（LIB-07 的剩余部分）尚未实现，接口不用改。
 
+use std::sync::OnceLock;
+
+use ferrous_opencc::config::BuiltinConfig;
+use ferrous_opencc::OpenCC;
 use pinyin::ToPinyin;
+
+/// OpenCC 的词典初始化不便宜，进程内只建一次。
+fn converter() -> Option<&'static OpenCC> {
+    static CONVERTER: OnceLock<Option<OpenCC>> = OnceLock::new();
+    CONVERTER
+        .get_or_init(|| OpenCC::from_config(BuiltinConfig::T2s).ok())
+        .as_ref()
+}
 
 /// 把繁体中文转成简体。非中文原样返回。
 fn to_simplified(s: &str) -> String {
@@ -18,7 +30,10 @@ fn to_simplified(s: &str) -> String {
     if s.is_ascii() {
         return s.to_string();
     }
-    zhconv::zhconv(s, zhconv::Variant::ZhHans)
+    match converter() {
+        Some(opencc) => opencc.convert(s),
+        None => s.to_string(),
+    }
 }
 
 /// 去重用的规范化名称：简繁归一、小写、折叠空白、去掉首尾空白。

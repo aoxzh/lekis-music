@@ -25,6 +25,8 @@ allow = [
   "Unicode-DFS-2016",
   "CC0-1.0",
   "BSL-1.0",
+  # nfs3_client 是 Unlicense（公共领域），比 MIT 更宽松。
+  "Unlicense",
 ]
 confidence-threshold = 0.9
 
