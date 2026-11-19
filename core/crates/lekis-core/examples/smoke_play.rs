@@ -2,25 +2,28 @@
 //!
 //! 用法（在 `core/` 下）：
 //! ```text
-//! cargo run -p lekis-core --example smoke_play -- <音乐目录> [播几秒=6]
+//! cargo run -p lekis-core --example smoke_play -- <音乐目录> [播几秒=6] [exclusive]
 //! ```
 //!
+//! 第三个参数是 `exclusive` 时先切到独占比特完美模式；进度仍必须推进。
 //! 退出码 0 表示"扫到了文件 + 播放进度在推进（等于解码器和音频输出都真的在工作）"。
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use lekis_core::{CoreConfig, LekisCore, PlatformServices};
+use lekis_playback::OutputMode;
 use lekis_types::{SourceConfig, SourceKind, TrackQuery, TrackSort};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let music = std::env::args()
         .nth(1)
-        .ok_or("用法: smoke_play <音乐目录> [播几秒]")?;
+        .ok_or("用法: smoke_play <音乐目录> [播几秒] [exclusive]")?;
     let seconds: u64 = std::env::args()
         .nth(2)
         .unwrap_or_else(|| "6".into())
         .parse()?;
+    let exclusive = std::env::args().nth(3).as_deref() == Some("exclusive");
 
     let root = std::env::temp_dir().join(format!("lekis-smoke-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
@@ -89,7 +92,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let ids: Vec<_> = rows.iter().map(|r| r.id).collect();
-        core.set_volume(0.0)?; // 冒烟测试不出声
+        core.set_volume(0.0)?; // 共享模式冒烟测试不出声；比特完美模式会忽略音量。
+        if exclusive {
+            core.set_output_mode(OutputMode::Exclusive)?;
+            println!("已请求独占模式");
+        }
         core.play_tracks(ids.clone(), 0)?;
 
         let mut last = 0u64;
@@ -116,7 +123,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "播放进度一直是 0 —— 解码或音频输出没工作".into(),
             );
         }
-        println!("播放成功：{}ms 内进度推进到 {}ms", seconds * 1000, last);
+        let snap = core.playback_snapshot();
+        println!(
+            "播放成功：{}ms 内进度推进到 {}ms（实际模式 {:?}）",
+            seconds * 1000,
+            last,
+            snap.output_mode
+        );
         core.pause()?;
         Ok::<(), Box<dyn std::error::Error>>(())
     })?;

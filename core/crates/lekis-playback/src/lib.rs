@@ -26,11 +26,15 @@ pub mod vfs_access;
 pub(crate) mod test_support;
 
 pub use decode::{
-    open_decoder, Decoder, HttpRangeSource, PcmFormat, SymphoniaDecoder, VfsMediaSource,
+    open_decoder, Decoder, HttpRangeSource, NativeSampleFormat, PcmFormat, SymphoniaDecoder,
+    VfsMediaSource,
 };
 pub use engine::{list_output_devices, EngineCommand, PlaybackEngine, PlaybackSnapshot};
 pub use gapless::{AudibleTrack, TrackTimeline};
-pub use output::{AudioOutput, CpalOutput, OutputDevice, OutputMode, SampleSource};
+pub use output::{
+    AudioOutput, CpalOutput, NativePacking, NativePlan, NativeSampleSource, OutputDevice,
+    OutputMode, SampleSource,
+};
 pub use queue::Queue;
 pub use resample::FormatConverter;
 pub use session::{CpalOutputFactory, OutputFactory, Session};

@@ -580,6 +580,61 @@ mod tests {
         buf
     }
 
+    /// 生成一个最小但合法的 24-bit PCM WAV（每样本 3 字节 packed）。
+    pub(crate) fn wav_bytes_24(sample_rate: u32, channels: u16, frames: usize) -> Vec<u8> {
+        let bits = 24u16;
+        let block_align = channels * bits / 8;
+        let data_len = (frames as u32) * u32::from(block_align);
+        let mut buf = Vec::with_capacity(44 + data_len as usize);
+        buf.extend_from_slice(b"RIFF");
+        buf.extend_from_slice(&(36 + data_len).to_le_bytes());
+        buf.extend_from_slice(b"WAVE");
+        buf.extend_from_slice(b"fmt ");
+        buf.extend_from_slice(&16u32.to_le_bytes());
+        buf.extend_from_slice(&1u16.to_le_bytes()); // PCM
+        buf.extend_from_slice(&channels.to_le_bytes());
+        buf.extend_from_slice(&sample_rate.to_le_bytes());
+        buf.extend_from_slice(&(sample_rate * u32::from(block_align)).to_le_bytes());
+        buf.extend_from_slice(&block_align.to_le_bytes());
+        buf.extend_from_slice(&bits.to_le_bytes());
+        buf.extend_from_slice(b"data");
+        buf.extend_from_slice(&data_len.to_le_bytes());
+        for i in 0..frames {
+            let v = (i as i32 % 1_000) - 500;
+            for ch in 0..channels {
+                let s = if ch % 2 == 0 { v } else { -v };
+                buf.extend_from_slice(&s.to_le_bytes()[..3]);
+            }
+        }
+        buf
+    }
+
+    /// 生成一个最小但合法的 32-bit float WAV（IEEE float，format tag 3）。
+    pub(crate) fn wav_bytes_f32(sample_rate: u32, channels: u16, values: &[f32]) -> Vec<u8> {
+        let bits = 32u16;
+        let block_align = channels * bits / 8;
+        let frames = values.len() / usize::from(channels);
+        let data_len = (frames as u32) * u32::from(block_align);
+        let mut buf = Vec::with_capacity(44 + data_len as usize);
+        buf.extend_from_slice(b"RIFF");
+        buf.extend_from_slice(&(36 + data_len).to_le_bytes());
+        buf.extend_from_slice(b"WAVE");
+        buf.extend_from_slice(b"fmt ");
+        buf.extend_from_slice(&16u32.to_le_bytes());
+        buf.extend_from_slice(&3u16.to_le_bytes()); // IEEE float
+        buf.extend_from_slice(&channels.to_le_bytes());
+        buf.extend_from_slice(&sample_rate.to_le_bytes());
+        buf.extend_from_slice(&(sample_rate * u32::from(block_align)).to_le_bytes());
+        buf.extend_from_slice(&block_align.to_le_bytes());
+        buf.extend_from_slice(&bits.to_le_bytes());
+        buf.extend_from_slice(b"data");
+        buf.extend_from_slice(&data_len.to_le_bytes());
+        for value in values {
+            buf.extend_from_slice(&value.to_le_bytes());
+        }
+        buf
+    }
+
     #[test]
     fn decodes_generated_wav() {
         let rate = 44_100;
@@ -619,6 +674,97 @@ mod tests {
         assert!((out[0] + out[1]).abs() < 1e-6);
         // 全部样本都在 [-1, 1]。
         assert!(out.iter().all(|s| s.abs() <= 1.0));
+    }
+
+    /// 比特完美链路：16 bit WAV 必须解成左对齐 i32（低 16 位为零），
+    /// 打包回 16 bit 后与原始 WAV 字节完全一致。
+    #[test]
+    fn decodes_native_i16_left_aligned() {
+        use crate::output::bitperfect::{pack_into, NativePacking};
+
+        let bytes = wav_bytes(44_100, 2, 1_000);
+        let mut dec =
+            SymphoniaDecoder::open_source(Box::new(std::io::Cursor::new(bytes)), Some("wav"))
+                .expect("open wav");
+        assert_eq!(
+            dec.native_format(),
+            Some(NativeSampleFormat::Int { bits: 16 })
+        );
+
+        let mut out = Vec::new();
+        assert!(dec.decode_next_native(&mut out).expect("native decode"));
+        assert!(out.len() >= 2);
+        assert_eq!(out[0], i32::from(-16_000i16) << 16);
+        assert_eq!(out[1], i32::from(16_000i16) << 16);
+        assert_eq!(out[0] & 0xffff, 0, "16 bit 样本必须左对齐");
+        assert_eq!(out[1] & 0xffff, 0, "16 bit 样本必须左对齐");
+
+        let mut packed = [0u8; 2];
+        assert_eq!(pack_into(&out[..1], NativePacking::Int16, &mut packed), 2);
+        assert_eq!(packed, (-16_000i16).to_le_bytes());
+    }
+
+    #[test]
+    fn decodes_native_i24_left_aligned() {
+        use crate::output::bitperfect::{pack_into, NativePacking};
+
+        let bytes = wav_bytes_24(96_000, 2, 500);
+        let mut dec =
+            SymphoniaDecoder::open_source(Box::new(std::io::Cursor::new(bytes)), Some("wav"))
+                .expect("open 24-bit wav");
+        assert_eq!(
+            dec.native_format(),
+            Some(NativeSampleFormat::Int { bits: 24 })
+        );
+
+        let mut out = Vec::new();
+        assert!(dec.decode_next_native(&mut out).expect("native decode"));
+        assert!(out.len() >= 2);
+        let left = -500i32;
+        let right = 500i32;
+        assert_eq!(out[0], left << 8, "24 bit 样本必须左对齐");
+        assert_eq!(out[1], right << 8, "24 bit 样本必须左对齐");
+
+        // packed 容器：取左对齐 i32 的高 3 字节，等于原始 WAV 的 3 字节。
+        let mut packed = [0u8; 3];
+        assert_eq!(
+            pack_into(&out[..1], NativePacking::Int24Packed, &mut packed),
+            3
+        );
+        assert_eq!(packed, left.to_le_bytes()[..3]);
+        // 24-in-32 容器：整个 i32 原样写出。
+        let mut in32 = [0u8; 4];
+        assert_eq!(pack_into(&out[..1], NativePacking::Int24In32, &mut in32), 4);
+        assert_eq!(in32, out[0].to_le_bytes());
+    }
+
+    /// 浮点源必须原样保留 f32 位模式（包括 -0.0），到设备前只做字节打包。
+    #[test]
+    fn preserves_native_f32_bit_patterns() {
+        use crate::output::bitperfect::{pack_into, NativePacking};
+
+        let values = [0.5f32, -0.25, 0.0, -0.0, 1.0, -1.0];
+        let bytes = wav_bytes_f32(48_000, 2, &values);
+        let mut dec =
+            SymphoniaDecoder::open_source(Box::new(std::io::Cursor::new(bytes)), Some("wav"))
+                .expect("open float wav");
+        assert_eq!(dec.native_format(), Some(NativeSampleFormat::Float32));
+
+        let mut out = Vec::new();
+        assert!(dec.decode_next_native(&mut out).expect("native decode"));
+        assert_eq!(out.len(), values.len());
+        for (dst, src) in out.iter().zip(values) {
+            assert_eq!(*dst, src.to_bits() as i32, "f32 位模式被改写：{src}");
+        }
+
+        let mut packed = [0u8; 24];
+        assert_eq!(
+            pack_into(&out, NativePacking::Float32, &mut packed),
+            values.len() * 4
+        );
+        for (chunk, src) in packed.chunks_exact(4).zip(values) {
+            assert_eq!(chunk, src.to_bits().to_le_bytes());
+        }
     }
 
     #[test]

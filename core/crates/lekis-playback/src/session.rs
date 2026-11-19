@@ -4,11 +4,16 @@
 //! EOF 时直接在同一个环形缓冲里接着写，输出流不重建、不插入静音。
 //!
 //! ```text
-//! 解码线程                                        实时回调（cpal）
-//! Decoder ──► 增益/限幅 ──► 格式转换 ──► RingSourceWriter ──► RingSource ──► 设备
-//!   (内容格式)              (声道映射+重采样)  │                 ▲
-//!                            (设备格式)       └── RingProgress（原子计数：已推送 / 已播放 / 欠载 / 清空握手）
+//! 共享模式                                          实时回调（cpal）
+//! Decoder ──► 增益/限幅 ──► 格式转换 ──► RingSourceWriter<f32> ──► RingSource<f32> ──► 设备
+//!
+//! 比特完美（PLY-05，Windows WASAPI 独占）           WASAPI 音频线程
+//! Decoder ──► decode_next_native ──► RingSourceWriter<i32> ──► RingSource<i32> ──► 设备
+//!             （左对齐 i32，无增益/无重采样）                    （只做字节打包）
 //! ```
+//!
+//! 独占 / 比特完美链路目前**不是无缝的**：WASAPI 独占格式按每首歌协商，曲目结束时
+//! 引擎会重建会话（有缝回退）。共享模式仍然保持样本级无缝（PLY-01）。
 //!
 //! 线程模型（docs/ARCHITECTURE.md 第 3 节）：
 //! - 解码在专用 `std::thread` 上跑（`open_decoder` 需要 `Handle::block_on`，不能待在 tokio worker 上）；
@@ -23,10 +28,11 @@
 //! 播放位置由「已播放样本数 ÷ 每毫秒样本数」算出，再加上 seek 后的基准位置 —— 所以进度条
 //! 跟的是真正从缓冲里被设备取走的样本，而不是解码线程解到哪儿了（解码总是领先几百毫秒）。
 
-use crate::decode::{open_decoder, Decoder, PcmFormat};
+use crate::decode::{open_decoder, Decoder, NativeSampleFormat, PcmFormat};
 use crate::dsp::{db_to_linear, DspNode, SoftClipper};
 use crate::gapless::{AudibleTrack, TrackTimeline};
-use crate::output::ring_source::{ring_buffer, RingProgress, RingSourceWriter};
+use crate::output::bitperfect::{choose_decode_path, DecodePath, NativePlan};
+use crate::output::ring_source::{ring_buffer, ring_buffer_of, RingProgress, RingSourceWriter};
 use crate::output::{AudioOutput, CpalOutput, OutputMode};
 use crate::resample::FormatConverter;
 use crate::MediaSource;
@@ -46,17 +52,38 @@ pub trait OutputFactory: Send + Sync + 'static {
     /// 事先协商设备格式（建环形缓冲之前就要知道）。
     fn plan_format(&self, device_id: Option<&str>, requested: PcmFormat) -> Result<PcmFormat>;
 
+    /// 协商独占 / 比特完美格式。`Ok(None)` 表示本平台或后端没有独占路径。
+    ///
+    /// 默认实现不支持：测试注入的空输出仍然只走共享链路。
+    fn plan_native(
+        &self,
+        _device_id: Option<&str>,
+        _requested: PcmFormat,
+        _native: NativeSampleFormat,
+    ) -> Result<Option<NativePlan>> {
+        Ok(None)
+    }
+
     /// 创建输出后端实例。
     fn create(&self) -> Box<dyn AudioOutput>;
 }
 
-/// 默认输出工厂：cpal（Windows 上是 WASAPI 共享模式）。
+/// 默认输出工厂：cpal（Windows 上是 WASAPI 共享模式，独占请求走 WASAPI 独占）。
 #[derive(Debug, Default, Clone, Copy)]
 pub struct CpalOutputFactory;
 
 impl OutputFactory for CpalOutputFactory {
     fn plan_format(&self, device_id: Option<&str>, requested: PcmFormat) -> Result<PcmFormat> {
         CpalOutput::new().plan_format(device_id, requested)
+    }
+
+    fn plan_native(
+        &self,
+        device_id: Option<&str>,
+        requested: PcmFormat,
+        native: NativeSampleFormat,
+    ) -> Result<Option<NativePlan>> {
+        CpalOutput::new().plan_native(device_id, requested, native)
     }
 
     fn create(&self) -> Box<dyn AudioOutput> {
@@ -91,8 +118,8 @@ enum WorkerCmd {
 }
 
 /// 解码线程持有的共享句柄。
-struct WorkerCtx {
-    writer: RingSourceWriter,
+struct WorkerCtx<T = f32> {
+    writer: RingSourceWriter<T>,
     progress: RingProgress,
     stop: Arc<AtomicBool>,
     /// 音量（f32 的位模式，实时线程/解码线程只读）。
@@ -107,6 +134,24 @@ struct WorkerCtx {
     splices: Arc<AtomicU64>,
     /// 引擎侧的预装序号。
     next_token: Arc<AtomicU64>,
+}
+
+/// 引擎侧交给解码线程的链路配置。
+///
+/// 共享链路是 f32（可选重采样，支持样本级无缝拼接）；比特完美链路是左对齐 i32
+/// （设备格式必须与内容一致，不做 DSP，也暂不支持无缝拼接）。
+enum WorkerWire {
+    Shared {
+        writer: RingSourceWriter<f32>,
+        progress: RingProgress,
+        device_format: PcmFormat,
+        timeline: TrackTimeline,
+    },
+    Native {
+        writer: RingSourceWriter<i32>,
+        progress: RingProgress,
+        timeline: TrackTimeline,
+    },
 }
 
 /// 一条输出流的播放会话（可以跨多首连续播放）。
@@ -136,6 +181,10 @@ pub struct Session {
     splices: Arc<AtomicU64>,
     /// 预装下一首的序号（取消 / 替换时递增）。
     next_token: Arc<AtomicU64>,
+    /// 是否真的走了 WASAPI 独占比特完美链路（而不是降级后的共享链路）。
+    native_bit_perfect: bool,
+    /// 输出流**实际**使用的模式：独占打开失败时是 [`OutputMode::Shared`]。
+    output_mode: OutputMode,
 }
 
 impl Session {
@@ -182,11 +231,17 @@ impl Session {
         let gain_linear = media.gain_db.map(db_to_linear).unwrap_or(1.0);
 
         // 解码线程先把「打开解码器」做完再回报格式，这样引擎能按真实格式建缓冲和输出流。
-        let (ready_tx, ready_rx) =
-            oneshot::channel::<Result<(PcmFormat, Option<u64>, AudioProps)>>();
+        // 同时回报 `native_format()`：只有解码器能给出原生样本时才可能走比特完美链路。
+        let (ready_tx, ready_rx) = oneshot::channel::<
+            Result<(
+                PcmFormat,
+                Option<NativeSampleFormat>,
+                Option<u64>,
+                AudioProps,
+            )>,
+        >();
         // 引擎侧协商完设备格式后，把写端交给解码线程，然后它才开始解。
-        let (wire_tx, wire_rx) =
-            mpsc::channel::<(RingSourceWriter, RingProgress, PcmFormat, TrackTimeline)>();
+        let (wire_tx, wire_rx) = mpsc::channel::<WorkerWire>();
         let (cmd_tx, cmd_rx) = mpsc::channel::<WorkerCmd>();
         // 预装下一首的「打开解码器」在独立线程里做：网络源探测可能很慢，
         // 不能卡住正在给环形缓冲供样本的解码线程。
@@ -210,54 +265,86 @@ impl Session {
                     }
                 };
                 let format = decoder.format();
+                let native = decoder.native_format();
                 let duration = decoder.duration_ms();
                 let props = decoder.props().clone();
-                if ready_tx.send(Ok((format, duration, props))).is_err() {
+                if ready_tx
+                    .send(Ok((format, native, duration, props)))
+                    .is_err()
+                {
                     return;
                 }
-                let Ok((writer, progress, device_format, timeline)) = wire_rx.recv() else {
+                let Ok(wire) = wire_rx.recv() else {
                     return;
                 };
-                let mut ctx = WorkerCtx {
-                    writer,
-                    progress,
-                    stop: t_stop,
-                    volume: t_volume,
-                    base_ms: t_base,
-                    eof: t_eof,
-                    timeline: timeline.clone(),
-                    splices: t_splices,
-                    next_token: t_next_token,
-                };
-                // 转换级在解码线程上建（rubato 构造要分配，不能放实时线程），失败就直通。
-                let converter = match FormatConverter::new(format, device_format) {
-                    Ok(converter) => converter,
-                    Err(e) => {
-                        tracing::warn!(
-                            target: "playback",
-                            error = %e,
-                            "cannot build format converter, playing without conversion"
+                match wire {
+                    WorkerWire::Shared {
+                        writer,
+                        progress,
+                        device_format,
+                        timeline,
+                    } => {
+                        let mut ctx = WorkerCtx {
+                            writer,
+                            progress,
+                            stop: t_stop,
+                            volume: t_volume,
+                            base_ms: t_base,
+                            eof: t_eof,
+                            timeline,
+                            splices: t_splices,
+                            next_token: t_next_token,
+                        };
+                        // 转换级在解码线程上建（rubato 构造要分配，不能放实时线程），失败就直通。
+                        let converter = match FormatConverter::new(format, device_format) {
+                            Ok(converter) => converter,
+                            Err(e) => {
+                                tracing::warn!(
+                                    target: "playback",
+                                    error = %e,
+                                    "cannot build format converter, playing without conversion"
+                                );
+                                None
+                            }
+                        };
+                        let active = ActiveTrack {
+                            track_id: thread_media.track_id,
+                            decoder,
+                            converter,
+                            format,
+                            duration_ms: duration,
+                            gain_linear,
+                        };
+                        decode_loop(
+                            active,
+                            &mut ctx,
+                            cmd_rx,
+                            device_format,
+                            handle,
+                            prepare_tx,
+                            prepare_rx,
                         );
-                        None
                     }
-                };
-                let active = ActiveTrack {
-                    track_id: thread_media.track_id,
-                    decoder,
-                    converter,
-                    format,
-                    duration_ms: duration,
-                    gain_linear,
-                };
-                decode_loop(
-                    active,
-                    &mut ctx,
-                    cmd_rx,
-                    device_format,
-                    handle,
-                    prepare_tx,
-                    prepare_rx,
-                );
+                    WorkerWire::Native {
+                        writer,
+                        progress,
+                        timeline,
+                    } => {
+                        // 比特完美：设备格式与内容格式一致，不建重采样器、不套增益。
+                        let mut ctx = WorkerCtx::<i32> {
+                            writer,
+                            progress,
+                            stop: t_stop,
+                            volume: t_volume,
+                            base_ms: t_base,
+                            eof: t_eof,
+                            timeline,
+                            splices: t_splices,
+                            next_token: t_next_token,
+                        };
+                        decode_loop_native(decoder, &mut ctx, cmd_rx);
+                    }
+                }
             })
             .map_err(|e| LekisError::internal(format!("cannot spawn decode thread: {e}")))?;
 
@@ -269,7 +356,7 @@ impl Session {
                 return Err(LekisError::internal("decode thread exited during startup"));
             }
         };
-        let (format, duration_ms, props) = match ready {
+        let (format, native_format, duration_ms, props) = match ready {
             Ok(v) => v,
             Err(e) => {
                 let _ = join.join();
@@ -282,47 +369,129 @@ impl Session {
             return Err(LekisError::invalid("decoder reported an empty pcm format"));
         }
 
-        // 先问后端「这份内容格式最终会用哪个设备格式」，再按设备格式建环形缓冲：
-        // 缓冲里的样本已经转换过了，容量必须按设备格式算。
-        let planned = match output_factory.plan_format(device_id, format) {
-            Ok(planned) => planned,
-            Err(e) => {
-                // 没有音频设备（headless / CI）：把解码线程也收掉，向上返回 Unsupported。
-                drop(wire_tx);
-                let _ = join.join();
-                return Err(e);
-            }
-        };
-        if planned.sample_rate == 0 || planned.channels == 0 {
-            drop(wire_tx);
-            let _ = join.join();
-            return Err(LekisError::invalid("output reported an empty pcm format"));
-        }
-
-        // 环形缓冲按 300 ms 容量建（设备格式）。
-        let samples =
-            u64::from(planned.sample_rate) * u64::from(planned.channels) / 1_000 * BUFFER_MS;
-        let capacity = usize::try_from(samples.max(4_096)).unwrap_or(4_096);
-        let (writer, source, progress) = ring_buffer(capacity, planned.channels);
+        // 初始曲目也是时间轴上的第一条边界（从样本 0 开始）。
+        // 独占 / 比特完美链路只播一首，也用它来算时长和进度。
+        let timeline = TrackTimeline::new(
+            media.track_id,
+            duration_ms.or(Some(media.duration_hint_ms).filter(|hint| *hint > 0)),
+            format,
+        );
 
         let mut output = output_factory.create();
-        let actual = match output.start(device_id, format, mode, Box::new(source)) {
-            Ok(actual) => actual,
-            Err(e) => {
-                drop(wire_tx);
-                let _ = join.join();
-                return Err(e);
+
+        // PLY-05：独占请求先协商原生格式。只有「独占 + 解码器有原生格式 + 设备接受该格式」
+        // 三条同时成立才建 i32 缓冲；否则用共享 f32 链路并记下原因。
+        let mut native_candidate: Option<(NativeSampleFormat, NativePlan)> = None;
+        if mode == OutputMode::Exclusive {
+            match native_format {
+                Some(native) => match output_factory.plan_native(device_id, format, native) {
+                    Ok(Some(plan)) => native_candidate = Some((native, plan)),
+                    Ok(None) => tracing::warn!(
+                        target: "playback::output",
+                        "no native exclusive backend on this platform, falling back to shared mode"
+                    ),
+                    Err(e) => tracing::warn!(
+                        target: "playback::output",
+                        error = %e,
+                        "device rejected the source format in exclusive mode, falling back to shared mode"
+                    ),
+                },
+                None => tracing::warn!(
+                    target: "playback::output",
+                    "decoder has no native sample format, falling back to shared mode"
+                ),
             }
+        }
+        let decode_path = choose_decode_path(mode, native_format, native_candidate.is_some());
+        let native_setup = match decode_path {
+            DecodePath::BitPerfect => native_candidate,
+            DecodePath::Shared => None,
         };
-        if actual != planned {
-            // 两次协商之间设备配置变了：缓冲容量按旧格式算的，只影响缓冲时长，不影响正确性。
+
+        let (actual, progress, wire, native_bit_perfect) = match native_setup {
+            Some((native, plan)) => {
+                match setup_native_output(
+                    &mut *output,
+                    device_id,
+                    format,
+                    native,
+                    plan,
+                    timeline.clone(),
+                ) {
+                    Ok((actual, progress, wire)) => {
+                        if actual != plan.format {
+                            tracing::warn!(
+                                target: "playback::output",
+                                planned_rate = plan.format.sample_rate,
+                                planned_channels = plan.format.channels,
+                                actual_rate = actual.sample_rate,
+                                actual_channels = actual.channels,
+                                "exclusive device format changed between negotiation and stream start"
+                            );
+                        }
+                        if (volume - 1.0).abs() > f32::EPSILON || media.gain_db.is_some() {
+                            // 比特完美路径不做任何增益运算；这里明确告诉用户音量/ReplayGain 不生效。
+                            tracing::warn!(
+                                target: "playback::output",
+                                volume,
+                                replay_gain = ?media.gain_db,
+                                "bit-perfect exclusive output ignores volume and ReplayGain"
+                            );
+                        }
+                        tracing::info!(
+                            target: "playback::gapless",
+                            "bit-perfect exclusive output is not gapless; the engine restarts the stream between tracks"
+                        );
+                        (actual, progress, wire, true)
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            target: "playback::output",
+                            error = %e,
+                            "WASAPI exclusive open failed (device busy or unsupported), falling back to shared mode"
+                        );
+                        let _ = output.stop();
+                        match setup_shared_output(
+                            output_factory.as_ref(),
+                            &mut *output,
+                            device_id,
+                            format,
+                            timeline.clone(),
+                        ) {
+                            Ok((actual, progress, wire)) => (actual, progress, wire, false),
+                            Err(e) => {
+                                drop(wire_tx);
+                                let _ = join.join();
+                                let _ = output.stop();
+                                return Err(e);
+                            }
+                        }
+                    }
+                }
+            }
+            None => match setup_shared_output(
+                output_factory.as_ref(),
+                &mut *output,
+                device_id,
+                format,
+                timeline.clone(),
+            ) {
+                Ok((actual, progress, wire)) => (actual, progress, wire, false),
+                Err(e) => {
+                    // 没有音频设备（headless / CI）：把解码线程也收掉，向上返回 Unsupported。
+                    drop(wire_tx);
+                    let _ = join.join();
+                    let _ = output.stop();
+                    return Err(e);
+                }
+            },
+        };
+
+        let actual_mode = output.output_mode();
+        if mode == OutputMode::Exclusive && actual_mode != OutputMode::Exclusive {
             tracing::warn!(
-                target: "playback",
-                planned_rate = planned.sample_rate,
-                planned_channels = planned.channels,
-                actual_rate = actual.sample_rate,
-                actual_channels = actual.channels,
-                "device format changed between negotiation and stream start"
+                target: "playback::output",
+                "playback snapshot will reflect shared mode because exclusive output is unavailable"
             );
         }
         if actual != format {
@@ -336,16 +505,7 @@ impl Session {
             );
         }
 
-        // 初始曲目也是时间轴上的第一条边界（从样本 0 开始）。
-        let timeline = TrackTimeline::new(
-            media.track_id,
-            duration_ms.or(Some(media.duration_hint_ms).filter(|hint| *hint > 0)),
-            format,
-        );
-        if wire_tx
-            .send((writer, progress.clone(), actual, timeline.clone()))
-            .is_err()
-        {
+        if wire_tx.send(wire).is_err() {
             let _ = join.join();
             let _ = output.stop();
             return Err(LekisError::internal(
@@ -361,6 +521,8 @@ impl Session {
             sample_rate = props.sample_rate,
             channels = props.channels,
             bit_depth = ?props.bit_depth,
+            bit_perfect = native_bit_perfect,
+            mode = ?actual_mode,
             "playback session started"
         );
 
@@ -382,6 +544,8 @@ impl Session {
             timeline,
             splices,
             next_token,
+            native_bit_perfect,
+            output_mode: actual_mode,
         })
     }
 
@@ -395,6 +559,16 @@ impl Session {
     /// 和 [`Self::format`] 不同意味着解码线程正在做声道映射 / 重采样。
     pub fn device_format(&self) -> PcmFormat {
         self.device_format
+    }
+
+    /// 输出流**实际**使用的模式（独占打开失败时是共享）。
+    pub fn output_mode(&self) -> OutputMode {
+        self.output_mode
+    }
+
+    /// 是否真的走了比特完美链路（独占 + 原生格式 + 无 DSP）。
+    pub fn native_bit_perfect(&self) -> bool {
+        self.native_bit_perfect
     }
 
     /// 当前曲目的时长（毫秒）。无缝切换后是下一首的时长。
@@ -442,7 +616,17 @@ impl Session {
     /// 预装下一首：解码线程会在当前曲目结束前打开它，EOF 时直接接着写同一条缓冲。
     ///
     /// 只是「预备」；队列语义仍由引擎控制。再次调用会替换上一首预装。
+    ///
+    /// 比特完美独占会话不是无缝的：这里直接忽略，曲目结束时引擎会重建输出流。
     pub fn queue_next(&mut self, media: MediaSource) {
+        if self.native_bit_perfect {
+            tracing::debug!(
+                target: "playback::gapless",
+                track = %media.track_id,
+                "bit-perfect exclusive session is not gapless; next track will start a new stream"
+            );
+            return;
+        }
         let token = self.next_token.fetch_add(1, Ordering::AcqRel) + 1;
         if self
             .commands
@@ -459,6 +643,9 @@ impl Session {
     /// 取消预装（队列被编辑 / 关闭无缝播放）。已经拼进缓冲的样本无法撤回，
     /// 但解码线程会在真正切换前核对序号，不会把过期的下一首接上去。
     pub fn clear_next(&mut self) {
+        if self.native_bit_perfect {
+            return;
+        }
         self.next_token.fetch_add(1, Ordering::AcqRel);
         let _ = self.commands.send(WorkerCmd::ClearNext);
     }
@@ -471,7 +658,19 @@ impl Session {
     }
 
     /// 调音量（实时生效，无需重建流）。
+    ///
+    /// 比特完美独占链路不做任何增益运算，音量/ReplayGain 会被忽略（保持源码位模式）。
     pub fn set_volume(&mut self, volume: f32) {
+        if self.native_bit_perfect {
+            if (volume.clamp(0.0, 1.0) - 1.0).abs() > f32::EPSILON {
+                tracing::warn!(
+                    target: "playback",
+                    volume,
+                    "bit-perfect exclusive output ignores volume changes"
+                );
+            }
+            return;
+        }
         self.volume
             .store(volume.clamp(0.0, 1.0).to_bits(), Ordering::Release);
     }
@@ -516,6 +715,65 @@ impl Session {
         }
         let _ = self.output.stop();
     }
+}
+
+/// 环形缓冲按 300 ms 容量建（设备格式）。
+fn buffer_capacity(format: PcmFormat) -> usize {
+    let samples = u64::from(format.sample_rate) * u64::from(format.channels) / 1_000 * BUFFER_MS;
+    usize::try_from(samples.max(4_096)).unwrap_or(4_096)
+}
+
+/// 共享模式链路：f32 环形缓冲 + cpal 流（支持样本级无缝拼接）。
+fn setup_shared_output(
+    factory: &dyn OutputFactory,
+    output: &mut dyn AudioOutput,
+    device_id: Option<&str>,
+    content_format: PcmFormat,
+    timeline: TrackTimeline,
+) -> Result<(PcmFormat, RingProgress, WorkerWire)> {
+    let planned = factory.plan_format(device_id, content_format)?;
+    if planned.sample_rate == 0 || planned.channels == 0 {
+        return Err(LekisError::invalid("output reported an empty pcm format"));
+    }
+    let (writer, source, progress) = ring_buffer(buffer_capacity(planned), planned.channels);
+    let actual = output.start(
+        device_id,
+        content_format,
+        OutputMode::Shared,
+        Box::new(source),
+    )?;
+    let wire = WorkerWire::Shared {
+        writer,
+        progress: progress.clone(),
+        device_format: actual,
+        timeline,
+    };
+    Ok((actual, progress, wire))
+}
+
+/// 比特完美链路：左对齐 i32 环形缓冲 + WASAPI 独占流。
+fn setup_native_output(
+    output: &mut dyn AudioOutput,
+    device_id: Option<&str>,
+    content_format: PcmFormat,
+    native: NativeSampleFormat,
+    plan: NativePlan,
+    timeline: TrackTimeline,
+) -> Result<(PcmFormat, RingProgress, WorkerWire)> {
+    if plan.format.sample_rate == 0 || plan.format.channels == 0 {
+        return Err(LekisError::invalid(
+            "exclusive output reported an empty pcm format",
+        ));
+    }
+    let (writer, source, progress) =
+        ring_buffer_of::<i32>(buffer_capacity(plan.format), plan.format.channels);
+    let actual = output.start_native(device_id, content_format, native, Box::new(source))?;
+    let wire = WorkerWire::Native {
+        writer,
+        progress: progress.clone(),
+        timeline,
+    };
+    Ok((actual, progress, wire))
 }
 
 impl Drop for Session {
@@ -740,6 +998,71 @@ fn decode_loop(
     }
 }
 
+/// 比特完美解码循环（PLY-05）。
+///
+/// 与 [`decode_loop`] 的区别：**不**套 ReplayGain、音量、限幅器，也**不**重采样。
+/// 解码器原生样本直接进 i32 环形缓冲，输出线程只做字节打包。
+///
+/// 独占链路暂不拼接下一首：`QueueNext` / `ClearNext` 在这里被忽略，曲目结束时
+/// 解码线程报 EOF，引擎会重建会话（共享模式仍然是真正无缝的）。
+fn decode_loop_native(
+    mut decoder: Box<dyn Decoder>,
+    ctx: &mut WorkerCtx<i32>,
+    commands: Receiver<WorkerCmd>,
+) {
+    let channels = decoder.format().channels.max(1);
+    let mut buffer: Vec<i32> = Vec::with_capacity(usize::from(channels) * 4_096);
+    let pump_threshold = usize::from(channels) * 1_024;
+
+    loop {
+        if ctx.stop.load(Ordering::Relaxed) {
+            return;
+        }
+        // 1) 控制命令：seek 同样要清空旧缓冲；比特完美链路没有重采样器要重置。
+        loop {
+            match commands.try_recv() {
+                Ok(WorkerCmd::Seek(ms)) => {
+                    apply_seek_native(&mut *decoder, ctx, ms);
+                }
+                Ok(WorkerCmd::QueueNext { media, .. }) => {
+                    tracing::debug!(
+                        target: "playback::gapless",
+                        track = %media.track_id,
+                        "bit-perfect exclusive session is not gapless; ignoring queue_next"
+                    );
+                }
+                Ok(WorkerCmd::ClearNext) => {}
+                Ok(WorkerCmd::Stop) | Err(TryRecvError::Disconnected) => return,
+                Err(TryRecvError::Empty) => break,
+            }
+        }
+        // 2) 缓冲快满了就等消费者腾地方。
+        if ctx.writer.vacant_len() < pump_threshold {
+            std::thread::sleep(PUMP_INTERVAL);
+            continue;
+        }
+        // 3) 解一块原生样本，原样写进 i32 环形缓冲。
+        buffer.clear();
+        match decoder.decode_next_native(&mut buffer) {
+            Ok(true) => {}
+            Ok(false) => {
+                ctx.eof.store(true, Ordering::Release);
+                return;
+            }
+            Err(e) => {
+                tracing::warn!(target: "playback", error = %e, "native decode failed, ending track");
+                ctx.eof.store(true, Ordering::Release);
+                return;
+            }
+        }
+        if buffer.is_empty() {
+            continue;
+        }
+        let written = ctx.writer.push_blocking(&buffer, &ctx.stop);
+        ctx.progress.add_pushed(written as u64);
+    }
+}
+
 /// 打开下一首并准备好它的转换级（在解码线程上调用，可以分配 / 做 IO）。
 fn prepare_next(
     media: &MediaSource,
@@ -913,18 +1236,33 @@ fn apply_seek(
     duration_ms: Option<u64>,
     format: PcmFormat,
 ) {
+    if seek_decoder(decoder, &ctx.progress, &ctx.base_ms, &ctx.stop, position_ms).is_some() {
+        let splice_count = ctx.splices.load(Ordering::Acquire);
+        ctx.timeline
+            .rebase(track_id, duration_ms, format, splice_count);
+    }
+}
+
+/// 比特完美链路的 seek：只重置缓冲与位置基准；独占链路只有一首，时间轴无需重建。
+fn apply_seek_native(decoder: &mut dyn Decoder, ctx: &mut WorkerCtx<i32>, position_ms: u64) {
+    seek_decoder(decoder, &ctx.progress, &ctx.base_ms, &ctx.stop, position_ms);
+}
+
+/// 公共 seek 实现，返回解码器实际落到的位置（失败时 `None`）。
+fn seek_decoder(
+    decoder: &mut dyn Decoder,
+    progress: &RingProgress,
+    base_ms: &AtomicU64,
+    stop: &AtomicBool,
+    position_ms: u64,
+) -> Option<u64> {
     match decoder.seek(position_ms) {
         Ok(actual) => {
             // 让实时回调丢掉旧数据（回调若没在跑，握手会超时，也照样继续）。
-            let seq = ctx.progress.request_flush();
-            let acked = ctx
-                .progress
-                .wait_flush_ack(seq, &ctx.stop, Duration::from_millis(250));
-            ctx.progress.reset_samples();
-            ctx.base_ms.store(actual, Ordering::Release);
-            let splice_count = ctx.splices.load(Ordering::Acquire);
-            ctx.timeline
-                .rebase(track_id, duration_ms, format, splice_count);
+            let seq = progress.request_flush();
+            let acked = progress.wait_flush_ack(seq, stop, Duration::from_millis(250));
+            progress.reset_samples();
+            base_ms.store(actual, Ordering::Release);
             if !acked {
                 tracing::debug!(
                     target: "playback",
@@ -932,9 +1270,11 @@ fn apply_seek(
                     "flush was not acknowledged by the audio callback in time"
                 );
             }
+            Some(actual)
         }
         Err(e) => {
             tracing::warn!(target: "playback", position_ms, error = %e, "seek failed");
+            None
         }
     }
 }
@@ -1005,6 +1345,142 @@ mod tests {
     use std::path::Path;
     use std::time::Instant;
 
+    use crate::output::{NativePacking, NativeSampleSource, OutputDevice};
+
+    /// 测试用「原生空输出」：只接受比特完美链路，按真实时间拉走 i32 样本并记录。
+    struct NativeNullFactory {
+        planned: PcmFormat,
+        capture: Arc<std::sync::Mutex<Vec<i32>>>,
+    }
+
+    impl NativeNullFactory {
+        fn new(planned: PcmFormat) -> Self {
+            Self {
+                planned,
+                capture: Arc::new(std::sync::Mutex::new(Vec::new())),
+            }
+        }
+
+        fn captured(&self) -> Vec<i32> {
+            self.capture
+                .lock()
+                .map(|samples| samples.clone())
+                .unwrap_or_default()
+        }
+    }
+
+    impl OutputFactory for NativeNullFactory {
+        fn plan_format(
+            &self,
+            _device_id: Option<&str>,
+            _requested: PcmFormat,
+        ) -> Result<PcmFormat> {
+            Ok(self.planned)
+        }
+
+        fn plan_native(
+            &self,
+            _device_id: Option<&str>,
+            requested: PcmFormat,
+            native: NativeSampleFormat,
+        ) -> Result<Option<NativePlan>> {
+            assert_eq!(requested, self.planned);
+            assert_eq!(native, NativeSampleFormat::Int { bits: 16 });
+            Ok(Some(NativePlan {
+                format: self.planned,
+                packing: NativePacking::Int16,
+            }))
+        }
+
+        fn create(&self) -> Box<dyn AudioOutput> {
+            Box::new(NativeNullOutput {
+                planned: self.planned,
+                capture: self.capture.clone(),
+                stop: Arc::new(AtomicBool::new(false)),
+                thread: None,
+            })
+        }
+    }
+
+    struct NativeNullOutput {
+        planned: PcmFormat,
+        capture: Arc<std::sync::Mutex<Vec<i32>>>,
+        stop: Arc<AtomicBool>,
+        thread: Option<std::thread::JoinHandle<()>>,
+    }
+
+    impl AudioOutput for NativeNullOutput {
+        fn devices(&self) -> Result<Vec<OutputDevice>> {
+            Ok(Vec::new())
+        }
+
+        fn start(
+            &mut self,
+            _device_id: Option<&str>,
+            _requested: PcmFormat,
+            _mode: OutputMode,
+            _source: Box<dyn crate::output::SampleSource>,
+        ) -> Result<PcmFormat> {
+            Err(LekisError::invalid(
+                "shared output must not be used by the native session test",
+            ))
+        }
+
+        fn start_native(
+            &mut self,
+            _device_id: Option<&str>,
+            _requested: PcmFormat,
+            _native: NativeSampleFormat,
+            mut source: Box<dyn NativeSampleSource>,
+        ) -> Result<PcmFormat> {
+            let stop = self.stop.clone();
+            let capture = self.capture.clone();
+            let format = self.planned;
+            let frames = 800usize;
+            let channels = usize::from(format.channels.max(1));
+            let rate = u64::from(format.sample_rate.max(1));
+            let period = Duration::from_nanos(frames as u64 * 1_000_000_000 / rate);
+            self.thread = Some(
+                std::thread::Builder::new()
+                    .name("lekis-native-null-output".to_string())
+                    .spawn(move || {
+                        // 给解码线程一点时间先把环形缓冲填起来。
+                        std::thread::sleep(Duration::from_millis(50));
+                        let mut block = vec![0i32; frames * channels];
+                        while !stop.load(Ordering::Relaxed) {
+                            let _ = source.fill(&mut block);
+                            if let Ok(mut out) = capture.lock() {
+                                out.extend_from_slice(&block);
+                            }
+                            std::thread::sleep(period);
+                        }
+                    })
+                    .expect("spawn native null output thread"),
+            );
+            Ok(format)
+        }
+
+        fn output_mode(&self) -> OutputMode {
+            OutputMode::Exclusive
+        }
+
+        fn pause(&mut self) -> Result<()> {
+            Ok(())
+        }
+
+        fn resume(&mut self) -> Result<()> {
+            Ok(())
+        }
+
+        fn stop(&mut self) -> Result<()> {
+            self.stop.store(true, Ordering::Release);
+            if let Some(thread) = self.thread.take() {
+                let _ = thread.join();
+            }
+            Ok(())
+        }
+    }
+
     fn cached_media(track: i64, path: &Path, duration_hint_ms: u64) -> MediaSource {
         MediaSource {
             track_id: TrackId(track),
@@ -1029,6 +1505,63 @@ mod tests {
             }
         }
         longest
+    }
+
+    /// PLY-05 集成用例：独占会话必须走 i32 原生链路，样本位模式一字节不改；
+    /// 同时 `queue_next` 在比特完美会话里必须是无操作（独占暂不无缝）。
+    #[tokio::test]
+    async fn exclusive_session_uses_native_i32_path_and_ignores_gapless_queue() {
+        let dir = temp_dir("native");
+        let frames = 3_200usize; // 400 ms @ 8 kHz
+        let path = write_wav(&dir, "native.wav", 8_000, 1, frames, -8_000);
+        let format = PcmFormat {
+            sample_rate: 8_000,
+            channels: 1,
+        };
+        let factory = Arc::new(NativeNullFactory::new(format));
+        let media = cached_media(1, &path, 400);
+
+        let mut session = Session::start_with_factory(
+            &media,
+            None,
+            OutputMode::Exclusive,
+            1.0,
+            Handle::current(),
+            factory.clone(),
+        )
+        .await
+        .expect("start native session");
+
+        assert!(session.native_bit_perfect(), "必须走原生比特完美链路");
+        assert_eq!(session.output_mode(), OutputMode::Exclusive);
+        assert_eq!(session.format(), format);
+        assert_eq!(session.duration_ms(), Some(400));
+
+        // 独占链路暂不拼接下一首：预装必须被忽略，不能假装成功。
+        session.queue_next(cached_media(2, &path, 400));
+        session.clear_next();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline && !session.finished() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert!(session.finished(), "独占会话应该在超时前播完");
+        assert_eq!(session.splice_count(), 0, "独占会话不能发生无缝拼接");
+        session.stop();
+
+        let captured = factory.captured();
+        let first = captured
+            .iter()
+            .position(|sample| *sample != 0)
+            .expect("必须录到原生样本");
+        let span = &captured[first..];
+        assert!(span.len() >= frames, "录到的样本不足：{}", span.len());
+        let expected = i32::from(-8_000i16) << 16;
+        assert!(
+            span[..frames].iter().all(|sample| *sample == expected),
+            "16 bit 原生样本必须保持左对齐 i32 位模式"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// PLY-01 核心用例：两首同格式 WAV 顺序播放，样本必须一帧不差地接上。

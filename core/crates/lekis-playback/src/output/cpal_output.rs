@@ -1,15 +1,18 @@
 //! 基于 cpal 的音频输出后端。
 //!
-//! Windows 上是 WASAPI 共享模式。独占模式（PLY-05）尚未实现：cpal 没有暴露 session 独占开关，
-//! 需要直接调 IAudioClient::Initialize 并自己驱动事件回调，属于 P1 的独立任务。
-//! 传 [`OutputMode::Exclusive`] 时会降级成共享模式并打日志，不会失败。
+//! Windows 上默认走 WASAPI 共享模式。共享模式的流由 cpal 驱动，f32 样本在这里转成设备格式。
+//! 独占 / 比特完美（PLY-05）走 wasapi_exclusive：会话层调用 [`CpalOutput::plan_native`]
+//! 协商格式，再调用 [`CpalOutput::start_native`] 打开真正的 WASAPI 独占流；那条链路完全不经过
+//! 这个文件的 f32 回调。直接调用 [`AudioOutput::start`] 并传 [`OutputMode::Exclusive`] 时，
+//! 因为没有原生样本源，会降级成共享模式并打日志。
 //!
 //! **实时线程规则**：cpal 的 data callback 里只做两件事——
 //! 从 [`SampleSource`]（无锁环形缓冲的读端）`fill` 一块 f32，再逐样本转成设备采样格式。
 //! 不分配内存（scratch 缓冲区在 `start()` 时预分配好并按块复用）、不加锁、不做 IO、不写日志。
 
-use super::{AudioOutput, OutputDevice, OutputMode, SampleSource};
-use crate::decode::PcmFormat;
+use super::bitperfect::NativePlan;
+use super::{AudioOutput, NativeSampleSource, OutputDevice, OutputMode, SampleSource};
+use crate::decode::{NativeSampleFormat, PcmFormat};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, Sample, SampleFormat, SizedSample, SupportedStreamConfig};
 use lekis_types::{ErrorCode, LekisError, Result};
@@ -21,9 +24,14 @@ const SCRATCH_FRAMES: usize = 8_192;
 pub struct CpalOutput {
     host: cpal::Host,
     stream: Option<cpal::Stream>,
+    /// Windows 独占流（PLY-05）。COM 对象在它自己的音频线程里。
+    #[cfg(windows)]
+    wasapi: Option<super::wasapi_exclusive::WasapiExclusiveStream>,
     playing: bool,
     /// 当前流实际使用的格式。
     format: Option<PcmFormat>,
+    /// 当前流**实际**使用的模式。请求独占但失败时为 `Shared`。
+    mode: OutputMode,
 }
 
 impl Default for CpalOutput {
@@ -38,8 +46,11 @@ impl CpalOutput {
         Self {
             host: cpal::default_host(),
             stream: None,
+            #[cfg(windows)]
+            wasapi: None,
             playing: false,
             format: None,
+            mode: OutputMode::Shared,
         }
     }
 
@@ -48,9 +59,26 @@ impl CpalOutput {
         self.format
     }
 
-    /// 流是否在播放。
+    /// 当前流**实际**使用的模式（独占请求失败后会变成共享）。
+    pub fn output_mode(&self) -> OutputMode {
+        self.mode
+    }
+
+    /// 当前流是否在播放。
     pub fn is_playing(&self) -> bool {
         self.playing
+    }
+
+    /// 当前独占流使用的样本容器（共享模式为 `None`）。
+    pub fn native_packing(&self) -> Option<super::NativePacking> {
+        #[cfg(windows)]
+        {
+            self.wasapi.as_ref().map(|stream| stream.packing())
+        }
+        #[cfg(not(windows))]
+        {
+            None
+        }
     }
 
     /// 事先算出「这份请求格式最终会用哪个设备格式」，但不打开流。
@@ -65,6 +93,67 @@ impl CpalOutput {
             sample_rate: cfg.sample_rate(),
             channels: cfg.channels(),
         })
+    }
+
+    /// 协商 WASAPI 独占格式（PLY-05）。不会打开流，只查驱动。
+    ///
+    /// 返回 `Ok(None)` 表示本平台没有独占后端；`Err` 表示设备不接受该源格式。
+    /// 非 Windows 平台始终返回 `Ok(None)`，调用方据此退回共享模式。
+    #[cfg(windows)]
+    pub fn plan_native(
+        &self,
+        device_id: Option<&str>,
+        requested: PcmFormat,
+        native: NativeSampleFormat,
+    ) -> Result<Option<NativePlan>> {
+        super::wasapi_exclusive::plan(device_id, requested, native).map(Some)
+    }
+
+    /// 非 Windows：没有比特完美后端。
+    #[cfg(not(windows))]
+    pub fn plan_native(
+        &self,
+        _device_id: Option<&str>,
+        _requested: PcmFormat,
+        _native: NativeSampleFormat,
+    ) -> Result<Option<NativePlan>> {
+        Ok(None)
+    }
+
+    /// 打开 WASAPI 独占流（PLY-05）。`source` 必须是左对齐 i32 / f32 位模式。
+    #[cfg(windows)]
+    pub fn start_native(
+        &mut self,
+        device_id: Option<&str>,
+        requested: PcmFormat,
+        native: NativeSampleFormat,
+        source: Box<dyn NativeSampleSource>,
+    ) -> Result<PcmFormat> {
+        self.stop()?;
+        let stream = super::wasapi_exclusive::WasapiExclusiveStream::start(
+            device_id, requested, native, source,
+        )?;
+        let format = stream.format();
+        self.wasapi = Some(stream);
+        self.playing = true;
+        self.format = Some(format);
+        self.mode = OutputMode::Exclusive;
+        Ok(format)
+    }
+
+    /// 非 Windows：没有比特完美后端。
+    #[cfg(not(windows))]
+    pub fn start_native(
+        &mut self,
+        _device_id: Option<&str>,
+        _requested: PcmFormat,
+        _native: NativeSampleFormat,
+        _source: Box<dyn NativeSampleSource>,
+    ) -> Result<PcmFormat> {
+        Err(LekisError::new(
+            ErrorCode::Unsupported,
+            "exclusive WASAPI output is only available on Windows",
+        ))
     }
 
     /// 按 ID 找设备；找不到或没给就退回系统默认设备。
@@ -284,6 +373,9 @@ impl AudioOutput for CpalOutput {
         };
 
         let mut out = Vec::new();
+        // Windows 上还要探测哪些 endpoint 能开独占（PLY-05）。raw_ids 与 out 一一对应。
+        #[cfg(windows)]
+        let mut raw_ids = Vec::new();
         for device in devices {
             let id = match device.id() {
                 Ok(id) => id.to_string(),
@@ -296,14 +388,25 @@ impl AudioOutput for CpalOutput {
                 Ok(desc) => desc.name().to_string(),
                 Err(_) => id.clone(),
             };
+            #[cfg(windows)]
+            raw_ids.push(super::wasapi_exclusive::raw_device_id(&id));
             out.push(OutputDevice {
                 is_default: default_id.as_deref() == Some(id.as_str()),
                 id,
                 name,
-                // TODO(PLY-05)：WASAPI 独占 / 比特完美本次不做，统一报 false。
+                // 先报 false，下面用 IsFormatSupported 逐个探测后再覆盖。
                 supports_exclusive: false,
             });
         }
+
+        #[cfg(windows)]
+        {
+            let supported = super::wasapi_exclusive::probe_exclusive_support(&raw_ids);
+            for (device, exclusive) in out.iter_mut().zip(supported) {
+                device.supports_exclusive = exclusive;
+            }
+        }
+
         Ok(out)
     }
 
@@ -320,13 +423,17 @@ impl AudioOutput for CpalOutput {
         // 换设备/换歌时先干净地关掉旧流。
         self.stop()?;
 
-        if mode == OutputMode::Exclusive {
-            // TODO(PLY-05)：WASAPI 独占 / ASIO 直出。
+        // 这个入口只接收 f32 样本源，没有原生格式可直送；独占请求在这里没有意义。
+        // 会话层会在有原生格式时先走 `start_native`。走到这里说明必须降级。
+        let actual_mode = if mode == OutputMode::Exclusive {
             tracing::warn!(
                 target: "playback::output",
-                "exclusive mode is not implemented yet, falling back to shared mode"
+                "no native sample source for exclusive output, falling back to shared mode"
             );
-        }
+            OutputMode::Shared
+        } else {
+            mode
+        };
 
         let device = self.find_device(device_id)?;
         let cfg = Self::negotiate(&device, requested)?;
@@ -344,15 +451,41 @@ impl AudioOutput for CpalOutput {
             rate = actual.sample_rate,
             channels = actual.channels,
             sample_format = ?cfg.sample_format(),
+            mode = ?actual_mode,
             "output stream started"
         );
         self.stream = Some(stream);
         self.playing = true;
         self.format = Some(actual);
+        self.mode = actual_mode;
         Ok(actual)
     }
 
+    fn start_native(
+        &mut self,
+        device_id: Option<&str>,
+        requested: PcmFormat,
+        native: NativeSampleFormat,
+        source: Box<dyn NativeSampleSource>,
+    ) -> Result<PcmFormat> {
+        // 显式调用固有方法：它负责真正的 WASAPI 独占流；trait 方法只是让
+        // `Box<dyn AudioOutput>` / 测试工厂也能走同一条入口。
+        CpalOutput::start_native(self, device_id, requested, native, source)
+    }
+
+    fn output_mode(&self) -> OutputMode {
+        CpalOutput::output_mode(self)
+    }
+
     fn pause(&mut self) -> Result<()> {
+        #[cfg(windows)]
+        if let Some(stream) = self.wasapi.as_ref() {
+            if self.playing {
+                stream.pause();
+                self.playing = false;
+            }
+            return Ok(());
+        }
         if let Some(stream) = &self.stream {
             if self.playing {
                 stream.pause().map_err(|e| {
@@ -365,6 +498,14 @@ impl AudioOutput for CpalOutput {
     }
 
     fn resume(&mut self) -> Result<()> {
+        #[cfg(windows)]
+        if let Some(stream) = self.wasapi.as_ref() {
+            if !self.playing {
+                stream.resume();
+                self.playing = true;
+            }
+            return Ok(());
+        }
         if let Some(stream) = &self.stream {
             if !self.playing {
                 stream.play().map_err(|e| {
@@ -382,8 +523,13 @@ impl AudioOutput for CpalOutput {
             let _ = stream.pause();
             drop(stream);
         }
+        #[cfg(windows)]
+        if let Some(mut stream) = self.wasapi.take() {
+            stream.stop();
+        }
         self.playing = false;
         self.format = None;
+        self.mode = OutputMode::Shared;
         Ok(())
     }
 }
@@ -417,6 +563,7 @@ mod tests {
     use super::*;
 
     /// headless / CI 环境：`devices()` 必须返回 `Ok`（空列表），绝不能 panic。
+    /// 真机上 `supports_exclusive` 由驱动探测决定，不能再硬编码 false。
     #[test]
     fn devices_never_panics() {
         let out = CpalOutput::new();
@@ -424,7 +571,7 @@ mod tests {
             Ok(list) => {
                 for d in list {
                     assert!(!d.id.is_empty());
-                    assert!(!d.supports_exclusive, "PLY-05 未实现，必须报 false");
+                    assert!(!d.name.is_empty());
                 }
             }
             Err(e) => panic!("devices() 不应该返回错误：{e}"),
