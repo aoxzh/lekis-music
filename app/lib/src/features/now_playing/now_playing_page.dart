@@ -5,7 +5,9 @@ import 'package:lekis/src/features/now_playing/now_playing_artwork.dart';
 import 'package:lekis/src/features/now_playing/now_playing_background.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/features/now_playing/now_playing_route.dart';
+import 'package:lekis/src/features/now_playing/now_playing_tint.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/player/queue_view.dart';
 import 'package:lekis/src/features/player/widgets/current_track.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
 import 'package:lekis/src/layout/adaptive_two_pane.dart';
@@ -14,8 +16,10 @@ import 'package:lekis/src/layout/window_size.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Width from which lyrics get a third column next to cover and controls.
-const double _threePaneMinWidth = 1200;
+/// Width from which lyrics get a third column next to cover and controls
+/// (common 1024-wide tablets in landscape get the reference
+/// cover | controls | lyrics layout).
+const double _threePaneMinWidth = 1024;
 
 /// Full-screen Now Playing.
 ///
@@ -64,35 +68,48 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
       currentArtworkProvider.select((a) => a.value?.palette),
     );
     final lowPower = MediaQuery.disableAnimationsOf(context);
-    final fg = foregroundFor(palette) ?? theme.colorScheme.onSurface;
-    final fgMuted = fg.withValues(alpha: LekisType.lyricsInactiveOpacity * 2);
-    final lightForeground = fg.computeLuminance() > 0.5;
+    final tint = NowPlayingTint.resolve(palette, theme.colorScheme);
+    final fg = tint.foreground;
+    final fgMuted = fg.withValues(alpha: 0.72);
+    final lightForeground = tint.isLight;
 
-    // Re-theme the page for the artwork-driven background.
+    // Re-theme the page for the artwork-driven background. Text stays a
+    // contrast-checked near-black / near-white; the cover's primary colour
+    // is only used on small controls (play button, seek bar).
     final themed = theme.copyWith(
       colorScheme: theme.colorScheme.copyWith(
         onSurface: fg,
         onSurfaceVariant: fgMuted,
-        primary: fg,
-        onPrimary: palette != null
-            ? Color(0xFF000000 | (palette.primary & 0xFFFFFF))
-            : (lightForeground
-                  ? const Color(0xFF111111)
-                  : const Color(0xFFFFFFFF)),
+        primary: tint.primary,
+        onPrimary: tint.onPrimary,
       ),
       iconTheme: theme.iconTheme.copyWith(color: fg),
       textTheme: theme.textTheme.apply(bodyColor: fg, displayColor: fg),
       sliderTheme: theme.sliderTheme.copyWith(
-        activeTrackColor: fg,
-        thumbColor: fg,
+        activeTrackColor: tint.primary,
+        thumbColor: tint.primary,
         inactiveTrackColor: fg.withValues(
           alpha: LekisType.lyricsInactiveOpacity,
         ),
-        overlayColor: fg.withValues(alpha: 0.12),
+        overlayColor: tint.primary.withValues(alpha: 0.12),
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(foregroundColor: fg),
       ),
+      // Widgets that reach for LekisColors.accent (shuffle / repeat selected)
+      // follow the cover too, while staying on the protected scene colour.
+      extensions: [
+        context.lekisColors.copyWith(
+          accent: tint.primary,
+          onAccent: tint.onPrimary,
+          accentSoft: Color.alphaBlend(
+            tint.primary.withValues(alpha: 0.22),
+            tint.scene,
+          ),
+          onSurfaceVariant: fgMuted,
+          outline: fg.withValues(alpha: 0.24),
+        ),
+      ],
     );
 
     return Theme(
@@ -109,17 +126,18 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
               onVerticalDragStart: _onDragStart,
               onVerticalDragUpdate: _onDragUpdate,
               onVerticalDragEnd: _onDragEnd,
-              child: Material(
-                type: MaterialType.transparency,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    NowPlayingBackground(
-                      lowPower: lowPower,
-                      lightForeground: lightForeground,
-                    ),
-                    _NowPlayingLayout(lowPower: lowPower, onClose: _close),
-                  ],
+              child: Semantics(
+                namesRoute: true,
+                label: '正在播放',
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      NowPlayingBackground(lowPower: lowPower),
+                      _NowPlayingLayout(lowPower: lowPower, onClose: _close),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -161,7 +179,7 @@ class _NowPlayingLayout extends ConsumerWidget {
     );
 
     Widget switcher({required bool compact}) => AnimatedSwitcher(
-      duration: LekisMotion.normal,
+      duration: lowPower ? Duration.zero : LekisMotion.normal,
       child: showLyrics
           ? KeyedSubtree(
               key: const ValueKey('lyrics'),
@@ -252,7 +270,7 @@ class _NowPlayingLayout extends ConsumerWidget {
             topBar,
             Expanded(
               child: AnimatedSwitcher(
-                duration: LekisMotion.normal,
+                duration: lowPower ? Duration.zero : LekisMotion.normal,
                 switchInCurve: Curves.easeOutCubic,
                 switchOutCurve: Curves.easeInCubic,
                 layoutBuilder: (current, previous) => Stack(
@@ -418,8 +436,10 @@ class NowPlayingControls extends ConsumerWidget {
               const VolumeControl(width: LekisSizes.desktopSidebarWidth),
             ],
             const SizedBox(height: LekisSpacing.sm),
+            // bottomBarStyle 1 + iconSpacing 2: centred, tightly spaced
+            // secondary actions rather than spread to the window edges.
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (showLyricsToggle)
                   IconButton(
@@ -437,15 +457,15 @@ class NowPlayingControls extends ConsumerWidget {
                     icon: const Icon(Icons.lyrics_outlined),
                     selectedIcon: const Icon(Icons.lyrics_rounded),
                   ),
-                // TODO(core): queue view needs a queue listing API.
-                const IconButton(
-                  tooltip: '播放队列（即将推出）',
-                  constraints: BoxConstraints(
+                const SizedBox(width: LekisSpacing.sm),
+                IconButton(
+                  tooltip: '播放队列',
+                  constraints: const BoxConstraints(
                     minWidth: LekisSizes.touchTargetMin,
                     minHeight: LekisSizes.touchTargetMin,
                   ),
-                  onPressed: null,
-                  icon: Icon(Icons.queue_music_rounded),
+                  onPressed: hasTrack ? () => showQueueSheet(context) : null,
+                  icon: const Icon(Icons.queue_music_rounded),
                 ),
               ],
             ),

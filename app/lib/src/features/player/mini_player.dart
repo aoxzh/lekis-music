@@ -1,8 +1,11 @@
 import 'dart:math' as math;
 
 import 'package:flutter/physics.dart';
+import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/now_playing/now_playing_route.dart';
+import 'package:lekis/src/features/now_playing/now_playing_tint.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/widgets/current_track.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
@@ -17,6 +20,11 @@ const double _skipVelocity = 600;
 
 /// Floating compact player shown above the bottom navigation (phones) or
 /// under the content (medium windows).
+///
+/// Visual parameters follow the reference `compactConfiguration`:
+/// 12 dp corners, 8 dp side margins (top 0, bottom 8), a subtle
+/// protection/tint over the elevated surface, no drop shadow, and a thin
+/// adaptive progress line (progress style 2).
 ///
 /// * tap → opens Now Playing, growing out of this card;
 /// * drag up → pulls Now Playing open under the finger;
@@ -91,6 +99,8 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer>
 
   // ---- Swipe to skip ----
 
+  void _onHorizontalStart(DragStartDetails d) => _swipe.stop();
+
   void _onHorizontalUpdate(DragUpdateDetails d) {
     _swipe.stop();
     _swipe.value += d.delta.dx;
@@ -100,16 +110,25 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer>
     final width = _cardKey.currentContext?.size?.width ?? 1;
     final v = d.primaryVelocity ?? 0;
     final dx = _swipe.value;
+    final reducedMotion = MediaQuery.disableAnimationsOf(context);
     final commit =
         dx.abs() > width * _skipFraction ||
         (v.abs() > _skipVelocity && v.sign == dx.sign);
-    if (!commit) {
-      _springTo(0, v);
+    final state = ref.read(playbackProvider);
+    final canSkip = dx < 0 ? state.canGoNext : state.canGoPrevious;
+    if (!commit || !canSkip) {
+      _springTo(0, v, animate: !reducedMotion);
       return;
     }
+    HapticFeedback.selectionClick();
     final actions = ref.read(playerActionsProvider);
     dx < 0 ? actions.next() : actions.previous();
-    // Slide out the way the finger went, come back in from the other side.
+    if (reducedMotion) {
+      _swipe.value = 0;
+      return;
+    }
+    // Slide out the way the finger went, come back in from the other side
+    // with the new track's cover already cross-fading in.
     final out = dx.sign * width * 0.5;
     _springTo(out, v).whenComplete(() {
       if (!mounted) return;
@@ -118,15 +137,25 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer>
     });
   }
 
-  TickerFuture _springTo(double target, double velocity) => _swipe.animateWith(
-    SpringSimulation(
-      LekisMotion.springStandard,
-      _swipe.value,
-      target,
-      velocity,
-      tolerance: const Tolerance(distance: 0.5, velocity: 5),
-    ),
-  );
+  TickerFuture _springTo(
+    double target,
+    double velocity, {
+    bool animate = true,
+  }) {
+    if (!animate) {
+      _swipe.value = target;
+      return TickerFuture.complete();
+    }
+    return _swipe.animateWith(
+      SpringSimulation(
+        LekisMotion.springStandard,
+        _swipe.value,
+        target,
+        velocity,
+        tolerance: const Tolerance(distance: 0.5, velocity: 5),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -142,14 +171,22 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer>
     return Padding(
       padding: EdgeInsets.fromLTRB(
         LekisSizes.miniPlayerMargin,
-        LekisSpacing.xs,
+        0,
         LekisSizes.miniPlayerMargin,
         LekisSizes.miniPlayerMargin + edgeInset,
       ),
       child: Semantics(
+        key: const ValueKey('mini-player.semantics'),
         container: true,
         button: true,
         label: '迷你播放器，轻点打开正在播放，左右滑动切歌',
+        onTap: () => openNowPlaying(context),
+        customSemanticsActions: {
+          const CustomSemanticsAction(label: '上一首'): () =>
+              ref.read(playerActionsProvider).previous(),
+          const CustomSemanticsAction(label: '下一首'): () =>
+              ref.read(playerActionsProvider).next(),
+        },
         child: GestureDetector(
           key: _cardKey,
           behavior: HitTestBehavior.opaque,
@@ -157,6 +194,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer>
           onVerticalDragUpdate: _onVerticalUpdate,
           onVerticalDragEnd: _onVerticalEnd,
           onVerticalDragCancel: _onVerticalCancel,
+          onHorizontalDragStart: _onHorizontalStart,
           onHorizontalDragUpdate: _onHorizontalUpdate,
           onHorizontalDragEnd: _onHorizontalEnd,
           child: _SwipeContent(swipe: _swipe),
@@ -166,26 +204,64 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer>
   }
 }
 
-class _SwipeContent extends StatelessWidget {
+class _SwipeContent extends ConsumerWidget {
   const _SwipeContent({required this.swipe});
 
   final Animation<double> swipe;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tint = NowPlayingTint.resolve(
+      ref.watch(currentArtworkProvider.select((a) => a.value?.palette)),
+      Theme.of(context).colorScheme,
+    );
+    final hintColor = readableAccent(
+      tint.primary,
+      context.lekisColors.surfaceElevated,
+    );
     return MiniPlayerFace(
       contentBuilder: (content) => LayoutBuilder(
         builder: (context, constraints) => AnimatedBuilder(
           animation: swipe,
+          child: content,
           builder: (context, child) {
             final width = math.max(constraints.maxWidth, 1.0);
             final dx = swipe.value;
-            return Opacity(
-              opacity: (1 - dx.abs() / width).clamp(0.0, 1.0),
-              child: Transform.translate(offset: Offset(dx, 0), child: child),
+            final reveal = (dx.abs() / width * 3).clamp(0.0, 1.0);
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                // The skip direction peeks out from under the sliding row.
+                Align(
+                  alignment: dx < 0
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: LekisSpacing.lg,
+                    ),
+                    child: Opacity(
+                      opacity: reveal * 0.9,
+                      child: Icon(
+                        dx < 0
+                            ? Icons.skip_next_rounded
+                            : Icons.skip_previous_rounded,
+                        size: LekisSpacing.xl,
+                        color: hintColor,
+                      ),
+                    ),
+                  ),
+                ),
+                Opacity(
+                  opacity: (1 - dx.abs() / width).clamp(0.0, 1.0),
+                  child: Transform.translate(
+                    offset: Offset(dx, 0),
+                    child: child,
+                  ),
+                ),
+              ],
             );
           },
-          child: content,
         ),
       ),
     );
@@ -207,15 +283,21 @@ class MiniPlayerFace extends ConsumerWidget {
     final palette = ref.watch(
       currentArtworkProvider.select((a) => a.value?.palette),
     );
-    // Adaptive tint: a hint of the cover's colour over the elevated surface.
+    final tint = NowPlayingTint.resolve(palette, Theme.of(context).colorScheme);
+    // floatingProtection: a low-opacity adaptive wash over the elevated
+    // surface keeps the row readable without a shadow.
     final surface = palette == null
         ? colors.surfaceElevated
         : Color.alphaBlend(
-            Color(0xFF000000 | (palette.primary & 0xFFFFFF))
-                .withValues(alpha: 0.16),
+            tint.primary.withValues(alpha: 0.14),
             colors.surfaceElevated,
           );
+    final rim = Theme.of(context).brightness == Brightness.dark
+        ? Colors.white.withValues(alpha: 0.07)
+        : colors.outline.withValues(alpha: 0.85);
+    final progressColor = readableAccent(tint.primary, surface);
     final artSize = LekisSizes.miniPlayerHeight - LekisSpacing.sm * 2;
+    final reducedMotion = MediaQuery.disableAnimationsOf(context);
 
     final Widget row = Padding(
       padding: const EdgeInsets.only(
@@ -238,22 +320,66 @@ class MiniPlayerFace extends ConsumerWidget {
 
     return TweenAnimationBuilder<Color?>(
       tween: ColorTween(end: surface),
-      duration: LekisMotion.backgroundCrossfade,
-      builder: (context, color, child) => Material(
-        color: color,
-        elevation: 3,
-        shadowColor: colors.scrim,
-        borderRadius: BorderRadius.circular(LekisRadius.miniPlayer),
-        clipBehavior: Clip.antiAlias,
-        child: child,
-      ),
+      duration: reducedMotion ? Duration.zero : LekisMotion.backgroundCrossfade,
+      builder: (context, color, child) {
+        final base = color ?? surface;
+        return DecoratedBox(
+          key: const ValueKey('mini-player.card'),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(LekisRadius.miniPlayer),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                base,
+                Color.alphaBlend(
+                  tint.secondary.withValues(alpha: palette == null ? 0 : 0.06),
+                  base,
+                ),
+              ],
+            ),
+            border: Border.all(color: rim),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(LekisRadius.miniPlayer),
+            child: Material(type: MaterialType.transparency, child: child),
+          ),
+        );
+      },
       child: SizedBox(
         height: LekisSizes.miniPlayerHeight,
         child: Column(
           children: [
             Expanded(child: contentBuilder?.call(row) ?? row),
-            const ThinProgressBar(),
+            _MiniProgressBar(color: progressColor),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// progressStyle 2: a hairline, adaptive-colour progress line at the card's
+/// bottom edge. Non-interactive; seeking lives in the full player.
+class _MiniProgressBar extends ConsumerWidget {
+  const _MiniProgressBar({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final progress = ref.watch(progressProvider);
+    final colors = context.lekisColors;
+    return Semantics(
+      label: '播放进度',
+      value: '${(progress * 100).round()}%',
+      child: SizedBox(
+        height: LekisSpacing.xxs,
+        child: LinearProgressIndicator(
+          value: progress,
+          minHeight: LekisSpacing.xxs,
+          color: color,
+          backgroundColor: colors.outline.withValues(alpha: 0.55),
         ),
       ),
     );
