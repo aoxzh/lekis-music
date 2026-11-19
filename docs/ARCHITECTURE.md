@@ -5,14 +5,12 @@
 ## 1. 总体分层
 
 ```
-┌──────────────────────────── 平台 UI（只负责显示和交互）────────────────────────────┐
-│ Android：Kotlin + Compose        Windows：C# + WinUI 3        Linux：Rust + GTK4     │
-│ ├ 页面 / ViewModel               ├ 页面 / ViewModel           ├ 页面                  │
-│ ├ Media3 MediaSessionService     ├ SMTC 系统媒体控制          ├ MPRIS                 │
-│ └ Android Auto / 小组件 / 通知   └ 任务栏按钮 / 桌面歌词窗口   └ 托盘                  │
-└──────────────┬───────────────────────────────┬──────────────────────────┬────────────┘
-               │ UniFFI（JNA）                 │ UniFFI（P/Invoke）       │ 直接调用 Rust
-┌──────────────▼───────────────────────────────▼──────────────────────────▼────────────┐
+┌──────────────── Flutter UI（一套代码：Windows / Android，Beta 起加 macOS / iOS / Linux）────────────────┐
+│ 页面 + Riverpod 状态（只负责显示和交互）                                                                 │
+│ 薄原生层：audio_service（锁屏/通知）· SMTC · MPRIS · 桌面悬浮歌词窗口 · CarPlay / Android Auto / 小组件   │
+└──────────────────────────────────────────────┬───────────────────────────────────────────────────────────┘
+                                               │ flutter_rust_bridge（Future / Stream）
+┌──────────────────────────────────────────────▼─────────────────────────────────────────┐
 │ lekis-ffi：把 lekis-core 的门面翻译成 FFI 友好的类型（Record / Enum / Object / 回调） │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
 │ lekis-core：门面 + 服务组装 + 事件总线 + tokio 运行时（对外的唯一入口）                │
@@ -39,9 +37,9 @@ lekis-node（可选 NAS 节点）= lekis-core + axum HTTP 服务
    - `lekis-sync` → `lekis-library`（物化用户状态）
 
    其他任何跨领域调用都必须在 `lekis-core` 里组装。新增例外需要 ADR。
-4. **只有 `lekis-ffi` 能出现 `uniffi`。** 领域 crate 不能为了 FFI 去改自己的类型。
+4. **只有 `lekis-ffi` 能出现 FFI 框架的代码**（flutter_rust_bridge，见 [ADR-0006](adr/0006-flutter-ui.md)）。领域 crate 不能为了 FFI 去改自己的类型。
 5. **平台 UI 不能有业务逻辑。** "该不该播"、"该选哪个源"、"这首歌的封面是哪张"这类判断，一律放在核心里。UI 只能：调用核心的方法、订阅核心的事件、渲染界面、对接系统 API（媒体控制、通知、文件选择器等）。
-6. **平台特有的能力通过回调接口反向注入**（例如凭据存储、网络状态、音频焦点）：在 `lekis-core` 里定义 trait（见 `platform.rs`），在 `lekis-ffi` 里定义对应的 callback interface，平台实现它。
+6. **平台特有的能力通过回调接口反向注入**（例如凭据存储、网络状态、音频焦点）：在 `lekis-core` 里定义 trait（见 `platform.rs`），在 `lekis-ffi` 里导出对应的接口，由 Dart 侧实现。
 
 ## 3. 线程与并发模型
 
@@ -57,10 +55,10 @@ lekis-node（可选 NAS 节点）= lekis-core + axum HTTP 服务
 
 ## 4. 核心与 UI 的通信
 
-- **命令**：UI 调用 `LekisCore` 对象上的方法（`play_tracks`、`start_scan`、`search`……）。耗时操作都是 async（UniFFI 在 Kotlin 里生成 `suspend fun`，在 C# 里生成 `Task`）。
-- **事件**：核心通过 `CoreEventListener` 回调接口把事件推给 UI（播放状态、扫描进度、资料库变化、待确认队列变化、同步状态……）。UI 把事件转成自己平台的响应式数据（Kotlin `StateFlow`、C# `ObservableProperty`）。**回调在核心的线程上触发**，UI 必须自己切回 UI 线程。
+- **命令**：UI 调用 `LekisCore` 对象上的方法（`play_tracks`、`start_scan`、`search`……）。耗时操作都是 async（flutter_rust_bridge 生成 Dart `Future`）。
+- **事件**：核心通过事件流（Dart 侧是 `Stream`）把事件推给 UI（播放状态、扫描进度、资料库变化、待确认队列变化、同步状态……）。UI 在 Riverpod Provider 里把事件转成界面状态；高频事件（播放进度）要节流。
 - **大列表**：分页（`offset + limit`）；**绝不一次性返回 10 万条数据**。列表页只拿精简的 `TrackRow`，详情页再取完整信息。
-- **图片**：核心只返回本地缓存文件路径（缩略图已经按尺寸生成好），UI 用自己平台的图片库加载。不通过 FFI 传图片字节。
+- **图片**：核心只返回本地缓存文件路径（缩略图已经按尺寸生成好），UI 用 Flutter 的图片组件加载。不通过 FFI 传图片字节。
 - **错误**：核心对外只抛 `CoreError`，每个错误都带一个稳定的 `code`，UI 根据 `code` 显示本地化的提示文字，不直接显示 `message`。
 
 ## 5. 数据与存储
@@ -92,31 +90,36 @@ lekis-node（可选 NAS 节点）= lekis-core + axum HTTP 服务
 | `lekis-sync` | 混合逻辑时钟、操作日志、合并、同步通道 | 业务含义（它只认识"实体 + 字段 + 值"）|
 | `lekis-plugin-host` | 清单解析、权限检查、运行时（JS / WASM）、调用超时 | 把插件结果合并进资料库（由 core 做）|
 | `lekis-core` | 组装服务、配置、事件总线、选源、离线策略、对外门面 | 平台 API |
-| `lekis-ffi` | UniFFI 导出、类型转换、回调接口 | 任何业务逻辑 |
+| `lekis-ffi` | flutter_rust_bridge 导出、类型转换、事件流 | 任何业务逻辑 |
 
-## 7. 平台 UI 的结构约定
+## 7. UI 的结构约定
 
-三个平台的页面划分保持一致，方便对照开发和测试：
+Flutter 端按功能模块组织（`app/lib/features/<名字>/`），每个模块是"页面 + Provider"：
 
-| 模块 | Android（`feature/<名字>`）| Windows（`Views/<名字>Page`）| 内容 |
-|---|---|---|---|
-| home | `feature/home` | `HomePage` | 首页：继续播放、最近添加、混音推荐 |
-| library | `feature/library` | `LibraryPage` | 资料库：歌曲 / 专辑 / 艺人 / 歌单 / 文件夹 |
-| search | `feature/search` | `SearchPage` | 搜索 |
-| nowplaying | `feature/nowplaying` | `NowPlayingPage` | 正在播放 + 歌词 |
-| sources | `feature/sources` | `SourcesPage` | 添加和管理音源（NAS 自动发现、服务器登录）|
-| enrich | `feature/enrich` | `EnrichReviewPage` | 补全结果待确认队列 |
-| settings | `feature/settings` | `SettingsPage` | 设置 |
+| 模块 | 内容 |
+|---|---|
+| home | 首页：继续播放、最近添加、混音推荐 |
+| library | 资料库：歌曲 / 专辑 / 艺人 / 歌单 / 文件夹 |
+| search | 搜索 |
+| nowplaying | 正在播放 + 歌词 |
+| sources | 添加和管理音源（NAS 自动发现、服务器登录）|
+| enrich | 补全结果待确认队列 |
+| settings | 设置 |
 
-每个模块都是"页面 + ViewModel"。ViewModel 只调用桥接层（Android 的 `CoreBridge`、Windows 的 `ICoreService`），**不直接调用生成的绑定代码**，这样绑定代码重新生成时只需要改桥接层。
+Provider 只调用桥接层 `CoreBridge`（`app/lib/bridge/`），**不直接调用生成的绑定代码**，这样绑定代码重新生成时只需要改桥接层。
+
+旧的原生 UI（`apps/android`、`apps/windows`、`apps/linux`）已冻结，见 ADR-0006。
 
 设计 Token（颜色、圆角、间距、字号、动效参数）的唯一来源是 [`design/tokens.json`](../design/tokens.json)。
 
 ## 8. 构建产物
 
-| 平台 | 核心产物 | 绑定 | 打包 |
-|---|---|---|---|
-| Android | `liblekis_ffi.so`（arm64-v8a、armeabi-v7a、x86_64），用 `cargo-ndk` 编译 | `uniffi-bindgen` 生成 Kotlin | AAB / 按 ABI 拆分的 APK |
-| Windows | `lekis_ffi.dll`（x64、arm64，MSVC 工具链）| `uniffi-bindgen-cs` 生成 C# | MSIX + 免安装 zip |
-| Linux | 直接链接进 GTK 应用 | 不需要 | Flatpak / AppImage / deb |
-| NAS 节点 | `lekis-node` 可执行文件 | 不需要 | Docker（amd64 / arm64）、群晖 SPK 等 |
+| 平台 | 核心产物 | 打包 |
+|---|---|---|
+| Windows | `lekis_ffi.dll`（x64、arm64，MSVC 工具链）| MSIX（微软商店）+ 免安装 zip |
+| Android | `liblekis_ffi.so`（arm64-v8a、armeabi-v7a、x86_64），用 `cargo-ndk` 编译 | AAB（Google Play）+ 按 ABI 拆分的 APK（官网版）|
+| macOS / iOS（Beta）| 静态库 / XCFramework | App Store + 官网 dmg |
+| Linux（Beta）| `liblekis_ffi.so` | Flatpak / AppImage / deb |
+| NAS 节点 | `lekis-node` 可执行文件 | Docker（amd64 / arm64）、群晖 SPK 等 |
+
+商店版和官网版的区别：商店版隐藏音源类插件分类（REQUIREMENTS 第 5 节）。

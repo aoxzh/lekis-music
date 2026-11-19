@@ -7,7 +7,7 @@
 - 所有用户可见的文字都要走本地化资源，不能写死在代码里。
 - 新功能必须带测试；修 bug 必须带一个能复现这个 bug 的测试。
 
-## Rust（`core/`、`apps/linux/`）
+## Rust（`core/`）
 
 - 版本以 `core/rust-toolchain.toml` 为准；edition 2021。
 - `cargo fmt` + `cargo clippy -- -D warnings` 必须通过。
@@ -21,26 +21,23 @@
 - 日志：使用 `tracing`，每个模块带 `target`；热路径（解码循环、音频回调）里不能写日志。
 - **音频实时线程**：不分配内存、不加锁、不做 IO、不写日志。代码评审重点检查。
 - `unsafe`：只允许出现在 FFI 绑定（libsmb2、libnfs、平台音频 API）里，每一处都要写 `// SAFETY:` 注释。
-- 依赖：新增依赖要过 `cargo deny`；核心层不能引入 GPL / AGPL 依赖。版本统一写在 workspace 根目录的 `[workspace.dependencies]` 里。
+- 依赖：先查 [REUSE.md](REUSE.md)，能复用就复用；新增依赖要过 `cargo deny`，许可证规则见 [ADR-0007](adr/0007-license-and-reuse-first.md)。版本统一写在 workspace 根目录的 `[workspace.dependencies]` 里。
 
-## Kotlin（`apps/android/`）
+## Flutter / Dart（`app/`）
 
-- Kotlin 官方代码风格；用 ktlint / detekt（以后接入 CI）。
-- 架构：单 Activity + Compose Navigation；每个 feature 一个 `Screen` + `ViewModel`；依赖注入用 Hilt。
-- ViewModel 暴露 `StateFlow<UiState>`，UI 只读状态、只发事件（单向数据流）。不能在 Composable 里调用核心。
-- **只有 `core/bridge` 模块能引用 UniFFI 生成的 `uniffi.lekis_ffi.*` 包**，其他模块只能用 `CoreBridge` 接口。
-- 核心的回调在非主线程上触发：`CoreBridge` 负责把它转成 `Flow`，ViewModel 里用 `viewModelScope` 收集。
-- 播放必须通过 `LekisPlaybackService`（Media3 `MediaSessionService`），这样锁屏、通知、蓝牙按键、Android Auto 才能正常工作。UI 通过 `MediaController` 控制播放，不直接调用核心的播放方法。
-- 颜色、圆角、间距只能用 `core/designsystem` 里的 Token，不能写死数值。
+> UI 改用 Flutter，见 [ADR-0006](adr/0006-flutter-ui.md)。下面是初版规范，Phase 0 结束时补全。
 
-## C#（`apps/windows/`）
+- `flutter analyze` 零警告；`dart format` 必须通过。
+- 状态管理用 Riverpod；页面只读状态、只发事件（单向数据流），不在 Widget 里直接调用核心。
+- **只有 `app/lib/bridge/` 能引用 flutter_rust_bridge 生成的代码**，其他代码通过 `CoreBridge` 接口调用核心，这样重新生成绑定时只改桥接层。
+- 核心事件以 `Stream` 的形式进入 Dart，在 Provider 里转换成 UI 状态；高频事件（播放进度）要节流，不能每个事件都触发重建。
+- 长列表一律用按需构建的列表（`ListView.builder` / `SliverList`），分页从核心取数据；图片只加载核心生成好的缩略图路径。
+- 颜色、圆角、间距、动效参数只能用从 `design/tokens.json` 生成的主题，不能写死数值。
+- 平台原生代码（悬浮歌词窗口、SMTC、CarPlay 等）放在 `app/<平台>/` 下，保持最小。
 
-- .NET 10，`<Nullable>enable</Nullable>`，`<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`。
-- MVVM 用 CommunityToolkit.Mvvm 的源生成器（`[ObservableProperty]`、`[RelayCommand]`）；页面的 code-behind 里只能有和视图相关的代码。
-- **只有 `Lekis.Core.Interop` 项目能引用 UniFFI 生成的代码**，App 项目通过 `ICoreService` 接口调用核心。
-- 核心的回调在非 UI 线程上触发：用 `DispatcherQueue.TryEnqueue` 切回 UI 线程再修改绑定属性。
-- 系统媒体控制（SMTC）统一放在 `MediaControlsService` 里。
-- 样式只能引用 `Themes/Tokens.xaml` 里的资源，不能写死颜色和尺寸。
+## 旧的原生 UI（已冻结）
+
+`apps/android`（Kotlin）、`apps/windows`（C#）、`apps/linux`（GTK）已冻结，不再加功能，Flutter 端达到同等功能后删除。旧规范见 git 历史。
 
 ## 数据库
 

@@ -8,7 +8,7 @@
 > [CODING_GUIDELINES.md](CODING_GUIDELINES.md)，架构决策见 [adr/](adr/)。
 
 产品：**Lekis Music**（月兔音乐）——跨平台、开箱即用的本地 / NAS 音乐播放器。
-技术路线：Rust 核心 + 各平台原生 UI（Kotlin/Compose、C#/WinUI 3、Rust/GTK4）；苹果平台暂不开发（[ADR-0001](adr/0001-rust-core-native-ui.md)）。
+技术路线：Rust 核心 + Flutter UI（[ADR-0006](adr/0006-flutter-ui.md)）。平台顺序：Windows、Android 先行，macOS、iOS、Linux 在 Beta 跟进（[ROADMAP.md](ROADMAP.md)）。许可证 MPL-2.0，复用优先（[ADR-0007](adr/0007-license-and-reuse-first.md)）。
 
 ## 0. 设计原则
 
@@ -140,7 +140,7 @@
 | PLY-02 | 交叉淡入淡出 | 固定时长 + "智能淡入淡出"（根据响度包络和静音检测自动决定，同一专辑内不淡）| P1 |
 | PLY-03 | 响度均衡 | ReplayGain（曲目/专辑/自动）+ 没有标签时后台计算 EBU R128；防削波 | P0 |
 | PLY-04 | 均衡器 | 10 段图形 EQ + 参数 EQ；**AutoEQ 耳机预设**；前级增益；每个输出设备单独配置 | P1 |
-| PLY-05 | 比特完美 | Windows WASAPI 独占 / ASIO（P2）；Android USB DAC 直出（绕过系统重采样）；Linux ALSA hw 直出 | P1 |
+| PLY-05 | 比特完美 | Windows WASAPI 独占 / ASIO（P2）；Android USB DAC 直出（绕过系统重采样）；macOS 自动切换采样率；Linux ALSA hw 直出。**产品核心卖点，2026-11-19 从 P1 提到 P0** | P0 |
 | PLY-06 | DSD | DoP / 原生（视平台）/ 转 PCM | P2 |
 | PLY-07 | 高质量重采样 | 需要时使用 sinc 重采样，可选质量档 | P0 |
 | PLY-08 | 网络流播放 | Range 分块读取 + 预读缓冲；切歌前预取下一首；拖动进度时智能定位（FLAC seektable / MP3 Xing）| P0 |
@@ -285,7 +285,7 @@
 | PTF-01 | Windows 10/11 | SMTC 媒体控制、任务栏缩略图按钮、跳转列表、WASAPI 独占、开机自启（可选）、MSIX + 免安装版 |
 | PTF-02 | Linux | MPRIS、PipeWire/PulseAudio/ALSA、Flatpak + AppImage + deb/rpm |
 | PTF-03 | Android 8+ | MediaSession、通知控制、锁屏、**Android Auto**、桌面小组件、USB DAC 直出、Wear OS（P2）、Android TV（P2）|
-| PTF-04 | 苹果平台（暂不开发）| Now Playing、锁屏、CarPlay、小组件、Siri / App Intents、文件 App 导入。核心与 FFI 已为其预留（UniFFI 也能生成 Swift 绑定）|
+| PTF-04 | 苹果平台（Beta 跟进）| Now Playing、锁屏、CarPlay、小组件、Siri / App Intents、文件 App 导入。UI 用同一套 Flutter 代码，CarPlay 和小组件写原生 |
 
 ### 3.13 可选 Headless 节点（NAS 端，非必需）
 
@@ -361,7 +361,7 @@
 | 应用商店审核 | 遵守 Apple 2.5.2（下载可执行代码）与 Google Play 的相关政策；商店版本只启用元数据类插件或关闭插件；完整能力通过官网、F-Droid 等渠道提供 |
 | 歌词版权 | 只在本地显示，不提供歌词的公开分享或导出；遵守 LRCLIB 等来源的使用条款 |
 | 元数据 API 条款 | 遵守 MusicBrainz（限速、User-Agent）、AcoustID、Discogs、fanart.tv、iTunes/Deezer 各自的使用条款；商用前逐一确认商用许可 |
-| 开源许可证 | 不引用 AGPL 代码；GPL/LGPL 组件只能动态链接，并在 `core/deny.toml` 里约束 |
+| 开源许可证 | 项目用 MPL-2.0；复用优先，按 [ADR-0007](adr/0007-license-and-reuse-first.md) 的四档规则：宽松许可证可以直接用和拷代码，LGPL 动态链接，GPL/AGPL 只参考不拷代码，非商用和专有许可不碰 |
 | 商标和外观 | 不使用 Apple Music 的名称、图标和特有 UI 元素 |
 | 隐私法规 | 默认不收集数据，符合 GDPR / 个人信息保护法；启用遥测需要隐私政策和明确同意 |
 

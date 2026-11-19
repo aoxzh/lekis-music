@@ -1,6 +1,6 @@
 # ADR-0005：FFI 使用 UniFFI
 
-- 状态：已采纳
+- 状态：被 [ADR-0006](0006-flutter-ui.md) 取代（改用 flutter_rust_bridge）
 - 日期：2026-11-19
 - 相关需求：ADR-0001
 
