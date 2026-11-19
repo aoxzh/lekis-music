@@ -42,6 +42,11 @@ pub enum TrackContext {
     Playlist(lekis_types::PlaylistId),
     /// 收藏列表。
     Loved,
+    /// 一个文件夹的直属曲目（按文件名，和 `folder_tracks` 一致）。
+    Folder {
+        source_id: lekis_types::SourceId,
+        path: String,
+    },
 }
 
 pub(crate) const TRACK_ROW_COLUMNS: &str =
@@ -417,6 +422,12 @@ impl Library {
                     .await?
                     .into_iter()
                     .map(|e| e.track.map(|t| t.id))
+                    .collect(),
+                TrackContext::Folder { source_id, path } => self
+                    .folder_track_ids(*source_id, path, offset, PAGE)
+                    .await?
+                    .into_iter()
+                    .map(Some)
                     .collect(),
             };
             let got = page.len() as u32;

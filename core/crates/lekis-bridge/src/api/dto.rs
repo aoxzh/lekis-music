@@ -166,6 +166,8 @@ pub enum PlayContextDto {
     Playlist { playlist_id: i64 },
     /// 收藏列表（和 `loved_tracks` 一致）。
     Loved,
+    /// 一个文件夹的直属曲目（和 `folder_tracks` 一致）。
+    Folder { source_id: i64, path: String },
 }
 
 impl From<PlayContextDto> for lekis_core::TrackContext {
@@ -177,6 +179,10 @@ impl From<PlayContextDto> for lekis_core::TrackContext {
             PlayContextDto::Genre { name } => Self::Genre(name),
             PlayContextDto::Playlist { playlist_id } => Self::Playlist(t::PlaylistId(playlist_id)),
             PlayContextDto::Loved => Self::Loved,
+            PlayContextDto::Folder { source_id, path } => Self::Folder {
+                source_id: t::SourceId(source_id),
+                path,
+            },
         }
     }
 }

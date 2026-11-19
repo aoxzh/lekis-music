@@ -12,7 +12,9 @@
 
 mod artwork_local;
 pub mod config;
+pub mod discovery;
 mod enrich;
+mod folders;
 mod lyrics_local;
 pub mod events;
 pub mod platform;
@@ -23,6 +25,7 @@ mod sync_engine;
 
 pub use config::{CoreConfig, PlatformKind};
 pub use enrich::EnrichReport;
+pub use folders::{FolderEntry, FolderListing, FolderRoot};
 pub use events::EventListener;
 pub use lekis_playback::PlaybackSnapshot;
 pub use platform::{CredentialStore, MemoryCredentialStore, PlatformServices};
@@ -382,6 +385,15 @@ impl LekisCore {
                 .map_err(|_| LekisError::new(ErrorCode::Network, "source test timed out"))?
         })
         .await
+    }
+
+    /// 局域网自动发现 SMB / WebDAV / DLNA 服务（一次性，`timeout` 后返回）。
+    ///
+    /// Android 上调用方要先拿到 `MulticastLock`，否则收不到 mDNS 应答。
+    pub async fn discover_lan(&self, timeout: std::time::Duration) -> Vec<discovery::DiscoveredService> {
+        self.run(async move { Ok(discovery::discover(timeout).await) })
+            .await
+            .unwrap_or_default()
     }
 
     /// 音源列表，带每个源最近一次扫描的时间和失败信息。

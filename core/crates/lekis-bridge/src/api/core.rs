@@ -759,3 +759,76 @@ pub async fn set_track_overlay(
         .await?)
 }
 
+
+// ---- 按文件夹浏览（LIB）----
+
+/// 文件夹视图的第一层：一个有曲目的音源。
+#[derive(Debug, Clone)]
+pub struct FolderRootDto {
+    pub source_id: i64,
+    pub name: String,
+    pub track_count: u32,
+}
+
+/// 一个子文件夹。`path` 相对音源根目录，用 `/` 分隔，传回 [`list_folder`] 继续往下走。
+#[derive(Debug, Clone)]
+pub struct FolderEntryDto {
+    pub name: String,
+    pub path: String,
+    pub track_count: u32,
+}
+
+/// 一个目录的内容：子文件夹（自然排序）+ 直属曲目数（曲目本身用 [`folder_tracks`] 分页取）。
+#[derive(Debug, Clone)]
+pub struct FolderListingDto {
+    pub folders: Vec<FolderEntryDto>,
+    pub track_count: u32,
+}
+
+/// 有曲目的音源（文件夹视图的根）。
+pub async fn folder_roots() -> Result<Vec<FolderRootDto>, CoreError> {
+    Ok(core()
+        .folder_roots()
+        .await?
+        .into_iter()
+        .map(|r| FolderRootDto {
+            source_id: r.source_id.0,
+            name: r.name,
+            track_count: r.track_count,
+        })
+        .collect())
+}
+
+/// 音源 `source_id` 下目录 `path`（`""` = 根目录）的子文件夹和直属曲目数。
+pub async fn list_folder(source_id: i64, path: String) -> Result<FolderListingDto, CoreError> {
+    let l = core()
+        .list_folder(lekis_types::SourceId(source_id), path)
+        .await?;
+    Ok(FolderListingDto {
+        folders: l
+            .folders
+            .into_iter()
+            .map(|f| FolderEntryDto {
+                name: f.name,
+                path: f.path,
+                track_count: f.track_count,
+            })
+            .collect(),
+        track_count: l.track_count,
+    })
+}
+
+/// 目录的直属曲目（按文件名），分页。整个目录播放用 `PlayContextDto::Folder`。
+pub async fn folder_tracks(
+    source_id: i64,
+    path: String,
+    offset: u32,
+    limit: u32,
+) -> Result<Vec<TrackRowDto>, CoreError> {
+    Ok(core()
+        .folder_tracks(lekis_types::SourceId(source_id), path, offset, limit)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
