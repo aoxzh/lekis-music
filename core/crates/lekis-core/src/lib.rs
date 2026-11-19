@@ -432,6 +432,7 @@ impl LekisCore {
 
     /// 音源列表，带每个源最近一次扫描的时间和失败信息。
     pub async fn list_source_infos(&self) -> Result<Vec<SourceInfo>> {
+        self.migrate_embedded_credentials().await;
         let s = self.services.clone();
         self.run(async move { s.library.list_source_infos().await })
             .await
@@ -479,9 +480,51 @@ impl LekisCore {
 
     /// 列出音源。
     pub async fn list_sources(&self) -> Result<Vec<SourceConfig>> {
+        self.migrate_embedded_credentials().await;
         let s = self.services.clone();
         self.run(async move { s.library.list_sources().await })
             .await
+    }
+
+    /// 把旧版本直接写在地址 / options 里的密码迁到凭据库（SRC-15）。
+    ///
+    /// 这是尽力而为的兼容步骤：失败时只记日志，仍然返回原有列表，避免一个旧音源
+    /// 让整个列表打不开。迁移成功后数据库里只剩 `credential_ref`。
+    async fn migrate_embedded_credentials(&self) {
+        let sources = match self.services.library.list_sources().await {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!(target: "core", error = %e, "cannot inspect sources for embedded credentials");
+                return;
+            }
+        };
+        for mut config in sources {
+            if config
+                .credential_ref
+                .as_deref()
+                .is_some_and(|r| !r.trim().is_empty())
+            {
+                continue;
+            }
+            let Some(secret) = take_embedded_secret(&mut config) else {
+                continue;
+            };
+            let Some(id) = config.id else { continue };
+            let reference = format!("lekis.source.{}", id.0);
+            if let Err(e) = self.services.platform.credentials.set(&reference, &secret) {
+                tracing::warn!(target: "core", %id, error = %e, "cannot migrate embedded source credential");
+                continue;
+            }
+            config.credential_ref = Some(reference.clone());
+            if let Err(e) = self.services.library.update_source(config.clone()).await {
+                let _ = self.services.platform.credentials.delete(&reference);
+                tracing::warn!(target: "core", %id, error = %e, "cannot store migrated source credential");
+                continue;
+            }
+            self.services.forget_source(id);
+            self.services.register_vfs(&config);
+            tracing::info!(target: "core", %id, "migrated embedded source credential");
+        }
     }
 
     /// 在后台开始扫描一个音源，立即返回。进度通过 `ScanProgress` / `ScanFinished` 事件推送。
@@ -1785,6 +1828,37 @@ impl LekisCore {
     }
 }
 
+/// 从旧配置里剥出内嵌密码：地址 userinfo 优先，其次是 options 里的
+/// `api_key` / `token`。会就地清理地址和 options，返回找到的明文。
+fn take_embedded_secret(config: &mut SourceConfig) -> Option<String> {
+    let mut secret = None;
+    for address in &mut config.addresses {
+        let Ok(mut url) = url::Url::parse(address) else {
+            continue;
+        };
+        let Some(password) = url.password().map(str::to_string) else {
+            continue;
+        };
+        if !password.is_empty() {
+            secret = Some(password);
+        }
+        let _ = url.set_password(None);
+        *address = url.to_string();
+        if secret.is_some() {
+            break;
+        }
+    }
+    // 地址里已经有密码时也把 options 里的旧 token 清掉，避免数据库里残留明文。
+    for key in ["api_key", "token"] {
+        if let Some(value) = config.options.remove(key) {
+            if secret.is_none() && !value.trim().is_empty() {
+                secret = Some(value);
+            }
+        }
+    }
+    secret
+}
+
 /// 凭据变了：丢掉所有引用它的源的连接。
 async fn forget_sources_using(s: &Services, credential_ref: &str) {
     if let Ok(sources) = s.library.list_sources().await {
@@ -2084,6 +2158,88 @@ mod tests {
                     .code,
                 ErrorCode::InvalidArgument
             );
+            Ok::<_, LekisError>(())
+        })?;
+        drop(core);
+        let _ = std::fs::remove_dir_all(&root);
+        Ok(())
+    }
+
+    #[test]
+    fn embedded_source_credentials_are_migrated_out_of_the_database() -> Result<()> {
+        let root = std::env::temp_dir().join(format!(
+            "lekis-core-cred-migrate-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        let platform = PlatformServices::in_memory();
+        let credentials = platform.credentials.clone();
+        let core = LekisCore::new(CoreConfig::for_tests(&root), platform)?;
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        rt.block_on(async {
+            let smb_secret = "smb-secret-7jw";
+            let mut smb_options = std::collections::BTreeMap::new();
+            smb_options.insert("username".to_string(), "ao".to_string());
+            let smb = core
+                .services
+                .library
+                .add_source(SourceConfig {
+                    id: None,
+                    kind: SourceKind::Smb,
+                    name: "nas".into(),
+                    addresses: vec![format!("smb://ao:{smb_secret}@nas/music")],
+                    root_path: String::new(),
+                    credential_ref: None,
+                    options: smb_options,
+                    enabled: true,
+                })
+                .await?;
+            let mut plex_options = std::collections::BTreeMap::new();
+            plex_options.insert("token".to_string(), "plex-secret-7jw".to_string());
+            let plex = core
+                .services
+                .library
+                .add_source(SourceConfig {
+                    id: None,
+                    kind: SourceKind::Plex,
+                    name: "plex".into(),
+                    addresses: vec!["http://plex:32400".into()],
+                    root_path: String::new(),
+                    credential_ref: None,
+                    options: plex_options,
+                    enabled: true,
+                })
+                .await?;
+
+            let sources = core.list_sources().await?;
+            let smb_cfg = sources
+                .iter()
+                .find(|s| s.id == Some(smb))
+                .expect("smb source must exist");
+            let plex_cfg = sources
+                .iter()
+                .find(|s| s.id == Some(plex))
+                .expect("plex source must exist");
+            assert!(!smb_cfg.addresses[0].contains("smb-secret-7jw"));
+            assert_eq!(smb_cfg.addresses[0], "smb://ao@nas/music");
+            assert_eq!(
+                smb_cfg.options.get("username").map(String::as_str),
+                Some("ao")
+            );
+            let smb_ref = smb_cfg.credential_ref.as_deref().expect("smb ref");
+            assert_eq!(credentials.get(smb_ref).as_deref(), Some("smb-secret-7jw"));
+            assert!(plex_cfg.options.get("token").is_none());
+            let plex_ref = plex_cfg.credential_ref.as_deref().expect("plex ref");
+            assert_eq!(
+                credentials.get(plex_ref).as_deref(),
+                Some("plex-secret-7jw")
+            );
+
+            // 第二次读取不会再次迁移，也不会改坏已经干净的配置。
+            let again = core.list_sources().await?;
+            assert_eq!(again.len(), 2);
             Ok::<_, LekisError>(())
         })?;
         drop(core);

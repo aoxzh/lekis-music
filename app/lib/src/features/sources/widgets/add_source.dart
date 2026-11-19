@@ -3,6 +3,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../rust/api/core.dart' as core;
 import '../../../rust/api/dto.dart';
 import '../../../theme/tokens.dart';
 import '../common.dart';
@@ -82,6 +83,24 @@ class AddSourcePage extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text(SourcesStrings.addSource)),
     body: AddSourcePane(onDone: (id) => Navigator.of(context).pop(id)),
+  );
+}
+
+/// 编辑已保存音源的独立页面。保存成功时返回 `true`。
+class EditSourcePage extends StatelessWidget {
+  const EditSourcePage({super.key, required this.source});
+
+  final SourceConfigDto source;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text(SourcesStrings.editSource)),
+    body: SourceForm(
+      kind: source.kind,
+      existing: source,
+      onBack: () => Navigator.of(context).pop(false),
+      onDone: (_) => Navigator.of(context).pop(true),
+    ),
   );
 }
 
@@ -186,6 +205,7 @@ class SourceForm extends ConsumerStatefulWidget {
     required this.onBack,
     required this.onDone,
     this.initial,
+    this.existing,
   });
 
   final SourceKindDto kind;
@@ -194,6 +214,9 @@ class SourceForm extends ConsumerStatefulWidget {
 
   /// 从局域网发现结果带进来的预填值。
   final SourceDraft? initial;
+
+  /// 编辑时传入已保存的配置；`null` 表示新建。
+  final SourceConfigDto? existing;
 
   @override
   ConsumerState<SourceForm> createState() => _SourceFormState();
@@ -212,16 +235,27 @@ class _SourceFormState extends ConsumerState<SourceForm> {
   bool _guest = false;
   bool _obscure = true;
   bool _busy = false;
+  bool _testing = false;
   bool _picking = false;
+  bool _credentialSaved = false;
+  bool _replaceSecret = true;
   String? _localPath;
   String? _error;
 
   SourceKindDto get _kind => widget.kind;
+  SourceConfigDto? get _existing => widget.existing;
+  bool get _isEdit => _existing != null;
 
   @override
   void initState() {
     super.initState();
-    final initial = widget.initial;
+    final existing = widget.existing;
+    final initial = existing == null
+        ? widget.initial
+        : SourceDraft.fromConfig(existing);
+    final ref = existing?.credentialRef?.trim() ?? '';
+    _credentialSaved = ref.isNotEmpty && core.hasCredential(credentialRef: ref);
+    _replaceSecret = !_credentialSaved;
     if (initial == null) return;
     _name.text = initial.name;
     _host.text = initial.host;
@@ -230,6 +264,9 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     _url.text = initial.url;
     _username.text = initial.username;
     _guest = initial.guest;
+    _localPath = initial.kind == SourceKindDto.local && initial.path.isNotEmpty
+        ? initial.path
+        : null;
   }
 
   @override
@@ -262,27 +299,58 @@ class _SourceFormState extends ConsumerState<SourceForm> {
   }
 
   bool get _canSubmit =>
-      !_busy && (_kind != SourceKindDto.local || _localPath != null);
+      !_busy &&
+      !_testing &&
+      (_kind != SourceKindDto.local || _localPath != null);
+
+  /// 编辑时密码已经保存在核心：没点“替换密码”就不带任何 secret。
+  bool get _useTypedSecret => !_guest && (!_credentialSaved || _replaceSecret);
+
+  bool get _usesSecret => switch (_kind) {
+    SourceKindDto.local => false,
+    SourceKindDto.smb => !_guest,
+    _ => true,
+  };
+
+  bool get _secretRequired => switch (_kind) {
+    SourceKindDto.smb => !_guest,
+    SourceKindDto.openSubsonic ||
+    SourceKindDto.jellyfin ||
+    SourceKindDto.emby ||
+    SourceKindDto.plex => true,
+    _ => false,
+  };
+
+  SourceDraft _draft() => SourceDraft(
+    kind: _kind,
+    name: _name.text,
+    host: _host.text,
+    share: _share.text,
+    path: _kind == SourceKindDto.local ? (_localPath ?? '') : _path.text,
+    url: _url.text,
+    username: _guest ? '' : _username.text,
+    secret: _useTypedSecret ? _secret.text : '',
+    guest: _guest,
+  );
 
   Future<void> _submit() async {
     if (!_canSubmit) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    final draft = SourceDraft(
-      kind: _kind,
-      name: _name.text,
-      host: _host.text,
-      share: _share.text,
-      path: _kind == SourceKindDto.local ? (_localPath ?? '') : _path.text,
-      url: _url.text,
-      username: _guest ? '' : _username.text,
-      secret: _guest ? '' : _secret.text,
-      guest: _guest,
-    );
+    final draft = _draft();
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
+      if (_isEdit) {
+        final existing = _existing!;
+        await ref.read(sourceActionsProvider).update(existing, draft);
+        _secret.clear();
+        if (!mounted) return;
+        showFeatureSnack(context, SourcesStrings.savedChanges);
+        widget.onDone(existing.id?.toInt() ?? 0);
+        return;
+      }
       final result = await ref.read(sourceActionsProvider).add(draft);
       _secret.clear();
       if (!mounted) return;
@@ -298,6 +366,27 @@ class _SourceFormState extends ConsumerState<SourceForm> {
       if (mounted) setState(() => _error = describeCoreError(e));
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _test() async {
+    if (!_canSubmit) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    final draft = _draft();
+    setState(() {
+      _testing = true;
+      _error = null;
+    });
+    try {
+      await ref
+          .read(sourceActionsProvider)
+          .testDraft(draft, existing: _existing);
+      if (mounted) showFeatureSnack(context, SourcesStrings.testSuccess);
+    } catch (e) {
+      if (mounted) setState(() => _error = describeCoreError(e));
+    } finally {
+      draft.forgetSecret();
+      if (mounted) setState(() => _testing = false);
     }
   }
 
@@ -322,7 +411,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
                   children: [
                     IconButton(
                       tooltip: SourcesStrings.back,
-                      onPressed: _busy ? null : widget.onBack,
+                      onPressed: _busy || _testing ? null : widget.onBack,
                       icon: const Icon(Icons.arrow_back),
                     ),
                     const SizedBox(width: LekisSpacing.sm),
@@ -345,7 +434,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
                   hint: SourcesStrings.fieldNameHint,
                   action: TextInputAction.done,
                 ),
-                if (_usesSecret) ...[
+                if (_usesSecret && _useTypedSecret) ...[
                   const SizedBox(height: LekisSpacing.md),
                   Row(
                     children: [
@@ -379,17 +468,37 @@ class _SourceFormState extends ConsumerState<SourceForm> {
                   ),
                 ],
                 const SizedBox(height: LekisSpacing.xl),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: LekisSpacing.sm,
+                  runSpacing: LekisSpacing.sm,
                   children: [
                     TextButton(
                       style: TextButton.styleFrom(
                         minimumSize: const Size(0, LekisSizes.touchTargetMin),
                       ),
-                      onPressed: _busy ? null : widget.onBack,
+                      onPressed: _busy || _testing ? null : widget.onBack,
                       child: const Text(SourcesStrings.cancel),
                     ),
-                    const SizedBox(width: LekisSpacing.sm),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, LekisSizes.touchTargetMin),
+                      ),
+                      onPressed: _canSubmit ? _test : null,
+                      icon: _testing
+                          ? const SizedBox.square(
+                              dimension: LekisSpacing.lg,
+                              child: CircularProgressIndicator(
+                                strokeWidth: LekisSpacing.xxs,
+                              ),
+                            )
+                          : const Icon(Icons.wifi_tethering),
+                      label: Text(
+                        _testing
+                            ? SourcesStrings.testing
+                            : SourcesStrings.testConnection,
+                      ),
+                    ),
                     FilledButton.icon(
                       style: FilledButton.styleFrom(
                         minimumSize: const Size(0, LekisSizes.touchTargetMin),
@@ -405,8 +514,12 @@ class _SourceFormState extends ConsumerState<SourceForm> {
                           : const Icon(Icons.check),
                       label: Text(
                         _busy
-                            ? SourcesStrings.saving
-                            : SourcesStrings.testAndSave,
+                            ? (_isEdit
+                                  ? SourcesStrings.savingChanges
+                                  : SourcesStrings.saving)
+                            : (_isEdit
+                                  ? SourcesStrings.saveChanges
+                                  : SourcesStrings.testAndSave),
                       ),
                     ),
                   ],
@@ -420,12 +533,6 @@ class _SourceFormState extends ConsumerState<SourceForm> {
   }
 
   static const _gap = SizedBox(height: LekisSpacing.md);
-
-  bool get _usesSecret => switch (_kind) {
-    SourceKindDto.local => false,
-    SourceKindDto.smb => !_guest,
-    _ => true,
-  };
 
   List<Widget> _fields(BuildContext context) => switch (_kind) {
     SourceKindDto.local => _localFields(context),
@@ -446,8 +553,10 @@ class _SourceFormState extends ConsumerState<SourceForm> {
         label: SourcesStrings.fieldUsername,
         autofill: const [AutofillHints.username],
       ),
-      _gap,
-      _secretField(SourcesStrings.fieldPassword, null),
+      ..._credentialFields(
+        label: SourcesStrings.fieldPassword,
+        validator: SourceValidators.password,
+      ),
     ],
     SourceKindDto.openSubsonic => [
       _text(
@@ -465,8 +574,10 @@ class _SourceFormState extends ConsumerState<SourceForm> {
         validator: SourceValidators.username,
         autofill: const [AutofillHints.username],
       ),
-      _gap,
-      _secretField(SourcesStrings.fieldPassword, SourceValidators.password),
+      ..._credentialFields(
+        label: SourcesStrings.fieldPassword,
+        validator: SourceValidators.password,
+      ),
     ],
     SourceKindDto.jellyfin || SourceKindDto.emby => [
       _text(
@@ -477,10 +588,9 @@ class _SourceFormState extends ConsumerState<SourceForm> {
         validator: SourceValidators.httpUrl,
         autofocus: true,
       ),
-      _gap,
-      _secretField(
-        SourcesStrings.fieldApiKey,
-        SourceValidators.apiKey,
+      ..._credentialFields(
+        label: SourcesStrings.fieldApiKey,
+        validator: SourceValidators.apiKey,
         hint: SourcesStrings.fieldApiKeyHint,
       ),
     ],
@@ -493,15 +603,86 @@ class _SourceFormState extends ConsumerState<SourceForm> {
         validator: SourceValidators.httpUrl,
         autofocus: true,
       ),
-      _gap,
-      _secretField(
-        SourcesStrings.fieldPlexToken,
-        SourceValidators.token,
+      ..._credentialFields(
+        label: SourcesStrings.fieldPlexToken,
+        validator: SourceValidators.token,
         hint: SourcesStrings.fieldPlexTokenHint,
       ),
     ],
     _ => const [],
   };
+
+  /// 凭据字段：已保存且没点“替换密码”时只显示状态，不显示输入框，
+  /// 因此编辑音源不需要重新输入密码。
+  List<Widget> _credentialFields({
+    required String label,
+    required FormFieldValidator<String>? validator,
+    String? hint,
+  }) {
+    if (!_usesSecret) return const [];
+    if (_credentialSaved && !_replaceSecret) {
+      return [_gap, _savedCredentialTile()];
+    }
+    return [
+      _gap,
+      _secretField(
+        _credentialSaved ? SourcesStrings.newPassword : label,
+        _secretRequired ? validator : null,
+        hint: hint,
+      ),
+      if (_credentialSaved) ...[
+        const SizedBox(height: LekisSpacing.xs),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: _busy || _testing ? null : _cancelReplaceSecret,
+            child: const Text(SourcesStrings.keepPassword),
+          ),
+        ),
+      ],
+    ];
+  }
+
+  Widget _savedCredentialTile() {
+    final colors = context.lekisColors;
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(LekisSpacing.md),
+      decoration: BoxDecoration(
+        color: colors.surfaceVariant,
+        borderRadius: BorderRadius.circular(LekisRadius.sm),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.lock_outline, color: colors.accent),
+          const SizedBox(width: LekisSpacing.md),
+          Expanded(
+            child: Text(
+              SourcesStrings.credentialSavedNotice,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(width: LekisSpacing.sm),
+          TextButton(
+            style: TextButton.styleFrom(
+              minimumSize: const Size(0, LekisSizes.touchTargetMin),
+            ),
+            onPressed: _busy || _testing
+                ? null
+                : () => setState(() => _replaceSecret = true),
+            child: const Text(SourcesStrings.replacePassword),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _cancelReplaceSecret() {
+    _secret.clear();
+    setState(() => _replaceSecret = false);
+  }
 
   List<Widget> _localFields(BuildContext context) {
     final theme = Theme.of(context);
@@ -534,7 +715,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
           style: OutlinedButton.styleFrom(
             minimumSize: const Size(0, LekisSizes.touchTargetMin),
           ),
-          onPressed: _picking || _busy ? null : _pickFolder,
+          onPressed: _picking || _busy || _testing ? null : _pickFolder,
           icon: const Icon(Icons.folder_open),
           label: Text(
             _picking ? SourcesStrings.pickingFolder : SourcesStrings.pickFolder,
@@ -582,7 +763,12 @@ class _SourceFormState extends ConsumerState<SourceForm> {
       title: const Text(SourcesStrings.guest),
       subtitle: const Text(SourcesStrings.guestHint),
       value: _guest,
-      onChanged: _busy ? null : (v) => setState(() => _guest = v),
+      onChanged: _busy || _testing
+          ? null
+          : (v) => setState(() {
+              _guest = v;
+              if (v) _secret.clear();
+            }),
     ),
     if (!_guest) ...[
       _gap,
@@ -592,8 +778,10 @@ class _SourceFormState extends ConsumerState<SourceForm> {
         validator: SourceValidators.username,
         autofill: const [AutofillHints.username],
       ),
-      _gap,
-      _secretField(SourcesStrings.fieldPassword, SourceValidators.password),
+      ..._credentialFields(
+        label: SourcesStrings.fieldPassword,
+        validator: SourceValidators.password,
+      ),
     ],
   ];
 
@@ -608,7 +796,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     bool autofocus = false,
   }) => TextFormField(
     controller: controller,
-    enabled: !_busy,
+    enabled: !_busy && !_testing,
     autofocus: autofocus,
     keyboardType: keyboard,
     autocorrect: false,
@@ -630,7 +818,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     String? hint,
   }) => TextFormField(
     controller: _secret,
-    enabled: !_busy,
+    enabled: !_busy && !_testing,
     obscureText: _obscure,
     autocorrect: false,
     enableSuggestions: false,

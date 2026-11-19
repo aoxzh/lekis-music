@@ -98,6 +98,7 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
               _Source(:final id) => SourceDetail(
                 key: ValueKey(id),
                 sourceId: id,
+                onDeleted: () => setState(() => _selection = const _None()),
               ),
             },
           );

@@ -8,7 +8,9 @@ import '../../rust/api/core.dart' as core;
 import '../../rust/api/dto.dart';
 import '../../rust/api/error.dart';
 import 'common.dart';
+import 'source_credentials.dart';
 import 'source_draft.dart';
+import 'source_gateway.dart';
 
 /// 已配置的全部音源。音源变化（`LibraryChanged(sources)`）时自动重新读取。
 final sourcesProvider =
@@ -216,20 +218,18 @@ class AddSourceResult {
 final sourceActionsProvider = Provider<SourceActions>(SourceActions.new);
 
 class SourceActions {
-  SourceActions(this._ref);
+  SourceActions(this._ref)
+    : _credentials = SourceCredentialService(const CoreSourceGateway());
+
   final Ref _ref;
+  final SourceCredentialService _credentials;
 
   /// 保存音源并立即开始第一次扫描。保存失败时抛出核心错误。
   ///
-  /// TODO(core-test-connection): 核心没有“只测试、不保存”的接口，也没有删除 / 修改
-  /// 音源的接口，所以这里只能“先保存再扫描”；扫描失败时音源仍会留在列表里。
+  /// 密码先按 `credential_ref` 写进核心的凭据库，地址 / options / 数据库里
+  /// 只留下引用。扫描失败时音源仍会留在列表里。
   Future<AddSourceResult> add(SourceDraft draft) async {
-    final int id;
-    try {
-      id = await core.addSource(source: draft.toConfig());
-    } finally {
-      draft.forgetSecret();
-    }
+    final id = await _credentials.add(draft);
     _ref.invalidate(sourcesProvider);
     try {
       await rescan(id);
@@ -238,6 +238,26 @@ class SourceActions {
       return AddSourceResult(id, scanError: e);
     }
   }
+
+  /// 修改音源。没填新密码时沿用已保存的凭据。
+  Future<void> update(SourceConfigDto existing, SourceDraft draft) async {
+    await _credentials.update(existing, draft);
+    _ref.invalidate(sourcesProvider);
+  }
+
+  /// 删除音源和它的凭据（凭据清理失败时返回 `false`，音源已经删除）。
+  Future<bool> delete(SourceConfigDto source) async {
+    final cleaned = await _credentials.delete(source);
+    _ref.invalidate(sourcesProvider);
+    return cleaned;
+  }
+
+  /// 测试一个已保存的音源，不扫描、不写库。
+  Future<void> test(SourceConfigDto source) => _credentials.test(source);
+
+  /// 测试表单里的未保存配置；临时凭据测完即删。
+  Future<void> testDraft(SourceDraft draft, {SourceConfigDto? existing}) =>
+      _credentials.testDraft(draft, existing: existing);
 
   /// 重新扫描一个音源。失败时抛出核心错误（同时记进运行时状态）。
   Future<void> rescan(int id) async {
