@@ -36,9 +36,14 @@ bool lekisReduceMotion(BuildContext context) =>
     MediaQuery.disableAnimationsOf(context) ||
     MediaQuery.reduceMotionOf(context);
 
+/// Whether an active destination plays the full squash/lift bounce or the
+/// calmer flat-bar scale/fade.
+enum NavIconMotion { bounce, fadeScale }
+
 /// Destination icon with a short squash / lift / settle bounce when it
-/// becomes active. Reduced motion keeps the color crossfade but drops the
-/// bounce; the caller decides when a re-tap should replay it.
+/// becomes active. [NavIconMotion.fadeScale] swaps that for a plain scale /
+/// colour fade (the flat tab bar). Reduced motion keeps the colour fade but
+/// drops both scale effects.
 class LekisNavIcon extends StatefulWidget {
   const LekisNavIcon({
     super.key,
@@ -47,12 +52,14 @@ class LekisNavIcon extends StatefulWidget {
     this.size = LekisTabBarTokens.iconSize,
     this.reducedMotion = false,
     this.bounceTrigger = 0,
+    this.motion = NavIconMotion.bounce,
   });
 
   final LekisDestination destination;
   final bool selected;
   final double size;
   final bool reducedMotion;
+  final NavIconMotion motion;
 
   /// Bump this to replay the bounce while the tab is already selected.
   final int bounceTrigger;
@@ -158,13 +165,14 @@ class _LekisNavIconState extends State<LekisNavIcon>
   @override
   void didUpdateWidget(LekisNavIcon oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final bounceMode = widget.motion == NavIconMotion.bounce;
     final becameSelected = widget.selected && !oldWidget.selected;
     final retapped =
         widget.selected && widget.bounceTrigger != oldWidget.bounceTrigger;
-    if ((becameSelected || retapped) && !widget.reducedMotion) {
+    if ((becameSelected || retapped) && bounceMode && !widget.reducedMotion) {
       _bounce.forward(from: 0);
     }
-    if (!widget.selected || widget.reducedMotion) {
+    if (!widget.selected || widget.reducedMotion || !bounceMode) {
       if (_bounce.isAnimating) _bounce.stop();
       _bounce.value = 1;
     }
@@ -182,35 +190,49 @@ class _LekisNavIconState extends State<LekisNavIcon>
     final target = widget.selected
         ? lekisNavForeground(context)
         : colors.onSurfaceVariant;
-
-    return AnimatedBuilder(
-      animation: _bounce,
-      builder: (context, child) {
-        final t = _bounce.value;
-        return Transform.translate(
-          offset: Offset(0, _lift.transform(t)),
-          child: Transform.rotate(
-            angle: _tilt.transform(t),
-            child: Transform.scale(scale: _scale.transform(t), child: child),
-          ),
-        );
-      },
-      child: TweenAnimationBuilder<Color?>(
-        tween: ColorTween(end: target),
-        duration: LekisMotion.fast,
-        curve: Curves.easeOut,
-        builder: (context, color, _) => Icon(
-          widget.selected
-              ? widget.destination.selectedIcon
-              : widget.destination.icon,
-          size: widget.size,
-          color:
-              color ??
-              (widget.selected
-                  ? lekisNavForeground(context)
-                  : colors.onSurfaceVariant),
-        ),
+    final icon = TweenAnimationBuilder<Color?>(
+      tween: ColorTween(end: target),
+      duration: LekisMotion.fast,
+      curve: Curves.easeOut,
+      builder: (context, color, _) => Icon(
+        widget.selected
+            ? widget.destination.selectedIcon
+            : widget.destination.icon,
+        size: widget.size,
+        color:
+            color ??
+            (widget.selected
+                ? lekisNavForeground(context)
+                : colors.onSurfaceVariant),
       ),
+    );
+
+    if (widget.motion == NavIconMotion.bounce) {
+      return AnimatedBuilder(
+        animation: _bounce,
+        builder: (context, child) {
+          final t = _bounce.value;
+          return Transform.translate(
+            offset: Offset(0, _lift.transform(t)),
+            child: Transform.rotate(
+              angle: _tilt.transform(t),
+              child: Transform.scale(scale: _scale.transform(t), child: child),
+            ),
+          );
+        },
+        child: icon,
+      );
+    }
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(
+        end: widget.reducedMotion || widget.selected ? 1.0 : 0.94,
+      ),
+      duration: widget.reducedMotion ? LekisMotion.fast : LekisMotion.navFlat,
+      curve: Curves.easeOutCubic,
+      child: icon,
+      builder: (context, scale, child) =>
+          Transform.scale(scale: scale, child: child),
     );
   }
 }

@@ -1,19 +1,16 @@
-// Floating, translucent bottom tab bar for compact windows.
+// Floating bottom tab bar for compact windows.
 //
-// Interaction language (inspired by CYLTabBarController, ideas only):
-//  * the selection pill springs between five equal slots and stretches a
-//    little while travelling, then settles;
-//  * the active icon squashes, lifts and settles;
-//  * its label fades and slides up while inactive labels stay hidden;
-//  * a selection haptic and an ink ripple confirm every tap;
-//  * a radial accent glow and a whisper of film grain keep the blurred
-//    capsule from looking flat.
+// Two selectable looks share the same interaction language (inspired by
+// CYLTabBarController, ideas only):
+//  * liquid glass: blurred translucent capsule, film grain, an accent glow,
+//    a spring selection pill that stretches/morphs while travelling, a
+//    moving specular sheen, icon squash/lift and label slide/fade;
+//  * flat: an opaque hairline capsule, a plain rounded selection block that
+//    eases in 170 ms, and icon scale/fade only.
 //
-// The capsule floats 16 dp in from each side (safe-area aware) and never
-// spans edge to edge, matching the reference app's floating toolbar.
-//
-// Reduced motion (and platforms that report animations disabled for low
-// power / accessibility) jumps to the destination and uses a 150 ms fade.
+// Both keep a selection haptic and an ink ripple. Reduced motion (and
+// platforms that report animations disabled for low power/accessibility)
+// jumps to the destination and uses a 150 ms fade.
 
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
@@ -24,21 +21,27 @@ import 'package:material_ui/material_ui.dart';
 
 import 'destinations.dart';
 import 'nav_icon.dart';
+import 'tab_bar_style.dart';
 
 class LekisTabBar extends StatefulWidget {
   const LekisTabBar({
     super.key,
     required this.selected,
     required this.onSelected,
+    this.style = TabBarStyle.liquid,
   });
 
   final LekisDestination selected;
   final ValueChanged<LekisDestination> onSelected;
+  final TabBarStyle style;
 
-  /// The moving pill. Exposed so widget tests can check reduced motion.
+  /// The moving selection indicator. Exposed for widget tests.
   static const Key selectionKey = ValueKey('lekis.tabbar.selection');
 
-  /// Stable finder for one destination.
+  /// Stable finders for tests and accessibility tooling.
+  static const Key liquidSurfaceKey = ValueKey('lekis.tabbar.liquid');
+  static const Key flatSurfaceKey = ValueKey('lekis.tabbar.flat');
+
   static Key tabKey(LekisDestination destination) =>
       ValueKey('lekis.tabbar.${destination.name}');
 
@@ -53,8 +56,8 @@ class _LekisTabBarState extends State<LekisTabBar>
     value: widget.selected.index.toDouble(),
   );
 
-  /// 0 → 1 fade used instead of the spring when motion is disabled. Keep
-  /// the explicit 150 ms fallback even when the framework would normally
+  /// 0 → 1 fade used instead of motion when motion is disabled. Keep the
+  /// explicit 150 ms fallback even when the framework would otherwise
   /// compress controller durations to a single frame.
   late final AnimationController _reducedFade = AnimationController(
     vsync: this,
@@ -88,17 +91,40 @@ class _LekisTabBarState extends State<LekisTabBar>
   @override
   void didUpdateWidget(LekisTabBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.selected == oldWidget.selected) return;
-
-    final target = widget.selected.index.toDouble();
     final reduced = lekisReduceMotion(context);
     _reducedMotion = reduced;
+
+    if (widget.selected != oldWidget.selected) {
+      _moveTo(widget.selected.index.toDouble(), reduced);
+    } else if (widget.style != oldWidget.style) {
+      // Restyle in place; finish any in-flight travel using the new motion.
+      _moveTo(widget.selected.index.toDouble(), reduced, fade: false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _position.dispose();
+    _reducedFade.dispose();
+    super.dispose();
+  }
+
+  void _moveTo(double target, bool reduced, {bool fade = true}) {
     if (reduced) {
       _position.stop();
       _position.value = target;
-      _reducedFade.forward(from: 0);
+      if (fade) _reducedFade.forward(from: 0);
+      return;
+    }
+
+    _reducedFade.value = 1;
+    if (widget.style == TabBarStyle.flat) {
+      _position.animateTo(
+        target,
+        duration: LekisMotion.navFlat,
+        curve: Curves.easeOutCubic,
+      );
     } else {
-      _reducedFade.value = 1;
       _position.animateWith(
         SpringSimulation(
           LekisMotion.springStandard,
@@ -109,13 +135,6 @@ class _LekisTabBarState extends State<LekisTabBar>
         ),
       );
     }
-  }
-
-  @override
-  void dispose() {
-    _position.dispose();
-    _reducedFade.dispose();
-    super.dispose();
   }
 
   void _onTap(LekisDestination destination) {
@@ -143,13 +162,15 @@ class _LekisTabBarState extends State<LekisTabBar>
         ),
         child: SizedBox(
           height: LekisTabBarTokens.height,
-          child: _bar(context, reduced),
+          child: widget.style == TabBarStyle.flat
+              ? _flatBar(context, reduced)
+              : _liquidBar(context, reduced),
         ),
       ),
     );
   }
 
-  Widget _bar(BuildContext context, bool reduced) {
+  Widget _liquidBar(BuildContext context, bool reduced) {
     final colors = context.lekisColors;
     final scheme = Theme.of(context).colorScheme;
     final isDark = scheme.brightness == Brightness.dark;
@@ -161,6 +182,7 @@ class _LekisTabBarState extends State<LekisTabBar>
       explicitChildNodes: true,
       label: '主导航',
       child: Container(
+        key: LekisTabBar.liquidSurfaceKey,
         decoration: BoxDecoration(
           borderRadius: radius,
           boxShadow: [
@@ -215,14 +237,37 @@ class _LekisTabBarState extends State<LekisTabBar>
     );
   }
 
+  Widget _flatBar(BuildContext context, bool reduced) {
+    final colors = context.lekisColors;
+    final radius = BorderRadius.circular(LekisTabBarTokens.height / 2);
+
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      label: '主导航',
+      child: Container(
+        key: LekisTabBar.flatSurfaceKey,
+        decoration: BoxDecoration(
+          color: colors.surfaceElevated,
+          borderRadius: radius,
+          border: Border.all(color: colors.outline),
+        ),
+        child: ClipRRect(borderRadius: radius, child: _slots(context, reduced)),
+      ),
+    );
+  }
+
   Widget _slots(BuildContext context, bool reduced) {
     final colors = context.lekisColors;
     final scheme = Theme.of(context).colorScheme;
     final isDark = scheme.brightness == Brightness.dark;
+    final liquid = widget.style == TabBarStyle.liquid;
     final count = LekisDestination.values.length;
     const inset = LekisTabBarTokens.innerInset;
-    const pillInset = LekisTabBarTokens.pillInset;
-    final pillHeight = LekisTabBarTokens.height - LekisSpacing.sm;
+    final pillInset = liquid ? LekisTabBarTokens.pillInset : LekisSpacing.sm;
+    final pillHeight = liquid
+        ? LekisTabBarTokens.height - LekisSpacing.sm
+        : LekisSizes.touchTargetMin;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -233,58 +278,42 @@ class _LekisTabBarState extends State<LekisTabBar>
             AnimatedBuilder(
               animation: Listenable.merge([_position, _reducedFade]),
               builder: (context, _) {
-                final stretch = reduced
-                    ? 0.0
-                    : (_position.velocity.abs() * 0.02)
+                final stretch = liquid && !reduced
+                    ? (_position.velocity.abs() * 0.02)
                           .clamp(0.0, LekisTabBarTokens.maxPillStretch)
-                          .toDouble();
+                          .toDouble()
+                    : 0.0;
                 final width = (slot - pillInset * 2) * (1 + stretch);
+                final height = pillHeight - (liquid ? stretch * 6 : 0);
                 final center = inset + (_position.value + 0.5) * slot;
+                final phase = _position.value % 1.0;
+                final direction = _position.velocity >= 0 ? 1.0 : -1.0;
+                final sweep = liquid && !reduced
+                    ? math.sin(phase * math.pi) * 0.7 * direction
+                    : 0.0;
+
                 return Positioned(
                   left: center - width / 2,
-                  top: (LekisTabBarTokens.height - pillHeight) / 2,
+                  top: (LekisTabBarTokens.height - height) / 2,
                   width: width,
-                  height: pillHeight,
+                  height: height,
                   child: IgnorePointer(
                     child: Opacity(
                       opacity: reduced ? _reducedFade.value : 1,
                       child: Container(
                         key: LekisTabBar.selectionKey,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(pillHeight / 2),
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Color.alphaBlend(
-                                colors.accent.withValues(
-                                  alpha: isDark ? 0.30 : 0.16,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: liquid
+                            ? _liquidSelection(colors, isDark, height)
+                            : BoxDecoration(
+                                color: colors.accentSoft,
+                                borderRadius: BorderRadius.circular(
+                                  LekisRadius.md,
                                 ),
-                                colors.surfaceElevated,
                               ),
-                              Color.alphaBlend(
-                                colors.accent.withValues(
-                                  alpha: isDark ? 0.18 : 0.08,
-                                ),
-                                colors.surfaceVariant,
-                              ),
-                            ],
-                          ),
-                          border: Border.all(
-                            color: colors.accent.withValues(
-                              alpha: isDark ? 0.35 : 0.22,
-                            ),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: colors.accent.withValues(
-                                alpha: isDark ? 0.18 : 0.12,
-                              ),
-                              blurRadius: 14,
-                              spreadRadius: -2,
-                            ),
-                          ],
-                        ),
+                        child: liquid
+                            ? _SpecularSheen(isDark: isDark, sweep: sweep)
+                            : null,
                       ),
                     ),
                   ),
@@ -303,6 +332,7 @@ class _LekisTabBarState extends State<LekisTabBar>
                           key: LekisTabBar.tabKey(destination),
                           destination: destination,
                           selected: destination == widget.selected,
+                          style: widget.style,
                           reducedMotion: reduced,
                           bounceTrigger: _taps[destination.index],
                           onTap: () => _onTap(destination),
@@ -317,6 +347,40 @@ class _LekisTabBarState extends State<LekisTabBar>
       },
     );
   }
+
+  BoxDecoration _liquidSelection(
+    LekisColors colors,
+    bool isDark,
+    double height,
+  ) {
+    return BoxDecoration(
+      borderRadius: BorderRadius.circular(height / 2),
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color.alphaBlend(
+            colors.accent.withValues(alpha: isDark ? 0.30 : 0.16),
+            colors.surfaceElevated,
+          ),
+          Color.alphaBlend(
+            colors.accent.withValues(alpha: isDark ? 0.18 : 0.08),
+            colors.surfaceVariant,
+          ),
+        ],
+      ),
+      border: Border.all(
+        color: colors.accent.withValues(alpha: isDark ? 0.35 : 0.22),
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: colors.accent.withValues(alpha: isDark ? 0.18 : 0.12),
+          blurRadius: 14,
+          spreadRadius: -2,
+        ),
+      ],
+    );
+  }
 }
 
 class _TabItem extends StatelessWidget {
@@ -324,6 +388,7 @@ class _TabItem extends StatelessWidget {
     super.key,
     required this.destination,
     required this.selected,
+    required this.style,
     required this.reducedMotion,
     required this.bounceTrigger,
     required this.onTap,
@@ -331,6 +396,7 @@ class _TabItem extends StatelessWidget {
 
   final LekisDestination destination;
   final bool selected;
+  final TabBarStyle style;
   final bool reducedMotion;
   final int bounceTrigger;
   final VoidCallback onTap;
@@ -342,6 +408,10 @@ class _TabItem extends StatelessWidget {
     final labelColor = selected
         ? lekisNavForeground(context)
         : colors.onSurfaceVariant;
+    final liquid = style == TabBarStyle.liquid;
+    final labelDuration = reducedMotion
+        ? LekisMotion.fast
+        : (liquid ? LekisMotion.fast : LekisMotion.navFlat);
 
     return Semantics(
       container: true,
@@ -363,18 +433,22 @@ class _TabItem extends StatelessWidget {
               selected: selected,
               reducedMotion: reducedMotion,
               bounceTrigger: bounceTrigger,
+              motion: liquid ? NavIconMotion.bounce : NavIconMotion.fadeScale,
             ),
             const SizedBox(height: LekisTabBarTokens.iconGap),
             SizedBox(
               height: LekisTabBarTokens.labelHeight,
               child: TweenAnimationBuilder<double>(
-                tween: Tween(end: selected ? 1.0 : 0.0),
-                duration: LekisMotion.fast,
-                curve: Curves.easeOut,
+                tween: Tween<double>(end: selected ? 1.0 : 0.0),
+                duration: labelDuration,
+                curve: liquid ? Curves.easeOut : Curves.easeOutCubic,
                 builder: (context, t, child) => Opacity(
                   opacity: t,
                   child: Transform.translate(
-                    offset: Offset(0, reducedMotion ? 0 : (1 - t) * 4),
+                    offset: Offset(
+                      0,
+                      liquid && !reducedMotion ? (1 - t) * 4 : 0,
+                    ),
                     child: child,
                   ),
                 ),
@@ -393,6 +467,32 @@ class _TabItem extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A diagonal specular band that sweeps across the pill while it travels.
+class _SpecularSheen extends StatelessWidget {
+  const _SpecularSheen({required this.isDark, required this.sweep});
+
+  final bool isDark;
+  final double sweep;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment(-1.4 + sweep, -1),
+          end: Alignment(-0.2 + sweep, 1),
+          colors: [
+            Colors.white.withValues(alpha: isDark ? 0.14 : 0.42),
+            Colors.white.withValues(alpha: 0),
+            Colors.white.withValues(alpha: isDark ? 0.04 : 0.10),
+          ],
+          stops: const [0, 0.5, 1],
         ),
       ),
     );

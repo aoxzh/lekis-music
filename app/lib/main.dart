@@ -10,6 +10,7 @@ import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/features/settings/theme_preference.dart';
 import 'package:lekis/src/platform/media_session.dart';
 import 'package:lekis/src/rust/frb_generated.dart';
+import 'package:lekis/src/shell/tab_bar_style.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,9 +33,13 @@ Future<void> main() async {
     return;
   }
 
-  // 主题要在首帧前恢复，避免先闪一下默认主题；其余服务不阻塞首帧。
+  // 主题和 TabBar 样式要在首帧前恢复，避免闪一下默认值；
+  // 播放输出和媒体会话不阻塞首帧，runApp 之后再初始化。
   final container = ProviderContainer();
-  await restoreThemePreference(container);
+  await Future.wait([
+    restoreThemePreference(container),
+    restoreTabBarStyle(container),
+  ]);
 
   runApp(
     UncontrolledProviderScope(container: container, child: const LekisApp()),

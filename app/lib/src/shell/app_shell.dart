@@ -9,6 +9,7 @@
 // kept alive in an IndexedStack, and the whole tab stack sits under one
 // GlobalKey so resizing / folding only re-arranges the chrome around it.
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'package:lekis/src/features/player/mini_player.dart';
@@ -20,6 +21,7 @@ import 'now_playing_context.dart';
 import 'routes.dart';
 import 'sidebar.dart';
 import 'tab_bar.dart';
+import 'tab_bar_style.dart';
 
 export 'destinations.dart' show LekisDestination;
 export 'routes.dart' show openEnrichReview, openNowPlaying, NowPlayingRoute;
@@ -204,7 +206,7 @@ class _OpensNowPlaying extends StatelessWidget {
   );
 }
 
-class _BottomBarLayout extends StatelessWidget {
+class _BottomBarLayout extends ConsumerWidget {
   const _BottomBarLayout({
     required this.current,
     required this.onSelected,
@@ -216,7 +218,8 @@ class _BottomBarLayout extends StatelessWidget {
   final Widget content;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final style = ref.watch(tabBarStyleProvider);
     return Scaffold(
       body: content,
       bottomNavigationBar: Column(
@@ -224,7 +227,7 @@ class _BottomBarLayout extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const _OpensNowPlaying(child: MiniPlayer()),
-          LekisTabBar(selected: current, onSelected: onSelected),
+          LekisTabBar(selected: current, onSelected: onSelected, style: style),
         ],
       ),
     );
