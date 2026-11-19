@@ -304,6 +304,82 @@ final genreTracksListProvider = Provider.autoDispose
     );
 
 // ---------------------------------------------------------------------------
+// 文件夹视图（LIB：browse by folder）
+// ---------------------------------------------------------------------------
+
+/// 当前浏览位置：某个音源下的一个目录（`path == ''` 是音源根目录）。
+@immutable
+class FolderLocation {
+  const FolderLocation({
+    required this.sourceId,
+    required this.sourceName,
+    required this.path,
+  });
+
+  final int sourceId;
+  final String sourceName;
+
+  /// 相对音源根目录、用 `/` 分隔的路径。
+  final String path;
+
+  String get name => path.isEmpty ? sourceName : path.split('/').last;
+
+  /// 路径各段（不含音源名）。
+  List<String> get segments => path.isEmpty
+      ? const []
+      : path.split('/').where((s) => s.isNotEmpty).toList();
+
+  /// 路径第 [index] 段之前的目录（0 = 音源根目录）。
+  String pathAt(int index) => segments.take(index).join('/');
+
+  @override
+  bool operator ==(Object other) =>
+      other is FolderLocation &&
+      other.sourceId == sourceId &&
+      other.sourceName == sourceName &&
+      other.path == path;
+
+  @override
+  int get hashCode => Object.hash(sourceId, sourceName, path);
+}
+
+/// 文件夹列表 / 曲目分页的缓存键。
+typedef FolderKey = ({int sourceId, String path});
+
+FolderKey folderKeyOf(FolderLocation location) =>
+    (sourceId: location.sourceId, path: location.path);
+
+/// 文件夹视图的第一层：有曲目的音源。
+final folderRootsProvider =
+    FutureProvider.autoDispose<List<core.FolderRootDto>>((ref) async {
+      ref.invalidateOnCatalogChange();
+      ref.cacheFor(const Duration(minutes: 2));
+      return core.folderRoots();
+    });
+
+/// 一个目录的子文件夹和直属曲目数。
+final folderListingProvider = FutureProvider.autoDispose
+    .family<core.FolderListingDto, FolderKey>((ref, key) async {
+      ref.invalidateOnCatalogChange();
+      ref.cacheFor(const Duration(minutes: 2));
+      return core.listFolder(sourceId: key.sourceId, path: key.path);
+    });
+
+/// 一个目录的直属曲目，分页缓存。
+final folderTracksListProvider = Provider.autoDispose
+    .family<PagedList<TrackRowDto>, FolderKey>(
+      (ref, key) => _pagedList(
+        ref,
+        (o, l) => core.folderTracks(
+          sourceId: key.sourceId,
+          path: key.path,
+          offset: o,
+          limit: l,
+        ),
+      ),
+    );
+
+// ---------------------------------------------------------------------------
 // Detail data
 // ---------------------------------------------------------------------------
 
@@ -376,7 +452,7 @@ final artistTracksProvider = FutureProvider.autoDispose
 // Library page UI state
 // ---------------------------------------------------------------------------
 
-enum LibrarySegment { albums, artists, songs, genres }
+enum LibrarySegment { albums, artists, songs, genres, folders }
 
 /// A plain settable value. Write with `ref.read(p.notifier).set(v)`.
 class SimpleValue<T> extends Notifier<T> {
@@ -401,3 +477,6 @@ final albumSortProvider = _valueProvider<TrackSortDto>(TrackSortDto.title);
 /// Selection shown in the secondary pane on wide windows.
 final selectedAlbumProvider = _valueProvider<int?>(null);
 final selectedArtistProvider = _valueProvider<int?>(null);
+
+/// 文件夹视图当前所在的位置；`null` 表示第一层（有曲目的音源）。
+final selectedFolderProvider = _valueProvider<FolderLocation?>(null);

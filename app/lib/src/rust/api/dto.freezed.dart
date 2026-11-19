@@ -1054,7 +1054,7 @@ extension PlayContextDtoPatterns on PlayContextDto {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( PlayContextDto_Library value)?  library_,TResult Function( PlayContextDto_Album value)?  album,TResult Function( PlayContextDto_Artist value)?  artist,TResult Function( PlayContextDto_Genre value)?  genre,TResult Function( PlayContextDto_Playlist value)?  playlist,TResult Function( PlayContextDto_Loved value)?  loved,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( PlayContextDto_Library value)?  library_,TResult Function( PlayContextDto_Album value)?  album,TResult Function( PlayContextDto_Artist value)?  artist,TResult Function( PlayContextDto_Genre value)?  genre,TResult Function( PlayContextDto_Playlist value)?  playlist,TResult Function( PlayContextDto_Loved value)?  loved,TResult Function( PlayContextDto_Folder value)?  folder,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case PlayContextDto_Library() when library_ != null:
@@ -1063,7 +1063,8 @@ return album(_that);case PlayContextDto_Artist() when artist != null:
 return artist(_that);case PlayContextDto_Genre() when genre != null:
 return genre(_that);case PlayContextDto_Playlist() when playlist != null:
 return playlist(_that);case PlayContextDto_Loved() when loved != null:
-return loved(_that);case _:
+return loved(_that);case PlayContextDto_Folder() when folder != null:
+return folder(_that);case _:
   return orElse();
 
 }
@@ -1081,7 +1082,7 @@ return loved(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( PlayContextDto_Library value)  library_,required TResult Function( PlayContextDto_Album value)  album,required TResult Function( PlayContextDto_Artist value)  artist,required TResult Function( PlayContextDto_Genre value)  genre,required TResult Function( PlayContextDto_Playlist value)  playlist,required TResult Function( PlayContextDto_Loved value)  loved,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( PlayContextDto_Library value)  library_,required TResult Function( PlayContextDto_Album value)  album,required TResult Function( PlayContextDto_Artist value)  artist,required TResult Function( PlayContextDto_Genre value)  genre,required TResult Function( PlayContextDto_Playlist value)  playlist,required TResult Function( PlayContextDto_Loved value)  loved,required TResult Function( PlayContextDto_Folder value)  folder,}){
 final _that = this;
 switch (_that) {
 case PlayContextDto_Library():
@@ -1090,7 +1091,8 @@ return album(_that);case PlayContextDto_Artist():
 return artist(_that);case PlayContextDto_Genre():
 return genre(_that);case PlayContextDto_Playlist():
 return playlist(_that);case PlayContextDto_Loved():
-return loved(_that);}
+return loved(_that);case PlayContextDto_Folder():
+return folder(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -1104,7 +1106,7 @@ return loved(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( PlayContextDto_Library value)?  library_,TResult? Function( PlayContextDto_Album value)?  album,TResult? Function( PlayContextDto_Artist value)?  artist,TResult? Function( PlayContextDto_Genre value)?  genre,TResult? Function( PlayContextDto_Playlist value)?  playlist,TResult? Function( PlayContextDto_Loved value)?  loved,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( PlayContextDto_Library value)?  library_,TResult? Function( PlayContextDto_Album value)?  album,TResult? Function( PlayContextDto_Artist value)?  artist,TResult? Function( PlayContextDto_Genre value)?  genre,TResult? Function( PlayContextDto_Playlist value)?  playlist,TResult? Function( PlayContextDto_Loved value)?  loved,TResult? Function( PlayContextDto_Folder value)?  folder,}){
 final _that = this;
 switch (_that) {
 case PlayContextDto_Library() when library_ != null:
@@ -1113,7 +1115,8 @@ return album(_that);case PlayContextDto_Artist() when artist != null:
 return artist(_that);case PlayContextDto_Genre() when genre != null:
 return genre(_that);case PlayContextDto_Playlist() when playlist != null:
 return playlist(_that);case PlayContextDto_Loved() when loved != null:
-return loved(_that);case _:
+return loved(_that);case PlayContextDto_Folder() when folder != null:
+return folder(_that);case _:
   return null;
 
 }
@@ -1130,7 +1133,7 @@ return loved(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( TrackSortDto sort)?  library_,TResult Function( PlatformInt64 albumId)?  album,TResult Function( PlatformInt64 artistId)?  artist,TResult Function( String name)?  genre,TResult Function( PlatformInt64 playlistId)?  playlist,TResult Function()?  loved,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( TrackSortDto sort)?  library_,TResult Function( PlatformInt64 albumId)?  album,TResult Function( PlatformInt64 artistId)?  artist,TResult Function( String name)?  genre,TResult Function( PlatformInt64 playlistId)?  playlist,TResult Function()?  loved,TResult Function( PlatformInt64 sourceId,  String path)?  folder,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case PlayContextDto_Library() when library_ != null:
 return library_(_that.sort);case PlayContextDto_Album() when album != null:
@@ -1138,7 +1141,8 @@ return album(_that.albumId);case PlayContextDto_Artist() when artist != null:
 return artist(_that.artistId);case PlayContextDto_Genre() when genre != null:
 return genre(_that.name);case PlayContextDto_Playlist() when playlist != null:
 return playlist(_that.playlistId);case PlayContextDto_Loved() when loved != null:
-return loved();case _:
+return loved();case PlayContextDto_Folder() when folder != null:
+return folder(_that.sourceId,_that.path);case _:
   return orElse();
 
 }
@@ -1156,7 +1160,7 @@ return loved();case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( TrackSortDto sort)  library_,required TResult Function( PlatformInt64 albumId)  album,required TResult Function( PlatformInt64 artistId)  artist,required TResult Function( String name)  genre,required TResult Function( PlatformInt64 playlistId)  playlist,required TResult Function()  loved,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( TrackSortDto sort)  library_,required TResult Function( PlatformInt64 albumId)  album,required TResult Function( PlatformInt64 artistId)  artist,required TResult Function( String name)  genre,required TResult Function( PlatformInt64 playlistId)  playlist,required TResult Function()  loved,required TResult Function( PlatformInt64 sourceId,  String path)  folder,}) {final _that = this;
 switch (_that) {
 case PlayContextDto_Library():
 return library_(_that.sort);case PlayContextDto_Album():
@@ -1164,7 +1168,8 @@ return album(_that.albumId);case PlayContextDto_Artist():
 return artist(_that.artistId);case PlayContextDto_Genre():
 return genre(_that.name);case PlayContextDto_Playlist():
 return playlist(_that.playlistId);case PlayContextDto_Loved():
-return loved();}
+return loved();case PlayContextDto_Folder():
+return folder(_that.sourceId,_that.path);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -1178,7 +1183,7 @@ return loved();}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( TrackSortDto sort)?  library_,TResult? Function( PlatformInt64 albumId)?  album,TResult? Function( PlatformInt64 artistId)?  artist,TResult? Function( String name)?  genre,TResult? Function( PlatformInt64 playlistId)?  playlist,TResult? Function()?  loved,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( TrackSortDto sort)?  library_,TResult? Function( PlatformInt64 albumId)?  album,TResult? Function( PlatformInt64 artistId)?  artist,TResult? Function( String name)?  genre,TResult? Function( PlatformInt64 playlistId)?  playlist,TResult? Function()?  loved,TResult? Function( PlatformInt64 sourceId,  String path)?  folder,}) {final _that = this;
 switch (_that) {
 case PlayContextDto_Library() when library_ != null:
 return library_(_that.sort);case PlayContextDto_Album() when album != null:
@@ -1186,7 +1191,8 @@ return album(_that.albumId);case PlayContextDto_Artist() when artist != null:
 return artist(_that.artistId);case PlayContextDto_Genre() when genre != null:
 return genre(_that.name);case PlayContextDto_Playlist() when playlist != null:
 return playlist(_that.playlistId);case PlayContextDto_Loved() when loved != null:
-return loved();case _:
+return loved();case PlayContextDto_Folder() when folder != null:
+return folder(_that.sourceId,_that.path);case _:
   return null;
 
 }
@@ -1565,5 +1571,75 @@ String toString() {
 
 
 
+
+/// @nodoc
+
+
+class PlayContextDto_Folder extends PlayContextDto {
+  const PlayContextDto_Folder({required this.sourceId, required this.path}): super._();
+
+
+ final  PlatformInt64 sourceId;
+ final  String path;
+
+/// Create a copy of PlayContextDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PlayContextDto_FolderCopyWith<PlayContextDto_Folder> get copyWith => _$PlayContextDto_FolderCopyWithImpl<PlayContextDto_Folder>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is PlayContextDto_Folder&&(identical(other.sourceId, sourceId) || other.sourceId == sourceId)&&(identical(other.path, path) || other.path == path));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,sourceId,path);
+}
+
+@override
+String toString() {
+    return 'PlayContextDto.folder(sourceId: $sourceId, path: $path)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PlayContextDto_FolderCopyWith<$Res> implements $PlayContextDtoCopyWith<$Res> {
+  factory $PlayContextDto_FolderCopyWith(PlayContextDto_Folder value, $Res Function(PlayContextDto_Folder) _then) = _$PlayContextDto_FolderCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 sourceId, String path
+});
+
+
+
+
+}
+/// @nodoc
+class _$PlayContextDto_FolderCopyWithImpl<$Res>
+    implements $PlayContextDto_FolderCopyWith<$Res> {
+  _$PlayContextDto_FolderCopyWithImpl(this._self, this._then);
+
+  final PlayContextDto_Folder _self;
+  final $Res Function(PlayContextDto_Folder) _then;
+
+/// Create a copy of PlayContextDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? sourceId = null,Object? path = null,}) {
+  return _then(PlayContextDto_Folder(
+sourceId: null == sourceId ? _self.sourceId : sourceId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,path: null == path ? _self.path : path // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
 
 // dart format on

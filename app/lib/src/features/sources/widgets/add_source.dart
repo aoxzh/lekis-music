@@ -11,6 +11,7 @@ import '../source_draft.dart';
 import '../source_kind_info.dart';
 import '../sources_providers.dart';
 import '../strings.dart';
+import 'lan_discovery.dart';
 import 'source_status.dart';
 
 /// 添加音源的整个流程（可以嵌进双栏右侧，也可以包成独立页面）。
@@ -27,6 +28,29 @@ class AddSourcePane extends StatefulWidget {
 
 class _AddSourcePaneState extends State<AddSourcePane> {
   SourceKindDto? _kind;
+  SourceDraft? _prefill;
+
+  void _chooseKind(SourceKindDto kind) {
+    setState(() {
+      _kind = kind;
+      _prefill = null;
+    });
+  }
+
+  void _chooseDiscovered(DiscoveredServiceDto service) {
+    final draft = SourceDraft.fromDiscovered(service);
+    setState(() {
+      _kind = draft.kind;
+      _prefill = draft;
+    });
+  }
+
+  void _backToChooser() {
+    setState(() {
+      _kind = null;
+      _prefill = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,12 +60,14 @@ class _AddSourcePaneState extends State<AddSourcePane> {
       child: kind == null
           ? SourceKindChooser(
               key: const ValueKey('chooser'),
-              onChoose: (k) => setState(() => _kind = k),
+              onChoose: _chooseKind,
+              onDiscovered: _chooseDiscovered,
             )
           : SourceForm(
               key: ValueKey(kind),
               kind: kind,
-              onBack: () => setState(() => _kind = null),
+              initial: _prefill,
+              onBack: _backToChooser,
               onDone: widget.onDone,
             ),
     );
@@ -60,9 +86,16 @@ class AddSourcePage extends StatelessWidget {
 }
 
 class SourceKindChooser extends StatelessWidget {
-  const SourceKindChooser({super.key, required this.onChoose});
+  const SourceKindChooser({
+    super.key,
+    required this.onChoose,
+    required this.onDiscovered,
+  });
 
   final ValueChanged<SourceKindDto> onChoose;
+
+  /// 点了一条局域网发现结果：直接带着地址进入对应表单。
+  final ValueChanged<DiscoveredServiceDto> onDiscovered;
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +141,7 @@ class SourceKindChooser extends StatelessWidget {
               SourceKindDto.plex,
             ]),
             const SizedBox(height: LekisSpacing.xl),
-            const _DiscoveryPlaceholder(),
+            LanDiscoverySection(onPick: onDiscovered),
           ],
         ),
       ),
@@ -145,53 +178,6 @@ class _KindOption extends StatelessWidget {
   }
 }
 
-// TODO(core-discovery): 核心还没有局域网自动发现（mDNS / SSDP / NetBIOS）的接口。
-// 接口到位后在这里列出发现的 NAS 和媒体服务器，点一下就预填表单。
-// 现在只放一个说明，不显示任何假数据。
-class _DiscoveryPlaceholder extends StatelessWidget {
-  const _DiscoveryPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = context.lekisColors;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: colors.outline),
-        borderRadius: BorderRadius.circular(LekisRadius.md),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(LekisSpacing.lg),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.wifi_find_outlined, color: colors.onSurfaceVariant),
-            const SizedBox(width: LekisSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    SourcesStrings.discoveryTitle,
-                    style: theme.textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: LekisSpacing.xs),
-                  Text(
-                    SourcesStrings.discoveryBody,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// 某一种音源的表单。
 class SourceForm extends ConsumerStatefulWidget {
   const SourceForm({
@@ -199,11 +185,15 @@ class SourceForm extends ConsumerStatefulWidget {
     required this.kind,
     required this.onBack,
     required this.onDone,
+    this.initial,
   });
 
   final SourceKindDto kind;
   final VoidCallback onBack;
   final ValueChanged<int> onDone;
+
+  /// 从局域网发现结果带进来的预填值。
+  final SourceDraft? initial;
 
   @override
   ConsumerState<SourceForm> createState() => _SourceFormState();
@@ -227,6 +217,20 @@ class _SourceFormState extends ConsumerState<SourceForm> {
   String? _error;
 
   SourceKindDto get _kind => widget.kind;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initial;
+    if (initial == null) return;
+    _name.text = initial.name;
+    _host.text = initial.host;
+    _share.text = initial.share;
+    _path.text = initial.path;
+    _url.text = initial.url;
+    _username.text = initial.username;
+    _guest = initial.guest;
+  }
 
   @override
   void dispose() {

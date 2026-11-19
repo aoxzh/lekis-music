@@ -3,6 +3,7 @@ import 'package:lekis/src/features/library/album_detail_page.dart';
 import 'package:lekis/src/features/library/albums_view.dart';
 import 'package:lekis/src/features/library/artist_detail_page.dart';
 import 'package:lekis/src/features/library/artists_view.dart';
+import 'package:lekis/src/features/library/folders_view.dart';
 import 'package:lekis/src/features/library/genres_view.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/album_card.dart';
@@ -55,6 +56,11 @@ class LibraryPage extends ConsumerWidget {
             children: [
               SegmentedButton<LibrarySegment>(
                 showSelectedIcon: false,
+                style: SegmentedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: LekisSpacing.sm,
+                  ),
+                ),
                 segments: const [
                   ButtonSegment(
                     value: LibrarySegment.albums,
@@ -68,6 +74,10 @@ class LibraryPage extends ConsumerWidget {
                   ButtonSegment(
                     value: LibrarySegment.genres,
                     label: Text('流派'),
+                  ),
+                  ButtonSegment(
+                    value: LibrarySegment.folders,
+                    label: Text('文件夹'),
                   ),
                 ],
                 selected: {segment},
@@ -89,6 +99,7 @@ class LibraryPage extends ConsumerWidget {
       LibrarySegment.artists => const _ArtistsSegment(),
       LibrarySegment.songs => const _SongsSegment(),
       LibrarySegment.genres => const GenreList(),
+      LibrarySegment.folders => const FoldersView(),
     };
 
     return Scaffold(

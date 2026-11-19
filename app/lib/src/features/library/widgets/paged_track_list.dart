@@ -16,6 +16,7 @@ class PagedTrackList extends ConsumerStatefulWidget {
     required this.list,
     this.empty,
     this.header,
+    this.showHeaderWhenEmpty = false,
   });
 
   final PagedList<TrackRowDto> list;
@@ -23,6 +24,9 @@ class PagedTrackList extends ConsumerStatefulWidget {
 
   /// Optional fixed widget above the rows (scrolls with them).
   final Widget? header;
+
+  /// 列表为空时是否仍然显示 [header]（文件夹视图的目录列表就在 header 里）。
+  final bool showHeaderWhenEmpty;
 
   @override
   ConsumerState<PagedTrackList> createState() => _PagedTrackListState();
@@ -55,7 +59,20 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
         if (list.error != null) {
           return LoadErrorView(error: list.error!, onRetry: list.retry);
         }
-        if (list.isEmpty) return widget.empty ?? const LibraryEmptyState();
+        if (list.isEmpty) {
+          final empty = widget.empty ?? const LibraryEmptyState();
+          if (widget.showHeaderWhenEmpty && widget.header != null) {
+            return Scrollbar(
+              controller: _controller,
+              child: ListView(
+                controller: _controller,
+                padding: const EdgeInsets.only(bottom: LekisSpacing.xl),
+                children: [widget.header!, empty],
+              ),
+            );
+          }
+          return empty;
+        }
         if (list.isInitialLoading) {
           return const Center(child: CircularProgressIndicator());
         }

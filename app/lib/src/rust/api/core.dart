@@ -9,6 +9,8 @@ import 'error.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`
+
 /// 创建核心（打开数据库、启动后台运行时）。重复调用直接返回。
 Future<void> initCore({required CoreConfigDto config}) =>
     RustLib.instance.api.crateApiCoreInitCore(config: config);
@@ -39,6 +41,14 @@ Future<void> removeSource({required PlatformInt64 sourceId}) =>
 /// 密码先用 `set_credential` 按 `credential_ref` 存好再测。
 Future<void> testSource({required SourceConfigDto source}) =>
     RustLib.instance.api.crateApiCoreTestSource(source: source);
+
+/// 扫描局域网里的 SMB / WebDAV / DLNA 服务，`timeout_ms` 后返回。
+///
+/// 一次性扫描，不注册任何服务。各协议的错误只记日志，不会让整次扫描失败。
+/// Android 上调用前需要持有 `WifiManager.MulticastLock`（由 Dart 侧平台通道
+/// 包住这次调用），否则 mDNS / SSDP 的组播包收不到。
+Future<List<DiscoveredServiceDto>> discoverLan({required int timeoutMs}) =>
+    RustLib.instance.api.crateApiCoreDiscoverLan(timeoutMs: timeoutMs);
 
 /// 音源列表，带最近一次扫描的时间 / 失败信息。
 Future<List<SourceInfoDto>> listSourceInfos() =>
@@ -464,3 +474,96 @@ Future<void> setTrackOverlay({
   trackId: trackId,
   overlay: overlay,
 );
+
+/// 有曲目的音源（文件夹视图的根）。
+Future<List<FolderRootDto>> folderRoots() =>
+    RustLib.instance.api.crateApiCoreFolderRoots();
+
+/// 音源 `source_id` 下目录 `path`（`""` = 根目录）的子文件夹和直属曲目数。
+Future<FolderListingDto> listFolder({
+  required PlatformInt64 sourceId,
+  required String path,
+}) =>
+    RustLib.instance.api.crateApiCoreListFolder(sourceId: sourceId, path: path);
+
+/// 目录的直属曲目（按文件名），分页。整个目录播放用 `PlayContextDto::Folder`。
+Future<List<TrackRowDto>> folderTracks({
+  required PlatformInt64 sourceId,
+  required String path,
+  required int offset,
+  required int limit,
+}) => RustLib.instance.api.crateApiCoreFolderTracks(
+  sourceId: sourceId,
+  path: path,
+  offset: offset,
+  limit: limit,
+);
+
+/// 一个子文件夹。`path` 相对音源根目录，用 `/` 分隔，传回 [`list_folder`] 继续往下走。
+class FolderEntryDto {
+  final String name;
+  final String path;
+  final int trackCount;
+
+  const FolderEntryDto({
+    required this.name,
+    required this.path,
+    required this.trackCount,
+  });
+
+  @override
+  int get hashCode => name.hashCode ^ path.hashCode ^ trackCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FolderEntryDto &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          path == other.path &&
+          trackCount == other.trackCount;
+}
+
+/// 一个目录的内容：子文件夹（自然排序）+ 直属曲目数（曲目本身用 [`folder_tracks`] 分页取）。
+class FolderListingDto {
+  final List<FolderEntryDto> folders;
+  final int trackCount;
+
+  const FolderListingDto({required this.folders, required this.trackCount});
+
+  @override
+  int get hashCode => folders.hashCode ^ trackCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FolderListingDto &&
+          runtimeType == other.runtimeType &&
+          folders == other.folders &&
+          trackCount == other.trackCount;
+}
+
+/// 文件夹视图的第一层：一个有曲目的音源。
+class FolderRootDto {
+  final PlatformInt64 sourceId;
+  final String name;
+  final int trackCount;
+
+  const FolderRootDto({
+    required this.sourceId,
+    required this.name,
+    required this.trackCount,
+  });
+
+  @override
+  int get hashCode => sourceId.hashCode ^ name.hashCode ^ trackCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FolderRootDto &&
+          runtimeType == other.runtimeType &&
+          sourceId == other.sourceId &&
+          name == other.name &&
+          trackCount == other.trackCount;
+}

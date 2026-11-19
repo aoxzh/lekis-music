@@ -99,6 +99,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CoreEventDto dco_decode_core_event_dto(dynamic raw);
 
   @protected
+  DiscoveredKindDto dco_decode_discovered_kind_dto(dynamic raw);
+
+  @protected
+  DiscoveredServiceDto dco_decode_discovered_service_dto(dynamic raw);
+
+  @protected
+  DiscoveryProtocolDto dco_decode_discovery_protocol_dto(dynamic raw);
+
+  @protected
   EnrichCandidateDto dco_decode_enrich_candidate_dto(dynamic raw);
 
   @protected
@@ -112,6 +121,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   double dco_decode_f_64(dynamic raw);
+
+  @protected
+  FolderEntryDto dco_decode_folder_entry_dto(dynamic raw);
+
+  @protected
+  FolderListingDto dco_decode_folder_listing_dto(dynamic raw);
+
+  @protected
+  FolderRootDto dco_decode_folder_root_dto(dynamic raw);
 
   @protected
   GenreCountDto dco_decode_genre_count_dto(dynamic raw);
@@ -135,7 +153,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ArtistDto> dco_decode_list_artist_dto(dynamic raw);
 
   @protected
+  List<DiscoveredServiceDto> dco_decode_list_discovered_service_dto(
+    dynamic raw,
+  );
+
+  @protected
   List<EnrichCandidateDto> dco_decode_list_enrich_candidate_dto(dynamic raw);
+
+  @protected
+  List<FolderEntryDto> dco_decode_list_folder_entry_dto(dynamic raw);
+
+  @protected
+  List<FolderRootDto> dco_decode_list_folder_root_dto(dynamic raw);
 
   @protected
   List<GenreCountDto> dco_decode_list_genre_count_dto(dynamic raw);
@@ -291,6 +320,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TrackSortDto dco_decode_track_sort_dto(dynamic raw);
 
   @protected
+  int dco_decode_u_16(dynamic raw);
+
+  @protected
   int dco_decode_u_32(dynamic raw);
 
   @protected
@@ -389,6 +421,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CoreEventDto sse_decode_core_event_dto(SseDeserializer deserializer);
 
   @protected
+  DiscoveredKindDto sse_decode_discovered_kind_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DiscoveredServiceDto sse_decode_discovered_service_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DiscoveryProtocolDto sse_decode_discovery_protocol_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   EnrichCandidateDto sse_decode_enrich_candidate_dto(
     SseDeserializer deserializer,
   );
@@ -404,6 +451,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   double sse_decode_f_64(SseDeserializer deserializer);
+
+  @protected
+  FolderEntryDto sse_decode_folder_entry_dto(SseDeserializer deserializer);
+
+  @protected
+  FolderListingDto sse_decode_folder_listing_dto(SseDeserializer deserializer);
+
+  @protected
+  FolderRootDto sse_decode_folder_root_dto(SseDeserializer deserializer);
 
   @protected
   GenreCountDto sse_decode_genre_count_dto(SseDeserializer deserializer);
@@ -427,7 +483,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ArtistDto> sse_decode_list_artist_dto(SseDeserializer deserializer);
 
   @protected
+  List<DiscoveredServiceDto> sse_decode_list_discovered_service_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<EnrichCandidateDto> sse_decode_list_enrich_candidate_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<FolderEntryDto> sse_decode_list_folder_entry_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<FolderRootDto> sse_decode_list_folder_root_dto(
     SseDeserializer deserializer,
   );
 
@@ -615,6 +686,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TrackSortDto sse_decode_track_sort_dto(SseDeserializer deserializer);
 
   @protected
+  int sse_decode_u_16(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_u_32(SseDeserializer deserializer);
 
   @protected
@@ -738,6 +812,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_core_event_dto(CoreEventDto self, SseSerializer serializer);
 
   @protected
+  void sse_encode_discovered_kind_dto(
+    DiscoveredKindDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_discovered_service_dto(
+    DiscoveredServiceDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_discovery_protocol_dto(
+    DiscoveryProtocolDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_enrich_candidate_dto(
     EnrichCandidateDto self,
     SseSerializer serializer,
@@ -757,6 +849,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_f_64(double self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_folder_entry_dto(
+    FolderEntryDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_folder_listing_dto(
+    FolderListingDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_folder_root_dto(FolderRootDto self, SseSerializer serializer);
 
   @protected
   void sse_encode_genre_count_dto(GenreCountDto self, SseSerializer serializer);
@@ -786,8 +893,26 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_discovered_service_dto(
+    List<DiscoveredServiceDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_enrich_candidate_dto(
     List<EnrichCandidateDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_folder_entry_dto(
+    List<FolderEntryDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_folder_root_dto(
+    List<FolderRootDto> self,
     SseSerializer serializer,
   );
 
@@ -1036,6 +1161,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_track_sort_dto(TrackSortDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_16(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_32(int self, SseSerializer serializer);
