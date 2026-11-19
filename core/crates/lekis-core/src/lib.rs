@@ -20,6 +20,7 @@ pub mod events;
 pub mod platform;
 mod remote_scan;
 mod resolver;
+pub mod scrobble;
 pub mod selection;
 mod sync_engine;
 
@@ -29,6 +30,7 @@ pub use folders::{FolderEntry, FolderListing, FolderRoot};
 pub use events::EventListener;
 pub use lekis_playback::PlaybackSnapshot;
 pub use platform::{CredentialStore, MemoryCredentialStore, PlatformServices};
+pub use scrobble::{ScrobbleSettings, ScrobbleSettingsInput, ScrobbleStatus};
 pub use selection::{NetworkContext, Reachability, SourceHealth};
 pub use sync_engine::SyncReport;
 
@@ -76,6 +78,8 @@ struct Services {
     vfs: std::sync::Mutex<std::collections::HashMap<SourceId, Arc<dyn lekis_vfs::Vfs>>>,
     /// 选源器（持有服务器客户端缓存和 ReplayGain 模式）。
     resolver: Arc<resolver::Resolver>,
+    /// 第三方听歌记录上报（DIS-07）。
+    scrobble: Arc<scrobble::Scrobbler>,
 }
 
 impl Services {
@@ -225,6 +229,11 @@ impl LekisCore {
         ));
         handle.spawn(resolver.clone().run(resolve_rx));
         handle.spawn(events::forward_playback(engine.subscribe(), events.clone()));
+        let scrobbler = Arc::new(scrobble::Scrobbler::new(
+            library.clone(),
+            platform.credentials.clone(),
+            &config.data_dir,
+        ));
 
         let services = Arc::new(Services {
             config,
@@ -240,6 +249,7 @@ impl LekisCore {
             enrich,
             vfs: std::sync::Mutex::new(std::collections::HashMap::new()),
             resolver,
+            scrobble: scrobbler,
         });
 
         // 启动时：让播放相关设置生效，并给文件系统源预先登记 VFS（不发网络请求）。
@@ -250,12 +260,22 @@ impl LekisCore {
                     let value = s.library.get_setting(key).await.ok().flatten();
                     s.apply_setting(key, value.as_deref());
                 }
+                // 上报设置 / 凭据 / 待补报队列在后台读入，不阻塞启动。
+                s.scrobble.load().await;
                 match s.library.list_sources().await {
                     Ok(sources) => sources.iter().for_each(|src| s.register_vfs(src)),
                     Err(e) => tracing::warn!(target: "core", error = %e, "cannot list sources at startup"),
                 }
             });
         }
+
+        // DIS-07：播放监听 + 后台补报。都只读快照 / 队列，不阻塞播放。
+        handle.spawn(services.scrobble.clone().run_worker());
+        handle.spawn(scrobble::track_playback(
+            services.engine.subscribe(),
+            services.scrobble.clone(),
+            services.library.clone(),
+        ));
 
         // 播放引擎要按 Range 读音频文件，但「哪个 source_id 对应哪个 Vfs」只有 core 知道。
         // 用弱引用注册一个回调，避免 Services ↔ 注册表之间形成引用环（drop 时不泄漏）。
@@ -1497,6 +1517,35 @@ impl LekisCore {
         .await
     }
 
+    // -----------------------------------------------------------------------
+    // 听歌记录上报（DIS-07）
+    // -----------------------------------------------------------------------
+
+    /// 当前上报设置（不含明文凭据）。
+    pub fn scrobble_settings(&self) -> ScrobbleSettings {
+        self.services.scrobble.settings()
+    }
+
+    /// 已保存的上报设置：`None` 字段保留原凭据，`Some("")` 删除，`Some(v)` 覆盖。
+    pub async fn set_scrobble_settings(
+        &self,
+        input: ScrobbleSettingsInput,
+    ) -> Result<ScrobbleSettings> {
+        let s = self.services.clone();
+        self.run(async move { s.scrobble.update(input).await }).await
+    }
+
+    /// 上报状态：是否配置完整、队列条数、最近错误 / 成功时间。
+    pub fn scrobble_status(&self) -> ScrobbleStatus {
+        self.services.scrobble.status()
+    }
+
+    /// 测试连接（只读接口，不会产生 scrobble / now-playing）。
+    pub async fn test_scrobble(&self) -> Result<()> {
+        let s = self.services.clone();
+        self.run(async move { s.scrobble.test().await }).await
+    }
+
     /// 给曲目写覆盖层（补全结果 / 手动修正，不改原文件）。
     pub async fn set_track_overlay(
         &self,
@@ -1646,7 +1695,13 @@ mod tests {
             assert_eq!(rows[0].title, "晴天");
 
             core.play_tracks(vec![rows[0].id], 0)?;
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            // 并行跑整个测试套件时引擎任务可能晚几百毫秒才被调度；不要用固定睡眠。
+            for _ in 0..100 {
+                if core.playback_snapshot().track_id == Some(rows[0].id) {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
             assert_eq!(core.playback_snapshot().track_id, Some(rows[0].id));
             Ok::<_, LekisError>(())
         })?;
@@ -1755,7 +1810,8 @@ mod tests {
         std::fs::remove_dir_all(root.join("music"))?;
         rt.block_on(async {
             let started = core.start_scan(source).await;
-            for _ in 0..200 {
+            // 整个套件并行跑时后台扫描任务可能被 CPU 抢占；给足 10 秒。
+            for _ in 0..400 {
                 let info = core.list_source_infos().await?.remove(0);
                 if info.last_scan_error.is_some() {
                     break;

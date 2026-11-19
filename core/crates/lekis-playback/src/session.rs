@@ -6,11 +6,16 @@
 //! ```text
 //! 共享模式                                          实时回调（cpal）
 //! Decoder ──► 增益/限幅 ──► 格式转换 ──► RingSourceWriter<f32> ──► RingSource<f32> ──► 设备
+//!             （ReplayGain × 音量，只乘一次）              （20 ms 淡入淡出包络）
 //!
 //! 比特完美（PLY-05，Windows WASAPI 独占）           WASAPI 音频线程
 //! Decoder ──► decode_next_native ──► RingSourceWriter<i32> ──► RingSource<i32> ──► 设备
-//!             （左对齐 i32，无增益/无重采样）                    （只做字节打包）
+//!             （左对齐 i32，无增益/无重采样）                    （只做字节打包，无淡入淡出）
 //! ```
+//!
+//! 淡入淡出只在共享链路的输出回调里做：播放 / 恢复时从静音淡入，暂停 / seek /
+//! 手动切歌前淡出。自然无缝拼接**不插入**淡入淡出，拼接点的样本保持逐样本精确。
+//! 比特完美独占链路完全跳过这一步，否则样本位模式就不再是"位完美"了。
 //!
 //! 独占 / 比特完美链路目前**不是无缝的**：WASAPI 独占格式按每首歌协商，曲目结束时
 //! 引擎会重建会话（有缝回退）。共享模式仍然保持样本级无缝（PLY-01）。
@@ -29,10 +34,12 @@
 //! 跟的是真正从缓冲里被设备取走的样本，而不是解码线程解到哪儿了（解码总是领先几百毫秒）。
 
 use crate::decode::{open_decoder, Decoder, NativeSampleFormat, PcmFormat};
-use crate::dsp::{db_to_linear, DspNode, SoftClipper};
+use crate::dsp::{db_to_linear, DspNode, FadeControl, SoftClipper, DEFAULT_FADE_MS};
 use crate::gapless::{AudibleTrack, TrackTimeline};
 use crate::output::bitperfect::{choose_decode_path, DecodePath, NativePlan};
-use crate::output::ring_source::{ring_buffer, ring_buffer_of, RingProgress, RingSourceWriter};
+use crate::output::ring_source::{
+    ring_buffer_faded, ring_buffer_of, RingProgress, RingSourceWriter,
+};
 use crate::output::{AudioOutput, CpalOutput, OutputMode};
 use crate::resample::FormatConverter;
 use crate::MediaSource;
@@ -40,7 +47,7 @@ use lekis_types::{AudioProps, LekisError, Result, TrackId};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::runtime::Handle;
 use tokio::sync::oneshot;
 
@@ -185,6 +192,12 @@ pub struct Session {
     native_bit_perfect: bool,
     /// 输出流**实际**使用的模式：独占打开失败时是 [`OutputMode::Shared`]。
     output_mode: OutputMode,
+    /// 共享链路的淡入淡出控制；比特完美链路为 `None`（样本必须逐位不变）。
+    fade: Option<FadeControl>,
+    /// 输出流当前是否被暂停（暂停时不再做淡出等待）。
+    paused: bool,
+    /// 输出流已经关掉（`stop()` 幂等）。
+    output_stopped: bool,
 }
 
 impl Session {
@@ -408,7 +421,7 @@ impl Session {
             DecodePath::Shared => None,
         };
 
-        let (actual, progress, wire, native_bit_perfect) = match native_setup {
+        let (actual, progress, wire, native_bit_perfect, fade) = match native_setup {
             Some((native, plan)) => {
                 match setup_native_output(
                     &mut *output,
@@ -442,7 +455,8 @@ impl Session {
                             target: "playback::gapless",
                             "bit-perfect exclusive output is not gapless; the engine restarts the stream between tracks"
                         );
-                        (actual, progress, wire, true)
+                        // 比特完美链路不建淡入淡出包络：任何增益都会破坏位模式。
+                        (actual, progress, wire, true, None)
                     }
                     Err(e) => {
                         tracing::warn!(
@@ -458,7 +472,9 @@ impl Session {
                             format,
                             timeline.clone(),
                         ) {
-                            Ok((actual, progress, wire)) => (actual, progress, wire, false),
+                            Ok((actual, progress, wire, fade)) => {
+                                (actual, progress, wire, false, Some(fade))
+                            }
                             Err(e) => {
                                 drop(wire_tx);
                                 let _ = join.join();
@@ -476,7 +492,7 @@ impl Session {
                 format,
                 timeline.clone(),
             ) {
-                Ok((actual, progress, wire)) => (actual, progress, wire, false),
+                Ok((actual, progress, wire, fade)) => (actual, progress, wire, false, Some(fade)),
                 Err(e) => {
                     // 没有音频设备（headless / CI）：把解码线程也收掉，向上返回 Unsupported。
                     drop(wire_tx);
@@ -546,6 +562,9 @@ impl Session {
             next_token,
             native_bit_perfect,
             output_mode: actual_mode,
+            fade,
+            paused: false,
+            output_stopped: false,
         })
     }
 
@@ -651,10 +670,28 @@ impl Session {
     }
 
     /// 跳转到指定位置。真正的解码器 seek 在解码线程上做，这里只投递命令。
+    ///
+    /// 共享模式先让输出回调把 20 ms 淡出走完，再投递 seek；flush 会把包络重置到
+    /// 静音，等新位置的第一块样本到达后再淡入。比特完美链路不淡入淡出。
     pub fn seek(&mut self, position_ms: u64) -> Result<()> {
-        self.commands
+        if self.native_bit_perfect {
+            tracing::debug!(
+                target: "playback",
+                position_ms,
+                "bit-perfect exclusive output: skipping fade around seek to keep samples bit-exact"
+            );
+        } else if !self.paused {
+            self.fade_out_and_wait();
+        }
+        let result = self
+            .commands
             .send(WorkerCmd::Seek(position_ms))
-            .map_err(|_| LekisError::internal("decode thread has stopped"))
+            .map_err(|_| LekisError::internal("decode thread has stopped"));
+        if !self.native_bit_perfect {
+            // flush 在回调里还会再 reset 一次；这里保证暂停中 seek 之后恢复能淡入。
+            self.fade_in();
+        }
+        result
     }
 
     /// 调音量（实时生效，无需重建流）。
@@ -676,13 +713,99 @@ impl Session {
     }
 
     /// 暂停输出流（保留缓冲内容）。
+    ///
+    /// 共享模式：先请求淡出并等回调把 20 ms 斜坡走完，再真正暂停，避免波形被
+    /// 硬切成静音产生"咔哒"。比特完美链路直接暂停（淡入淡出会改样本位模式）。
     pub fn pause(&mut self) -> Result<()> {
-        self.output.pause()
+        if self.paused {
+            return Ok(());
+        }
+        if self.native_bit_perfect {
+            tracing::debug!(
+                target: "playback",
+                "bit-perfect exclusive output: pausing without a fade to keep samples bit-exact"
+            );
+        } else {
+            self.fade_out_and_wait();
+        }
+        match self.output.pause() {
+            Ok(()) => {
+                self.paused = true;
+                Ok(())
+            }
+            Err(e) => {
+                // 没暂停成功：把音量斜坡恢复到 1，别让音乐继续响着却越来越轻。
+                if !self.native_bit_perfect {
+                    self.fade_in();
+                }
+                Err(e)
+            }
+        }
     }
 
     /// 继续播放。
+    ///
+    /// 共享模式从静音淡入；比特完美链路保持原始样本。
     pub fn resume(&mut self) -> Result<()> {
-        self.output.resume()
+        if !self.native_bit_perfect {
+            self.fade_in();
+        } else {
+            tracing::debug!(
+                target: "playback",
+                "bit-perfect exclusive output: resuming without a fade to keep samples bit-exact"
+            );
+        }
+        match self.output.resume() {
+            Ok(()) => {
+                self.paused = false;
+                Ok(())
+            }
+            Err(e) => {
+                if !self.native_bit_perfect {
+                    self.fade_out();
+                }
+                Err(e)
+            }
+        }
+    }
+
+    /// 请求淡出并等实时回调真正消费完斜坡（只用于共享模式）。
+    ///
+    /// 不看墙钟而是看 [`RingProgress`]：设备块大小不固定，只要已播放样本数
+    /// 增加了「20 ms 对应的设备帧数」，就说明回调已经把整条斜坡渲染出去了。
+    /// 缓冲已经播空时直接返回，避免在曲目结束后白等。
+    fn fade_out_and_wait(&self) {
+        let Some(fade) = self.fade.as_ref() else {
+            return;
+        };
+        if self.progress.drained() {
+            return;
+        }
+        fade.fade_out();
+        let channels = u64::from(self.device_format.channels.max(1));
+        let frames = crate::dsp::fade_frames(self.device_format.sample_rate, DEFAULT_FADE_MS) as u64;
+        let needed = frames.saturating_mul(channels);
+        let start = self.progress.played_samples();
+        let deadline = Instant::now() + Duration::from_millis(60);
+        while self.progress.played_samples() < start.saturating_add(needed)
+            && Instant::now() < deadline
+        {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+
+    /// 请求淡入（只用于共享模式）。
+    fn fade_in(&self) {
+        if let Some(fade) = self.fade.as_ref() {
+            fade.fade_in();
+        }
+    }
+
+    /// 请求淡出但不等待（恢复失败时回滚用）。
+    fn fade_out(&self) {
+        if let Some(fade) = self.fade.as_ref() {
+            fade.fade_out();
+        }
     }
 
     /// 这首是否已经播完（解码器到达结尾**且**缓冲被播放空）。
@@ -708,6 +831,20 @@ impl Session {
     /// 解码线程每 3 ms 检查一次停止标志，`push_blocking` 也会被同一个标志打断，
     /// 所以这里的 `join` 最多阻塞几毫秒（VFS 上一次 Range 读可能更久）。
     pub fn stop(&mut self) {
+        if self.output_stopped {
+            return;
+        }
+        self.output_stopped = true;
+        if self.native_bit_perfect {
+            tracing::debug!(
+                target: "playback",
+                "bit-perfect exclusive output: stopping without a fade to keep samples bit-exact"
+            );
+        } else if !self.paused {
+            // 手动切歌 / 关设备：先淡出，避免旧波形被硬切。自然无缝拼接不经过
+            // 这里（解码线程直接把下一首接进同一条缓冲），所以拼接点仍然逐样本精确。
+            self.fade_out_and_wait();
+        }
         self.stop.store(true, Ordering::Release);
         let _ = self.commands.send(WorkerCmd::Stop);
         if let Some(handle) = self.thread.take() {
@@ -730,12 +867,17 @@ fn setup_shared_output(
     device_id: Option<&str>,
     content_format: PcmFormat,
     timeline: TrackTimeline,
-) -> Result<(PcmFormat, RingProgress, WorkerWire)> {
+) -> Result<(PcmFormat, RingProgress, WorkerWire, FadeControl)> {
     let planned = factory.plan_format(device_id, content_format)?;
     if planned.sample_rate == 0 || planned.channels == 0 {
         return Err(LekisError::invalid("output reported an empty pcm format"));
     }
-    let (writer, source, progress) = ring_buffer(buffer_capacity(planned), planned.channels);
+    // 20 ms 淡入淡出在输出回调里执行；ReplayGain / 音量仍然只在解码线程算一次。
+    let (writer, source, progress, fade) = ring_buffer_faded(
+        buffer_capacity(planned),
+        planned.channels,
+        planned.sample_rate,
+    );
     let actual = output.start(
         device_id,
         content_format,
@@ -748,7 +890,7 @@ fn setup_shared_output(
         device_format: actual,
         timeline,
     };
-    Ok((actual, progress, wire))
+    Ok((actual, progress, wire, fade))
 }
 
 /// 比特完美链路：左对齐 i32 环形缓冲 + WASAPI 独占流。
@@ -1206,6 +1348,11 @@ fn samples_per_ms(format: PcmFormat) -> f64 {
 }
 
 /// 对一块样本套上 ReplayGain + 用户音量，再过软限幅（PLY-03）。
+///
+/// 这是共享链路里**唯一**乘 ReplayGain 的地方：`media.gain_db` 由 lekis-core 的
+/// resolver 按 `playback.replaygain`（track / album / off）选好，这里和用户音量合成
+/// 一个线性系数后只遍历一次。输出回调里的 20 ms 淡入淡出是另一层包络，不会再次
+/// 乘 ReplayGain，所以不会出现"双倍增益"。
 fn apply_gain(
     samples: &mut [f32],
     gain_linear: f32,
@@ -1482,14 +1629,32 @@ mod tests {
     }
 
     fn cached_media(track: i64, path: &Path, duration_hint_ms: u64) -> MediaSource {
+        cached_media_with_gain(track, path, duration_hint_ms, None)
+    }
+
+    fn cached_media_with_gain(
+        track: i64,
+        path: &Path,
+        duration_hint_ms: u64,
+        gain_db: Option<f32>,
+    ) -> MediaSource {
         MediaSource {
             track_id: TrackId(track),
             location: MediaLocation::CachedFile {
                 path: path.to_string_lossy().into_owned(),
             },
             duration_hint_ms,
-            gain_db: None,
+            gain_db,
         }
+    }
+
+    /// 找一个 20 ms 淡入的稳定段：跳过前 `fade_frames` 帧再取均值。
+    fn steady_mean(samples: &[f32], fade_frames: usize) -> f32 {
+        let tail = &samples[fade_frames.min(samples.len())..];
+        if tail.is_empty() {
+            return 0.0;
+        }
+        tail.iter().sum::<f32>() / tail.len() as f32
     }
 
     /// 最长连续零样本数（真正的断点检测）。
@@ -1564,6 +1729,155 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// 共享模式开播必须淡入：第一帧接近静音，20 ms 后回到原幅度。
+    #[tokio::test]
+    async fn shared_session_fades_in_at_start() {
+        let dir = temp_dir("fade-in");
+        let frames = 3_200usize; // 400 ms @ 8 kHz
+        let path = write_wav(&dir, "fade.wav", 8_000, 1, frames, 8_000);
+        let format = PcmFormat {
+            sample_rate: 8_000,
+            channels: 1,
+        };
+        let factory = Arc::new(NullOutputFactory::new(format));
+        let mut session = Session::start_with_factory(
+            &cached_media(1, &path, 400),
+            None,
+            OutputMode::Shared,
+            1.0,
+            Handle::current(),
+            factory.clone(),
+        )
+        .await
+        .expect("start shared session");
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline && !session.finished() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        session.stop();
+
+        let captured = factory.captured();
+        let span = nonzero_span(&captured);
+        let fade = crate::dsp::fade_frames(8_000, crate::dsp::DEFAULT_FADE_MS);
+        assert_eq!(fade, 160, "8 kHz 下 20 ms 应为 160 帧");
+        let level = 8_000.0f32 / 32_768.0;
+        let first = span[0];
+        let step = 1.0 / fade as f32;
+        assert!(
+            (first - level * step).abs() < 1e-5,
+            "首帧应约为 {:.6}，实际 {first:.6}",
+            level * step
+        );
+        assert!(span[..fade].windows(2).all(|w| w[1] >= w[0]), "淡入不能回头");
+        assert!(
+            (span[fade - 1] - level).abs() < 1e-5,
+            "第 {fade} 帧应回到原幅度，实际 {:.6}",
+            span[fade - 1]
+        );
+        let steady = steady_mean(span, fade);
+        assert!(
+            (steady - level).abs() < 1e-5,
+            "稳定段必须是原始幅度，实际 {steady}"
+        );
+        eprintln!(
+            "fade measurement: {} frames ramp ({:.3} ms) @ 8 kHz; first {:.6}, steady {:.6}, captured {} frames",
+            fade,
+            fade as f64 / 8.0,
+            first,
+            steady,
+            span.len()
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// ReplayGain 必须在共享链路里生效，而且只乘一次（不是淡入淡出再乘一次）。
+    #[tokio::test]
+    async fn shared_session_applies_replaygain_exactly_once() {
+        let dir = temp_dir("replaygain");
+        let frames = 3_200usize;
+        let path = write_wav(&dir, "rg.wav", 8_000, 1, frames, 8_000);
+        let format = PcmFormat {
+            sample_rate: 8_000,
+            channels: 1,
+        };
+        let factory = Arc::new(NullOutputFactory::new(format));
+        // -6.0206 dB ≈ 0.5 线性增益。
+        let gain_db = -6.020_6f32;
+        let mut session = Session::start_with_factory(
+            &cached_media_with_gain(1, &path, 400, Some(gain_db)),
+            None,
+            OutputMode::Shared,
+            1.0,
+            Handle::current(),
+            factory.clone(),
+        )
+        .await
+        .expect("start shared session");
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline && !session.finished() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        session.stop();
+
+        let captured = factory.captured();
+        let span = nonzero_span(&captured);
+        let fade = crate::dsp::fade_frames(8_000, crate::dsp::DEFAULT_FADE_MS);
+        let steady = steady_mean(span, fade);
+        let level = 8_000.0f32 / 32_768.0;
+        let expected = level * db_to_linear(gain_db);
+        assert!(
+            (steady - expected).abs() < 1e-4,
+            "ReplayGain 应只乘一次：期望 {expected:.6}，实际 {steady:.6}（双倍增益会是 {:.6}）",
+            level * db_to_linear(gain_db) * db_to_linear(gain_db)
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 比特完美链路即使带 ReplayGain 也必须逐位原样输出（淡入淡出同样跳过）。
+    #[tokio::test]
+    async fn native_session_ignores_replaygain_and_fades() {
+        let dir = temp_dir("native-rg");
+        let frames = 3_200usize;
+        let path = write_wav(&dir, "native-rg.wav", 8_000, 1, frames, -8_000);
+        let format = PcmFormat {
+            sample_rate: 8_000,
+            channels: 1,
+        };
+        let factory = Arc::new(NativeNullFactory::new(format));
+        let mut session = Session::start_with_factory(
+            &cached_media_with_gain(1, &path, 400, Some(-6.020_6)),
+            None,
+            OutputMode::Exclusive,
+            1.0,
+            Handle::current(),
+            factory.clone(),
+        )
+        .await
+        .expect("start native session");
+        assert!(session.native_bit_perfect());
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline && !session.finished() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        session.stop();
+
+        let captured = factory.captured();
+        let first = captured
+            .iter()
+            .position(|sample| *sample != 0)
+            .expect("必须录到原生样本");
+        let span = &captured[first..];
+        let expected = i32::from(-8_000i16) << 16;
+        assert!(
+            span[..frames].iter().all(|sample| *sample == expected),
+            "比特完美链路不能套 ReplayGain / 淡入淡出"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// PLY-01 核心用例：两首同格式 WAV 顺序播放，样本必须一帧不差地接上。
     ///
     /// 第一首全是 +0.25，第二首全是 -0.25；如果中间有任何静音（哪怕一帧），
@@ -1630,6 +1944,18 @@ mod tests {
             span[frames..].iter().all(|s| *s < 0.0),
             "第 {} 帧开始必须全部来自第二首",
             frames
+        );
+        // 拼接点两侧必须是原始幅度（淡入淡出不能侵入无缝边界）。
+        let level = 8_000.0f32 / 32_768.0;
+        assert!(
+            (span[frames - 1] - level).abs() < 1e-6,
+            "拼接前最后一帧被改动了：{}",
+            span[frames - 1]
+        );
+        assert!(
+            (span[frames] + level).abs() < 1e-6,
+            "拼接后第一帧被改动了：{}",
+            span[frames]
         );
         let _ = std::fs::remove_dir_all(&dir);
     }

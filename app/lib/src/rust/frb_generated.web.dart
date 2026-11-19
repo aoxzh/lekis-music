@@ -77,6 +77,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlayContextDto dco_decode_box_autoadd_play_context_dto(dynamic raw);
 
   @protected
+  ScrobbleSettingsInputDto dco_decode_box_autoadd_scrobble_settings_input_dto(
+    dynamic raw,
+  );
+
+  @protected
   SourceConfigDto dco_decode_box_autoadd_source_config_dto(dynamic raw);
 
   @protected
@@ -289,6 +294,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ScanPhaseDto dco_decode_scan_phase_dto(dynamic raw);
 
   @protected
+  ScrobbleSettingsDto dco_decode_scrobble_settings_dto(dynamic raw);
+
+  @protected
+  ScrobbleSettingsInputDto dco_decode_scrobble_settings_input_dto(dynamic raw);
+
+  @protected
+  ScrobbleStatusDto dco_decode_scrobble_status_dto(dynamic raw);
+
+  @protected
   SearchResultsDto dco_decode_search_results_dto(dynamic raw);
 
   @protected
@@ -389,6 +403,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlayContextDto sse_decode_box_autoadd_play_context_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ScrobbleSettingsInputDto sse_decode_box_autoadd_scrobble_settings_input_dto(
     SseDeserializer deserializer,
   );
 
@@ -655,6 +674,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ScanPhaseDto sse_decode_scan_phase_dto(SseDeserializer deserializer);
 
   @protected
+  ScrobbleSettingsDto sse_decode_scrobble_settings_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ScrobbleSettingsInputDto sse_decode_scrobble_settings_input_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ScrobbleStatusDto sse_decode_scrobble_status_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   SearchResultsDto sse_decode_search_results_dto(SseDeserializer deserializer);
 
   @protected
@@ -777,6 +811,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_play_context_dto(
     PlayContextDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_scrobble_settings_input_dto(
+    ScrobbleSettingsInputDto self,
     SseSerializer serializer,
   );
 
@@ -1118,6 +1158,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_scan_phase_dto(ScanPhaseDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_scrobble_settings_dto(
+    ScrobbleSettingsDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_scrobble_settings_input_dto(
+    ScrobbleSettingsInputDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_scrobble_status_dto(
+    ScrobbleStatusDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_search_results_dto(

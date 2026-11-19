@@ -13,6 +13,7 @@
 //! // 输出后端：source.fill(buf)（在 cpal 回调里）
 //! ```
 
+use crate::dsp::{FadeControl, FadeRamp, DEFAULT_FADE_MS};
 use crate::output::{NativeSampleSource, SampleSource};
 use ringbuf::traits::{Consumer, Observer, Producer, Split};
 use ringbuf::{HeapCons, HeapProd, HeapRb};
@@ -151,9 +152,48 @@ pub struct RingSource<T = f32> {
     seen_flush: u64,
     /// 声道数，用于把欠载的尾部补成整帧静音。
     channels: u16,
+    /// 共享模式的淡入淡出包络；比特完美 i32 链路永远是 `None`。
+    fade: Option<SourceFade>,
 }
 
-impl<T: Copy + Default> RingSource<T> {
+/// 输出回调侧的淡入淡出状态（包络 + 跨线程目标）。
+struct SourceFade {
+    ramp: FadeRamp,
+    control: FadeControl,
+}
+
+/// 让 f32 链路应用淡入淡出；i32 比特完美链路保持空实现（逐位不变）。
+trait FadeSamples: Copy + Default {
+    fn apply_fade(samples: &mut [Self], fade: &mut Option<SourceFade>, channels: u16);
+}
+
+impl FadeSamples for f32 {
+    fn apply_fade(samples: &mut [Self], fade: &mut Option<SourceFade>, channels: u16) {
+        if let Some(fade) = fade.as_mut() {
+            if !samples.is_empty() {
+                fade.ramp.process(samples, channels, fade.control.target());
+            }
+        }
+    }
+}
+
+impl FadeSamples for i32 {
+    fn apply_fade(_samples: &mut [Self], _fade: &mut Option<SourceFade>, _channels: u16) {}
+}
+
+#[allow(private_bounds)]
+impl<T: Copy + Default + FadeSamples> RingSource<T> {
+    /// 当前淡入淡出目标（测试 / 诊断用）；比特完美链路恒为 1.0。
+    pub fn fade_target(&self) -> f32 {
+        self.fade
+            .as_ref()
+            .map(|fade| fade.control.target())
+            .unwrap_or(1.0)
+    }
+}
+
+#[allow(private_bounds)]
+impl<T: Copy + Default + FadeSamples> RingSource<T> {
     /// 欠载次数。
     pub fn underruns(&self) -> u64 {
         self.progress.underruns()
@@ -169,9 +209,17 @@ impl<T: Copy + Default> RingSource<T> {
         if current_flush != self.seen_flush {
             self.seen_flush = current_flush;
             self.cons.clear();
+            // seek / 切歌：旧斜坡作废，等新数据到了再从静音淡入。
+            if let Some(fade) = self.fade.as_mut() {
+                fade.ramp.reset();
+            }
             self.progress.on_flushed(current_flush);
         }
         let n = self.cons.pop_slice(out);
+        // 淡入淡出只作用于真实取到的样本；欠载补的静音不消耗斜坡。
+        if n > 0 {
+            T::apply_fade(&mut out[..n], &mut self.fade, self.channels);
+        }
         if n < out.len() {
             self.progress.note_underrun();
             // 不够就补静音；补齐到整帧，避免左右声道错位。
@@ -202,11 +250,44 @@ impl NativeSampleSource for RingSource<i32> {
 }
 
 /// 创建一对（写端, 读端）和一个进度句柄。`capacity` 是**样本数**（帧数 × 声道）。
+///
+/// 不带淡入淡出：给需要逐样本原样通过的测试 / 内部工具用。共享播放链路请用
+/// [`ring_buffer_faded`]，它额外返回一个 [`FadeControl`]。
 pub fn ring_buffer(capacity: usize, channels: u16) -> (RingSourceWriter, RingSource, RingProgress) {
     ring_buffer_of::<f32>(capacity, channels)
 }
 
+/// 创建共享模式的 f32 环形缓冲 + 默认 20 ms 淡入淡出包络。
+///
+/// 返回的 [`FadeControl`] 交给 [`crate::session::Session`]：暂停前淡出、恢复 / seek
+/// 后淡入。包络在实时回调里运行，不改变解码线程的 ReplayGain / 音量计算。
+pub fn ring_buffer_faded(
+    capacity: usize,
+    channels: u16,
+    sample_rate: u32,
+) -> (RingSourceWriter, RingSource, RingProgress, FadeControl) {
+    ring_buffer_faded_with(capacity, channels, sample_rate, DEFAULT_FADE_MS)
+}
+
+/// 和 [`ring_buffer_faded`] 一样，但淡入淡出时长可调（测试用更短的斜坡）。
+pub fn ring_buffer_faded_with(
+    capacity: usize,
+    channels: u16,
+    sample_rate: u32,
+    fade_ms: u32,
+) -> (RingSourceWriter, RingSource, RingProgress, FadeControl) {
+    let (writer, mut source, progress) = ring_buffer_of::<f32>(capacity, channels);
+    let control = FadeControl::new(1.0);
+    source.fade = Some(SourceFade {
+        ramp: FadeRamp::new(sample_rate, fade_ms),
+        control: control.clone(),
+    });
+    (writer, source, progress, control)
+}
+
 /// 和 [`ring_buffer`] 一样，但样本类型可选（比特完美链路用 `i32`）。
+///
+/// 这条路径**没有**淡入淡出包络：比特完美要求样本位模式一字节不改。
 pub fn ring_buffer_of<T: Copy>(
     capacity: usize,
     channels: u16,
@@ -228,6 +309,7 @@ pub fn ring_buffer_of<T: Copy>(
             progress: progress.clone(),
             seen_flush: 0,
             channels,
+            fade: None,
         },
         progress,
     )
@@ -317,6 +399,70 @@ mod tests {
         let stop = AtomicBool::new(false);
         let acked = progress.wait_flush_ack(seq, &stop, Duration::from_millis(20));
         assert!(!acked, "没有消费者时握手必须超时返回，不能卡死");
+    }
+
+    /// 共享链路：首个真实样本必须从斜坡开始，不是原样跳出来；flush 后重新淡入。
+    #[test]
+    fn faded_ring_ramps_in_and_resets_on_flush() {
+        let frames = crate::dsp::fade_frames(8_000, DEFAULT_FADE_MS);
+        let (mut writer, mut source, progress, fade) = ring_buffer_faded(8_000, 1, 8_000);
+        assert_eq!(fade.target(), 1.0);
+
+        writer.push(&vec![1.0f32; frames]);
+        progress.add_pushed(frames as u64);
+        let mut out = vec![0.0f32; frames];
+        assert_eq!(source.fill(&mut out), frames);
+        assert!(
+            (out[0] - 1.0 / frames as f32).abs() < 1e-6,
+            "首样本应约为 step，实际 {}",
+            out[0]
+        );
+        assert!((out[frames - 1] - 1.0).abs() < 1e-6);
+
+        // seek：flush 丢掉旧样本，增益回到 0；随后的第一块新样本重新淡入。
+        let seq = progress.request_flush();
+        let n = source.fill(&mut out);
+        assert_eq!(n, 0);
+        assert_eq!(progress.flush_ack.load(Ordering::Acquire), seq);
+
+        writer.push(&vec![1.0f32; frames]);
+        progress.add_pushed(frames as u64);
+        let n = source.fill(&mut out);
+        assert_eq!(n, frames);
+        assert!(
+            (out[0] - 1.0 / frames as f32).abs() < 1e-6,
+            "flush 后必须从静音重新淡入，实际 {}",
+            out[0]
+        );
+    }
+
+    /// 暂停前的淡出目标必须由实时回调看到；再次 fade_in 后斜坡从 0 开始。
+    #[test]
+    fn fade_control_drives_the_ring_ramp() {
+        let frames = crate::dsp::fade_frames(8_000, DEFAULT_FADE_MS);
+        let (mut writer, mut source, progress, fade) = ring_buffer_faded(8_000, 1, 8_000);
+        writer.push(&vec![1.0f32; frames]);
+        progress.add_pushed(frames as u64);
+        let mut out = vec![0.0f32; frames];
+        source.fill(&mut out);
+        assert!((out[frames - 1] - 1.0).abs() < 1e-6);
+
+        fade.fade_out();
+        writer.push(&vec![1.0f32; frames]);
+        progress.add_pushed(frames as u64);
+        source.fill(&mut out);
+        assert!((out[0] - 1.0).abs() < 1e-6, "淡出第一帧保持 1.0");
+        assert!(
+            (out[frames - 1] - 1.0 / frames as f32).abs() < 1e-6,
+            "淡出最后一帧应为 step"
+        );
+
+        // 再淡入：从 0 重新起斜坡。
+        fade.fade_in();
+        writer.push(&vec![1.0f32; frames]);
+        progress.add_pushed(frames as u64);
+        source.fill(&mut out);
+        assert!((out[0] - 1.0 / frames as f32).abs() < 1e-6);
     }
 
     /// 比特完美链路用 i32 环形缓冲：样本必须逐位保持，不能经过任何转换。

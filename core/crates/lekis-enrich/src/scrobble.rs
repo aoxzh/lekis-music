@@ -550,6 +550,50 @@ impl ScrobbleClient {
         Ok(())
     }
 
+    /// 校验配置与网络连通性，**不会**产生任何 scrobble / now-playing 记录。
+    ///
+    /// - ListenBrainz：`GET /1/validate-token`（只验证 token，不写任何数据）；
+    /// - Last.fm / Libre.fm：签名调用 `user.getInfo`（只读，需要用户名）。
+    ///
+    /// # Errors
+    /// 缺凭据 / 用户名 → `Auth`；网络失败 → `Network`；其余同 [`Self::now_playing`]。
+    pub async fn test_connection(&self, username: Option<&str>) -> Result<()> {
+        match self.config.service {
+            ScrobbleService::ListenBrainz => {
+                let token = require(&self.config.user_token, self.config.service, "user_token")?;
+                let url = http::join(&self.config.base_url, "/1/validate-token")?;
+                let request = self.client.get(url).header(
+                    reqwest::header::AUTHORIZATION,
+                    format!("Token {}", token.trim()),
+                );
+                self.execute(request, "校验 ListenBrainz 连接").await?;
+            }
+            _ => {
+                let user = username
+                    .map(str::trim)
+                    .filter(|text| !text.is_empty())
+                    .ok_or_else(|| {
+                        LekisError::new(
+                            ErrorCode::Auth,
+                            format!("{} 需要填写用户名才能测试连接", self.config.service.name()),
+                        )
+                    })?;
+                // user.getInfo 是只读接口，不需要 session key，也不会写用户资料。
+                let params = vec![
+                    ("method".to_string(), "user.getInfo".to_string()),
+                    ("user".to_string(), user.to_string()),
+                ];
+                self.post_signed(params, "校验连接").await?;
+            }
+        }
+        tracing::debug!(
+            target: "lekis_enrich::scrobble",
+            service = self.config.service.name(),
+            "连接测试通过",
+        );
+        Ok(())
+    }
+
     /// 批量上报听歌记录。
     ///
     /// 空切片直接返回 `Ok(())`（不发请求）。超过 [`MAX_BATCH`] 条会自动分包；

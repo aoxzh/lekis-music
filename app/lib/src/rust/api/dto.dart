@@ -10,7 +10,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'dto.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 /// 专辑（LIB-06）。
 class AlbumDto {
@@ -854,6 +854,186 @@ enum PlaylistKindDto {
 enum RepeatModeDto { off, all, one }
 
 enum ScanPhaseDto { walking, readingTags, artwork, writingSharedIndex }
+
+/// 上报设置的安全视图：只有"凭据是否已保存"，没有明文。
+class ScrobbleSettingsDto {
+  /// 是否启用。
+  final bool enabled;
+
+  /// `lastfm` / `listenbrainz` / `librefm`。
+  final String service;
+
+  /// 用户名。
+  final String? username;
+
+  /// 是否发送 now-playing。
+  final bool nowPlaying;
+
+  /// 是否已保存 API key。
+  final bool hasApiKey;
+
+  /// 是否已保存 API secret。
+  final bool hasApiSecret;
+
+  /// 是否已保存 session key。
+  final bool hasSessionKey;
+
+  /// 是否已保存 user token。
+  final bool hasUserToken;
+
+  const ScrobbleSettingsDto({
+    required this.enabled,
+    required this.service,
+    this.username,
+    required this.nowPlaying,
+    required this.hasApiKey,
+    required this.hasApiSecret,
+    required this.hasSessionKey,
+    required this.hasUserToken,
+  });
+
+  @override
+  int get hashCode =>
+      enabled.hashCode ^
+      service.hashCode ^
+      username.hashCode ^
+      nowPlaying.hashCode ^
+      hasApiKey.hashCode ^
+      hasApiSecret.hashCode ^
+      hasSessionKey.hashCode ^
+      hasUserToken.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ScrobbleSettingsDto &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          service == other.service &&
+          username == other.username &&
+          nowPlaying == other.nowPlaying &&
+          hasApiKey == other.hasApiKey &&
+          hasApiSecret == other.hasApiSecret &&
+          hasSessionKey == other.hasSessionKey &&
+          hasUserToken == other.hasUserToken;
+}
+
+/// 修改上报设置。凭据是 `Option<String>`：`None` 保留，`Some("")` 清除。
+class ScrobbleSettingsInputDto {
+  /// 是否启用。
+  final bool enabled;
+
+  /// `lastfm` / `listenbrainz` / `librefm`。
+  final String service;
+
+  /// 用户名（空字符串清除）。
+  final String username;
+
+  /// 是否发送 now-playing。
+  final bool nowPlaying;
+
+  /// 新 API key。
+  final String? apiKey;
+
+  /// 新 API secret。
+  final String? apiSecret;
+
+  /// 新 session key。
+  final String? sessionKey;
+
+  /// 新 user token。
+  final String? userToken;
+
+  const ScrobbleSettingsInputDto({
+    required this.enabled,
+    required this.service,
+    required this.username,
+    required this.nowPlaying,
+    this.apiKey,
+    this.apiSecret,
+    this.sessionKey,
+    this.userToken,
+  });
+
+  static Future<ScrobbleSettingsInputDto> default_() =>
+      RustLib.instance.api.crateApiDtoScrobbleSettingsInputDtoDefault();
+
+  @override
+  int get hashCode =>
+      enabled.hashCode ^
+      service.hashCode ^
+      username.hashCode ^
+      nowPlaying.hashCode ^
+      apiKey.hashCode ^
+      apiSecret.hashCode ^
+      sessionKey.hashCode ^
+      userToken.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ScrobbleSettingsInputDto &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          service == other.service &&
+          username == other.username &&
+          nowPlaying == other.nowPlaying &&
+          apiKey == other.apiKey &&
+          apiSecret == other.apiSecret &&
+          sessionKey == other.sessionKey &&
+          userToken == other.userToken;
+}
+
+/// 上报状态。
+class ScrobbleStatusDto {
+  /// 是否已配置完整。
+  final bool configured;
+
+  /// 用户是否打开开关。
+  final bool enabled;
+
+  /// 服务标识。
+  final String service;
+
+  /// 待补报条数。
+  final int queued;
+
+  /// 最近错误（不含凭据）。
+  final String? lastError;
+
+  /// 最近成功上报 / 测试的 Unix 毫秒。
+  final PlatformInt64? lastSuccessAtMs;
+
+  const ScrobbleStatusDto({
+    required this.configured,
+    required this.enabled,
+    required this.service,
+    required this.queued,
+    this.lastError,
+    this.lastSuccessAtMs,
+  });
+
+  @override
+  int get hashCode =>
+      configured.hashCode ^
+      enabled.hashCode ^
+      service.hashCode ^
+      queued.hashCode ^
+      lastError.hashCode ^
+      lastSuccessAtMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ScrobbleStatusDto &&
+          runtimeType == other.runtimeType &&
+          configured == other.configured &&
+          enabled == other.enabled &&
+          service == other.service &&
+          queued == other.queued &&
+          lastError == other.lastError &&
+          lastSuccessAtMs == other.lastSuccessAtMs;
+}
 
 class SearchResultsDto {
   final List<TrackRowDto> tracks;

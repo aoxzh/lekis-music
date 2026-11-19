@@ -731,6 +731,35 @@ pub async fn set_playlist_artwork(
         .await?)
 }
 
+// ---- 听歌记录上报（DIS-07）----
+
+/// 当前上报设置（不含明文凭据）。
+#[frb(sync)]
+pub fn scrobble_settings() -> ScrobbleSettingsDto {
+    core().scrobble_settings().into()
+}
+
+/// 保存上报设置。凭据字段传 `null` 表示保留已保存的值。
+pub async fn set_scrobble_settings(
+    settings: ScrobbleSettingsInputDto,
+) -> Result<ScrobbleSettingsDto, CoreError> {
+    Ok(core()
+        .set_scrobble_settings(settings.into())
+        .await?
+        .into())
+}
+
+/// 上报状态（队列条数、最近错误 / 成功时间）。
+#[frb(sync)]
+pub fn scrobble_status() -> ScrobbleStatusDto {
+    core().scrobble_status().into()
+}
+
+/// 测试当前上报配置：只做只读校验，不会产生 scrobble / now-playing。
+pub async fn test_scrobble() -> Result<(), CoreError> {
+    Ok(core().test_scrobble().await?)
+}
+
 // ---- 统计 / 覆盖层（DIS-06、ENR-07）----
 
 /// 喜欢的曲目。
