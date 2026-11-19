@@ -16,6 +16,8 @@ pub mod discovery;
 mod enrich;
 pub mod events;
 mod folders;
+/// In-memory diagnostic log ring for the Settings screen (SET-03).
+pub mod logs;
 mod lyrics_local;
 mod offline;
 pub mod platform;
@@ -216,6 +218,7 @@ impl LekisCore {
         platform: PlatformServices,
         handle: &Handle,
     ) -> Result<Arc<Services>> {
+        logs::init();
         std::fs::create_dir_all(&config.data_dir)?;
         std::fs::create_dir_all(&config.cache_dir)?;
         let device_id = config::load_or_create_device_id(&config.data_dir)?;

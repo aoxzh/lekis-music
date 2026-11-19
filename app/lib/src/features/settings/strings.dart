@@ -93,6 +93,9 @@ abstract final class SettingsStrings {
   static const scrobbleLastSuccess = '最近成功';
 
   static const backup = '备份与恢复';
+  static const diagnostics = '诊断';
+  static const diagnosticLogs = '诊断日志';
+  static const diagnosticLogsHint = '查看最近的核心日志并复制；敏感字段已自动打码';
   static const about = '关于';
   static const coreVersion = '核心版本';
   static const deviceId = '设备 ID';

@@ -10,6 +10,7 @@ import '../../shell/tab_bar_style.dart';
 import '../../theme/tokens.dart';
 import '../downloads/downloads_models.dart';
 import '../downloads/downloads_providers.dart';
+import 'logs_page.dart';
 import '../enrich/enrich_providers.dart';
 import '../now_playing/lyrics_stage_settings.dart';
 import '../player/sleep_timer.dart';
@@ -58,6 +59,10 @@ class SettingsPage extends StatelessWidget {
             _Section(
               title: SettingsStrings.backup,
               child: SettingsBackupSection(),
+            ),
+            _Section(
+              title: SettingsStrings.diagnostics,
+              child: _DiagnosticsTile(),
             ),
             _Section(title: SettingsStrings.about, child: _AboutSection()),
           ],
@@ -490,6 +495,28 @@ class _LibrarySection extends ConsumerWidget {
           onTap: () => openEnrichReview(context),
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 诊断（SET-03）
+// ---------------------------------------------------------------------------
+
+class _DiagnosticsTile extends StatelessWidget {
+  const _DiagnosticsTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      minTileHeight: LekisSizes.touchTargetMin,
+      leading: const Icon(Icons.receipt_long_outlined),
+      title: const Text(SettingsStrings.diagnosticLogs),
+      subtitle: const Text(SettingsStrings.diagnosticLogsHint),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const DiagnosticLogsPage()),
+      ),
     );
   }
 }

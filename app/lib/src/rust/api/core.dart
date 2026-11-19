@@ -640,6 +640,13 @@ Future<List<TrackRowDto>> folderTracks({
   limit: limit,
 );
 
+/// 最近的核心日志（最多 2000 行，已做简单脱敏）。
+List<String> recentLogs({required int limit}) =>
+    RustLib.instance.api.crateApiCoreRecentLogs(limit: limit);
+
+/// 清空诊断日志缓冲。
+void clearLogs() => RustLib.instance.api.crateApiCoreClearLogs();
+
 /// 一个子文件夹。`path` 相对音源根目录，用 `/` 分隔，传回 [`list_folder`] 继续往下走。
 class FolderEntryDto {
   final String name;

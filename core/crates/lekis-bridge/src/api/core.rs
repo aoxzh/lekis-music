@@ -1066,3 +1066,17 @@ pub async fn folder_tracks(
         .map(Into::into)
         .collect())
 }
+
+// ---- 诊断日志（SET-03）----
+
+/// 最近的核心日志（最多 2000 行，已做简单脱敏）。
+#[frb(sync)]
+pub fn recent_logs(limit: u32) -> Vec<String> {
+    lekis_core::logs::recent(limit as usize)
+}
+
+/// 清空诊断日志缓冲。
+#[frb(sync)]
+pub fn clear_logs() {
+    lekis_core::logs::clear();
+}
