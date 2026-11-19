@@ -381,6 +381,13 @@ impl Library {
         const PAGE: u32 = TrackQuery::MAX_LIMIT;
         /// 防御：一个队列最多这么多首（超大资料库也不会把内存吃光）。
         const CAP: usize = 100_000;
+        // 智能歌单的条目不在 playlist_item 里，必须走规则求值；普通歌单仍然读条目表。
+        let playlist_is_smart = match &context {
+            TrackContext::Playlist(id) => {
+                self.get_playlist(*id).await?.kind == crate::playlists::PlaylistKind::Smart
+            }
+            _ => false,
+        };
         let mut out: Vec<Option<TrackId>> = Vec::new();
         let mut offset = 0u32;
         loop {
@@ -419,12 +426,21 @@ impl Library {
                     .into_iter()
                     .map(|r| Some(r.id))
                     .collect(),
-                TrackContext::Playlist(id) => self
-                    .playlist_items(*id, offset, PAGE)
-                    .await?
-                    .into_iter()
-                    .map(|e| e.track.map(|t| t.id))
-                    .collect(),
+                TrackContext::Playlist(id) => {
+                    if playlist_is_smart {
+                        self.smart_playlist_tracks(*id, offset, PAGE)
+                            .await?
+                            .into_iter()
+                            .map(|r| Some(r.id))
+                            .collect()
+                    } else {
+                        self.playlist_items(*id, offset, PAGE)
+                            .await?
+                            .into_iter()
+                            .map(|e| e.track.map(|t| t.id))
+                            .collect()
+                    }
+                }
                 TrackContext::Folder { source_id, path } => self
                     .folder_track_ids(*source_id, path, offset, PAGE)
                     .await?

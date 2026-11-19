@@ -2,7 +2,9 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
+import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -91,13 +93,43 @@ class QueueList extends ConsumerWidget {
                         color: colors.onSurfaceVariant,
                       ),
                     ),
-              trailing: isCurrent
-                  ? Icon(
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isCurrent)
+                    Icon(
                       Icons.graphic_eq_rounded,
                       size: 18,
                       color: colors.accent,
-                    )
-                  : null,
+                    ),
+                  LovedButton(
+                    trackId: row.id,
+                    initialLoved: row.loved,
+                    size: 18,
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: '队列操作',
+                    icon: Icon(
+                      Icons.more_horiz_rounded,
+                      size: 18,
+                      color: colors.onSurfaceVariant,
+                    ),
+                    padding: EdgeInsets.zero,
+                    onSelected: (value) {
+                      if (value == 'playlist') {
+                        showAddToPlaylistSheet(
+                          context,
+                          trackId: row.id,
+                          trackTitle: row.title,
+                        );
+                      }
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'playlist', child: Text('添加到歌单')),
+                    ],
+                  ),
+                ],
+              ),
             );
           },
         );

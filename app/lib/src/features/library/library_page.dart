@@ -6,9 +6,11 @@ import 'package:lekis/src/features/library/artists_view.dart';
 import 'package:lekis/src/features/library/folders_view.dart';
 import 'package:lekis/src/features/library/genres_view.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
+import 'package:lekis/src/features/library/liked_view.dart';
 import 'package:lekis/src/features/library/widgets/album_card.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/paged_track_list.dart';
+import 'package:lekis/src/features/playlists/playlists_view.dart';
 import 'package:lekis/src/layout/adaptive_two_pane.dart';
 import 'package:lekis/src/layout/fold.dart';
 import 'package:lekis/src/rust/api/dto.dart';
@@ -54,35 +56,51 @@ class LibraryPage extends ConsumerWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SegmentedButton<LibrarySegment>(
-                showSelectedIcon: false,
-                style: SegmentedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: LekisSpacing.sm,
+              Flexible(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SegmentedButton<LibrarySegment>(
+                    showSelectedIcon: false,
+                    style: SegmentedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: LekisSpacing.sm,
+                      ),
+                    ),
+                    segments: const [
+                      ButtonSegment(
+                        value: LibrarySegment.albums,
+                        label: Text('专辑'),
+                      ),
+                      ButtonSegment(
+                        value: LibrarySegment.artists,
+                        label: Text('艺人'),
+                      ),
+                      ButtonSegment(
+                        value: LibrarySegment.songs,
+                        label: Text('歌曲'),
+                      ),
+                      ButtonSegment(
+                        value: LibrarySegment.genres,
+                        label: Text('流派'),
+                      ),
+                      ButtonSegment(
+                        value: LibrarySegment.playlists,
+                        label: Text('歌单'),
+                      ),
+                      ButtonSegment(
+                        value: LibrarySegment.liked,
+                        label: Text('喜欢'),
+                      ),
+                      ButtonSegment(
+                        value: LibrarySegment.folders,
+                        label: Text('文件夹'),
+                      ),
+                    ],
+                    selected: {segment},
+                    onSelectionChanged: (s) =>
+                        ref.read(librarySegmentProvider.notifier).set(s.first),
                   ),
                 ),
-                segments: const [
-                  ButtonSegment(
-                    value: LibrarySegment.albums,
-                    label: Text('专辑'),
-                  ),
-                  ButtonSegment(
-                    value: LibrarySegment.artists,
-                    label: Text('艺人'),
-                  ),
-                  ButtonSegment(value: LibrarySegment.songs, label: Text('歌曲')),
-                  ButtonSegment(
-                    value: LibrarySegment.genres,
-                    label: Text('流派'),
-                  ),
-                  ButtonSegment(
-                    value: LibrarySegment.folders,
-                    label: Text('文件夹'),
-                  ),
-                ],
-                selected: {segment},
-                onSelectionChanged: (s) =>
-                    ref.read(librarySegmentProvider.notifier).set(s.first),
               ),
               if (segment == LibrarySegment.albums)
                 const _SortMenu(target: _SortTarget.albums),
@@ -99,6 +117,8 @@ class LibraryPage extends ConsumerWidget {
       LibrarySegment.artists => const _ArtistsSegment(),
       LibrarySegment.songs => const _SongsSegment(),
       LibrarySegment.genres => const GenreList(),
+      LibrarySegment.playlists => const PlaylistsView(),
+      LibrarySegment.liked => const LikedSongsView(),
       LibrarySegment.folders => const FoldersView(),
     };
 

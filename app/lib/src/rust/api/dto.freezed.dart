@@ -1577,7 +1577,7 @@ String toString() {
 
 class PlayContextDto_Folder extends PlayContextDto {
   const PlayContextDto_Folder({required this.sourceId, required this.path}): super._();
-
+  
 
  final  PlatformInt64 sourceId;
  final  String path;
@@ -1635,6 +1635,535 @@ class _$PlayContextDto_FolderCopyWithImpl<$Res>
   return _then(PlayContextDto_Folder(
 sourceId: null == sourceId ? _self.sourceId : sourceId // ignore: cast_nullable_to_non_nullable
 as PlatformInt64,path: null == path ? _self.path : path // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$RuleValueDto {
+
+ Object get field0;
+
+
+
+@override
+bool operator ==(Object other) {
+  final _this = this as RuleValueDto;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RuleValueDto&&const DeepCollectionEquality().equals(other.field0, _this.field0));
+}
+
+
+@override
+int get hashCode {
+  final _this = this as RuleValueDto;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.field0));
+}
+
+@override
+String toString() {
+  final _this = this as RuleValueDto;
+  return 'RuleValueDto(field0: ${_this.field0})';
+}
+
+
+}
+
+/// @nodoc
+class $RuleValueDtoCopyWith<$Res>  {
+$RuleValueDtoCopyWith(RuleValueDto _, $Res Function(RuleValueDto) __);
+}
+
+
+/// Adds pattern-matching-related methods to [RuleValueDto].
+extension RuleValueDtoPatterns on RuleValueDto {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( RuleValueDto_Text value)?  text,TResult Function( RuleValueDto_Number value)?  number,TResult Function( RuleValueDto_Bool value)?  bool,TResult Function( RuleValueDto_TextList value)?  textList,TResult Function( RuleValueDto_Codec value)?  codec,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case RuleValueDto_Text() when text != null:
+return text(_that);case RuleValueDto_Number() when number != null:
+return number(_that);case RuleValueDto_Bool() when bool != null:
+return bool(_that);case RuleValueDto_TextList() when textList != null:
+return textList(_that);case RuleValueDto_Codec() when codec != null:
+return codec(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( RuleValueDto_Text value)  text,required TResult Function( RuleValueDto_Number value)  number,required TResult Function( RuleValueDto_Bool value)  bool,required TResult Function( RuleValueDto_TextList value)  textList,required TResult Function( RuleValueDto_Codec value)  codec,}){
+final _that = this;
+switch (_that) {
+case RuleValueDto_Text():
+return text(_that);case RuleValueDto_Number():
+return number(_that);case RuleValueDto_Bool():
+return bool(_that);case RuleValueDto_TextList():
+return textList(_that);case RuleValueDto_Codec():
+return codec(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( RuleValueDto_Text value)?  text,TResult? Function( RuleValueDto_Number value)?  number,TResult? Function( RuleValueDto_Bool value)?  bool,TResult? Function( RuleValueDto_TextList value)?  textList,TResult? Function( RuleValueDto_Codec value)?  codec,}){
+final _that = this;
+switch (_that) {
+case RuleValueDto_Text() when text != null:
+return text(_that);case RuleValueDto_Number() when number != null:
+return number(_that);case RuleValueDto_Bool() when bool != null:
+return bool(_that);case RuleValueDto_TextList() when textList != null:
+return textList(_that);case RuleValueDto_Codec() when codec != null:
+return codec(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String field0)?  text,TResult Function( PlatformInt64 field0)?  number,TResult Function( bool field0)?  bool,TResult Function( List<String> field0)?  textList,TResult Function( String field0)?  codec,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case RuleValueDto_Text() when text != null:
+return text(_that.field0);case RuleValueDto_Number() when number != null:
+return number(_that.field0);case RuleValueDto_Bool() when bool != null:
+return bool(_that.field0);case RuleValueDto_TextList() when textList != null:
+return textList(_that.field0);case RuleValueDto_Codec() when codec != null:
+return codec(_that.field0);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String field0)  text,required TResult Function( PlatformInt64 field0)  number,required TResult Function( bool field0)  bool,required TResult Function( List<String> field0)  textList,required TResult Function( String field0)  codec,}) {final _that = this;
+switch (_that) {
+case RuleValueDto_Text():
+return text(_that.field0);case RuleValueDto_Number():
+return number(_that.field0);case RuleValueDto_Bool():
+return bool(_that.field0);case RuleValueDto_TextList():
+return textList(_that.field0);case RuleValueDto_Codec():
+return codec(_that.field0);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String field0)?  text,TResult? Function( PlatformInt64 field0)?  number,TResult? Function( bool field0)?  bool,TResult? Function( List<String> field0)?  textList,TResult? Function( String field0)?  codec,}) {final _that = this;
+switch (_that) {
+case RuleValueDto_Text() when text != null:
+return text(_that.field0);case RuleValueDto_Number() when number != null:
+return number(_that.field0);case RuleValueDto_Bool() when bool != null:
+return bool(_that.field0);case RuleValueDto_TextList() when textList != null:
+return textList(_that.field0);case RuleValueDto_Codec() when codec != null:
+return codec(_that.field0);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class RuleValueDto_Text extends RuleValueDto {
+  const RuleValueDto_Text(this.field0): super._();
+  
+
+@override final  String field0;
+
+/// Create a copy of RuleValueDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$RuleValueDto_TextCopyWith<RuleValueDto_Text> get copyWith => _$RuleValueDto_TextCopyWithImpl<RuleValueDto_Text>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is RuleValueDto_Text&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
+
+@override
+String toString() {
+    return 'RuleValueDto.text(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $RuleValueDto_TextCopyWith<$Res> implements $RuleValueDtoCopyWith<$Res> {
+  factory $RuleValueDto_TextCopyWith(RuleValueDto_Text value, $Res Function(RuleValueDto_Text) _then) = _$RuleValueDto_TextCopyWithImpl;
+@useResult
+$Res call({
+ String field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$RuleValueDto_TextCopyWithImpl<$Res>
+    implements $RuleValueDto_TextCopyWith<$Res> {
+  _$RuleValueDto_TextCopyWithImpl(this._self, this._then);
+
+  final RuleValueDto_Text _self;
+  final $Res Function(RuleValueDto_Text) _then;
+
+/// Create a copy of RuleValueDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(RuleValueDto_Text(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class RuleValueDto_Number extends RuleValueDto {
+  const RuleValueDto_Number(this.field0): super._();
+  
+
+@override final  PlatformInt64 field0;
+
+/// Create a copy of RuleValueDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$RuleValueDto_NumberCopyWith<RuleValueDto_Number> get copyWith => _$RuleValueDto_NumberCopyWithImpl<RuleValueDto_Number>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is RuleValueDto_Number&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
+
+@override
+String toString() {
+    return 'RuleValueDto.number(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $RuleValueDto_NumberCopyWith<$Res> implements $RuleValueDtoCopyWith<$Res> {
+  factory $RuleValueDto_NumberCopyWith(RuleValueDto_Number value, $Res Function(RuleValueDto_Number) _then) = _$RuleValueDto_NumberCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$RuleValueDto_NumberCopyWithImpl<$Res>
+    implements $RuleValueDto_NumberCopyWith<$Res> {
+  _$RuleValueDto_NumberCopyWithImpl(this._self, this._then);
+
+  final RuleValueDto_Number _self;
+  final $Res Function(RuleValueDto_Number) _then;
+
+/// Create a copy of RuleValueDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(RuleValueDto_Number(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class RuleValueDto_Bool extends RuleValueDto {
+  const RuleValueDto_Bool(this.field0): super._();
+  
+
+@override final  bool field0;
+
+/// Create a copy of RuleValueDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$RuleValueDto_BoolCopyWith<RuleValueDto_Bool> get copyWith => _$RuleValueDto_BoolCopyWithImpl<RuleValueDto_Bool>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is RuleValueDto_Bool&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
+
+@override
+String toString() {
+    return 'RuleValueDto.bool(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $RuleValueDto_BoolCopyWith<$Res> implements $RuleValueDtoCopyWith<$Res> {
+  factory $RuleValueDto_BoolCopyWith(RuleValueDto_Bool value, $Res Function(RuleValueDto_Bool) _then) = _$RuleValueDto_BoolCopyWithImpl;
+@useResult
+$Res call({
+ bool field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$RuleValueDto_BoolCopyWithImpl<$Res>
+    implements $RuleValueDto_BoolCopyWith<$Res> {
+  _$RuleValueDto_BoolCopyWithImpl(this._self, this._then);
+
+  final RuleValueDto_Bool _self;
+  final $Res Function(RuleValueDto_Bool) _then;
+
+/// Create a copy of RuleValueDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(RuleValueDto_Bool(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class RuleValueDto_TextList extends RuleValueDto {
+  const RuleValueDto_TextList( List<String> field0): _field0 = field0,super._();
+  
+
+ final  List<String> _field0;
+@override List<String> get field0 {
+  if (_field0 is EqualUnmodifiableListView) return _field0;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_field0);
+}
+
+
+/// Create a copy of RuleValueDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$RuleValueDto_TextListCopyWith<RuleValueDto_TextList> get copyWith => _$RuleValueDto_TextListCopyWithImpl<RuleValueDto_TextList>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is RuleValueDto_TextList&&const DeepCollectionEquality().equals(other.field0, _field0));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+}
+
+@override
+String toString() {
+    return 'RuleValueDto.textList(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $RuleValueDto_TextListCopyWith<$Res> implements $RuleValueDtoCopyWith<$Res> {
+  factory $RuleValueDto_TextListCopyWith(RuleValueDto_TextList value, $Res Function(RuleValueDto_TextList) _then) = _$RuleValueDto_TextListCopyWithImpl;
+@useResult
+$Res call({
+ List<String> field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$RuleValueDto_TextListCopyWithImpl<$Res>
+    implements $RuleValueDto_TextListCopyWith<$Res> {
+  _$RuleValueDto_TextListCopyWithImpl(this._self, this._then);
+
+  final RuleValueDto_TextList _self;
+  final $Res Function(RuleValueDto_TextList) _then;
+
+/// Create a copy of RuleValueDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(RuleValueDto_TextList(
+null == field0 ? _self._field0 : field0 // ignore: cast_nullable_to_non_nullable
+as List<String>,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class RuleValueDto_Codec extends RuleValueDto {
+  const RuleValueDto_Codec(this.field0): super._();
+  
+
+@override final  String field0;
+
+/// Create a copy of RuleValueDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$RuleValueDto_CodecCopyWith<RuleValueDto_Codec> get copyWith => _$RuleValueDto_CodecCopyWithImpl<RuleValueDto_Codec>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is RuleValueDto_Codec&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
+
+@override
+String toString() {
+    return 'RuleValueDto.codec(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $RuleValueDto_CodecCopyWith<$Res> implements $RuleValueDtoCopyWith<$Res> {
+  factory $RuleValueDto_CodecCopyWith(RuleValueDto_Codec value, $Res Function(RuleValueDto_Codec) _then) = _$RuleValueDto_CodecCopyWithImpl;
+@useResult
+$Res call({
+ String field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$RuleValueDto_CodecCopyWithImpl<$Res>
+    implements $RuleValueDto_CodecCopyWith<$Res> {
+  _$RuleValueDto_CodecCopyWithImpl(this._self, this._then);
+
+  final RuleValueDto_Codec _self;
+  final $Res Function(RuleValueDto_Codec) _then;
+
+/// Create a copy of RuleValueDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(RuleValueDto_Codec(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }

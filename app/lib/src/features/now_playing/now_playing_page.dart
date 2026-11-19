@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/now_playing/lyrics_view.dart';
 import 'package:lekis/src/features/now_playing/now_playing_artwork.dart';
 import 'package:lekis/src/features/now_playing/now_playing_background.dart';
+import 'package:lekis/src/features/now_playing/now_playing_library_actions.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/features/now_playing/now_playing_route.dart';
 import 'package:lekis/src/features/now_playing/now_playing_tint.dart';
@@ -427,7 +428,9 @@ class NowPlayingControls extends ConsumerWidget {
                 ),
               ),
             ),
-            const SizedBox(height: LekisSpacing.md),
+            const SizedBox(height: LekisSpacing.xs),
+            const NowPlayingLibraryActions(),
+            const SizedBox(height: LekisSpacing.xs),
             const SeekBar(),
             const SizedBox(height: LekisSpacing.sm),
             const FittedBox(child: TransportControls(large: true)),

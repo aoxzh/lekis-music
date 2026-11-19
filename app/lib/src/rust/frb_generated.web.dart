@@ -80,6 +80,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlaybackSessionDto dco_decode_box_autoadd_playback_session_dto(dynamic raw);
 
   @protected
+  RuleDto dco_decode_box_autoadd_rule_dto(dynamic raw);
+
+  @protected
+  SmartRulesDto dco_decode_box_autoadd_smart_rules_dto(dynamic raw);
+
+  @protected
   SourceConfigDto dco_decode_box_autoadd_source_config_dto(dynamic raw);
 
   @protected
@@ -87,6 +93,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TrackRowDto dco_decode_box_autoadd_track_row_dto(dynamic raw);
+
+  @protected
+  TrackSortDto dco_decode_box_autoadd_track_sort_dto(dynamic raw);
 
   @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
@@ -199,6 +208,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<(String, String)> dco_decode_list_record_string_string(dynamic raw);
 
   @protected
+  List<RuleGroupDto> dco_decode_list_rule_group_dto(dynamic raw);
+
+  @protected
   List<SourceConfigDto> dco_decode_list_source_config_dto(dynamic raw);
 
   @protected
@@ -243,10 +255,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RuleDto? dco_decode_opt_box_autoadd_rule_dto(dynamic raw);
+
+  @protected
+  SmartRulesDto? dco_decode_opt_box_autoadd_smart_rules_dto(dynamic raw);
+
+  @protected
   TrackOverlayDto? dco_decode_opt_box_autoadd_track_overlay_dto(dynamic raw);
 
   @protected
   TrackRowDto? dco_decode_opt_box_autoadd_track_row_dto(dynamic raw);
+
+  @protected
+  TrackSortDto? dco_decode_opt_box_autoadd_track_sort_dto(dynamic raw);
 
   @protected
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
@@ -297,6 +318,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RepeatModeDto dco_decode_repeat_mode_dto(dynamic raw);
 
   @protected
+  RuleDto dco_decode_rule_dto(dynamic raw);
+
+  @protected
+  RuleFieldDto dco_decode_rule_field_dto(dynamic raw);
+
+  @protected
+  RuleGroupDto dco_decode_rule_group_dto(dynamic raw);
+
+  @protected
+  RuleGroupKindDto dco_decode_rule_group_kind_dto(dynamic raw);
+
+  @protected
+  RuleOpDto dco_decode_rule_op_dto(dynamic raw);
+
+  @protected
+  RuleValueDto dco_decode_rule_value_dto(dynamic raw);
+
+  @protected
   ScanPhaseDto dco_decode_scan_phase_dto(dynamic raw);
 
   @protected
@@ -304,6 +343,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ShuffleModeDto dco_decode_shuffle_mode_dto(dynamic raw);
+
+  @protected
+  SmartRulesDto dco_decode_smart_rules_dto(dynamic raw);
 
   @protected
   SourceConfigDto dco_decode_source_config_dto(dynamic raw);
@@ -409,6 +451,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RuleDto sse_decode_box_autoadd_rule_dto(SseDeserializer deserializer);
+
+  @protected
+  SmartRulesDto sse_decode_box_autoadd_smart_rules_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   SourceConfigDto sse_decode_box_autoadd_source_config_dto(
     SseDeserializer deserializer,
   );
@@ -420,6 +470,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TrackRowDto sse_decode_box_autoadd_track_row_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  TrackSortDto sse_decode_box_autoadd_track_sort_dto(
     SseDeserializer deserializer,
   );
 
@@ -558,6 +613,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<RuleGroupDto> sse_decode_list_rule_group_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<SourceConfigDto> sse_decode_list_source_config_dto(
     SseDeserializer deserializer,
   );
@@ -614,12 +674,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RuleDto? sse_decode_opt_box_autoadd_rule_dto(SseDeserializer deserializer);
+
+  @protected
+  SmartRulesDto? sse_decode_opt_box_autoadd_smart_rules_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TrackOverlayDto? sse_decode_opt_box_autoadd_track_overlay_dto(
     SseDeserializer deserializer,
   );
 
   @protected
   TrackRowDto? sse_decode_opt_box_autoadd_track_row_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  TrackSortDto? sse_decode_opt_box_autoadd_track_sort_dto(
     SseDeserializer deserializer,
   );
 
@@ -678,6 +751,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RepeatModeDto sse_decode_repeat_mode_dto(SseDeserializer deserializer);
 
   @protected
+  RuleDto sse_decode_rule_dto(SseDeserializer deserializer);
+
+  @protected
+  RuleFieldDto sse_decode_rule_field_dto(SseDeserializer deserializer);
+
+  @protected
+  RuleGroupDto sse_decode_rule_group_dto(SseDeserializer deserializer);
+
+  @protected
+  RuleGroupKindDto sse_decode_rule_group_kind_dto(SseDeserializer deserializer);
+
+  @protected
+  RuleOpDto sse_decode_rule_op_dto(SseDeserializer deserializer);
+
+  @protected
+  RuleValueDto sse_decode_rule_value_dto(SseDeserializer deserializer);
+
+  @protected
   ScanPhaseDto sse_decode_scan_phase_dto(SseDeserializer deserializer);
 
   @protected
@@ -685,6 +776,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ShuffleModeDto sse_decode_shuffle_mode_dto(SseDeserializer deserializer);
+
+  @protected
+  SmartRulesDto sse_decode_smart_rules_dto(SseDeserializer deserializer);
 
   @protected
   SourceConfigDto sse_decode_source_config_dto(SseDeserializer deserializer);
@@ -813,6 +907,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_rule_dto(RuleDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_smart_rules_dto(
+    SmartRulesDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_source_config_dto(
     SourceConfigDto self,
     SseSerializer serializer,
@@ -827,6 +930,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_track_row_dto(
     TrackRowDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_track_sort_dto(
+    TrackSortDto self,
     SseSerializer serializer,
   );
 
@@ -1005,6 +1114,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_rule_group_dto(
+    List<RuleGroupDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_source_config_dto(
     List<SourceConfigDto> self,
     SseSerializer serializer,
@@ -1077,6 +1192,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_rule_dto(
+    RuleDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_smart_rules_dto(
+    SmartRulesDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_track_overlay_dto(
     TrackOverlayDto? self,
     SseSerializer serializer,
@@ -1085,6 +1212,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_track_row_dto(
     TrackRowDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_track_sort_dto(
+    TrackSortDto? self,
     SseSerializer serializer,
   );
 
@@ -1161,6 +1294,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_repeat_mode_dto(RepeatModeDto self, SseSerializer serializer);
 
   @protected
+  void sse_encode_rule_dto(RuleDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_rule_field_dto(RuleFieldDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_rule_group_dto(RuleGroupDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_rule_group_kind_dto(
+    RuleGroupKindDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_rule_op_dto(RuleOpDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_rule_value_dto(RuleValueDto self, SseSerializer serializer);
+
+  @protected
   void sse_encode_scan_phase_dto(ScanPhaseDto self, SseSerializer serializer);
 
   @protected
@@ -1174,6 +1328,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     ShuffleModeDto self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_smart_rules_dto(SmartRulesDto self, SseSerializer serializer);
 
   @protected
   void sse_encode_source_config_dto(

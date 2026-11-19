@@ -915,6 +915,264 @@ impl From<lekis_library::PlaylistEntry> for PlaylistEntryDto {
 }
 
 // ---------------------------------------------------------------------------
+// 智能歌单规则（DIS-01）
+//
+// DTO 和 `lekis_library::SmartRules` 一一对应；JSON 的唯一格式仍然由
+// `SmartRules::to_json` / `parse` 决定，桥接层只做树形结构转换。
+// ---------------------------------------------------------------------------
+
+/// 规则字段。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuleFieldDto {
+    Title,
+    Artist,
+    Album,
+    Genre,
+    Year,
+    DurationMs,
+    BitrateKbps,
+    SampleRate,
+    BitDepth,
+    Codec,
+    Loved,
+    Rating,
+    PlayCount,
+    AddedAt,
+    LastPlayed,
+    QualityScore,
+}
+
+mirror_enum!(RuleFieldDto <=> lekis_library::RuleField {
+    Title, Artist, Album, Genre, Year, DurationMs, BitrateKbps, SampleRate, BitDepth,
+    Codec, Loved, Rating, PlayCount, AddedAt, LastPlayed, QualityScore
+});
+
+/// 比较操作符。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuleOpDto {
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    Contains,
+    NotContains,
+    In,
+    NotIn,
+    Between,
+}
+
+mirror_enum!(RuleOpDto <=> lekis_library::RuleOp {
+    Eq, Ne, Lt, Le, Gt, Ge, Contains, NotContains, In, NotIn, Between
+});
+
+/// 规则值。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RuleValueDto {
+    Text(String),
+    Number(i64),
+    Bool(bool),
+    TextList(Vec<String>),
+    Codec(String),
+}
+
+impl From<lekis_library::RuleValue> for RuleValueDto {
+    fn from(v: lekis_library::RuleValue) -> Self {
+        match v {
+            lekis_library::RuleValue::Text(s) => Self::Text(s),
+            lekis_library::RuleValue::Number(n) => Self::Number(n),
+            lekis_library::RuleValue::Bool(b) => Self::Bool(b),
+            lekis_library::RuleValue::TextList(items) => Self::TextList(items),
+            lekis_library::RuleValue::Codec(s) => Self::Codec(s),
+        }
+    }
+}
+
+impl From<RuleValueDto> for lekis_library::RuleValue {
+    fn from(v: RuleValueDto) -> Self {
+        match v {
+            RuleValueDto::Text(s) => Self::Text(s),
+            RuleValueDto::Number(n) => Self::Number(n),
+            RuleValueDto::Bool(b) => Self::Bool(b),
+            RuleValueDto::TextList(items) => Self::TextList(items),
+            RuleValueDto::Codec(s) => Self::Codec(s),
+        }
+    }
+}
+
+/// 一条规则（字段 + 操作符 + 值）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuleDto {
+    pub field: RuleFieldDto,
+    pub op: RuleOpDto,
+    pub value: RuleValueDto,
+}
+
+impl From<lekis_library::Rule> for RuleDto {
+    fn from(r: lekis_library::Rule) -> Self {
+        Self {
+            field: r.field.into(),
+            op: r.op.into(),
+            value: r.value.into(),
+        }
+    }
+}
+
+impl From<RuleDto> for lekis_library::Rule {
+    fn from(r: RuleDto) -> Self {
+        Self {
+            field: r.field.into(),
+            op: r.op.into(),
+            value: r.value.into(),
+        }
+    }
+}
+
+/// 规则组类型。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuleGroupKindDto {
+    /// AND。
+    All,
+    /// OR。
+    Any,
+    /// NOT（`rules` 里恰好一个子组）。
+    Not,
+    /// 单条规则（`rule` 有值）。
+    Rule,
+}
+
+/// 规则组。
+///
+/// 这里用"kind + 子组列表 + 可选单条规则"的扁平结构，而不是递归 enum：
+/// FRB 对递归 enum 的支持不稳定，扁平结构在 Dart 侧也更容易编辑。
+/// 语义和 [`lekis_library::RuleGroup`] 完全一致。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuleGroupDto {
+    pub kind: RuleGroupKindDto,
+    pub rules: Vec<RuleGroupDto>,
+    pub rule: Option<RuleDto>,
+}
+
+impl From<lekis_library::RuleGroup> for RuleGroupDto {
+    fn from(g: lekis_library::RuleGroup) -> Self {
+        match g {
+            lekis_library::RuleGroup::All(rules) => Self {
+                kind: RuleGroupKindDto::All,
+                rules: rules.into_iter().map(Into::into).collect(),
+                rule: None,
+            },
+            lekis_library::RuleGroup::Any(rules) => Self {
+                kind: RuleGroupKindDto::Any,
+                rules: rules.into_iter().map(Into::into).collect(),
+                rule: None,
+            },
+            lekis_library::RuleGroup::Not(inner) => Self {
+                kind: RuleGroupKindDto::Not,
+                rules: vec![(*inner).into()],
+                rule: None,
+            },
+            lekis_library::RuleGroup::Rule(rule) => Self {
+                kind: RuleGroupKindDto::Rule,
+                rules: Vec::new(),
+                rule: Some(rule.into()),
+            },
+        }
+    }
+}
+
+impl RuleGroupDto {
+    /// 转回核心规则树，并检查结构是否自洽（NOT 恰好一个子组、Rule 带规则）。
+    pub(crate) fn into_rule_group(
+        self,
+    ) -> Result<lekis_library::RuleGroup, lekis_types::LekisError> {
+        use lekis_library::RuleGroup;
+        use lekis_types::LekisError;
+
+        match self.kind {
+            RuleGroupKindDto::All | RuleGroupKindDto::Any => {
+                if self.rule.is_some() {
+                    return Err(LekisError::invalid(
+                        "AND/OR smart playlist group must not carry a single rule",
+                    ));
+                }
+                let children = self
+                    .rules
+                    .into_iter()
+                    .map(RuleGroupDto::into_rule_group)
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(match self.kind {
+                    RuleGroupKindDto::All => RuleGroup::All(children),
+                    _ => RuleGroup::Any(children),
+                })
+            }
+            RuleGroupKindDto::Not => {
+                if self.rule.is_some() || self.rules.len() != 1 {
+                    return Err(LekisError::invalid(
+                        "NOT smart playlist group needs exactly one nested group",
+                    ));
+                }
+                let inner = match self.rules.into_iter().next() {
+                    Some(inner) => inner.into_rule_group()?,
+                    None => {
+                        return Err(LekisError::invalid(
+                            "NOT smart playlist group needs exactly one nested group",
+                        ))
+                    }
+                };
+                Ok(RuleGroup::Not(Box::new(inner)))
+            }
+            RuleGroupKindDto::Rule => {
+                if !self.rules.is_empty() {
+                    return Err(LekisError::invalid(
+                        "smart playlist rule must not contain nested groups",
+                    ));
+                }
+                let rule = self
+                    .rule
+                    .ok_or_else(|| LekisError::invalid("smart playlist rule group needs a rule"))?;
+                Ok(RuleGroup::Rule(rule.into()))
+            }
+        }
+    }
+}
+
+/// 一个智能歌单的完整规则。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SmartRulesDto {
+    pub root: RuleGroupDto,
+    pub limit: Option<u32>,
+    pub sort: Option<TrackSortDto>,
+    pub sort_desc: bool,
+}
+
+impl From<lekis_library::SmartRules> for SmartRulesDto {
+    fn from(rules: lekis_library::SmartRules) -> Self {
+        Self {
+            root: rules.root.into(),
+            limit: rules.limit,
+            sort: rules.sort.map(Into::into),
+            sort_desc: rules.sort_desc,
+        }
+    }
+}
+
+impl TryFrom<SmartRulesDto> for lekis_library::SmartRules {
+    type Error = lekis_types::LekisError;
+
+    fn try_from(dto: SmartRulesDto) -> Result<Self, Self::Error> {
+        let rules = Self {
+            root: dto.root.into_rule_group()?,
+            limit: dto.limit,
+            sort: dto.sort.map(Into::into),
+            sort_desc: dto.sort_desc,
+        };
+        rules.validate()?;
+        Ok(rules)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // 事件
 // ---------------------------------------------------------------------------
 
@@ -1091,5 +1349,136 @@ impl From<t::CoreEvent> for CoreEventDto {
                 gapless,
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lekis_library::{Rule, RuleGroup, RuleValue, SmartRules};
+
+    fn rule(field: RuleFieldDto, op: RuleOpDto, value: RuleValueDto) -> RuleGroupDto {
+        RuleGroupDto {
+            kind: RuleGroupKindDto::Rule,
+            rules: Vec::new(),
+            rule: Some(RuleDto { field, op, value }),
+        }
+    }
+
+    /// 桥接 DTO → 核心规则 → 规范 JSON → 核心规则 → DTO，应当逐字段一致。
+    #[test]
+    fn smart_rules_dto_round_trips_through_canonical_json() {
+        let dto = SmartRulesDto {
+            root: RuleGroupDto {
+                kind: RuleGroupKindDto::All,
+                rules: vec![
+                    rule(RuleFieldDto::Loved, RuleOpDto::Eq, RuleValueDto::Bool(true)),
+                    rule(RuleFieldDto::Rating, RuleOpDto::Ge, RuleValueDto::Number(4)),
+                    RuleGroupDto {
+                        kind: RuleGroupKindDto::Any,
+                        rules: vec![
+                            rule(
+                                RuleFieldDto::Genre,
+                                RuleOpDto::In,
+                                RuleValueDto::TextList(vec!["Rock".into(), "Jazz".into()]),
+                            ),
+                            rule(
+                                RuleFieldDto::Codec,
+                                RuleOpDto::Eq,
+                                RuleValueDto::Codec("lossless".into()),
+                            ),
+                        ],
+                        rule: None,
+                    },
+                    RuleGroupDto {
+                        kind: RuleGroupKindDto::Not,
+                        rules: vec![rule(
+                            RuleFieldDto::Year,
+                            RuleOpDto::Between,
+                            RuleValueDto::TextList(vec!["1990".into(), "1999".into()]),
+                        )],
+                        rule: None,
+                    },
+                ],
+                rule: None,
+            },
+            limit: Some(500),
+            sort: Some(TrackSortDto::RecentlyAdded),
+            sort_desc: true,
+        };
+
+        let rules = SmartRules::try_from(dto.clone()).expect("DTO should convert");
+        let json = rules.to_json().expect("rules should serialize");
+        let parsed = SmartRules::parse(&json).expect("canonical JSON should parse");
+        let back = SmartRulesDto::from(parsed);
+        assert_eq!(back, dto);
+    }
+
+    /// NOT 组必须恰好有一个子组，避免 UI 传入模棱两可的结构。
+    #[test]
+    fn not_group_rejects_ambiguous_shapes() {
+        let bad = RuleGroupDto {
+            kind: RuleGroupKindDto::Not,
+            rules: Vec::new(),
+            rule: None,
+        };
+        assert!(bad.into_rule_group().is_err());
+
+        let bad = RuleGroupDto {
+            kind: RuleGroupKindDto::All,
+            rules: Vec::new(),
+            rule: Some(RuleDto {
+                field: RuleFieldDto::Loved,
+                op: RuleOpDto::Eq,
+                value: RuleValueDto::Bool(true),
+            }),
+        };
+        assert!(bad.into_rule_group().is_err());
+    }
+
+    /// 值和字段 / 操作符不匹配时，核心校验应当在桥接层就拒绝。
+    #[test]
+    fn smart_rules_dto_validates_value_kinds() {
+        let dto = SmartRulesDto {
+            root: RuleGroupDto {
+                kind: RuleGroupKindDto::All,
+                rules: vec![rule(
+                    RuleFieldDto::Loved,
+                    RuleOpDto::Ge,
+                    RuleValueDto::Number(1),
+                )],
+                rule: None,
+            },
+            limit: None,
+            sort: None,
+            sort_desc: false,
+        };
+        assert!(SmartRules::try_from(dto).is_err());
+    }
+
+    /// 确认直接构造的规则树和规范 JSON 的语义一致（兜底，防止 DTO 转义丢失 NOT）。
+    #[test]
+    fn canonical_rule_tree_keeps_not_and_nested_groups() {
+        let group = RuleGroup::Not(Box::new(RuleGroup::Any(vec![
+            RuleGroup::Rule(Rule {
+                field: lekis_library::RuleField::Loved,
+                op: lekis_library::RuleOp::Eq,
+                value: RuleValue::Bool(true),
+            }),
+            RuleGroup::Rule(Rule {
+                field: lekis_library::RuleField::Rating,
+                op: lekis_library::RuleOp::Gt,
+                value: RuleValue::Number(3),
+            }),
+        ])));
+        let rules = SmartRules {
+            root: group.clone(),
+            limit: None,
+            sort: None,
+            sort_desc: false,
+        };
+        let json = rules.to_json().expect("serialize");
+        let parsed = SmartRules::parse(&json).expect("parse");
+        assert_eq!(parsed.root, group);
     }
 }

@@ -39,6 +39,17 @@ extension LekisRefX on Ref {
       }
     });
   }
+
+  /// 用户状态（喜欢 / 评分）变化时重建：比如"喜欢的歌曲"列表。
+  void invalidateOnUserStateChange() {
+    listen<AsyncValue<CoreEventDto>>(coreEventsProvider, (_, next) {
+      final event = next.value;
+      if (event is CoreEventDto_LibraryChanged &&
+          event.scope == LibraryScopeDto.userState) {
+        invalidateSelf();
+      }
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -253,11 +264,7 @@ class PagedList<T> extends ChangeNotifier {
   }
 }
 
-PagedList<T> _pagedList<T>(
-  Ref ref,
-  PageFetcher<T> fetch, {
-  ListCount? count,
-}) {
+PagedList<T> _pagedList<T>(Ref ref, PageFetcher<T> fetch, {ListCount? count}) {
   ref.cacheFor(const Duration(minutes: 5));
   ref.invalidateOnCatalogChange();
   final list = PagedList<T>(fetch: fetch, count: count);
@@ -302,6 +309,25 @@ final genreTracksListProvider = Provider.autoDispose
         count: () => _count(() => core.countGenreTracks(name: genre)),
       ),
     );
+
+/// 喜欢的歌曲。喜欢状态变化后自动刷新。
+final likedTracksListProvider = Provider.autoDispose<PagedList<TrackRowDto>>((
+  ref,
+) {
+  ref.invalidateOnUserStateChange();
+  return _pagedList(
+    ref,
+    (o, l) => core.lovedTracks(offset: o, limit: l),
+    count: () => _count(core.countLoved),
+  );
+});
+
+/// 喜欢的歌曲总数（空状态 / 标题用）。
+final lovedCountProvider = FutureProvider.autoDispose<int>((ref) async {
+  ref.invalidateOnUserStateChange();
+  ref.cacheFor(const Duration(seconds: 30));
+  return (await core.countLoved()).toInt();
+});
 
 // ---------------------------------------------------------------------------
 // 文件夹视图（LIB：browse by folder）
@@ -452,7 +478,15 @@ final artistTracksProvider = FutureProvider.autoDispose
 // Library page UI state
 // ---------------------------------------------------------------------------
 
-enum LibrarySegment { albums, artists, songs, genres, folders }
+enum LibrarySegment {
+  albums,
+  artists,
+  songs,
+  genres,
+  playlists,
+  liked,
+  folders,
+}
 
 /// A plain settable value. Write with `ref.read(p.notifier).set(v)`.
 class SimpleValue<T> extends Notifier<T> {
