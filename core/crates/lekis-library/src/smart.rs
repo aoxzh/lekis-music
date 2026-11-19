@@ -1442,6 +1442,37 @@ impl Library {
         .await
     }
 
+    /// 按规则统计匹配的曲目数（规则编辑器预览用）。
+    ///
+    /// 和 [`Self::evaluate_smart_rules`] 使用同一套 SQL / 校验，规则自己的 `limit` 也算进去：
+    /// 预览数字就是"这个歌单最多会有多少首"。`limit` 参数不参与，调用方不需要分页。
+    pub async fn count_smart_rules(&self, rules: &SmartRules) -> Result<u64> {
+        rules.validate()?;
+        let (where_sql, mut args) = rules.to_sql(&AllowedColumns::standard())?;
+        let from = "FROM track t
+             LEFT JOIN album a ON a.id = t.album_id
+             LEFT JOIN user_state u ON u.track_uid = t.uid";
+        let sql = match rules.limit {
+            Some(limit) => {
+                let placeholder = args.len() + 1;
+                args.push(Value::Integer(i64::from(limit)));
+                format!(
+                    "SELECT COUNT(*) FROM (
+                         SELECT 1 {from} WHERE {where_sql} LIMIT ?{placeholder}
+                     )"
+                )
+            }
+            None => format!("SELECT COUNT(*) {from} WHERE {where_sql}"),
+        };
+        self.read(move |c| {
+            let count: i64 = c
+                .query_row(&sql, params_from_iter(args.iter()), |r| r.get(0))
+                .db()?;
+            Ok(count.max(0) as u64)
+        })
+        .await
+    }
+
     /// 读一个歌单的规则。
     ///
     /// 歌单不存在返回 [`LekisError::not_found`]；普通歌单（没有规则）返回 `Ok(None)`。
@@ -2415,6 +2446,13 @@ mod tests {
 
         let rows = lib.smart_playlist_tracks(id, 0, 50).await?;
         assert_eq!(titles(&rows), vec!["Amazing Grace", "Crystal"]);
+        assert_eq!(lib.count_smart_rules(&top_rated).await?, 2);
+        // 播放上下文也走规则求值，而不是空的 playlist_item。
+        let context_ids = lib
+            .context_track_ids(crate::TrackContext::Playlist(id))
+            .await?;
+        assert_eq!(context_ids.len(), 2);
+        assert!(context_ids.iter().all(Option::is_some));
 
         // 改规则立刻生效（实时更新）。
         let by_codec = rules(rule(
@@ -2457,6 +2495,11 @@ mod tests {
         limited.limit = Some(3);
         lib.set_playlist_rules(id, Some(&limited)).await?;
         assert_eq!(lib.smart_playlist_tracks(id, 0, 50).await?.len(), 3);
+        assert_eq!(
+            lib.count_smart_rules(&limited).await?,
+            3,
+            "预览数也要遵守规则自己的 limit"
+        );
         Ok(())
     }
 

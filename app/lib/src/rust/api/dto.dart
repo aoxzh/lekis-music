@@ -10,7 +10,8 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'dto.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
+// These functions are ignored because they are not marked as `pub`: `into_rule_group`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `try_from`
 
 /// 专辑（LIB-06）。
 class AlbumDto {
@@ -853,6 +854,114 @@ enum PlaylistKindDto {
 
 enum RepeatModeDto { off, all, one }
 
+/// 一条规则（字段 + 操作符 + 值）。
+class RuleDto {
+  final RuleFieldDto field;
+  final RuleOpDto op;
+  final RuleValueDto value;
+
+  const RuleDto({required this.field, required this.op, required this.value});
+
+  @override
+  int get hashCode => field.hashCode ^ op.hashCode ^ value.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RuleDto &&
+          runtimeType == other.runtimeType &&
+          field == other.field &&
+          op == other.op &&
+          value == other.value;
+}
+
+/// 规则字段。
+enum RuleFieldDto {
+  title,
+  artist,
+  album,
+  genre,
+  year,
+  durationMs,
+  bitrateKbps,
+  sampleRate,
+  bitDepth,
+  codec,
+  loved,
+  rating,
+  playCount,
+  addedAt,
+  lastPlayed,
+  qualityScore,
+}
+
+/// 规则组。
+///
+/// 这里用"kind + 子组列表 + 可选单条规则"的扁平结构，而不是递归 enum：
+/// FRB 对递归 enum 的支持不稳定，扁平结构在 Dart 侧也更容易编辑。
+/// 语义和 [`lekis_library::RuleGroup`] 完全一致。
+class RuleGroupDto {
+  final RuleGroupKindDto kind;
+  final List<RuleGroupDto> rules;
+  final RuleDto? rule;
+
+  const RuleGroupDto({required this.kind, required this.rules, this.rule});
+
+  @override
+  int get hashCode => kind.hashCode ^ rules.hashCode ^ rule.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RuleGroupDto &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          rules == other.rules &&
+          rule == other.rule;
+}
+
+/// 规则组类型。
+enum RuleGroupKindDto {
+  /// AND。
+  all,
+
+  /// OR。
+  any,
+
+  /// NOT（`rules` 里恰好一个子组）。
+  not,
+
+  /// 单条规则（`rule` 有值）。
+  rule,
+}
+
+/// 比较操作符。
+enum RuleOpDto {
+  eq,
+  ne,
+  lt,
+  le,
+  gt,
+  ge,
+  contains,
+  notContains,
+  in_,
+  notIn,
+  between,
+}
+
+@freezed
+sealed class RuleValueDto with _$RuleValueDto {
+  const RuleValueDto._();
+
+  const factory RuleValueDto.text(String field0) = RuleValueDto_Text;
+  const factory RuleValueDto.number(PlatformInt64 field0) = RuleValueDto_Number;
+  const factory RuleValueDto.bool(bool field0) = RuleValueDto_Bool;
+  const factory RuleValueDto.textList(List<String> field0) =
+      RuleValueDto_TextList;
+  const factory RuleValueDto.codec(String field0) = RuleValueDto_Codec;
+}
+
 enum ScanPhaseDto { walking, readingTags, artwork, writingSharedIndex }
 
 class SearchResultsDto {
@@ -880,6 +989,35 @@ class SearchResultsDto {
 }
 
 enum ShuffleModeDto { off, random, smart }
+
+/// 一个智能歌单的完整规则。
+class SmartRulesDto {
+  final RuleGroupDto root;
+  final int? limit;
+  final TrackSortDto? sort;
+  final bool sortDesc;
+
+  const SmartRulesDto({
+    required this.root,
+    this.limit,
+    this.sort,
+    required this.sortDesc,
+  });
+
+  @override
+  int get hashCode =>
+      root.hashCode ^ limit.hashCode ^ sort.hashCode ^ sortDesc.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SmartRulesDto &&
+          runtimeType == other.runtimeType &&
+          root == other.root &&
+          limit == other.limit &&
+          sort == other.sort &&
+          sortDesc == other.sortDesc;
+}
 
 class SourceConfigDto {
   final PlatformInt64? id;

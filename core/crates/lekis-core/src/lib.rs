@@ -1468,6 +1468,78 @@ impl LekisCore {
     }
 
     // -----------------------------------------------------------------------
+    // 智能歌单（DIS-01）
+    // -----------------------------------------------------------------------
+
+    /// 所有智能歌单（`kind = smart`）。
+    pub async fn smart_playlists(&self) -> Result<Vec<lekis_library::Playlist>> {
+        let s = self.services.clone();
+        let all = self
+            .run(async move { s.library.list_playlists().await })
+            .await?;
+        Ok(all
+            .into_iter()
+            .filter(|p| p.kind == lekis_library::PlaylistKind::Smart)
+            .collect())
+    }
+
+    /// 求值一个智能歌单，返回一页曲目。
+    pub async fn smart_playlist_tracks(
+        &self,
+        id: PlaylistId,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<TrackRow>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.smart_playlist_tracks(id, offset, limit).await })
+            .await
+    }
+
+    /// 读歌单规则（普通歌单返回 `None`）。
+    pub async fn playlist_rules(
+        &self,
+        id: PlaylistId,
+    ) -> Result<Option<lekis_library::SmartRules>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.playlist_rules(id).await })
+            .await
+    }
+
+    /// 设置 / 清除歌单规则；有规则时歌单自动变成智能歌单。
+    pub async fn set_playlist_rules(
+        &self,
+        id: PlaylistId,
+        rules: Option<lekis_library::SmartRules>,
+    ) -> Result<()> {
+        let s = self.services.clone();
+        self.run(async move { s.library.set_playlist_rules(id, rules.as_ref()).await })
+            .await?;
+        self.services.events.emit(CoreEvent::LibraryChanged {
+            scope: LibraryScope::Playlists,
+        });
+        Ok(())
+    }
+
+    /// 按规则预览曲目（不落库；规则编辑器用）。
+    pub async fn evaluate_smart_rules(
+        &self,
+        rules: lekis_library::SmartRules,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<TrackRow>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.evaluate_smart_rules(&rules, offset, limit).await })
+            .await
+    }
+
+    /// 按规则统计匹配曲目数（规则编辑器预览用）。
+    pub async fn count_smart_rules(&self, rules: lekis_library::SmartRules) -> Result<u64> {
+        let s = self.services.clone();
+        self.run(async move { s.library.count_smart_rules(&rules).await })
+            .await
+    }
+
+    // -----------------------------------------------------------------------
     // 用户状态与统计（PL-02 / DIS-06）
     // -----------------------------------------------------------------------
 

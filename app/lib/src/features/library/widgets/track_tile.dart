@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
+import 'package:lekis/src/features/library/widgets/track_actions.dart';
+import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
@@ -14,6 +16,8 @@ String formatDuration(int ms) {
   final s = (total % 60).toString().padLeft(2, '0');
   return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$s' : '$m:$s';
 }
+
+enum _TrackMenuAction { addToPlaylist, rate }
 
 /// Fixed-height song row (so long lists can use `itemExtent`).
 class TrackTile extends ConsumerWidget {
@@ -117,19 +121,59 @@ class TrackTile extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  if (track.loved) ...[
-                    const SizedBox(width: LekisSpacing.sm),
-                    Icon(
-                      Icons.favorite_rounded,
-                      size: LekisSpacing.lg,
-                      color: colors.accent,
-                    ),
-                  ],
                   if (track.qualityBadge != null) ...[
                     const SizedBox(width: LekisSpacing.sm),
                     _QualityBadge(label: track.qualityBadge!),
                   ],
-                  const SizedBox(width: LekisSpacing.md),
+                  const SizedBox(width: LekisSpacing.xs),
+                  LovedButton(
+                    trackId: track.id,
+                    initialLoved: track.loved,
+                    size: LekisSpacing.lg,
+                  ),
+                  PopupMenuButton<_TrackMenuAction>(
+                    tooltip: '更多操作',
+                    icon: const Icon(Icons.more_horiz_rounded, size: 20),
+                    iconSize: 20,
+                    padding: EdgeInsets.zero,
+                    onSelected: (action) {
+                      switch (action) {
+                        case _TrackMenuAction.addToPlaylist:
+                          showAddToPlaylistSheet(
+                            context,
+                            trackId: track.id,
+                            trackTitle: track.title,
+                          );
+                        case _TrackMenuAction.rate:
+                          showTrackRatingSheet(
+                            context,
+                            trackId: track.id,
+                            title: track.title,
+                          );
+                      }
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: _TrackMenuAction.addToPlaylist,
+                        child: ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.playlist_add_rounded),
+                          title: Text('添加到歌单'),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: _TrackMenuAction.rate,
+                        child: ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.star_outline_rounded),
+                          title: Text('评分'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: LekisSpacing.xs),
                   Text(
                     formatDuration(track.durationMs.toInt()),
                     style: theme.textTheme.bodySmall?.copyWith(

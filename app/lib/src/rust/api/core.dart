@@ -446,6 +446,49 @@ Future<void> setPlaylistArtwork({
   artworkId: artworkId,
 );
 
+/// 所有智能歌单。
+Future<List<PlaylistDto>> smartPlaylists() =>
+    RustLib.instance.api.crateApiCoreSmartPlaylists();
+
+/// 求值一个智能歌单，返回一页曲目。
+Future<List<TrackRowDto>> smartPlaylistTracks({
+  required PlatformInt64 playlistId,
+  required int offset,
+  required int limit,
+}) => RustLib.instance.api.crateApiCoreSmartPlaylistTracks(
+  playlistId: playlistId,
+  offset: offset,
+  limit: limit,
+);
+
+/// 读歌单规则；普通歌单返回 `None`。
+Future<SmartRulesDto?> getPlaylistRules({required PlatformInt64 playlistId}) =>
+    RustLib.instance.api.crateApiCoreGetPlaylistRules(playlistId: playlistId);
+
+/// 设置 / 清除歌单规则；有规则时歌单自动变成智能歌单。
+Future<void> setPlaylistRules({
+  required PlatformInt64 playlistId,
+  SmartRulesDto? rules,
+}) => RustLib.instance.api.crateApiCoreSetPlaylistRules(
+  playlistId: playlistId,
+  rules: rules,
+);
+
+/// 按规则预览曲目（不落库）。
+Future<List<TrackRowDto>> previewSmartRules({
+  required SmartRulesDto rules,
+  required int offset,
+  required int limit,
+}) => RustLib.instance.api.crateApiCorePreviewSmartRules(
+  rules: rules,
+  offset: offset,
+  limit: limit,
+);
+
+/// 按规则统计匹配曲目数（规则编辑器预览用）。
+Future<BigInt> countSmartRules({required SmartRulesDto rules}) =>
+    RustLib.instance.api.crateApiCoreCountSmartRules(rules: rules);
+
 /// 喜欢的曲目。
 Future<List<TrackRowDto>> lovedTracks({
   required int offset,

@@ -731,6 +731,77 @@ pub async fn set_playlist_artwork(
         .await?)
 }
 
+// ---- 智能歌单（DIS-01）----
+
+/// 所有智能歌单。
+pub async fn smart_playlists() -> Result<Vec<PlaylistDto>, CoreError> {
+    Ok(core()
+        .smart_playlists()
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// 求值一个智能歌单，返回一页曲目。
+pub async fn smart_playlist_tracks(
+    playlist_id: i64,
+    offset: u32,
+    limit: u32,
+) -> Result<Vec<TrackRowDto>, CoreError> {
+    Ok(core()
+        .smart_playlist_tracks(lekis_types::PlaylistId(playlist_id), offset, limit)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// 读歌单规则；普通歌单返回 `None`。
+pub async fn get_playlist_rules(
+    playlist_id: i64,
+) -> Result<Option<SmartRulesDto>, CoreError> {
+    Ok(core()
+        .playlist_rules(lekis_types::PlaylistId(playlist_id))
+        .await?
+        .map(Into::into))
+}
+
+/// 设置 / 清除歌单规则；有规则时歌单自动变成智能歌单。
+pub async fn set_playlist_rules(
+    playlist_id: i64,
+    rules: Option<SmartRulesDto>,
+) -> Result<(), CoreError> {
+    let rules = match rules {
+        Some(rules) => Some(lekis_library::SmartRules::try_from(rules)?),
+        None => None,
+    };
+    Ok(core()
+        .set_playlist_rules(lekis_types::PlaylistId(playlist_id), rules)
+        .await?)
+}
+
+/// 按规则预览曲目（不落库）。
+pub async fn preview_smart_rules(
+    rules: SmartRulesDto,
+    offset: u32,
+    limit: u32,
+) -> Result<Vec<TrackRowDto>, CoreError> {
+    let rules = lekis_library::SmartRules::try_from(rules)?;
+    Ok(core()
+        .evaluate_smart_rules(rules, offset, limit)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// 按规则统计匹配曲目数（规则编辑器预览用）。
+pub async fn count_smart_rules(rules: SmartRulesDto) -> Result<u64, CoreError> {
+    let rules = lekis_library::SmartRules::try_from(rules)?;
+    Ok(core().count_smart_rules(rules).await?)
+}
+
 // ---- 统计 / 覆盖层（DIS-06、ENR-07）----
 
 /// 喜欢的曲目。
