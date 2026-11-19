@@ -1,0 +1,40 @@
+<Page
+    x:Class="Lekis.App.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:toolkit="using:CommunityToolkit.WinUI.Controls"
+    Padding="{StaticResource LekisPageMargin}">
+
+    <!--
+      设置。原型只显示版本信息。
+      设置项的值存在核心（kv 表），不要存在 UI 侧；这里只做展示。
+      TODO：主题、语言、音频输出（WASAPI 独占 / 比特完美）、ReplayGain、缓存、补全来源、插件、同步、隐私。
+    -->
+    <ScrollViewer>
+        <StackPanel Spacing="8" MaxWidth="720" HorizontalAlignment="Left">
+            <TextBlock x:Uid="Settings_Title" Style="{StaticResource LekisDisplayTextStyle}" Margin="0,0,0,8" />
+
+            <!-- 假核心提示：核心没加载时顶部显示，告诉用户看到的是示例数据 -->
+            <InfoBar
+                x:Uid="Settings_FakeCore"
+                IsClosable="False"
+                IsOpen="{x:Bind ViewModel.IsFakeCore}"
+                Severity="Informational"
+                Margin="0,0,0,8" />
+
+            <toolkit:SettingsCard x:Uid="Settings_AppVersion">
+                <TextBlock Style="{StaticResource LekisCaptionTextStyle}" Text="{x:Bind ViewModel.AppVersion}" />
+            </toolkit:SettingsCard>
+
+            <toolkit:SettingsCard x:Uid="Settings_CoreVersion">
+                <TextBlock Style="{StaticResource LekisCaptionTextStyle}" Text="{x:Bind ViewModel.CoreVersion}" />
+            </toolkit:SettingsCard>
+
+            <toolkit:SettingsCard x:Uid="Settings_DataDir">
+                <TextBlock Style="{StaticResource LekisCaptionTextStyle}" Text="{x:Bind ViewModel.DataDir}" TextTrimming="CharacterEllipsis" />
+            </toolkit:SettingsCard>
+
+            <TextBlock x:Uid="Settings_More" Style="{StaticResource LekisCaptionTextStyle}" Margin="0,16,0,0" TextWrapping="Wrap" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>

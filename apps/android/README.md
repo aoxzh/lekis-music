@@ -34,4 +34,12 @@ UI（NowPlayingScreen 等）
 ./gradlew assembleDebug
 ```
 
+Windows 上用对应的 PowerShell 版本（环境自动探测，可在全新 shell 里直接跑）：
+
+```powershell
+..\..\tools\build-android-core.ps1          # 自动找 NDK，输出 jniLibs，列大小 + ELF 自检
+..\..\tools\gen-bindings.ps1                # 只在 Rust 侧导出接口变化时需要重跑
+gradle assembleDebug --no-daemon
+```
+
 生成的 `.so` 和绑定代码都不提交到仓库（见 `.gitignore`）。

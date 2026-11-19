@@ -26,6 +26,12 @@ public static class Format
 
     public static Visibility VisibleIfFalse(bool b) => b ? Visibility.Collapsed : Visibility.Visible;
 
+    /// <summary>数字为 0 时可见（空队列提示用）。x:Bind 的函数绑定不支持嵌套调用，所以拆成单层。</summary>
+    public static Visibility VisibleIfZero(int value) => value == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>数字大于 0 时可见。</summary>
+    public static Visibility VisibleIfPositive(int value) => value > 0 ? Visibility.Visible : Visibility.Collapsed;
+
     /// <summary>播放 / 暂停按钮图标（Segoe Fluent Icons）。</summary>
     public static string PlayPauseGlyph(bool isPlaying) => isPlaying ? "" : "";
 }

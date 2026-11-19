@@ -1,0 +1,302 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!--
+    zh-CN 字符串。键必须和 en-US/Resources.resw 完全一致（缺键会回退到 en-US）。
+    键名约定见 en-US/Resources.resw 顶部注释。
+  -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <!-- 窗口 / 导航 -->
+  <data name="AppTitle.Text" xml:space="preserve">
+    <value>月兔音乐</value>
+  </data>
+  <data name="Nav_Home.Content" xml:space="preserve">
+    <value>首页</value>
+  </data>
+  <data name="Nav_Library.Content" xml:space="preserve">
+    <value>资料库</value>
+  </data>
+  <data name="Nav_Search.Content" xml:space="preserve">
+    <value>搜索</value>
+  </data>
+  <data name="Nav_NowPlaying.Content" xml:space="preserve">
+    <value>正在播放</value>
+  </data>
+  <data name="Nav_Sources.Content" xml:space="preserve">
+    <value>音源</value>
+  </data>
+  <data name="Nav_Enrich.Content" xml:space="preserve">
+    <value>待确认</value>
+  </data>
+  <data name="Nav_Settings.Content" xml:space="preserve">
+    <value>设置</value>
+  </data>
+
+  <!-- 播放条 / 正在播放 -->
+  <data name="PlayerBar_Previous.ToolTipService.ToolTip" xml:space="preserve">
+    <value>上一首</value>
+  </data>
+  <data name="PlayerBar_Previous.AutomationProperties.Name" xml:space="preserve">
+    <value>上一首</value>
+  </data>
+  <data name="PlayerBar_PlayPause.ToolTipService.ToolTip" xml:space="preserve">
+    <value>播放 / 暂停</value>
+  </data>
+  <data name="PlayerBar_PlayPause.AutomationProperties.Name" xml:space="preserve">
+    <value>播放 / 暂停</value>
+  </data>
+  <data name="PlayerBar_Next.ToolTipService.ToolTip" xml:space="preserve">
+    <value>下一首</value>
+  </data>
+  <data name="PlayerBar_Next.AutomationProperties.Name" xml:space="preserve">
+    <value>下一首</value>
+  </data>
+  <data name="PlayerBar_NoTrack.Text" xml:space="preserve">
+    <value>没有在播放</value>
+  </data>
+  <data name="NowPlaying_Nothing.Text" xml:space="preserve">
+    <value>还没有开始播放</value>
+  </data>
+
+  <!-- 首页 -->
+  <data name="Home_Title.Text" xml:space="preserve">
+    <value>首页</value>
+  </data>
+  <data name="Home_RecentlyAdded.Text" xml:space="preserve">
+    <value>最近添加</value>
+  </data>
+  <data name="Home_EmptyTitle.Text" xml:space="preserve">
+    <value>还没有音乐</value>
+  </data>
+  <data name="Home_EmptyBody.Text" xml:space="preserve">
+    <value>添加一个存放音乐的文件夹，Lekis 会自动扫描。</value>
+  </data>
+  <data name="Home_AddSource.Content" xml:space="preserve">
+    <value>添加文件夹</value>
+  </data>
+
+  <!-- 资料库 -->
+  <data name="Library_Title.Text" xml:space="preserve">
+    <value>资料库</value>
+  </data>
+  <data name="Library_Sort.Text" xml:space="preserve">
+    <value>排序</value>
+  </data>
+  <data name="Sort_Title" xml:space="preserve">
+    <value>标题</value>
+  </data>
+  <data name="Sort_Artist" xml:space="preserve">
+    <value>艺人</value>
+  </data>
+  <data name="Sort_Album" xml:space="preserve">
+    <value>专辑</value>
+  </data>
+  <data name="Sort_RecentlyAdded" xml:space="preserve">
+    <value>最近添加</value>
+  </data>
+  <data name="Sort_MostPlayed" xml:space="preserve">
+    <value>播放最多</value>
+  </data>
+
+  <!-- 搜索 -->
+  <data name="Search_Title.Text" xml:space="preserve">
+    <value>搜索</value>
+  </data>
+  <data name="Search_Box.PlaceholderText" xml:space="preserve">
+    <value>搜标题、艺人、专辑</value>
+  </data>
+  <data name="Search_Empty.Text" xml:space="preserve">
+    <value>没有匹配结果</value>
+  </data>
+
+  <!-- 音源 -->
+  <data name="Sources_Title.Text" xml:space="preserve">
+    <value>音源</value>
+  </data>
+  <data name="Sources_AddLocal.Content" xml:space="preserve">
+    <value>添加本地文件夹</value>
+  </data>
+  <data name="Sources_Empty.Text" xml:space="preserve">
+    <value>还没有添加音源。</value>
+  </data>
+  <data name="Sources_Rescan.Content" xml:space="preserve">
+    <value>重新扫描</value>
+  </data>
+  <data name="Sources_ScanProgress" xml:space="preserve">
+    <value>正在扫描… {0}/{1}</value>
+  </data>
+  <data name="Sources_ScanFinished" xml:space="preserve">
+    <value>扫描完成：新增 {0}，更新 {1}，删除 {2}</value>
+  </data>
+  <data name="SourceKind_Local" xml:space="preserve">
+    <value>本地文件夹</value>
+  </data>
+  <data name="SourceKind_Smb" xml:space="preserve">
+    <value>SMB 共享</value>
+  </data>
+  <data name="SourceKind_WebDav" xml:space="preserve">
+    <value>WebDAV</value>
+  </data>
+  <data name="SourceKind_Nfs" xml:space="preserve">
+    <value>NFS</value>
+  </data>
+  <data name="SourceKind_Sftp" xml:space="preserve">
+    <value>SFTP</value>
+  </data>
+  <data name="SourceKind_OpenSubsonic" xml:space="preserve">
+    <value>OpenSubsonic</value>
+  </data>
+  <data name="SourceKind_Jellyfin" xml:space="preserve">
+    <value>Jellyfin</value>
+  </data>
+  <data name="SourceKind_Emby" xml:space="preserve">
+    <value>Emby</value>
+  </data>
+  <data name="SourceKind_Plex" xml:space="preserve">
+    <value>Plex</value>
+  </data>
+  <data name="SourceKind_Radio" xml:space="preserve">
+    <value>网络电台</value>
+  </data>
+  <data name="SourceKind_Plugin" xml:space="preserve">
+    <value>插件</value>
+  </data>
+
+  <!-- 补全复核 -->
+  <data name="Enrich_Title.Text" xml:space="preserve">
+    <value>待确认</value>
+  </data>
+  <data name="Enrich_PendingLabel.Text" xml:space="preserve">
+    <value>待确认数量</value>
+  </data>
+  <data name="Enrich_EmptyTitle.Text" xml:space="preserve">
+    <value>没有待确认的条目</value>
+  </data>
+  <data name="Enrich_NotAvailable.Text" xml:space="preserve">
+    <value>确认界面还没做好。</value>
+  </data>
+
+  <!-- 设置 -->
+  <data name="Settings_Title.Text" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="Settings_FakeCore.Title" xml:space="preserve">
+    <value>示例数据</value>
+  </data>
+  <data name="Settings_FakeCore.Message" xml:space="preserve">
+    <value>音乐核心没有加载，当前显示的是示例数据。</value>
+  </data>
+  <data name="Settings_AppVersion.Header" xml:space="preserve">
+    <value>应用版本</value>
+  </data>
+  <data name="Settings_CoreVersion.Header" xml:space="preserve">
+    <value>核心版本</value>
+  </data>
+  <data name="Settings_DataDir.Header" xml:space="preserve">
+    <value>数据目录</value>
+  </data>
+  <data name="Settings_More.Text" xml:space="preserve">
+    <value>主题、语言、音频输出、ReplayGain、缓存、补全来源、插件、同步和隐私设置以后会加在这里。</value>
+  </data>
+
+  <!-- 错误（按 CoreErrorKind 本地化） -->
+  <data name="Error_NotFound" xml:space="preserve">
+    <value>找不到。</value>
+  </data>
+  <data name="Error_InvalidArgument" xml:space="preserve">
+    <value>这个请求不合法。</value>
+  </data>
+  <data name="Error_Unsupported" xml:space="preserve">
+    <value>暂时不支持这个操作。</value>
+  </data>
+  <data name="Error_NotImplemented" xml:space="preserve">
+    <value>功能还没实现。</value>
+  </data>
+  <data name="Error_Io" xml:space="preserve">
+    <value>文件读写失败。</value>
+  </data>
+  <data name="Error_Network" xml:space="preserve">
+    <value>网络有问题，请检查连接。</value>
+  </data>
+  <data name="Error_Auth" xml:space="preserve">
+    <value>登录失败。</value>
+  </data>
+  <data name="Error_Database" xml:space="preserve">
+    <value>资料库数据库出错了。</value>
+  </data>
+  <data name="Error_Decode" xml:space="preserve">
+    <value>这个文件解码失败。</value>
+  </data>
+  <data name="Error_Plugin" xml:space="preserve">
+    <value>插件出错。</value>
+  </data>
+  <data name="Error_PermissionDenied" xml:space="preserve">
+    <value>没有权限。</value>
+  </data>
+  <data name="Error_Cancelled" xml:space="preserve">
+    <value>已取消。</value>
+  </data>
+  <data name="Error_RateLimited" xml:space="preserve">
+    <value>请求太频繁，稍后再试。</value>
+  </data>
+  <data name="Error_Internal" xml:space="preserve">
+    <value>出了点问题。</value>
+  </data>
+</root>

@@ -1,0 +1,65 @@
+<Page
+    x:Class="Lekis.App.Views.HomePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:common="using:Lekis.App.Common"
+    xmlns:controls="using:Lekis.App.Controls"
+    xmlns:core="using:Lekis.Core"
+    Padding="{StaticResource LekisPageMargin}">
+
+    <!--
+      首页：原型只有"最近添加"。列表数据由 HomeViewModel 从核心取，这里只负责显示。
+      TODO：继续播放、每日混音、"好久没听"、按时段推荐。
+    -->
+    <Grid RowSpacing="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Uid="Home_Title" Style="{StaticResource LekisDisplayTextStyle}" />
+
+        <Grid Grid.Row="1">
+            <ListView
+                IsItemClickEnabled="True"
+                ItemClick="OnTrackClick"
+                ItemsSource="{x:Bind ViewModel.RecentlyAdded}"
+                SelectionMode="None"
+                Visibility="{x:Bind common:Format.VisibleIfFalse(ViewModel.IsLibraryEmpty), Mode=OneWay}">
+                <ListView.Header>
+                    <TextBlock x:Uid="Home_RecentlyAdded" Style="{StaticResource LekisHeadlineTextStyle}" Margin="0,16,0,8" />
+                </ListView.Header>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="core:TrackRow">
+                        <controls:TrackListItem Track="{x:Bind}" />
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <!-- 空状态：引导用户去音源页添加文件夹（不做任何扫描逻辑） -->
+            <StackPanel
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                MaxWidth="420"
+                Spacing="12"
+                Visibility="{x:Bind common:Format.VisibleIfTrue(ViewModel.IsLibraryEmpty), Mode=OneWay}">
+                <TextBlock
+                    x:Uid="Home_EmptyTitle"
+                    HorizontalAlignment="Center"
+                    Style="{StaticResource LekisHeadlineTextStyle}"
+                    TextAlignment="Center" />
+                <TextBlock
+                    x:Uid="Home_EmptyBody"
+                    HorizontalAlignment="Center"
+                    Style="{StaticResource LekisCaptionTextStyle}"
+                    TextAlignment="Center"
+                    TextWrapping="Wrap" />
+                <Button
+                    x:Uid="Home_AddSource"
+                    HorizontalAlignment="Center"
+                    Click="OnAddSourceClick"
+                    Style="{StaticResource AccentButtonStyle}" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>

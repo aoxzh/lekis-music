@@ -9,6 +9,10 @@ plugins {
 android {
     namespace = "dev.lekis.music"
     compileSdk = 35
+    // 指定 NDK 版本，AGP 才能用它的 llvm-strip 给 jniLibs 里的 liblekis_ffi.so 去掉符号表
+    // （不设的话 stripDebugDebugSymbols 会报 "Unable to strip ... packaging them as they are"，
+    //   每个 ABI 的 .so 白多 ~1.4MB）
+    ndkVersion = "27.2.12479018"
 
     defaultConfig {
         applicationId = "dev.lekis.music"

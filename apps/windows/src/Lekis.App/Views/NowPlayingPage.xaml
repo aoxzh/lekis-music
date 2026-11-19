@@ -1,0 +1,85 @@
+<Page
+    x:Class="Lekis.App.Views.NowPlayingPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:common="using:Lekis.App.Common"
+    Padding="{StaticResource LekisPageMargin}">
+
+    <!--
+      正在播放页（大封面 + 信息）。播放控制复用 PlayerViewModel，和底部播放条同一份状态。
+      TODO(4.5.3)：封面取色流动背景、歌词（逐字高亮 + 弹簧滚动）、循环 / 随机 / 收藏、音量、输出设备。
+    -->
+    <Grid RowSpacing="24" ColumnSpacing="32" MaxWidth="900" HorizontalAlignment="Center">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- 封面占位：核心提供缩略图后再换成 Image -->
+        <Border
+            Width="{StaticResource LekisNowPlayingArtworkSize}"
+            Height="{StaticResource LekisNowPlayingArtworkSize}"
+            Background="{ThemeResource LekisSurfaceVariantBrush}"
+            CornerRadius="{StaticResource LekisArtworkNowPlayingRadius}">
+            <FontIcon Glyph="&#xE8D6;" FontSize="64" Foreground="{ThemeResource LekisOnSurfaceVariantBrush}" />
+        </Border>
+
+        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="12">
+            <TextBlock
+                x:Uid="NowPlaying_Nothing"
+                Style="{StaticResource LekisTitle1TextStyle}"
+                TextWrapping="Wrap"
+                Visibility="{x:Bind common:Format.VisibleIfFalse(ViewModel.HasTrack), Mode=OneWay}" />
+
+            <StackPanel Spacing="8" Visibility="{x:Bind common:Format.VisibleIfTrue(ViewModel.HasTrack), Mode=OneWay}">
+                <TextBlock
+                    Style="{StaticResource LekisDisplayTextStyle}"
+                    Text="{x:Bind ViewModel.Title, Mode=OneWay}"
+                    TextWrapping="Wrap" />
+                <TextBlock
+                    Style="{StaticResource LekisHeadlineTextStyle}"
+                    Foreground="{ThemeResource LekisOnSurfaceVariantBrush}"
+                    Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}"
+                    TextWrapping="Wrap" />
+                <Border Style="{StaticResource LekisQualityBadgeStyle}" HorizontalAlignment="Left" Visibility="{x:Bind common:Format.VisibleIfText(ViewModel.QualityBadge), Mode=OneWay}">
+                    <TextBlock FontSize="11" Foreground="{ThemeResource LekisAccentBrush}" Text="{x:Bind ViewModel.QualityBadge, Mode=OneWay}" />
+                </Border>
+            </StackPanel>
+
+            <!-- 传输控制：和播放条完全一致的三颗按钮 -->
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                <Button x:Uid="PlayerBar_Previous" Command="{x:Bind ViewModel.PreviousCommand}" Width="44" Height="44" Padding="0" Background="Transparent" BorderThickness="0">
+                    <FontIcon Glyph="&#xE892;" FontSize="18" Foreground="{ThemeResource LekisOnSurfaceBrush}" />
+                </Button>
+                <Button
+                    x:Uid="PlayerBar_PlayPause"
+                    Command="{x:Bind ViewModel.TogglePlayPauseCommand}"
+                    Width="56"
+                    Height="56"
+                    Padding="0"
+                    Background="{ThemeResource LekisAccentBrush}"
+                    BorderThickness="0"
+                    CornerRadius="{StaticResource LekisRadiusPill}">
+                    <FontIcon
+                        Glyph="{x:Bind common:Format.PlayPauseGlyph(ViewModel.IsPlaying), Mode=OneWay}"
+                        FontSize="20"
+                        Foreground="{ThemeResource LekisOnAccentBrush}" />
+                </Button>
+                <Button x:Uid="PlayerBar_Next" Command="{x:Bind ViewModel.NextCommand}" Width="44" Height="44" Padding="0" Background="Transparent" BorderThickness="0">
+                    <FontIcon Glyph="&#xE893;" FontSize="18" Foreground="{ThemeResource LekisOnSurfaceBrush}" />
+                </Button>
+            </StackPanel>
+
+            <Slider
+                x:Name="PositionSlider"
+                Minimum="0"
+                Maximum="{x:Bind ViewModel.DurationMs, Mode=OneWay}"
+                StepFrequency="1000"
+                ValueChanged="OnPositionChanged" />
+            <Grid>
+                <TextBlock Style="{StaticResource LekisCaptionTextStyle}" HorizontalAlignment="Left" Text="{x:Bind common:Format.DurationD(ViewModel.PositionMs), Mode=OneWay}" />
+                <TextBlock Style="{StaticResource LekisCaptionTextStyle}" HorizontalAlignment="Right" Text="{x:Bind common:Format.DurationD(ViewModel.DurationMs), Mode=OneWay}" />
+            </Grid>
+        </StackPanel>
+    </Grid>
+</Page>

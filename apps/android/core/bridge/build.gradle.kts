@@ -11,7 +11,7 @@ android {
     defaultConfig {
         minSdk = 26
         ndk {
-            // 和 tools/build-android-core.sh 编译的 ABI 保持一致
+            // 和 tools/build-android-core.{sh,ps1} 编译的 ABI 保持一致
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
         }
     }
@@ -21,7 +21,8 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { buildConfig = true }   // RustCoreBridge 用 BuildConfig.DEBUG 决定核心日志级别
-    // 生成的绑定代码在 src/main/kotlin/uniffi/（tools/gen-bindings.sh），.so 在 src/main/jniLibs/（tools/build-android-core.sh）
+    // 生成的绑定代码在 src/main/kotlin/uniffi/（tools/gen-bindings.{sh,ps1}），
+    // .so 在 src/main/jniLibs/（tools/build-android-core.{sh,ps1}）
 }
 
 dependencies {
