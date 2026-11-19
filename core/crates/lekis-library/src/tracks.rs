@@ -44,7 +44,9 @@ pub enum TrackContext {
     Loved,
     /// 一个文件夹的直属曲目（按文件名，和 `folder_tracks` 一致）。
     Folder {
+        /// 音源 ID。
         source_id: lekis_types::SourceId,
+        /// 相对音源根目录的文件夹路径（`/` 分隔，空串 = 根目录）。
         path: String,
     },
 }

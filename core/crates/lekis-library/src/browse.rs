@@ -426,6 +426,7 @@ pub(crate) fn refresh_track_index(tx: &rusqlite::Transaction<'_>, track_id: i64)
 }
 
 /// 重建专辑的搜索索引行（专辑改名 / 合并之后调用）。
+#[allow(dead_code)] // 元数据编辑接上 UI 后使用；现在只有扫描路径会重建索引。
 pub(crate) fn refresh_album_index(
     tx: &rusqlite::Transaction<'_>,
     album_id: Option<i64>,
@@ -468,6 +469,7 @@ fn write_album_row(tx: &rusqlite::Transaction<'_>, album_id: i64) -> Result<()> 
 }
 
 /// 重建艺人的搜索索引行（改名 / 加别名之后调用）。
+#[allow(dead_code)] // 同上：留给艺人改名 / 合并路径。
 pub(crate) fn refresh_artist_index(tx: &rusqlite::Transaction<'_>, artist_id: i64) -> Result<()> {
     delete_index_row(tx, INDEX_ARTIST, artist_id)?;
     write_artist_row(tx, artist_id)

@@ -16,6 +16,7 @@ use std::collections::{BTreeMap, HashSet};
 /// 一个可以按文件夹浏览的音源（文件夹视图的第一层）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FolderRoot {
+    /// 音源 ID。
     pub source_id: SourceId,
     /// 音源名。
     pub name: String,
@@ -39,7 +40,9 @@ pub struct FolderEntry {
 /// 直属曲目本身用 [`Library::folder_tracks`] 分页取。
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct FolderListing {
+    /// 子文件夹（按自然顺序）。
     pub folders: Vec<FolderEntry>,
+    /// 当前目录的直属曲目数。
     pub track_count: u32,
 }
 
@@ -250,6 +253,7 @@ impl Library {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use crate::db::test_util::temp_library;
