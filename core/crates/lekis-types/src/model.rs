@@ -206,6 +206,34 @@ pub enum ArtistRole {
     Remixer,
 }
 
+impl ArtistRole {
+    /// 数据库里存的字符串（snake_case），和 `#[serde(rename_all = "snake_case")]` 一致。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Main => "main",
+            Self::Featured => "featured",
+            Self::Composer => "composer",
+            Self::Lyricist => "lyricist",
+            Self::Conductor => "conductor",
+            Self::Performer => "performer",
+            Self::Remixer => "remixer",
+        }
+    }
+
+    /// 从数据库字符串还原；未知值按主艺人处理（向前兼容：以后加新角色时旧版本不会报错）。
+    pub fn from_db(value: &str) -> Self {
+        match value {
+            "featured" => Self::Featured,
+            "composer" => Self::Composer,
+            "lyricist" => Self::Lyricist,
+            "conductor" => Self::Conductor,
+            "performer" => Self::Performer,
+            "remixer" => Self::Remixer,
+            _ => Self::Main,
+        }
+    }
+}
+
 /// 曲目里的一个艺人署名。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ArtistCredit {
@@ -215,6 +243,43 @@ pub struct ArtistCredit {
     pub name: String,
     /// 角色。
     pub role: ArtistRole,
+}
+
+/// 用户或补全结果对曲目元数据的覆盖层（LIB-13 / ENR）。
+///
+/// 覆盖层**不改原始文件**，只改库里的显示与排序；字段为 `None` 表示"沿用文件标签"。
+/// 同步（SYN-01）把它当作可同步的实体，因此每个字段都要能独立合并。
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct TrackOverlay {
+    /// 覆盖后的标题。
+    pub title: Option<String>,
+    /// 覆盖后的艺人显示名（按顺序）。
+    pub artists: Option<Vec<String>>,
+    /// 覆盖后的专辑名。
+    pub album_title: Option<String>,
+    /// 覆盖后的年份。
+    pub year: Option<i32>,
+    /// 覆盖后的曲目号。
+    pub track_no: Option<u32>,
+    /// 覆盖后的碟片号。
+    pub disc_no: Option<u32>,
+    /// 覆盖后的流派。
+    pub genres: Option<Vec<String>>,
+    /// 覆盖层来源（`manual` / `musicbrainz` / `plugin:<id>`……）。
+    pub source: Option<String>,
+}
+
+impl TrackOverlay {
+    /// 一份什么都没覆盖的覆盖层等价于没有覆盖层。
+    pub fn is_empty(&self) -> bool {
+        self.title.is_none()
+            && self.artists.is_none()
+            && self.album_title.is_none()
+            && self.year.is_none()
+            && self.track_no.is_none()
+            && self.disc_no.is_none()
+            && self.genres.is_none()
+    }
 }
 
 /// 曲目（完整信息，详情页用）。
@@ -252,6 +317,8 @@ pub struct Track {
     pub replaygain: ReplayGain,
     /// 封面。
     pub artwork_id: Option<ArtworkId>,
+    /// 用户 / 补全结果的覆盖层（`None` 字段沿用文件标签）。
+    pub overlay: Option<TrackOverlay>,
 }
 
 /// 曲目（列表用的精简版）。大列表只返回这个，详情页再取 [`Track`]。
@@ -473,4 +540,13 @@ pub struct SearchResults {
     pub albums: Vec<Album>,
     /// 艺人。
     pub artists: Vec<Artist>,
+}
+
+/// 流派及其曲目数（LIB-06 按流派浏览时用）。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GenreCount {
+    /// 流派名。
+    pub name: String,
+    /// 这个流派下的曲目数。
+    pub track_count: u32,
 }

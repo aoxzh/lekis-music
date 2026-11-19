@@ -13,6 +13,8 @@ crate-type = ["cdylib", "staticlib", "lib"]
 
 [dependencies]
 lekis-core.workspace = true
+lekis-library.workspace = true
+lekis-playback.workspace = true
 lekis-types.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

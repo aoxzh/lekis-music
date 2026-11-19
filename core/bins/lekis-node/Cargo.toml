@@ -8,14 +8,26 @@ publish.workspace = true
 
 [dependencies]
 lekis-core.workspace = true
+# `LekisCore` 的歌单 / 封面接口直接返回 `lekis_library` 的类型（`Playlist`、`ArtworkRow`），
+# 核心没有 re-export，所以这里直接依赖它（本来就是 lekis-core 的依赖，不会多编一遍）。
+lekis-library.workspace = true
 lekis-types.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-tokio = { workspace = true, features = ["net", "signal"] }
+# `fs`：`getCoverArt` 要把封面缓存文件读出来。
+tokio = { workspace = true, features = ["fs", "net", "signal"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+# 解析 Subsonic 的查询串（保留重复键、正确的百分号解码）。
+url.workspace = true
+# 启动时随机生成 API token / Subsonic 密码。
+uuid.workspace = true
+
+[dev-dependencies]
+# 测试里用 `ServiceExt::oneshot` 直接打 `Router`，不起真服务。
+tower = { version = "0.5", features = ["util"] }
 
 [lints]
 workspace = true

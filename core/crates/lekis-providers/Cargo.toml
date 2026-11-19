@@ -9,6 +9,20 @@ publish.workspace = true
 [dependencies]
 lekis-types.workspace = true
 async-trait.workspace = true
+# 三个服务器客户端都是 HTTP + JSON / XML，用 workspace 里已经选好的 reqwest（rustls）。
+reqwest.workspace = true
+quick-xml.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+percent-encoding.workspace = true
+# Plex 的 section 缓存要跨调用保存，用 tokio 的异步 Mutex（不阻塞异步运行时）。
+tokio.workspace = true
+tracing.workspace = true
+# Subsonic 的 salt 需要随机串；uuid v4 是 workspace 里已有的随机来源，不额外引 rand。
+uuid.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true

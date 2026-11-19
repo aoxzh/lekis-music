@@ -8,9 +8,20 @@ publish.workspace = true
 
 [dependencies]
 lekis-types.workspace = true
+# 领域 crate 之间只允许依赖 types / vfs（见 docs/ARCHITECTURE.md）：
+# 播放要按 Range 从 VFS 流式读取音频，所以这里依赖 lekis-vfs 是允许的。
+lekis-vfs.workspace = true
 tokio.workspace = true
 tracing.workspace = true
-# 已选型，实现时启用（见 core/Cargo.toml）：symphonia、cpal、rubato、ebur128
+symphonia.workspace = true
+cpal.workspace = true
+ringbuf.workspace = true
+# PLY-07：设备采样率和内容不一致时在解码线程里做重采样。
+rubato.workspace = true
+# VFS 的 read_range 返回 Bytes，适配器要缓存"多读出来的那部分"。
+bytes.workspace = true
+# PLY-08：HTTP Range 流播放。blocking 版只在专用解码线程上用（那里不能有 tokio 上下文）。
+reqwest = { workspace = true, features = ["blocking"] }
 
 [lints]
 workspace = true

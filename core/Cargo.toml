@@ -36,35 +36,59 @@ lekis-sync = { path = "crates/lekis-sync" }
 lekis-plugin-host = { path = "crates/lekis-plugin-host" }
 lekis-core = { path = "crates/lekis-core" }
 
-# ---- 已经在用的第三方依赖 ----
+# ---- 基础 ----
 async-trait = "0.1"
+base64 = "0.22"
 bytes = "1"
+futures-util = "0.3"
+hex = "0.4"
+httpdate = "1"
+parking_lot = "0.12"
+percent-encoding = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 thiserror = "2"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "io-util"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "io-util", "net"] }
+tokio-util = { version = "0.7", features = ["io"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+url = "2"
 uuid = { version = "1", features = ["v4", "v7", "serde"] }
+
+# ---- 存储 ----
 rusqlite = { version = "0.32", features = ["bundled"] }
+ciborium = "0.2"
+zstd = "0.14"
+
+# ---- 网络 ----
+# 0.12 而不是 0.13：0.13 把 rustls 特性改名（`rustls`），且默认启用 aws-lc-rs，
+# 在 MSVC 之外的平台需要 NASM。0.12 的 `rustls-tls` 用 ring，跨平台构建更省事。
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream", "gzip", "brotli", "deflate"] }
+quick-xml = "0.42"
+mdns-sd = "0.13"
+smb2 = "0.43"
+nfs3_client = "0.9"
+russh = { version = "0.65", default-features = false, features = ["ring"] }
+russh-sftp = "3.0"
+
+# ---- 音频 ----
+symphonia = { version = "0.6", features = ["all"] }
+cpal = "0.18"
+rubato = "0.16"
+ebur128 = "0.1"
+ringbuf = "0.4"
+
+# ---- 其他 ----
+lofty = "0.25"
+pinyin = "0.11"
+zhconv = "0.4"
+notify = "8"
+image = { version = "0.25", default-features = false, features = ["webp", "jpeg", "png"] }
+rquickjs = "0.14"
 uniffi = "0.28"
 axum = "0.8"
 anyhow = "1"
-
-# ---- 已经选型、但还没有代码用到的依赖（用到时取消注释，并在对应 crate 里引用）----
-# symphonia = { version = "0.5", features = ["all"] }      # 解码（lekis-playback）
-# cpal = "0.15"                                             # 音频输出（lekis-playback）
-# rubato = "0.16"                                           # 重采样（lekis-playback）
-# ebur128 = "0.1"                                           # 响度分析（lekis-playback / analysis）
-# lofty = "0.22"                                            # 标签读写（lekis-scanner）
-# reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
-# ciborium = "0.2"                                          # NAS 共享索引 / 同步日志编码
-# zstd = "0.13"                                             # NAS 共享索引 / 同步日志压缩
-# rquickjs = "0.8"                                          # JS 插件运行时（lekis-plugin-host）
-# wasmtime = "27"                                           # WASM 插件运行时（1.x）
-# mdns-sd = "0.13"                                          # 局域网发现
-# bliss-audio = "0.9"                                       # 声学分析（以后）
-# pinyin = "0.10"                                           # 拼音搜索（lekis-library）
 
 [workspace.lints.rust]
 missing_docs = "warn"
@@ -85,3 +109,13 @@ strip = "debuginfo"
 [profile.release-android]
 inherits = "release"
 opt-level = "s"
+
+# rquickjs-sys 0.14.0 只为桌面/服务端目标预生成 bindgen 输出，没有
+# aarch64-linux-android / armv7-linux-androideabi / x86_64-linux-android 的
+# `src/bindings/<target>.rs`，交叉编译到 Android 会在 `include!` 处报
+# "couldn't find file ... bindings/aarch64-linux-android.rs"。
+# 它自带的 `bindgen` feature 需要 libclang，本机与 NDK 都没有，因此改成 vendor
+# 一份：只补三个 Android 绑定文件，其余文件与 crates.io 上 0.14.0 一致，
+# 桌面目标的行为完全不变。详见 core/vendor/rquickjs-sys/README.vendor.md。
+[patch.crates-io]
+rquickjs-sys = { path = "vendor/rquickjs-sys" }

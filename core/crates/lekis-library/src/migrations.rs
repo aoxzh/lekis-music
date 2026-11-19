@@ -5,7 +5,13 @@ use lekis_types::{now_ms, Result};
 use rusqlite::Connection;
 
 /// 所有迁移（版本号严格递增，已合入的不能修改）。
-const MIGRATIONS: &[(i64, &str)] = &[(1, include_str!("../migrations/0001_init.sql"))];
+const MIGRATIONS: &[(i64, &str)] = &[
+    (1, include_str!("../migrations/0001_init.sql")),
+    (
+        2,
+        include_str!("../migrations/0002_remote_track_unique.sql"),
+    ),
+];
 
 pub(crate) fn run(conn: &mut Connection) -> Result<()> {
     conn.execute_batch(

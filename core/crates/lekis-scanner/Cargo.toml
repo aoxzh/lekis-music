@@ -10,12 +10,18 @@ publish.workspace = true
 lekis-types.workspace = true
 lekis-vfs.workspace = true
 lekis-library.workspace = true
+bytes.workspace = true
+ciborium.workspace = true
+futures-util.workspace = true
+serde.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+zstd.workspace = true
+lofty = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
-bytes.workspace = true
+async-trait.workspace = true
 
 [lints]
 workspace = true

@@ -12,7 +12,16 @@ async-trait.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
-# 已选型，实现时启用：rquickjs（JS 运行时）、wasmtime / wasmi（WASM 运行时，1.x）
+# JS 运行时（PLG-02）。只用默认 feature（不需要 futures / parallel，见 runtime.rs 的说明）。
+rquickjs.workspace = true
+# 宿主 API host.http 的后端。
+reqwest.workspace = true
+# spawn_blocking（跑 JS）、Mutex（串行化调用）、current_thread 运行时（HTTP 工作线程）。
+tokio = { workspace = true, features = ["rt", "sync", "time"] }
+# 已选型，实现时启用：wasmtime / wasmi（WASM 运行时，1.x）
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros"] }
 
 [lints]
 workspace = true

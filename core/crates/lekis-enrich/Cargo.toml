@@ -9,6 +9,26 @@ publish.workspace = true
 [dependencies]
 lekis-types.workspace = true
 async-trait.workspace = true
+# 在线提供方（LRCLIB / Cover Art Archive / iTunes）都是 HTTPS + JSON。
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# 令牌桶（[`throttle::RateLimiter`]）的等待和互斥用 tokio 的 time / sync。
+tokio.workspace = true
+tracing.workspace = true
+# ENR-05 的中英文名互查：把中文标题/艺人转成拼音再和拉丁字母一侧比较。
+pinyin.workspace = true
+# ENR-01/12：封面下载后要解码、按档位缩放、编码 WebP、提主色。
+image.workspace = true
+# 封面去重用的内容哈希。
+sha2.workspace = true
+hex.workspace = true
+# DIS-07：Last.fm / Libre.fm 的签名参数要和 Last.fm 的 `application/x-www-form-urlencoded`
+# 请求体一样做百分号编码（不能把空格编成 `+`，否则服务端算出的签名对不上）。
+percent-encoding.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true

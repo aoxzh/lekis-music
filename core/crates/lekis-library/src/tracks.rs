@@ -3,25 +3,31 @@
 use crate::db::DbResultExt;
 use crate::Library;
 use lekis_types::{
-    ArtworkId, LekisError, ReplayGain, Result, Track, TrackId, TrackQuery, TrackRow, TrackSort,
-    TrackUid,
+    now_ms, ArtworkId, LekisError, ReplayGain, Result, Track, TrackId, TrackQuery, TrackRow,
+    TrackSort, TrackUid,
 };
-use rusqlite::{params, Row};
+use rusqlite::{params, OptionalExtension, Row};
 
 /// 一首歌对应的一个可播放文件。
 #[derive(Debug, Clone, PartialEq)]
 pub struct TrackFile {
     /// 所在音源。
     pub source_id: lekis_types::SourceId,
-    /// 源内路径。
+    /// 音源类型（选源时用来判断"是不是要走网络"）。
+    pub source_kind: lekis_types::SourceKind,
+    /// 源内路径（服务器源为空，播放时用 `external_id`）。
     pub path: String,
+    /// 服务器 / 插件源里的 ID（文件系统类源为空）。
+    pub external_id: Option<String>,
+    /// 音质分（SRC-13，越大越好）。
+    pub quality_score: i64,
     /// 时长（毫秒）。
     pub duration_ms: u64,
     /// ReplayGain。
     pub replaygain: ReplayGain,
 }
 
-const TRACK_ROW_COLUMNS: &str =
+pub(crate) const TRACK_ROW_COLUMNS: &str =
     "t.id, t.title, t.artist_line, a.title, t.duration_ms, t.artwork_id,
      t.quality_badge, COALESCE(u.loved, 0)";
 
@@ -74,67 +80,168 @@ impl Library {
 
     /// 取一首歌的完整信息。
     ///
-    /// TODO：艺人署名（track_artist）、流派、音频属性、覆盖层合并。
+    /// 艺人署名（`track_artist` 按 role/position）、流派、音频属性（取音质最高的那个文件的
+    /// `file.audio_json`）都会补齐；`overlay_json` 里的用户修正（ENR / LIB-13）优先于文件标签，
+    /// 目前只覆盖标题、艺人、专辑三个字段。
     pub async fn get_track(&self, id: TrackId) -> Result<Track> {
         self.read(move |c| {
-            c.query_row(
-                "SELECT t.id, t.uid, t.title, t.sort_title, t.album_id, a.title, t.track_no,
-                        t.disc_no, t.year, t.duration_ms, t.mbid_recording, t.replaygain_json,
-                        t.artwork_id
-                 FROM track t LEFT JOIN album a ON a.id = t.album_id
-                 WHERE t.id = ?1",
-                params![id.0],
-                |r| {
-                    let rg: Option<String> = r.get(11)?;
-                    Ok(Track {
-                        id: TrackId(r.get(0)?),
-                        uid: TrackUid(r.get(1)?),
-                        title: r.get(2)?,
-                        sort_title: r.get(3)?,
-                        artists: Vec::new(),
-                        album_id: r.get::<_, Option<i64>>(4)?.map(lekis_types::AlbumId),
-                        album_title: r.get(5)?,
-                        track_no: r.get(6)?,
-                        disc_no: r.get(7)?,
-                        year: r.get(8)?,
-                        duration_ms: r.get::<_, i64>(9)?.max(0) as u64,
-                        genres: Vec::new(),
-                        mbid_recording: r.get(10)?,
-                        audio: None,
-                        replaygain: rg
-                            .and_then(|s| serde_json::from_str::<ReplayGain>(&s).ok())
-                            .unwrap_or_default(),
-                        artwork_id: r.get::<_, Option<i64>>(12)?.map(ArtworkId),
+            let track = c
+                .query_row(
+                    "SELECT t.id, t.uid, t.title, t.sort_title, t.album_id, a.title, t.track_no,
+                            t.disc_no, t.year, t.duration_ms, t.mbid_recording, t.replaygain_json,
+                            t.artwork_id, t.overlay_json
+                     FROM track t LEFT JOIN album a ON a.id = t.album_id
+                     WHERE t.id = ?1",
+                    params![id.0],
+                    |r| {
+                        let rg: Option<String> = r.get(11)?;
+                        Ok(Track {
+                            id: TrackId(r.get(0)?),
+                            uid: TrackUid(r.get(1)?),
+                            title: r.get(2)?,
+                            sort_title: r.get(3)?,
+                            artists: Vec::new(),
+                            album_id: r.get::<_, Option<i64>>(4)?.map(lekis_types::AlbumId),
+                            album_title: r.get(5)?,
+                            track_no: r.get(6)?,
+                            disc_no: r.get(7)?,
+                            year: r.get(8)?,
+                            duration_ms: r.get::<_, i64>(9)?.max(0) as u64,
+                            genres: Vec::new(),
+                            mbid_recording: r.get(10)?,
+                            audio: None,
+                            replaygain: rg
+                                .and_then(|s| serde_json::from_str::<ReplayGain>(&s).ok())
+                                .unwrap_or_default(),
+                            artwork_id: r.get::<_, Option<i64>>(12)?.map(ArtworkId),
+                            overlay: r.get::<_, Option<String>>(13)?.and_then(|s| {
+                                serde_json::from_str::<lekis_types::TrackOverlay>(&s).ok()
+                            }),
+                        })
+                    },
+                )
+                .optional()
+                .db()?;
+
+            let Some(mut track) = track else {
+                return Err(LekisError::not_found(format!("track {id}")));
+            };
+
+            // 艺人署名。
+            let mut stmt = c
+                .prepare_cached(
+                    "SELECT ar.id, ar.name, ta.role
+                     FROM track_artist ta JOIN artist ar ON ar.id = ta.artist_id
+                     WHERE ta.track_id = ?1
+                     ORDER BY ta.position, ar.name",
+                )
+                .db()?;
+            let credits = stmt
+                .query_map(params![id.0], |r| {
+                    let role: String = r.get(2)?;
+                    Ok(lekis_types::ArtistCredit {
+                        artist_id: Some(lekis_types::ArtistId(r.get(0)?)),
+                        name: r.get(1)?,
+                        role: lekis_types::ArtistRole::from_db(&role),
                     })
-                },
-            )
-            .db()
+                })
+                .db()?;
+            track.artists = credits.collect::<rusqlite::Result<Vec<_>>>().db()?;
+
+            // 流派。
+            let mut stmt = c
+                .prepare_cached(
+                    "SELECT g.name FROM track_genre tg JOIN genre g ON g.id = tg.genre_id
+                     WHERE tg.track_id = ?1 ORDER BY g.name",
+                )
+                .db()?;
+            let genres = stmt
+                .query_map(params![id.0], |r| r.get::<_, String>(0))
+                .db()?;
+            track.genres = genres.collect::<rusqlite::Result<Vec<_>>>().db()?;
+
+            // 音频属性：取音质最高的那个文件（和选源打分一致）。
+            let audio_json: Option<String> = c
+                .query_row(
+                    "SELECT f.audio_json FROM track_file tf JOIN file f ON f.id = tf.file_id
+                     WHERE tf.track_id = ?1 AND f.audio_json IS NOT NULL
+                     ORDER BY tf.quality_score DESC LIMIT 1",
+                    params![id.0],
+                    |r| r.get(0),
+                )
+                .optional()
+                .db()?
+                .flatten();
+            track.audio = audio_json.and_then(|s| serde_json::from_str(&s).ok());
+
+            // 专辑封面的回落：曲目没自己封面时用专辑的。
+            if track.artwork_id.is_none() {
+                if let Some(album_id) = track.album_id {
+                    track.artwork_id = c
+                        .query_row(
+                            "SELECT artwork_id FROM album WHERE id = ?1",
+                            params![album_id.0],
+                            |r| r.get::<_, Option<i64>>(0),
+                        )
+                        .optional()
+                        .db()?
+                        .flatten()
+                        .map(ArtworkId);
+                }
+            }
+
+            // 覆盖层（用户修正 / 补全结果）优先于文件标签。
+            if let Some(overlay) = &track.overlay {
+                if let Some(title) = &overlay.title {
+                    track.title = title.clone();
+                }
+                if let Some(album) = &overlay.album_title {
+                    track.album_title = Some(album.clone());
+                }
+                if let Some(artists) = &overlay.artists {
+                    track.artists = artists
+                        .iter()
+                        .map(|name| lekis_types::ArtistCredit {
+                            artist_id: None,
+                            name: name.clone(),
+                            role: lekis_types::ArtistRole::Main,
+                        })
+                        .collect();
+                }
+            }
+
+            Ok(track)
         })
         .await
     }
 
     /// 列出一首歌所有可用的文件（按质量从高到低），播放时由 lekis-core 选源。
-    ///
-    /// TODO(SRC-13/SRC-14)：结合源的可达性、离线缓存、用户偏好排序。
     pub async fn track_files(&self, id: TrackId) -> Result<Vec<TrackFile>> {
         self.read(move |c| {
             let mut stmt = c
                 .prepare_cached(
-                    "SELECT tf.source_id, f.path, t.duration_ms, t.replaygain_json
+                    "SELECT tf.source_id, s.kind, COALESCE(f.path, ''), NULLIF(tf.external_id, ''),
+                            tf.quality_score, t.duration_ms, t.replaygain_json
                      FROM track_file tf
                      JOIN track t ON t.id = tf.track_id
-                     JOIN file f ON f.id = tf.file_id
+                     JOIN source s ON s.id = tf.source_id
+                     LEFT JOIN file f ON f.id = tf.file_id
                      WHERE tf.track_id = ?1
                      ORDER BY tf.quality_score DESC",
                 )
                 .db()?;
             let rows = stmt
                 .query_map(params![id.0], |r| {
-                    let rg: Option<String> = r.get(3)?;
+                    let rg: Option<String> = r.get(6)?;
+                    let kind: String = r.get(1)?;
                     Ok(TrackFile {
                         source_id: lekis_types::SourceId(r.get(0)?),
-                        path: r.get(1)?,
-                        duration_ms: r.get::<_, i64>(2)?.max(0) as u64,
+                        source_kind: serde_json::from_value(serde_json::Value::String(kind))
+                            .unwrap_or(lekis_types::SourceKind::Local),
+                        path: r.get(2)?,
+                        external_id: r.get(3)?,
+                        quality_score: r.get::<_, i64>(4)?,
+                        duration_ms: r.get::<_, i64>(5)?.max(0) as u64,
                         replaygain: rg
                             .and_then(|s| serde_json::from_str::<ReplayGain>(&s).ok())
                             .unwrap_or_default(),
@@ -158,7 +265,7 @@ impl Library {
 
     /// 设置收藏状态。
     ///
-    /// TODO(SYN-01)：同时写一条同步操作到 `sync_outbox`（由 lekis-core 通过 lekis-sync 完成）。
+    /// 同步操作由 `lekis-core` 负责写进 `sync_outbox`（见 `lekis-core/src/sync_engine.rs`）。
     pub async fn set_loved(&self, uid: TrackUid, loved: bool) -> Result<()> {
         self.write(move |c| {
             c.execute(
@@ -170,5 +277,362 @@ impl Library {
             Ok(())
         })
         .await
+    }
+
+    /// 设置评分（1~5，0 表示清除）。
+    pub async fn set_rating(&self, uid: TrackUid, rating: i64) -> Result<()> {
+        let rating = rating.clamp(0, 5);
+        self.write(move |c| {
+            c.execute(
+                "INSERT INTO user_state (track_uid, rating) VALUES (?1, NULLIF(?2, 0))
+                 ON CONFLICT (track_uid) DO UPDATE SET rating = excluded.rating",
+                params![uid.0, rating],
+            )
+            .db()?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// 读取某首歌的用户状态（收藏、评分、播放次数）。
+    pub async fn user_state(&self, uid: TrackUid) -> Result<TrackUserState> {
+        self.read(move |c| {
+            let row: Option<TrackUserState> = c
+                .query_row(
+                    "SELECT loved, rating, play_count, updated_hlc FROM user_state WHERE track_uid = ?1",
+                    params![uid.0],
+                    |r| {
+                        Ok(TrackUserState {
+                            loved: r.get::<_, i64>(0)? != 0,
+                            rating: r.get::<_, Option<i64>>(1)?,
+                            play_count: r.get::<_, i64>(2)?,
+                            updated_hlc: r.get(3)?,
+                        })
+                    },
+                )
+                .optional()
+                .db()?;
+            Ok(row.unwrap_or_default())
+        })
+        .await
+    }
+
+    /// 写入（或清除）曲目覆盖层（LIB-13 / ENR）。
+    ///
+    /// 覆盖层只改库里的显示与排序，**不动原始文件**；传 `None` 或空覆盖层等于清除。
+    /// 写过覆盖层之后 `get_track` 的标题 / 艺人 / 专辑会是覆盖后的值。
+    pub async fn set_track_overlay(
+        &self,
+        id: TrackId,
+        overlay: Option<lekis_types::TrackOverlay>,
+    ) -> Result<()> {
+        let json = match &overlay {
+            Some(o) if !o.is_empty() => Some(
+                serde_json::to_string(o)
+                    .map_err(|e| LekisError::internal(format!("serialize overlay: {e}")))?,
+            ),
+            _ => None,
+        };
+        self.write(move |conn| {
+            let tx = conn.transaction().db()?;
+            // 曲目必须存在（否则 UPDATE 会静默成功但什么都没改）。
+            let exists: Option<i64> = tx
+                .query_row("SELECT id FROM track WHERE id = ?1", params![id.0], |r| {
+                    r.get(0)
+                })
+                .optional()
+                .db()?;
+            if exists.is_none() {
+                return Err(LekisError::not_found(format!("track {id}")));
+            }
+            tx.execute(
+                "UPDATE track SET overlay_json = ?2, updated_at = ?3 WHERE id = ?1",
+                params![id.0, json, now_ms()],
+            )
+            .db()?;
+            // 覆盖层可能改了标题 / 艺人，搜索索引要跟着重建。
+            crate::browse::refresh_track_index(&tx, id.0)?;
+            tx.commit().db()?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// 记一次播放（DIS-06 播放统计）：写 `play_event`、累加 `user_state.play_count`。
+    ///
+    /// `ms_played` 是真实播放时长（用于 scrobble 判定：超过一半或 4 分钟才算一次）。
+    pub async fn record_play(
+        &self,
+        uid: TrackUid,
+        device_id: String,
+        ms_played: u64,
+        at_ms: i64,
+    ) -> Result<()> {
+        self.write(move |c| {
+            c.execute(
+                "INSERT INTO play_event (track_uid, device_id, started_at, played_ms)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![uid.0, device_id, at_ms, ms_played as i64],
+            )
+            .db()?;
+            c.execute(
+                "INSERT INTO user_state (track_uid, play_count, last_played)
+                 VALUES (?1, 1, ?2)
+                 ON CONFLICT (track_uid) DO UPDATE SET
+                   play_count = user_state.play_count + 1,
+                   last_played = excluded.last_played",
+                params![uid.0, at_ms],
+            )
+            .db()?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// 播放次数最多的曲目（DIS-06）。
+    pub async fn most_played(&self, limit: u32) -> Result<Vec<TrackRow>> {
+        if limit == 0 || limit > TrackQuery::MAX_LIMIT {
+            return Err(LekisError::invalid(format!(
+                "limit must be 1..={}",
+                TrackQuery::MAX_LIMIT
+            )));
+        }
+        let sql = format!(
+            "SELECT {TRACK_ROW_COLUMNS}
+             FROM track t
+             LEFT JOIN album a ON a.id = t.album_id
+             LEFT JOIN user_state u ON u.track_uid = t.uid
+             WHERE COALESCE(u.play_count, 0) > 0
+             ORDER BY u.play_count DESC, u.last_played DESC
+             LIMIT ?1"
+        );
+        self.read(move |c| {
+            let mut stmt = c.prepare_cached(&sql).db()?;
+            let rows = stmt.query_map(params![limit], map_track_row).db()?;
+            rows.collect::<rusqlite::Result<Vec<_>>>().db()
+        })
+        .await
+    }
+
+    /// 收藏的曲目（PL-02，`getStarred2` 用）。
+    pub async fn list_loved(&self, offset: u32, limit: u32) -> Result<Vec<TrackRow>> {
+        if limit == 0 || limit > TrackQuery::MAX_LIMIT {
+            return Err(LekisError::invalid(format!(
+                "limit must be 1..={}",
+                TrackQuery::MAX_LIMIT
+            )));
+        }
+        let sql = format!(
+            "SELECT {TRACK_ROW_COLUMNS}
+             FROM track t
+             JOIN user_state u ON u.track_uid = t.uid
+             LEFT JOIN album a ON a.id = t.album_id
+             WHERE u.loved = 1
+             ORDER BY t.title_sort_key, t.id
+             LIMIT ?1 OFFSET ?2"
+        );
+        self.read(move |c| {
+            let mut stmt = c.prepare_cached(&sql).db()?;
+            let rows = stmt.query_map(params![limit, offset], map_track_row).db()?;
+            rows.collect::<rusqlite::Result<Vec<_>>>().db()
+        })
+        .await
+    }
+}
+
+/// 一首歌的用户状态（跨设备同步的部分）。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TrackUserState {
+    /// 是否收藏。
+    pub loved: bool,
+    /// 评分 1~5。
+    pub rating: Option<i64>,
+    /// 播放次数。
+    pub play_count: i64,
+    /// 最后一次修改的 HLC（同步合并用）。
+    pub updated_hlc: Option<String>,
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::db::test_util::temp_library;
+    use crate::{ScannedFile, ScannedTags};
+    use lekis_types::{
+        AudioProps, Codec, SourceConfig, SourceId, SourceKind, TrackOverlay, TrackSort,
+    };
+    use std::collections::BTreeMap;
+
+    async fn source(lib: &Library) -> Result<SourceId> {
+        lib.add_source(SourceConfig {
+            id: None,
+            kind: SourceKind::Local,
+            name: "local".into(),
+            addresses: vec![],
+            root_path: "/music".into(),
+            credential_ref: None,
+            options: BTreeMap::new(),
+            enabled: true,
+        })
+        .await
+    }
+
+    async fn seed(lib: &Library, source: SourceId, path: &str, title: &str) -> Result<TrackId> {
+        lib.upsert_scanned(vec![ScannedFile {
+            source_id: source,
+            path: path.into(),
+            size: 1,
+            mtime_ms: 1,
+            tags: ScannedTags {
+                title: title.into(),
+                artists: vec!["周杰伦".into(), "费玉清".into()],
+                album: Some("叶惠美".into()),
+                genres: vec!["华语流行".into()],
+                duration_ms: 2000,
+                replaygain: lekis_types::ReplayGain {
+                    track_gain_db: Some(-3.5),
+                    ..Default::default()
+                },
+                audio: Some(AudioProps {
+                    codec: Codec::Flac,
+                    sample_rate: 96_000,
+                    bit_depth: Some(24),
+                    channels: 2,
+                    bitrate_kbps: Some(2000),
+                }),
+                ..Default::default()
+            },
+        }])
+        .await?;
+        let rows = lib
+            .list_track_rows(TrackQuery {
+                sort: TrackSort::Title,
+                offset: 0,
+                limit: 50,
+            })
+            .await?;
+        rows.iter()
+            .find(|r| r.title == title)
+            .map(|r| r.id)
+            .ok_or_else(|| LekisError::internal(format!("track {title} not found after scan")))
+    }
+
+    #[tokio::test]
+    async fn get_track_fills_credits_genres_and_audio() -> Result<()> {
+        let lib = temp_library("tracks-detail")?;
+        let src = source(&lib).await?;
+        let id = seed(&lib, src, "a.flac", "晴天").await?;
+
+        let t = lib.get_track(id).await?;
+        assert_eq!(
+            t.artists
+                .iter()
+                .map(|a| a.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["周杰伦", "费玉清"]
+        );
+        assert_eq!(t.artists[0].role, lekis_types::ArtistRole::Main);
+        assert!(t.artists[0].artist_id.is_some());
+        assert_eq!(t.genres, vec!["华语流行".to_string()]);
+        let audio = t.audio.expect("音频属性要补上");
+        assert_eq!(audio.codec, Codec::Flac);
+        assert_eq!(audio.bit_depth, Some(24));
+        assert_eq!(t.replaygain.track_gain_db, Some(-3.5));
+        assert!(t.overlay.is_none());
+
+        assert_eq!(
+            lib.get_track(TrackId(9_999)).await.unwrap_err().code,
+            lekis_types::ErrorCode::NotFound
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn overlay_wins_and_rebuilds_search_index() -> Result<()> {
+        let lib = temp_library("tracks-overlay")?;
+        let src = source(&lib).await?;
+        let id = seed(&lib, src, "a.flac", "晴天").await?;
+
+        lib.set_track_overlay(
+            id,
+            Some(TrackOverlay {
+                title: Some("Qing Tian (Live)".into()),
+                artists: Some(vec!["Jay Chou".into()]),
+                source: Some("manual".into()),
+                ..Default::default()
+            }),
+        )
+        .await?;
+
+        let t = lib.get_track(id).await?;
+        assert_eq!(t.title, "Qing Tian (Live)");
+        assert_eq!(t.artists.len(), 1);
+        assert_eq!(t.artists[0].name, "Jay Chou");
+        assert!(t.artists[0].artist_id.is_none(), "覆盖出来的艺人不绑 ID");
+        assert_eq!(
+            t.overlay.as_ref().and_then(|o| o.source.as_deref()),
+            Some("manual")
+        );
+
+        // 覆盖层进了搜索索引。
+        let found = lib.search("Qing Tian", 10).await?;
+        assert_eq!(found.tracks.len(), 1);
+        assert_eq!(found.tracks[0].id, id);
+        assert!(
+            lib.search("晴天", 10).await?.tracks.is_empty(),
+            "旧标题不再命中"
+        );
+
+        // 空覆盖层等于清除。
+        lib.set_track_overlay(id, Some(TrackOverlay::default()))
+            .await?;
+        assert_eq!(lib.get_track(id).await?.title, "晴天");
+        assert!(lib.search("晴天", 10).await?.tracks.len() == 1);
+
+        assert_eq!(
+            lib.set_track_overlay(TrackId(9_999), None)
+                .await
+                .unwrap_err()
+                .code,
+            lekis_types::ErrorCode::NotFound
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn play_stats_and_loved_lists() -> Result<()> {
+        let lib = temp_library("tracks-stats")?;
+        let src = source(&lib).await?;
+        let a = seed(&lib, src, "a.flac", "晴天").await?;
+        let b = seed(&lib, src, "b.flac", "以父之名").await?;
+        let ua = lib.get_track(a).await?.uid;
+        let ub = lib.get_track(b).await?.uid;
+
+        lib.record_play(ua.clone(), "dev-a".into(), 180_000, 1_000)
+            .await?;
+        lib.record_play(ua.clone(), "dev-a".into(), 180_000, 2_000)
+            .await?;
+        lib.record_play(ub.clone(), "dev-b".into(), 60_000, 3_000)
+            .await?;
+
+        assert_eq!(lib.user_state(ua.clone()).await?.play_count, 2);
+        let top = lib.most_played(10).await?;
+        assert_eq!(top.len(), 2);
+        assert_eq!(top[0].id, a, "播放次数多的排前面");
+
+        lib.set_loved(ua.clone(), true).await?;
+        lib.set_loved(ub.clone(), true).await?;
+        lib.set_loved(ub.clone(), false).await?;
+        let loved = lib.list_loved(0, 10).await?;
+        assert_eq!(loved.len(), 1);
+        assert_eq!(loved[0].id, a);
+        assert!(loved[0].loved);
+
+        assert_eq!(
+            lib.most_played(0).await.unwrap_err().code,
+            lekis_types::ErrorCode::InvalidArgument
+        );
+        Ok(())
     }
 }

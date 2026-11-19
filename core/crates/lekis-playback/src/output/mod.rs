@@ -7,6 +7,13 @@
 //! | Linux | cpal（PipeWire / PulseAudio）| ALSA `hw:` 直出 |
 //!
 //! 输出后端自己创建实时线程，从 [`SampleSource`] 拉数据。
+//! 实时线程里只允许从无锁环形缓冲区读（[`ring_source`]），不能分配、加锁、做 IO、写日志。
+
+pub mod cpal_output;
+pub mod ring_source;
+
+pub use cpal_output::CpalOutput;
+pub use ring_source::{ring_buffer, RingSource, RingSourceWriter};
 
 use crate::decode::PcmFormat;
 use lekis_types::Result;

@@ -64,15 +64,15 @@ pub enum SourceKindDto {
 
 /// 为 FFI 枚举和领域枚举生成双向 `From`（两边的变体名必须完全一致）。
 macro_rules! mirror_enum {
-    ($dto:ident <=> $dom:ident { $($v:ident),* $(,)? }) => {
+    ($dto:ident <=> $dom:path { $($v:ident),* $(,)? }) => {
         impl From<$dto> for $dom {
             fn from(v: $dto) -> Self {
-                match v { $($dto::$v => $dom::$v),* }
+                match v { $($dto::$v => <$dom>::$v),* }
             }
         }
         impl From<$dom> for $dto {
             fn from(v: $dom) -> Self {
-                match v { $($dom::$v => $dto::$v),* }
+                match v { $(<$dom>::$v => $dto::$v),* }
             }
         }
     };
@@ -166,6 +166,50 @@ impl From<t::TrackRow> for TrackRowDto {
     }
 }
 
+/// 曲目覆盖层：用户手工改过的元数据（ENR-07）。空字段表示"用文件标签的原值"。
+#[derive(Debug, Clone, Default, uniffi::Record)]
+pub struct TrackOverlayDto {
+    pub title: Option<String>,
+    pub artists: Option<Vec<String>>,
+    pub album_title: Option<String>,
+    pub year: Option<i32>,
+    pub track_no: Option<u32>,
+    pub disc_no: Option<u32>,
+    pub genres: Option<Vec<String>>,
+    /// 覆盖层来源（`manual` / `enrich`）。
+    pub source: Option<String>,
+}
+
+impl From<TrackOverlayDto> for t::TrackOverlay {
+    fn from(o: TrackOverlayDto) -> Self {
+        Self {
+            title: o.title,
+            artists: o.artists,
+            album_title: o.album_title,
+            year: o.year,
+            track_no: o.track_no,
+            disc_no: o.disc_no,
+            genres: o.genres,
+            source: o.source,
+        }
+    }
+}
+
+impl From<t::TrackOverlay> for TrackOverlayDto {
+    fn from(o: t::TrackOverlay) -> Self {
+        Self {
+            title: o.title,
+            artists: o.artists,
+            album_title: o.album_title,
+            year: o.year,
+            track_no: o.track_no,
+            disc_no: o.disc_no,
+            genres: o.genres,
+            source: o.source,
+        }
+    }
+}
+
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct TrackDto {
     pub id: i64,
@@ -181,6 +225,8 @@ pub struct TrackDto {
     pub genres: Vec<String>,
     pub quality_badge: Option<String>,
     pub artwork_id: Option<i64>,
+    /// 曲目上手工改过的元数据（没有就是 `None`）。
+    pub overlay: Option<TrackOverlayDto>,
 }
 
 impl From<t::Track> for TrackDto {
@@ -199,6 +245,73 @@ impl From<t::Track> for TrackDto {
             genres: tr.genres,
             quality_badge: tr.audio.as_ref().map(t::AudioProps::quality_badge),
             artwork_id: tr.artwork_id.map(|a| a.0),
+            overlay: tr.overlay.map(Into::into),
+        }
+    }
+}
+
+/// 专辑（LIB-06）。
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct AlbumDto {
+    pub id: i64,
+    pub title: String,
+    pub artist_line: String,
+    pub year: Option<i32>,
+    pub track_count: u32,
+    pub artwork_id: Option<i64>,
+    pub mbid_release: Option<String>,
+}
+
+impl From<t::Album> for AlbumDto {
+    fn from(a: t::Album) -> Self {
+        Self {
+            id: a.id.0,
+            title: a.title,
+            artist_line: a.artist_line,
+            year: a.year,
+            track_count: a.track_count,
+            artwork_id: a.artwork_id.map(|x| x.0),
+            mbid_release: a.mbid_release,
+        }
+    }
+}
+
+/// 艺人（LIB-06）。
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct ArtistDto {
+    pub id: i64,
+    pub name: String,
+    pub sort_name: Option<String>,
+    pub aliases: Vec<String>,
+    pub artwork_id: Option<i64>,
+    pub mbid: Option<String>,
+}
+
+impl From<t::Artist> for ArtistDto {
+    fn from(a: t::Artist) -> Self {
+        Self {
+            id: a.id.0,
+            name: a.name,
+            sort_name: a.sort_name,
+            aliases: a.aliases,
+            artwork_id: a.artwork_id.map(|x| x.0),
+            mbid: a.mbid,
+        }
+    }
+}
+
+/// 流派及其曲目数（LIB-06）。
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct GenreCountDto {
+    pub name: String,
+    pub track_count: u32,
+}
+
+impl From<t::GenreCount> for GenreCountDto {
+    fn from(g: t::GenreCount) -> Self {
+        Self {
+            name: g.name,
+            track_count: g.track_count,
         }
     }
 }
@@ -206,13 +319,16 @@ impl From<t::Track> for TrackDto {
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct SearchResultsDto {
     pub tracks: Vec<TrackRowDto>,
-    // TODO：albums、artists 分组（和 lekis-types::SearchResults 一起补）。
+    pub albums: Vec<AlbumDto>,
+    pub artists: Vec<ArtistDto>,
 }
 
 impl From<t::SearchResults> for SearchResultsDto {
     fn from(r: t::SearchResults) -> Self {
         Self {
             tracks: r.tracks.into_iter().map(Into::into).collect(),
+            albums: r.albums.into_iter().map(Into::into).collect(),
+            artists: r.artists.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -260,6 +376,10 @@ pub struct PlaybackSnapshotDto {
     pub queue_len: u32,
     pub queue_index: Option<u32>,
     pub volume: f32,
+    /// 当前输出设备（`None` = 跟随系统默认，PLY-05）。
+    pub output_device: Option<String>,
+    /// 当前输出模式（PLY-12）。
+    pub output_mode: OutputModeDto,
 }
 
 impl From<lekis_core::PlaybackSnapshot> for PlaybackSnapshotDto {
@@ -272,6 +392,329 @@ impl From<lekis_core::PlaybackSnapshot> for PlaybackSnapshotDto {
             queue_len: s.queue_len,
             queue_index: s.queue_index,
             volume: s.volume,
+            output_device: s.output_device,
+            output_mode: s.output_mode.into(),
+        }
+    }
+}
+
+/// 输出模式（PLY-05）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum OutputModeDto {
+    /// 共享模式（系统混音）。
+    Shared,
+    /// 独占 / 比特完美。
+    Exclusive,
+}
+
+mirror_enum!(OutputModeDto <=> lekis_playback::OutputMode { Shared, Exclusive });
+
+/// 一个音频输出设备（PLY-12）。
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct OutputDeviceDto {
+    /// 稳定 ID。
+    pub id: String,
+    /// 显示名称。
+    pub name: String,
+    /// 是否是系统默认设备。
+    pub is_default: bool,
+    /// 是否支持独占 / 比特完美。
+    pub supports_exclusive: bool,
+}
+
+impl From<lekis_playback::OutputDevice> for OutputDeviceDto {
+    fn from(d: lekis_playback::OutputDevice) -> Self {
+        Self {
+            id: d.id,
+            name: d.name,
+            is_default: d.is_default,
+            supports_exclusive: d.supports_exclusive,
+        }
+    }
+}
+
+/// 一轮同步的结果（SYN-01）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, uniffi::Record)]
+pub struct SyncReportDto {
+    /// 推给对方的操作数。
+    pub pushed: u64,
+    /// 从对方拉下来的操作数。
+    pub pulled: u64,
+    /// 实际改变本地状态的操作数。
+    pub applied: u64,
+}
+
+impl From<lekis_core::SyncReport> for SyncReportDto {
+    fn from(r: lekis_core::SyncReport) -> Self {
+        Self {
+            pushed: r.pushed,
+            pulled: r.pulled,
+            applied: r.applied,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 补全 / 歌词 / 封面（ENR-01/03/06/07）
+// ---------------------------------------------------------------------------
+
+/// 补全处理统计。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, uniffi::Record)]
+pub struct EnrichReportDto {
+    /// 自动应用的条数。
+    pub auto_applied: u32,
+    /// 进待确认队列的条数。
+    pub queued: u32,
+    /// 丢弃的条数。
+    pub discarded: u32,
+}
+
+impl From<lekis_core::EnrichReport> for EnrichReportDto {
+    fn from(r: lekis_core::EnrichReport) -> Self {
+        Self {
+            auto_applied: r.auto_applied,
+            queued: r.queued,
+            discarded: r.discarded,
+        }
+    }
+}
+
+/// 待确认队列里的一条候选（ENR-06）。
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct EnrichCandidateDto {
+    /// 候选 ID。
+    pub id: i64,
+    /// 关联曲目。
+    pub track_id: Option<i64>,
+    /// 关联专辑。
+    pub album_id: Option<i64>,
+    /// 类型：`artwork` / `lyrics` / `tags`。
+    pub kind: String,
+    /// 提供方返回的原始 JSON。
+    pub payload_json: String,
+    /// 提供方标识。
+    pub source: String,
+    /// 匹配分（0..=1）。
+    pub score: f64,
+    /// 入队时间（Unix 毫秒）。
+    pub created_at: i64,
+}
+
+impl From<lekis_library::EnrichCandidateRow> for EnrichCandidateDto {
+    fn from(r: lekis_library::EnrichCandidateRow) -> Self {
+        Self {
+            id: r.id,
+            track_id: r.track_id.map(|t| t.0),
+            album_id: r.album_id.map(|a| a.0),
+            kind: r.kind,
+            payload_json: r.payload_json,
+            source: r.source,
+            score: f64::from(r.score),
+            created_at: r.created_at,
+        }
+    }
+}
+
+/// 歌词格式。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum LyricsFormatDto {
+    Plain,
+    Lrc,
+    EnhancedLrc,
+    Ttml,
+}
+
+mirror_enum!(LyricsFormatDto <=> t::LyricsFormat { Plain, Lrc, EnhancedLrc, Ttml });
+
+/// 歌词。
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct LyricsDto {
+    /// 格式。
+    pub format: LyricsFormatDto,
+    /// 原始内容。
+    pub content: String,
+    /// 来源（`embedded` / `sidecar` / `lrclib` / `manual`……）。
+    pub source: String,
+    /// 用户调整的整体偏移（毫秒）。
+    pub offset_ms: i32,
+    /// 匹配置信度（0..=1）。
+    pub confidence: f64,
+}
+
+impl From<t::Lyrics> for LyricsDto {
+    fn from(l: t::Lyrics) -> Self {
+        Self {
+            format: l.format.into(),
+            content: l.content,
+            source: l.source,
+            offset_ms: l.offset_ms,
+            confidence: f64::from(l.confidence),
+        }
+    }
+}
+
+impl From<LyricsDto> for t::Lyrics {
+    fn from(l: LyricsDto) -> Self {
+        Self {
+            format: l.format.into(),
+            content: l.content,
+            source: l.source,
+            offset_ms: l.offset_ms,
+            confidence: l.confidence as f32,
+        }
+    }
+}
+
+/// 一首歌的一份歌词（可能有多份，按来源优先级排序）。
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct LyricsRowDto {
+    /// 这一份的 ID。
+    pub id: i64,
+    /// 曲目。
+    pub track_id: i64,
+    /// 内容。
+    pub lyrics: LyricsDto,
+    /// 是否是当前生效的那份。
+    pub is_active: bool,
+}
+
+impl From<lekis_library::LyricsRow> for LyricsRowDto {
+    fn from(r: lekis_library::LyricsRow) -> Self {
+        Self {
+            id: r.id,
+            track_id: r.track_id.0,
+            lyrics: r.lyrics.into(),
+            is_active: r.is_active,
+        }
+    }
+}
+
+/// 封面调色板（ENR-12）。颜色是 `0xRRGGBB`。
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct PaletteDto {
+    /// 主色。
+    pub primary: u32,
+    /// 辅色。
+    pub secondary: u32,
+    /// 适合放在主色上的文字颜色。
+    pub on_primary: u32,
+    /// 背景渐变用的颜色。
+    pub gradient: Vec<u32>,
+}
+
+impl From<t::Palette> for PaletteDto {
+    fn from(p: t::Palette) -> Self {
+        Self {
+            primary: p.primary,
+            secondary: p.secondary,
+            on_primary: p.on_primary,
+            gradient: p.gradient,
+        }
+    }
+}
+
+/// 封面元数据（图片字节按路径从缓存目录取）。
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct ArtworkDto {
+    /// 封面 ID。
+    pub id: i64,
+    /// 内容哈希（也是缓存文件名的前缀）。
+    pub hash: String,
+    /// 来源（`embedded` / `coverartarchive` / `itunes` / `manual`……）。
+    pub source: String,
+    /// 宽。
+    pub width: Option<u32>,
+    /// 高。
+    pub height: Option<u32>,
+    /// 主色调。
+    pub palette: Option<PaletteDto>,
+}
+
+impl From<lekis_library::ArtworkRow> for ArtworkDto {
+    fn from(a: lekis_library::ArtworkRow) -> Self {
+        Self {
+            id: a.id.0,
+            hash: a.hash,
+            source: a.source,
+            width: a.width,
+            height: a.height,
+            palette: a.palette.map(Into::into),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 歌单（PL-01/PL-05）
+// ---------------------------------------------------------------------------/// 歌单类型。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum PlaylistKindDto {
+    /// 普通歌单。
+    Static,
+    /// 智能歌单（规则驱动）。
+    Smart,
+}
+
+mirror_enum!(PlaylistKindDto <=> lekis_library::PlaylistKind { Static, Smart });
+
+/// 一个歌单。
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct PlaylistDto {
+    /// 本机 ID。
+    pub id: i64,
+    /// 跨设备稳定 ID。
+    pub uid: String,
+    /// 名称。
+    pub name: String,
+    /// 类型。
+    pub kind: PlaylistKindDto,
+    /// 所在文件夹。
+    pub folder_uid: Option<String>,
+    /// 封面。
+    pub artwork_id: Option<i64>,
+    /// 曲目数。
+    pub track_count: u32,
+    /// 创建时间（Unix 毫秒）。
+    pub created_at: i64,
+    /// 最后修改时间（Unix 毫秒）。
+    pub updated_at: i64,
+}
+
+impl From<lekis_library::Playlist> for PlaylistDto {
+    fn from(p: lekis_library::Playlist) -> Self {
+        Self {
+            id: p.id.0,
+            uid: p.uid,
+            name: p.name,
+            kind: p.kind.into(),
+            folder_uid: p.folder_uid,
+            artwork_id: p.artwork_id.map(|a| a.0),
+            track_count: p.track_count,
+            created_at: p.created_at,
+            updated_at: p.updated_at,
+        }
+    }
+}
+
+/// 歌单里的一条（`track` 为 `None` 表示占位，PL-05）。
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct PlaylistEntryDto {
+    /// 曲目 uid。
+    pub track_uid: String,
+    /// 位置键（CRDT 排序用）。
+    pub position_key: String,
+    /// 加入时间（Unix 毫秒）。
+    pub added_at: i64,
+    /// 曲目信息；`None` 表示这首暂时不可用（占位）。
+    pub track: Option<TrackRowDto>,
+}
+
+impl From<lekis_library::PlaylistEntry> for PlaylistEntryDto {
+    fn from(e: lekis_library::PlaylistEntry) -> Self {
+        Self {
+            track_uid: e.item.track_uid,
+            position_key: e.item.position_key,
+            added_at: e.item.added_at,
+            track: e.track.map(Into::into),
         }
     }
 }

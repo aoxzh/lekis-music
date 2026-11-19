@@ -8,9 +8,45 @@ use crate::normalize::{norm_key, search_keys, sort_key};
 use crate::Library;
 use lekis_types::{now_ms, AudioProps, ReplayGain, Result, SourceId, TrackUid};
 use rusqlite::{params, OptionalExtension, Transaction};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+/// 音质打分（SRC-13）。同一个曲目有多个文件时，`lekis-core` 按这个分数选源。
+///
+/// 分数只有相对意义：无损 > 有损，位深 / 采样率 / 码率越高越好。范围 0..=1000。
+pub fn quality_score(audio: Option<&AudioProps>) -> i64 {
+    let Some(a) = audio else {
+        // 没有音频属性（例如服务器源只给了标题）：比任何已知的有损文件都低。
+        return 10;
+    };
+    let mut score: i64 = if a.codec.is_lossless() { 600 } else { 200 };
+    score += match a.bit_depth {
+        Some(b) if b >= 32 => 120,
+        Some(b) if b >= 24 => 100,
+        Some(b) if b >= 16 => 60,
+        Some(_) => 20,
+        None => 0,
+    };
+    score += match a.sample_rate {
+        sr if sr >= 192_000 => 180,
+        sr if sr >= 96_000 => 140,
+        sr if sr >= 88_200 => 120,
+        sr if sr >= 48_000 => 80,
+        sr if sr > 0 => 40,
+        _ => 0,
+    };
+    if !a.codec.is_lossless() {
+        // 有损格式的码率最多再补 200 分（1600kbps 封顶）。
+        score += (i64::from(a.bitrate_kbps.unwrap_or(0)) / 8).min(200);
+    }
+    score.min(1000)
+}
 
 /// 从文件标签里读出来的信息（扫描器填充）。
-#[derive(Debug, Clone, Default)]
+///
+/// 可以序列化，这样能原样写进 NAS 共享索引（`lekis-scanner::shared_index` 的
+/// `ShardEntry::tags_blob` 就是它的 CBOR 编码）。
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct ScannedTags {
     /// 标题（没有标签时由扫描器用文件名代替）。
     pub title: String,
@@ -81,20 +117,253 @@ impl Library {
         .await
     }
 
+    /// 刷新一批文件的 `last_seen_at`，不动标签（增量扫描用，LIB-04）。
+    ///
+    /// `files` 是 `(path, size, mtime_ms)`；`size` / `mtime_ms` 只用于日志和将来的校验，
+    /// 这里只更新 `last_seen_at`——因为调用方已经确认这三者都没变。
+    ///
+    /// 返回真正命中的行数。命中数小于传入条数说明这些文件在库里并没有行
+    /// （摘要来自别的设备写的共享索引，或者本地库被重建过）；调用方据此决定要不要真读标签。
+    pub async fn touch_files(
+        &self,
+        source_id: SourceId,
+        files: Vec<(String, u64, i64)>,
+    ) -> Result<u64> {
+        if files.is_empty() {
+            return Ok(0);
+        }
+        self.write(move |conn| {
+            let tx = conn.transaction().db()?;
+            let now = now_ms();
+            let mut touched = 0u64;
+            {
+                let mut stmt = tx
+                    .prepare_cached(
+                        "UPDATE file SET last_seen_at = ?3 WHERE source_id = ?1 AND path = ?2",
+                    )
+                    .db()?;
+                for (path, _size, _mtime_ms) in &files {
+                    touched += stmt.execute(params![source_id.0, path, now]).db()? as u64;
+                }
+            }
+            tx.commit().db()?;
+            Ok(touched)
+        })
+        .await
+    }
+
+    /// 读出一个音源下所有已入库文件及其标签（写 NAS 共享索引用，LIB-05）。
+    ///
+    /// 标签要从 `track` / `artist` / `album` / `genre` 几张表拼回来，所以这里一次读全量。
+    pub async fn scannable_files(&self, source_id: SourceId) -> Result<Vec<ScannedFile>> {
+        self.read(move |c| {
+            let mut stmt = c
+                .prepare_cached(
+                    "SELECT f.id, f.path, f.size, f.mtime_ms, f.audio_json,
+                            t.title, a.title, t.track_no, t.disc_no, t.year,
+                            t.duration_ms, t.mbid_recording, t.replaygain_json
+                     FROM file f
+                     LEFT JOIN track_file tf ON tf.file_id = f.id
+                     LEFT JOIN track t ON t.id = tf.track_id
+                     LEFT JOIN album a ON a.id = t.album_id
+                     WHERE f.source_id = ?1
+                     ORDER BY f.path",
+                )
+                .db()?;
+            let mut files: Vec<ScannedFile> = stmt
+                .query_map(params![source_id.0], |r| {
+                    let audio_json: Option<String> = r.get(4)?;
+                    let replaygain_json: Option<String> = r.get(12)?;
+                    let audio: Option<AudioProps> = audio_json
+                        .as_deref()
+                        .and_then(|s| serde_json::from_str(s).ok());
+                    let replaygain: ReplayGain = replaygain_json
+                        .as_deref()
+                        .and_then(|s| serde_json::from_str(s).ok())
+                        .unwrap_or_default();
+                    let duration_ms = r.get::<_, Option<i64>>(10)?.unwrap_or(0).max(0) as u64;
+                    Ok(ScannedFile {
+                        source_id,
+                        path: r.get(1)?,
+                        size: r.get::<_, i64>(2)?.max(0) as u64,
+                        mtime_ms: r.get(3)?,
+                        tags: ScannedTags {
+                            title: r.get::<_, Option<String>>(5)?.unwrap_or_default(),
+                            artists: Vec::new(),
+                            album: r.get(6)?,
+                            album_artists: Vec::new(),
+                            track_no: r.get(7)?,
+                            disc_no: r.get(8)?,
+                            year: r.get(9)?,
+                            genres: Vec::new(),
+                            duration_ms,
+                            mbid_recording: r.get(11)?,
+                            audio,
+                            replaygain,
+                        },
+                    })
+                })
+                .db()?
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .db()?;
+
+            // 一个文件可能挂在多首曲目上（同一文件被多个曲目引用），按路径去重即可。
+            files.sort_by(|a, b| a.path.cmp(&b.path));
+            files.dedup_by(|a, b| a.path == b.path);
+            if files.is_empty() {
+                return Ok(files);
+            }
+
+            // 曲目艺人（`role = 'main'`，按 position 排）。
+            let mut artists: HashMap<String, Vec<String>> = HashMap::new();
+            {
+                let mut stmt = c
+                    .prepare_cached(
+                        "SELECT f.path, ar.name
+                         FROM file f
+                         JOIN track_file tf ON tf.file_id = f.id
+                         JOIN track_artist ta ON ta.track_id = tf.track_id
+                         JOIN artist ar ON ar.id = ta.artist_id
+                         WHERE f.source_id = ?1 AND ta.role = 'main'
+                         ORDER BY f.path, ta.position",
+                    )
+                    .db()?;
+                let rows = stmt
+                    .query_map(params![source_id.0], |r| {
+                        Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+                    })
+                    .db()?;
+                for row in rows {
+                    let (path, name) = row.db()?;
+                    artists.entry(path).or_default().push(name);
+                }
+            }
+
+            // 专辑艺人。
+            let mut album_artists: HashMap<String, Vec<String>> = HashMap::new();
+            {
+                let mut stmt = c
+                    .prepare_cached(
+                        "SELECT f.path, ar.name
+                         FROM file f
+                         JOIN track_file tf ON tf.file_id = f.id
+                         JOIN track t ON t.id = tf.track_id
+                         JOIN album_artist aa ON aa.album_id = t.album_id
+                         JOIN artist ar ON ar.id = aa.artist_id
+                         WHERE f.source_id = ?1
+                         ORDER BY f.path, aa.position",
+                    )
+                    .db()?;
+                let rows = stmt
+                    .query_map(params![source_id.0], |r| {
+                        Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+                    })
+                    .db()?;
+                for row in rows {
+                    let (path, name) = row.db()?;
+                    album_artists.entry(path).or_default().push(name);
+                }
+            }
+
+            // 流派。
+            let mut genres: HashMap<String, Vec<String>> = HashMap::new();
+            {
+                let mut stmt = c
+                    .prepare_cached(
+                        "SELECT f.path, g.name
+                         FROM file f
+                         JOIN track_file tf ON tf.file_id = f.id
+                         JOIN track_genre tg ON tg.track_id = tf.track_id
+                         JOIN genre g ON g.id = tg.genre_id
+                         WHERE f.source_id = ?1
+                         ORDER BY f.path, g.name",
+                    )
+                    .db()?;
+                let rows = stmt
+                    .query_map(params![source_id.0], |r| {
+                        Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+                    })
+                    .db()?;
+                for row in rows {
+                    let (path, name) = row.db()?;
+                    genres.entry(path).or_default().push(name);
+                }
+            }
+
+            for file in &mut files {
+                if let Some(list) = artists.remove(&file.path) {
+                    file.tags.artists = list;
+                }
+                if let Some(list) = album_artists.remove(&file.path) {
+                    file.tags.album_artists = list;
+                }
+                if let Some(list) = genres.remove(&file.path) {
+                    file.tags.genres = list;
+                }
+            }
+            Ok(files)
+        })
+        .await
+    }
+
     /// 删除某个音源下 `last_seen_at < before` 的文件（扫描结束后调用，清理已经不存在的文件）。
+    ///
+    /// 文件删掉后，可能有曲目 / 专辑 / 艺人变成孤儿，所以紧接着清理空壳并重建搜索索引（LIB-04）。
     pub async fn remove_unseen_files(&self, source_id: SourceId, before: i64) -> Result<u64> {
         self.write(move |conn| {
-            let n = conn
+            let tx = conn.transaction().db()?;
+            let n = tx
                 .execute(
                     "DELETE FROM file WHERE source_id = ?1 AND last_seen_at < ?2",
                     params![source_id.0, before],
                 )
                 .db()?;
-            // TODO(LIB-04)：清理没有任何文件的曲目、专辑、艺人，以及对应的搜索索引。
+            if n > 0 {
+                sweep_orphans(&tx)?;
+            }
+            tx.commit().db()?;
             Ok(n as u64)
         })
         .await
     }
+}
+
+/// 清理孤儿行（LIB-04）：没有任何文件的曲目、没有曲目的专辑、没有曲目 / 专辑的艺人。
+///
+/// `track_file` / `track_artist` / `album_artist` / `track_genre` 都是 `ON DELETE CASCADE`，
+/// 所以删掉 `track` / `album` / `artist` 时关联表会自动收缩；搜索索引是 fts5 虚表，
+/// 需要手动按 `ref_id` 删，否则会留下指向不存在的行、搜索时 JOIN 掉但 `MATCH` 仍然命中。
+pub(crate) fn sweep_orphans(tx: &Transaction<'_>) -> Result<()> {
+    // 顺序很重要：先删实体，再清索引，否则索引里还会指向刚被删掉的行。
+    tx.execute(
+        "DELETE FROM track WHERE id NOT IN (SELECT track_id FROM track_file)",
+        [],
+    )
+    .db()?;
+    // playlist_item 按 track_uid 引用、没有外键；被删掉的曲目在歌单里要显示占位（PL-05），
+    // 所以这里故意不动 playlist_item。
+    tx.execute(
+        "DELETE FROM album
+         WHERE id NOT IN (SELECT album_id FROM track WHERE album_id IS NOT NULL)",
+        [],
+    )
+    .db()?;
+    tx.execute(
+        "DELETE FROM artist
+         WHERE id NOT IN (SELECT artist_id FROM track_artist)
+           AND id NOT IN (SELECT artist_id FROM album_artist)",
+        [],
+    )
+    .db()?;
+    tx.execute(
+        "DELETE FROM search_index
+         WHERE (kind = 'track' AND ref_id NOT IN (SELECT id FROM track))
+            OR (kind = 'album' AND ref_id NOT IN (SELECT id FROM album))
+            OR (kind = 'artist' AND ref_id NOT IN (SELECT id FROM artist))",
+        [],
+    )
+    .db()?;
+    Ok(())
 }
 
 /// 返回 `true` 表示新增，`false` 表示更新。
@@ -189,11 +458,15 @@ fn upsert_one(tx: &Transaction<'_>, f: &ScannedFile) -> Result<bool> {
         )
         .db()?;
 
-    // TODO(SRC-13)：quality_score 按编码 / 位深 / 采样率计算，统一资料库选源时用。
+    // SRC-13：quality_score 按编码 / 位深 / 采样率 / 码率打分，统一资料库选源时按它排序。
+    // 同一首歌在同一源上换了文件（file_id 变了）时会新增一行，旧行随 file 级联删除。
+    let score = quality_score(t.audio.as_ref());
     tx.execute(
-        "INSERT OR IGNORE INTO track_file (track_id, file_id, source_id, external_id, quality_score)
-         VALUES (?1, ?2, ?3, '', 0)",
-        params![track_id, file_id, f.source_id.0],
+        "INSERT INTO track_file (track_id, file_id, source_id, external_id, quality_score)
+         VALUES (?1, ?2, ?3, '', ?4)
+         ON CONFLICT (track_id, source_id, file_id, external_id)
+         DO UPDATE SET quality_score = excluded.quality_score",
+        params![track_id, file_id, f.source_id.0, score],
     )
     .db()?;
 
@@ -203,6 +476,38 @@ fn upsert_one(tx: &Transaction<'_>, f: &ScannedFile) -> Result<bool> {
             "INSERT OR IGNORE INTO track_artist (track_id, artist_id, role, position)
              VALUES (?1, ?2, 'main', ?3)",
             params![track_id, artist_id, pos as i64],
+        )
+        .db()?;
+        // 艺人是刚建的话，搜索索引里也要有一行（LIB-07 按艺人搜）。
+        crate::browse::refresh_artist_index(tx, artist_id)?;
+    }
+
+    // 专辑的曲目数 / 年份可能刚变，重建它的搜索索引行。
+    crate::browse::refresh_album_index(tx, album_id)?;
+
+    // 流派（LIB-06：按流派浏览）。
+    tx.execute(
+        "DELETE FROM track_genre WHERE track_id = ?1",
+        params![track_id],
+    )
+    .db()?;
+    for name in &t.genres {
+        let name = name.trim();
+        if name.is_empty() {
+            continue;
+        }
+        let genre_id: i64 = tx
+            .query_row(
+                "INSERT INTO genre (name) VALUES (?1)
+                 ON CONFLICT (name) DO UPDATE SET name = genre.name
+                 RETURNING id",
+                params![name],
+                |r| r.get(0),
+            )
+            .db()?;
+        tx.execute(
+            "INSERT OR IGNORE INTO track_genre (track_id, genre_id) VALUES (?1, ?2)",
+            params![track_id, genre_id],
         )
         .db()?;
     }
@@ -335,6 +640,110 @@ mod tests {
 
         let found = lib.search("晴天", 10).await?;
         assert_eq!(found.tracks.len(), 1);
+        Ok(())
+    }
+
+    /// `touch_files` 只刷新 `last_seen_at`：命中的行数正确，标签不变，空批次是 0。
+    #[tokio::test]
+    async fn touch_files_only_refreshes_last_seen() -> Result<()> {
+        let lib = temp_library("touch")?;
+        let source_id = lib
+            .add_source(SourceConfig {
+                id: None,
+                kind: SourceKind::Local,
+                name: "Music".into(),
+                addresses: vec!["/music".into()],
+                root_path: String::new(),
+                credential_ref: None,
+                options: BTreeMap::new(),
+                enabled: true,
+            })
+            .await?;
+        lib.upsert_scanned(vec![
+            sample(source_id, "a/one.flac", "一"),
+            sample(source_id, "a/two.flac", "二"),
+        ])
+        .await?;
+
+        assert_eq!(lib.touch_files(source_id, Vec::new()).await?, 0);
+
+        let touched = lib
+            .touch_files(
+                source_id,
+                vec![
+                    ("a/one.flac".into(), 1000, 1),
+                    ("a/two.flac".into(), 1000, 1),
+                    ("a/missing.flac".into(), 1, 1),
+                ],
+            )
+            .await?;
+        assert_eq!(touched, 2, "缺失的文件不算命中");
+
+        // 标签没被动过：列表里还是原来的两个标题。
+        let rows = lib
+            .list_track_rows(TrackQuery {
+                sort: TrackSort::Title,
+                offset: 0,
+                limit: 50,
+            })
+            .await?;
+        assert_eq!(rows.len(), 2);
+        assert!(rows.iter().any(|r| r.title == "一"));
+        assert!(rows.iter().any(|r| r.title == "二"));
+
+        // touch 之后立刻 remove_unseen_files(旧时间戳) 不会删掉它们。
+        assert_eq!(lib.remove_unseen_files(source_id, 0).await?, 0);
+        Ok(())
+    }
+
+    /// `scannable_files` 把曲目标签拼回 `ScannedFile`（写共享索引用）。
+    #[tokio::test]
+    async fn scannable_files_roundtrips_tags() -> Result<()> {
+        let lib = temp_library("scannable")?;
+        let source_id = lib
+            .add_source(SourceConfig {
+                id: None,
+                kind: SourceKind::Local,
+                name: "Music".into(),
+                addresses: vec!["/music".into()],
+                root_path: String::new(),
+                credential_ref: None,
+                options: BTreeMap::new(),
+                enabled: true,
+            })
+            .await?;
+        lib.upsert_scanned(vec![
+            sample(source_id, "a/晴天.flac", "晴天"),
+            sample(source_id, "b/以父之名.flac", "以父之名"),
+        ])
+        .await?;
+
+        let files = lib.scannable_files(source_id).await?;
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[0].path, "a/晴天.flac");
+        assert_eq!(files[0].source_id, source_id);
+        assert_eq!(files[0].size, 1000);
+        assert_eq!(files[0].mtime_ms, 1);
+        assert_eq!(files[0].tags.title, "晴天");
+        assert_eq!(files[0].tags.artists, vec!["周杰伦".to_string()]);
+        assert_eq!(files[0].tags.album.as_deref(), Some("叶惠美"));
+        assert_eq!(files[0].tags.duration_ms, 269_000);
+        assert_eq!(files[1].path, "b/以父之名.flac");
+
+        // 别的音源的文件不会混进来。
+        let other = lib
+            .add_source(SourceConfig {
+                id: None,
+                kind: SourceKind::Local,
+                name: "Other".into(),
+                addresses: vec!["/other".into()],
+                root_path: String::new(),
+                credential_ref: None,
+                options: BTreeMap::new(),
+                enabled: true,
+            })
+            .await?;
+        assert!(lib.scannable_files(other).await?.is_empty());
         Ok(())
     }
 }

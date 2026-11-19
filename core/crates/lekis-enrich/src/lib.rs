@@ -8,12 +8,35 @@
 //! ```
 //!
 //! 所有提供方都要遵守各自的速率限制（例如 MusicBrainz 每秒 1 次），结果本地缓存。
+//!
+//! | 模块 | 内容 |
+//! |---|---|
+//! | [`providers`] | 内置在线提供方：LRCLIB 歌词、Cover Art Archive 封面、iTunes 封面 |
+//! | [`scoring`] | ENR-05 的加权模糊匹配（标题 0.40 / 艺人 0.30 / 时长 0.20 / 专辑 0.10）|
+//! | [`throttle`] | ENR-09 的限速与失败退避 |
+//! | [`cache`] | ENR-09 的结果本地缓存（带 TTL 与容量上限）|
+//! | [`http`] | 各在线功能共用的 HTTP 基础件（UA、超时、状态码映射）|
+//! | [`scrobble`] | DIS-07 的第三方听歌记录上报（Last.fm / ListenBrainz / Libre.fm）|
+//! | [`md5`] | Last.fm 签名要用的 MD5（RFC 1321），仅供 [`scrobble`] 内部使用 |
 
+pub mod artwork_ingest;
+pub mod cache;
+pub mod http;
 pub mod providers;
 pub mod scoring;
+pub mod scrobble;
+pub mod throttle;
+
+mod md5;
 
 use async_trait::async_trait;
 use lekis_types::{LyricsFormat, Result};
+
+pub use scoring::{score_match, similarity, Explanation};
+pub use scrobble::{
+    api_signature, should_scrobble, AuthRequest, NowPlaying, Scrobble, ScrobbleClient,
+    ScrobbleConfig, ScrobbleQueue, ScrobbleService,
+};
 
 /// 分数达到这个值就自动应用。
 pub const AUTO_APPLY_THRESHOLD: f32 = 0.85;

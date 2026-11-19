@@ -2,10 +2,29 @@
 //!
 //! 和文件系统类源不同，服务器源的元数据由服务器提供，我们不扫描文件；
 //! 但我们自己的补全结果（封面、歌词）仍然存在本地覆盖层里，按 `external_id` 关联。
+//!
+//! 三个实现：
+//!
+//! | 类型 | 结构体 | 认证 | 分页 |
+//! |---|---|---|---|
+//! | Subsonic / OpenSubsonic | [`opensubsonic::OpenSubsonic`] | `u` + `t=md5(pw+salt)` + `s` | `search3` / `getAlbumList2` |
+//! | Jellyfin / Emby | [`jellyfin::Jellyfin`] | `X-Emby-Token` 请求头 | `/Items` 的 `StartIndex` |
+//! | Plex | [`plex::Plex`] | `X-Plex-Token` 请求头 | `/library/sections/{id}/all` |
+//!
+//! 三条通用约定：
+//! - **构造函数不发网络请求**（只做参数校验），连通性由 [`MediaServer::ping`] 验证，
+//!   这样上层可以在扫描开始时同步建好客户端；
+//! - 凭据只放在请求头或 query 里，**永远不进日志**；错误信息里也只有动作名和状态码；
+//! - 错误统一映射到 [`lekis_types::ErrorCode`]（401 → `Auth`、404 → `NotFound`、429 → `RateLimited`……）。
 
 pub mod jellyfin;
 pub mod opensubsonic;
 pub mod plex;
+
+mod datetime;
+mod http;
+mod md5;
+mod xml;
 
 use async_trait::async_trait;
 use lekis_types::{Result, SourceKind};

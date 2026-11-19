@@ -13,6 +13,28 @@ bytes.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 
+# 通用工具
+futures-util.workspace = true
+httpdate.workspace = true
+percent-encoding.workspace = true
+url.workspace = true
+
+# WebDAV（SRC-03）
+reqwest.workspace = true
+quick-xml.workspace = true
+# Digest 认证需要裸 MD5，workspace 里没有对应条目，只能就地带版本。
+md5 = "0.8"
+
+# SMB2/3（SRC-02）
+smb2.workspace = true
+
+# SFTP（SRC-07）
+russh.workspace = true
+russh-sftp.workspace = true
+
+# NFSv3（SRC-08）。必须显式开 tokio：该 crate 默认没有任何 runtime 支持。
+nfs3_client = { workspace = true, features = ["tokio"] }
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 

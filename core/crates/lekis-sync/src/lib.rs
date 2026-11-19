@@ -12,7 +12,9 @@ pub mod hlc;
 pub mod merge;
 pub mod position;
 
+pub use channel::{NasFolderChannel, SyncChannel};
 pub use hlc::{Hlc, HlcClock};
+pub use merge::{merge, FieldKey, FieldState};
 
 use serde::{Deserialize, Serialize};
 
