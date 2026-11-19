@@ -18,7 +18,7 @@ analyzer:
     - macos/**
     - linux/**
     # Cargokit 是 vendored 构建工具，有自己的 pubspec；不要用 app 的依赖图分析它。
-    - rust_builder/cargokit/build_tool/**
+    - rust_builder/cargokit/**
 
 linter:
   # The lint rules applied to this project can be customized in the

@@ -59,6 +59,33 @@ abstract final class LekisSizes {
   static const double touchTargetMin = 48;
 }
 
+/// Floating bottom tab bar metrics.
+///
+/// The bar is a translucent capsule; the selection pill always stays inside
+/// it and each destination keeps a full-height touch target.
+abstract final class LekisTabBarTokens {
+  static const double height = 64;
+  static const double iconSize = 24;
+  static const double iconGap = 2;
+  static const double labelHeight = 15;
+
+  /// Horizontal padding between the capsule edge and the five slots.
+  static const double innerInset = 6;
+
+  /// Gap between a slot edge and the selection pill.
+  static const double pillInset = 3;
+
+  /// Backdrop blur radius of the capsule.
+  static const double blurSigma = 18;
+
+  /// Opacity of the film grain laid over the capsule (keeps the gradient
+  /// from banding on large soft areas, like Now Playing does).
+  static const double noiseOpacity = 0.035;
+
+  /// How much the selection pill stretches while travelling, at most.
+  static const double maxPillStretch = 0.18;
+}
+
 /// Motion tokens. Springs use mass 1 and are defined by stiffness and
 /// damping ratio, like Compose's `spring()`.
 abstract final class LekisMotion {
@@ -71,6 +98,9 @@ abstract final class LekisMotion {
   static const Duration normal = Duration(milliseconds: 250);
   static const Duration slow = Duration(milliseconds: 400);
   static const Duration backgroundCrossfade = Duration(milliseconds: 900);
+
+  /// Squash-and-stretch of a destination icon after it becomes active.
+  static const Duration navBounce = Duration(milliseconds: 480);
 
   static SpringDescription _spring(double stiffness, double dampingRatio) =>
       SpringDescription.withDampingRatio(

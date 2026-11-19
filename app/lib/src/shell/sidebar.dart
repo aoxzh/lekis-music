@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/theme/tokens.dart';
 
 import 'destinations.dart';
+import 'nav_icon.dart';
 
 /// Desktop-style navigation column.
 class LekisSidebar extends StatelessWidget {
@@ -228,22 +229,30 @@ class _SidebarItem extends StatelessWidget {
     final colors = context.lekisColors;
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
-    final fg = selected ? colors.accent : colors.onSurfaceVariant;
+    final reduce = lekisReduceMotion(context);
+    final fg = selected ? lekisNavForeground(context) : colors.onSurfaceVariant;
     final radius = BorderRadius.circular(LekisRadius.md);
 
     return Semantics(
+      container: true,
       selected: selected,
       button: true,
+      label: destination.label,
+      onTap: onTap,
+      excludeSemantics: true,
       child: Material(
         type: MaterialType.transparency,
         child: InkWell(
           borderRadius: radius,
-          onTap: onTap,
+          onTap: () {
+            lekisSelectionHaptic();
+            onTap();
+          },
           hoverColor: colors.accentSoft.withValues(alpha: 0.55),
           child: AnimatedContainer(
-            duration: LekisMotion.fast,
+            duration: reduce ? LekisMotion.fast : LekisMotion.normal,
             curve: Curves.easeOut,
-            height: 44,
+            height: LekisSizes.touchTargetMin,
             padding: const EdgeInsets.only(left: LekisSpacing.sm),
             decoration: BoxDecoration(
               color: selected ? colors.accentSoft : Colors.transparent,
@@ -251,34 +260,70 @@ class _SidebarItem extends StatelessWidget {
             ),
             child: Row(
               children: [
-                AnimatedContainer(
-                  duration: LekisMotion.fast,
-                  width: 3,
-                  height: selected ? 18 : 0,
-                  decoration: BoxDecoration(
-                    color: colors.moon,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+                _SidebarMarker(selected: selected, reduce: reduce),
                 const SizedBox(width: LekisSpacing.md),
-                Icon(
-                  selected ? destination.selectedIcon : destination.icon,
+                LekisNavIcon(
+                  destination: destination,
+                  selected: selected,
                   size: 20,
-                  color: fg,
+                  reducedMotion: reduce,
                 ),
                 const SizedBox(width: LekisSpacing.md),
                 Expanded(
-                  child: Text(
-                    destination.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: text.bodyLarge?.copyWith(
+                  child: AnimatedDefaultTextStyle(
+                    duration: LekisMotion.fast,
+                    curve: Curves.easeOut,
+                    style: (text.bodyLarge ?? const TextStyle()).copyWith(
                       color: selected ? scheme.onSurface : fg,
-                      fontWeight: selected ? FontWeight.w600 : null,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                    child: Text(
+                      destination.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Gold presence marker, grown with the standard spring so the sidebar uses
+/// the same motion language as the bottom bar.
+class _SidebarMarker extends StatelessWidget {
+  const _SidebarMarker({required this.selected, required this.reduce});
+
+  final bool selected;
+  final bool reduce;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.lekisColors;
+    return SizedBox(
+      width: 3,
+      height: 18,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(end: selected ? 1.0 : 0.0),
+        duration: reduce
+            ? LekisMotion.fast
+            : LekisMotion.settleDuration(LekisMotion.springStandard),
+        curve: reduce
+            ? Curves.easeOut
+            : LekisSpringCurve(LekisMotion.springStandard),
+        builder: (context, t, _) => Opacity(
+          opacity: t.clamp(0.0, 1.0),
+          child: Transform.scale(
+            scaleY: t.clamp(0.0, 1.12),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.moon,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
         ),
@@ -302,43 +347,72 @@ class _RailItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.lekisColors;
     final text = Theme.of(context).textTheme;
-    final fg = selected ? colors.accent : colors.onSurfaceVariant;
+    final reduce = lekisReduceMotion(context);
+    final fg = selected ? lekisNavForeground(context) : colors.onSurfaceVariant;
 
-    return Tooltip(
-      message: destination.label,
-      child: Semantics(
-        selected: selected,
-        button: true,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(LekisRadius.md),
-          onTap: onTap,
-          hoverColor: colors.accentSoft.withValues(alpha: 0.55),
-          child: AnimatedContainer(
-            duration: LekisMotion.fast,
-            width: 64,
-            padding: const EdgeInsets.symmetric(vertical: LekisSpacing.sm),
-            decoration: BoxDecoration(
-              color: selected ? colors.accentSoft : Colors.transparent,
-              borderRadius: BorderRadius.circular(LekisRadius.md),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  selected ? destination.selectedIcon : destination.icon,
-                  size: 22,
-                  color: fg,
+    return Semantics(
+      container: true,
+      selected: selected,
+      button: true,
+      label: destination.label,
+      onTap: onTap,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: destination.label,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(LekisRadius.md),
+            onTap: () {
+              lekisSelectionHaptic();
+              onTap();
+            },
+            hoverColor: colors.accentSoft.withValues(alpha: 0.55),
+            child: AnimatedContainer(
+              duration: reduce ? LekisMotion.fast : LekisMotion.normal,
+              curve: Curves.easeOut,
+              width: 64,
+              padding: const EdgeInsets.symmetric(vertical: LekisSpacing.sm),
+              decoration: BoxDecoration(
+                color: selected ? colors.accentSoft : Colors.transparent,
+                borderRadius: BorderRadius.circular(LekisRadius.md),
+                border: Border.all(
+                  color: selected
+                      ? colors.accent.withValues(alpha: 0.18)
+                      : Colors.transparent,
                 ),
-                const SizedBox(height: LekisSpacing.xs),
-                Text(
-                  destination.label,
-                  style: text.labelSmall?.copyWith(
-                    color: fg,
-                    fontSize: 10,
-                    letterSpacing: 0,
+                boxShadow: selected
+                    ? [
+                        BoxShadow(
+                          color: colors.accent.withValues(alpha: 0.10),
+                          blurRadius: 14,
+                          spreadRadius: -4,
+                        ),
+                      ]
+                    : const [],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  LekisNavIcon(
+                    destination: destination,
+                    selected: selected,
+                    size: 22,
+                    reducedMotion: reduce,
                   ),
-                ),
-              ],
+                  const SizedBox(height: LekisSpacing.xs),
+                  AnimatedDefaultTextStyle(
+                    duration: LekisMotion.fast,
+                    curve: Curves.easeOut,
+                    style: (text.labelSmall ?? const TextStyle()).copyWith(
+                      color: fg,
+                      fontSize: 10,
+                      letterSpacing: 0,
+                    ),
+                    child: Text(destination.label),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
