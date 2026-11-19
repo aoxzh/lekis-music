@@ -49,7 +49,11 @@ impl Library {
                 .prepare_cached(
                     "SELECT al.id, al.title, al.artist_line, al.year,
                             (SELECT COUNT(*) FROM track t WHERE t.album_id = al.id),
-                            al.artwork_id, al.mbid_release
+                            al.artwork_id, al.mbid_release,
+                            (SELECT ar.hash FROM artwork ar WHERE ar.id = COALESCE(al.artwork_id,
+                               (SELECT t2.artwork_id FROM track t2
+                                 WHERE t2.album_id = al.id AND t2.artwork_id IS NOT NULL
+                                 ORDER BY t2.disc_no, t2.track_no LIMIT 1)))
                      FROM search_index s
                      JOIN album al ON al.id = s.ref_id
                      WHERE s.kind = 'album' AND search_index MATCH ?1

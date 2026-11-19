@@ -91,15 +91,15 @@ impl WebDavVfs {
             .user_agent(concat!("lekis/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(|e| LekisError::internal(format!("webdav: 创建 HTTP 客户端失败: {e}")))?;
+        // 钥匙串里取来的密码也算"有凭据"：地址里不带 userinfo 时同样要发 Basic 认证。
+        let keychain = password.filter(|p| !p.is_empty());
+        let has_credentials = parsed.has_credentials || keychain.is_some();
         Ok(Self {
             base_url: parsed.base_url,
             base_path: parsed.base_path,
             user: parsed.user,
-            password: password
-                .filter(|p| !p.is_empty())
-                .or(parsed.password)
-                .unwrap_or_default(),
-            has_credentials: parsed.has_credentials,
+            password: keychain.or(parsed.password).unwrap_or_default(),
+            has_credentials,
             client,
             digest: tokio::sync::Mutex::new(None),
             nc: AtomicU32::new(1),

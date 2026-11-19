@@ -28,8 +28,8 @@ use lekis_types::*;
 /// 一次补全最多问多少个提供方（防止插件没完没了地加）。
 const MAX_PROVIDERS_PER_KIND: usize = 4;
 
-/// 自动应用封面时写入的尺寸档位（ENR-12：正在播放页用 1024）。
-const ARTWORK_TARGET_PX: u32 = 1024;
+/// 缓存里为每张封面生成的尺寸档位（ENR-12：列表 128/256、网格 512、正在播放页 1024）。
+const ARTWORK_TIERS: [u32; 4] = artwork_ingest::THUMBNAIL_WIDTHS;
 
 /// 一次补全的结果统计。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -81,6 +81,21 @@ impl EnrichPipeline {
             itunes,
             cache_dir: config.cache_dir.clone(),
         }
+    }
+
+    /// 只查歌词（LRCLIB）。播放时按需调用，不碰封面。
+    pub(crate) async fn fetch_lyrics(&self, library: &Library, track_id: TrackId) -> Result<()> {
+        let Some(provider) = &self.lrclib else {
+            return Ok(());
+        };
+        if library.active_lyrics(track_id).await?.is_some() {
+            return Ok(());
+        }
+        let track = library.get_track(track_id).await?;
+        let hint = hint_for(&track, library).await?;
+        let candidates = provider.find_lyrics(&hint).await?;
+        self.apply_lyrics(library, track_id, &hint, candidates).await?;
+        Ok(())
     }
 
     /// 对一首歌跑一次补全。
@@ -217,11 +232,20 @@ impl EnrichPipeline {
             .to_string();
 
             match decide(score) {
-                Decision::AutoApply if !applied => match self
-                    .store_artwork(library, track, &candidate.payload, &candidate.source)
-                    .await
+                Decision::AutoApply if !applied => match store_artwork(
+                    &self.cache_dir,
+                    library,
+                    ArtworkTarget {
+                        track_id: Some(track.id),
+                        album_id: track.album_id,
+                        replace_album: false,
+                    },
+                    &candidate.payload.url,
+                    &candidate.source,
+                )
+                .await
                 {
-                    Ok(()) => {
+                    Ok(_) => {
                         report.auto_applied += 1;
                         applied = true;
                     }
@@ -259,54 +283,102 @@ impl EnrichPipeline {
         Ok(report)
     }
 
-    /// 下载 + 处理 + 落盘 + 入库一张封面。
-    async fn store_artwork(
+    /// 应用一条已经入库的待确认候选（用户点"接受"时调）。
+    pub(crate) async fn apply_candidate(
         &self,
         library: &Library,
-        track: &Track,
-        payload: &ArtworkPayload,
-        source: &str,
+        row: &lekis_library::EnrichCandidateRow,
     ) -> Result<()> {
-        let raw = artwork_ingest::fetch_image(&payload.url).await?;
-        let processed = tokio::task::spawn_blocking(move || {
-            artwork_ingest::process_image(&raw, ARTWORK_TARGET_PX)
-        })
-        .await
-        .map_err(|e| LekisError::internal(format!("封面处理任务失败：{e}")))??;
+        apply_candidate(&self.cache_dir, library, row).await
+    }
+}
 
-        // 已有同哈希的封面就复用，省一次写盘和一行数据。
-        let relative = cache_relative_path(&processed.hash, processed.width);
-        let path = self.cache_dir.join(&relative);
+/// 封面要挂到哪里。
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ArtworkTarget {
+    /// 曲目（有就总是设成曲目级封面）。
+    pub(crate) track_id: Option<TrackId>,
+    /// 专辑。
+    pub(crate) album_id: Option<AlbumId>,
+    /// `true`：无条件替换专辑封面；`false`：专辑没有封面时才补上。
+    pub(crate) replace_album: bool,
+}
+
+/// 下载（带节流 + 缓存）→ 生成各档缩略图 → 落盘到封面缓存 → 入库 → 挂到曲目 / 专辑上。
+///
+/// 只写本机缓存目录和数据库，**从不改用户的原始音频文件**。返回封面 ID。
+pub(crate) async fn store_artwork(
+    cache_dir: &std::path::Path,
+    library: &Library,
+    target: ArtworkTarget,
+    url: &str,
+    source: &str,
+) -> Result<ArtworkId> {
+    let raw = artwork_ingest::fetch_image_cached(url).await?;
+    store_artwork_bytes(cache_dir, library, target, raw.to_vec(), source).await
+}
+
+/// 和 [`store_artwork`] 一样，但输入已经是图片字节（本地内嵌 / 侧车封面用）。
+pub(crate) async fn store_artwork_bytes(
+    cache_dir: &std::path::Path,
+    library: &Library,
+    target: ArtworkTarget,
+    raw: Vec<u8>,
+    source: &str,
+) -> Result<ArtworkId> {
+    let tiers = tokio::task::spawn_blocking(move || {
+        artwork_ingest::process_tiers(&raw, &ARTWORK_TIERS)
+    })
+    .await
+    .map_err(|e| LekisError::internal(format!("封面处理任务失败：{e}")))??;
+
+    // 同哈希的文件已经在就不重写（同一张封面从不同提供方拿到时去重）。
+    for (width, bytes) in &tiers.files {
+        let path = cache_dir.join(cache_relative_path(&tiers.hash, *width));
         if let Some(parent) = path.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
         if !path.exists() {
-            tokio::fs::write(&path, &processed.bytes).await?;
+            write_atomic(&path, bytes).await?;
         }
-
-        let artwork_id = library
-            .upsert_artwork(
-                processed.hash,
-                source.to_string(),
-                Some(processed.width),
-                Some(processed.height),
-                Some(processed.palette),
-            )
-            .await?;
-
-        // 曲目级优先；同时给专辑打上，让别的曲目也能用（ENR-01）。
-        library
-            .set_track_artwork(track.id, Some(artwork_id))
-            .await?;
-        if let Some(album_id) = track.album_id {
-            if library.get_album(album_id).await?.artwork_id.is_none() {
-                library
-                    .set_album_artwork(album_id, Some(artwork_id))
-                    .await?;
-            }
-        }
-        Ok(())
     }
+
+    let artwork_id = library
+        .upsert_artwork(
+            tiers.hash,
+            source.to_string(),
+            Some(tiers.width),
+            Some(tiers.height),
+            Some(tiers.palette),
+        )
+        .await?;
+
+    // 曲目级优先；同时给专辑打上，让别的曲目也能用（ENR-01）。
+    if let Some(track_id) = target.track_id {
+        library.set_track_artwork(track_id, Some(artwork_id)).await?;
+    }
+    if let Some(album_id) = target.album_id {
+        if target.replace_album || library.get_album(album_id).await?.artwork_id.is_none() {
+            library
+                .set_album_artwork(album_id, Some(artwork_id))
+                .await?;
+        }
+    }
+    Ok(artwork_id)
+}
+
+/// 先写临时文件再改名，避免 UI 读到写了一半的图。
+async fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> Result<()> {
+    let tmp = path.with_extension("webp.tmp");
+    tokio::fs::write(&tmp, bytes).await?;
+    if let Err(e) = tokio::fs::rename(&tmp, path).await {
+        let _ = tokio::fs::remove_file(&tmp).await;
+        // 并发写同一张图时对方可能已经改名成功了。
+        if !path.exists() {
+            return Err(e.into());
+        }
+    }
+    Ok(())
 }
 
 /// 把 `Library` 里的曲目信息转成提供方要的查询线索。
@@ -351,8 +423,10 @@ fn format_from_str(raw: &str) -> LyricsFormat {
 
 /// 应用一条已经入库的待确认候选（用户点"接受"时调）。
 ///
-/// 目前支持 `lyrics`（直接入库）和 `tags`（写覆盖层）；其余类型只改状态。
+/// 支持 `lyrics`（直接入库）、`tags`（写覆盖层）和 `artwork`（下载 → 缩略图 → 设成曲目 /
+/// 专辑封面）；其余类型只改状态。
 pub(crate) async fn apply_candidate(
+    cache_dir: &std::path::Path,
     library: &Library,
     row: &lekis_library::EnrichCandidateRow,
 ) -> Result<()> {
@@ -394,13 +468,93 @@ pub(crate) async fn apply_candidate(
             };
             library.set_track_overlay(track_id, Some(overlay)).await
         }
+        "artwork" => {
+            let value: serde_json::Value = serde_json::from_str(&row.payload_json)
+                .map_err(|e| LekisError::invalid(format!("候选内容不是合法 JSON：{e}")))?;
+            let url = value
+                .get("url")
+                .and_then(|v| v.as_str())
+                .filter(|u| !u.is_empty())
+                .ok_or_else(|| LekisError::invalid("封面候选缺少 url"))?;
+            if row.track_id.is_none() && row.album_id.is_none() {
+                return Err(LekisError::invalid("封面候选既没有曲目也没有专辑"));
+            }
+            // 用户亲手确认的：曲目封面总是替换；只针对专辑的候选替换专辑封面，
+            // 针对曲目的候选只在专辑还没有封面时顺便补上。
+            let target = ArtworkTarget {
+                track_id: row.track_id,
+                album_id: row.album_id,
+                replace_album: row.track_id.is_none(),
+            };
+            store_artwork(cache_dir, library, target, url, &row.source).await?;
+            Ok(())
+        }
         _ => Ok(()),
     }
 }
 
-/// 封面在缓存目录里的绝对路径（UI 层拼好后直接读文件显示）。
+/// 不小于 `width` 的最近一档（超过最大档时取最大档）。
+pub(crate) fn tier_for(width: u32) -> u32 {
+    ARTWORK_TIERS
+        .iter()
+        .copied()
+        .find(|t| *t >= width)
+        .unwrap_or(ARTWORK_TIERS[ARTWORK_TIERS.len() - 1])
+}
+
+/// 封面在缓存目录里的绝对路径（UI 层拿到后直接读文件显示）。
+///
+/// 返回不小于 `width` 的最近一档；这一档的文件不存在时（老版本只存了一档），
+/// 用缓存里已有的最大那份**就地生成**再返回。一份都没有时仍然返回预期路径，UI 显示占位图。
 pub(crate) fn artwork_file_path(config: &CoreConfig, hash: &str, width: u32) -> std::path::PathBuf {
-    config.cache_dir.join(cache_relative_path(hash, width))
+    let tier = tier_for(width);
+    let path = config.cache_dir.join(cache_relative_path(hash, tier));
+    if path.exists() || !is_hex(hash) {
+        return path;
+    }
+    if let Err(e) = generate_tier(hash, tier, &path) {
+        tracing::debug!(target: "lekis_core::enrich", code = %e.code.as_str(), "按需生成缩略图失败");
+    }
+    path
+}
+
+fn is_hex(s: &str) -> bool {
+    !s.is_empty() && s.len() <= 128 && s.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+/// 从同一张封面已有的最大一份缓存文件缩放出 `tier` 档，写到 `out`。
+fn generate_tier(hash: &str, tier: u32, out: &std::path::Path) -> Result<()> {
+    let dir = out
+        .parent()
+        .ok_or_else(|| LekisError::internal("artwork path has no parent"))?;
+    let prefix = format!("{hash}_");
+    let mut best: Option<(u32, std::path::PathBuf)> = None;
+    for entry in std::fs::read_dir(dir)?.flatten() {
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else { continue };
+        let Some(w) = name
+            .strip_prefix(&prefix)
+            .and_then(|rest| rest.strip_suffix(".webp"))
+            .and_then(|w| w.parse::<u32>().ok())
+        else {
+            continue;
+        };
+        if best.as_ref().is_none_or(|(bw, _)| w > *bw) {
+            best = Some((w, entry.path()));
+        }
+    }
+    let (_, source) = best.ok_or_else(|| LekisError::not_found("no cached artwork to scale"))?;
+    let bytes = std::fs::read(source)?;
+    let tiers = artwork_ingest::process_tiers(&bytes, &[tier])?;
+    let (_, webp) = tiers
+        .files
+        .into_iter()
+        .next()
+        .ok_or_else(|| LekisError::internal("no tier produced"))?;
+    let tmp = out.with_extension("webp.tmp");
+    std::fs::write(&tmp, webp)?;
+    std::fs::rename(&tmp, out)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -429,5 +583,51 @@ mod tests {
         assert!(path
             .to_string_lossy()
             .ends_with("abcdef0123456789_1024.webp"));
+    }
+
+    #[test]
+    fn tiers_round_up_to_nearest_generated_size() {
+        assert_eq!(tier_for(1), 128);
+        assert_eq!(tier_for(128), 128);
+        assert_eq!(tier_for(129), 256);
+        assert_eq!(tier_for(320), 512);
+        assert_eq!(tier_for(600), 1024);
+        assert_eq!(tier_for(4000), 1024);
+    }
+
+    fn png(w: u32, h: u32) -> Vec<u8> {
+        let mut buf = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(w, h, image::Rgb([180, 40, 60])))
+            .write_to(&mut buf, image::ImageFormat::Png)
+            .expect("encode png");
+        buf.into_inner()
+    }
+
+    #[test]
+    fn missing_tier_is_generated_from_the_largest_cached_file() {
+        let root = std::env::temp_dir().join(format!("lekis-core-tier-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let config = CoreConfig::for_tests(&root);
+        let hash = "ab12cd34";
+        // 只放一份老版本留下的"实际宽度"文件。
+        let legacy = config.cache_dir.join(cache_relative_path(hash, 700));
+        std::fs::create_dir_all(legacy.parent().expect("parent")).expect("mkdir");
+        std::fs::write(&legacy, png(700, 700)).expect("write legacy");
+
+        let path = artwork_file_path(&config, hash, 200);
+        assert!(path.to_string_lossy().ends_with("ab12cd34_256.webp"));
+        assert!(path.exists(), "256 档应当按需生成");
+        let img = image_dims(&path);
+        assert_eq!(img, (256, 256));
+
+        // 没有任何缓存文件时返回预期路径但不报错。
+        let none = artwork_file_path(&config, "ffff0000", 1024);
+        assert!(!none.exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    fn image_dims(path: &std::path::Path) -> (u32, u32) {
+        let img = image::load_from_memory(&std::fs::read(path).expect("read")).expect("decode");
+        (img.width(), img.height())
     }
 }

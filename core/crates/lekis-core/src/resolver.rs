@@ -22,6 +22,40 @@ pub(crate) struct Resolver {
     servers: Mutex<HashMap<SourceId, Arc<dyn MediaServer>>>,
     /// 凭据读取（平台注入的系统钥匙串）。
     credentials: Arc<dyn crate::CredentialStore>,
+    /// `playback.replaygain` 的当前值（启动时和每次设置时由 core 写入，避免每首歌查一次库）。
+    replaygain_mode: std::sync::RwLock<ReplayGainMode>,
+}
+
+/// ReplayGain 补偿方式（PLY-03，设置项 `playback.replaygain`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum ReplayGainMode {
+    /// 不补偿。
+    Off,
+    /// 曲目增益（默认）。
+    #[default]
+    Track,
+    /// 专辑增益，没有就退回曲目增益。
+    Album,
+}
+
+impl ReplayGainMode {
+    /// 设置项的值 → 模式（`off` / `album` / 其它都按 `track`）。
+    pub(crate) fn from_setting(value: Option<&str>) -> Self {
+        match value.map(str::trim) {
+            Some("off") | Some("false") => Self::Off,
+            Some("album") => Self::Album,
+            _ => Self::Track,
+        }
+    }
+
+    /// 按模式选增益。
+    pub(crate) fn pick(self, rg: &lekis_types::ReplayGain) -> Option<f32> {
+        match self {
+            Self::Off => None,
+            Self::Album => rg.album_gain_db.or(rg.track_gain_db),
+            Self::Track => rg.track_gain_db,
+        }
+    }
 }
 
 impl Resolver {
@@ -35,6 +69,30 @@ impl Resolver {
             health,
             servers: Mutex::new(HashMap::new()),
             credentials,
+            replaygain_mode: std::sync::RwLock::new(ReplayGainMode::default()),
+        }
+    }
+
+    /// 更新 ReplayGain 模式（下一首开始生效）。
+    pub(crate) fn set_replaygain_mode(&self, mode: ReplayGainMode) {
+        if let Ok(mut m) = self.replaygain_mode.write() {
+            *m = mode;
+        }
+    }
+
+    /// 当前 ReplayGain 模式（测试用）。
+    #[cfg(test)]
+    pub(crate) fn replaygain_mode(&self) -> ReplayGainMode {
+        self.replaygain_mode
+            .read()
+            .map(|m| *m)
+            .unwrap_or_default()
+    }
+
+    /// 忘掉某个源缓存的服务器客户端（源配置或凭据变了之后调用）。
+    pub(crate) fn forget(&self, source_id: SourceId) {
+        if let Ok(mut map) = self.servers.lock() {
+            map.remove(&source_id);
         }
     }
 
@@ -110,27 +168,14 @@ impl Resolver {
         }
     }
 
-    /// ReplayGain 增益（PLY-03）。
-    ///
-    /// 设置项 `playback.replaygain` 取 `track`（默认）/ `album` / `off`：
-    /// - `off`：不补偿，引擎按原始样本输出；
-    /// - `album`：优先专辑增益，没有就退回曲目增益（单曲来源通常只有曲目增益）；
-    /// - 其它值（含未设置）：曲目增益。
+    /// ReplayGain 增益（PLY-03），按 [`ReplayGainMode`] 选曲目增益或专辑增益。
     async fn gain_db(&self, file: &TrackFile) -> Option<f32> {
         let mode = self
-            .library
-            .get_setting("playback.replaygain")
-            .await
-            .ok()
-            .flatten();
-        match mode.as_deref() {
-            Some("off") => None,
-            Some("album") => file
-                .replaygain
-                .album_gain_db
-                .or(file.replaygain.track_gain_db),
-            _ => file.replaygain.track_gain_db,
-        }
+            .replaygain_mode
+            .read()
+            .map(|m| *m)
+            .unwrap_or_default();
+        mode.pick(&file.replaygain)
     }
 
     /// 取（或构造）某个服务器源的客户端。凭据从系统钥匙串按 `credential_ref` 读。
@@ -277,6 +322,26 @@ mod tests {
             duration_ms: 1000,
             replaygain: ReplayGain::default(),
         }
+    }
+
+    #[test]
+    fn replaygain_mode_parses_and_picks() {
+        let rg = ReplayGain {
+            track_gain_db: Some(-3.0),
+            album_gain_db: Some(-5.0),
+            ..Default::default()
+        };
+        assert_eq!(ReplayGainMode::from_setting(None), ReplayGainMode::Track);
+        assert_eq!(ReplayGainMode::from_setting(Some("off")), ReplayGainMode::Off);
+        assert_eq!(ReplayGainMode::from_setting(Some("album")), ReplayGainMode::Album);
+        assert_eq!(ReplayGainMode::Off.pick(&rg), None);
+        assert_eq!(ReplayGainMode::Track.pick(&rg), Some(-3.0));
+        assert_eq!(ReplayGainMode::Album.pick(&rg), Some(-5.0));
+        let only_track = ReplayGain {
+            track_gain_db: Some(-2.0),
+            ..Default::default()
+        };
+        assert_eq!(ReplayGainMode::Album.pick(&only_track), Some(-2.0));
     }
 
     #[test]

@@ -74,21 +74,117 @@ impl Queue {
 
     /// 在当前曲目之后插入（"下一首播放"）。
     pub fn play_next(&mut self, track: TrackId) {
-        let insert_at = self
+        self.insert_after_current(vec![track]);
+    }
+
+    /// 在当前曲目之后按顺序插入多首（"下一首播放"）。随机模式下它们也紧跟当前曲目，
+    /// 其余曲目的播放顺序不变。
+    pub fn insert_after_current(&mut self, tracks: Vec<TrackId>) {
+        if tracks.is_empty() {
+            return;
+        }
+        let k = tracks.len();
+        let at_item = self
             .current_index()
             .map(|i| i + 1)
             .unwrap_or(self.items.len());
-        self.items.insert(insert_at, track);
-        // 简化处理：重建顺序但保持当前曲目不变。
-        let current = self.current_index();
-        self.rebuild_order(current);
+        for o in &mut self.order {
+            if *o >= at_item {
+                *o += k;
+            }
+        }
+        self.items.splice(at_item..at_item, tracks);
+        let at_pos = self.cursor.map(|c| c + 1).unwrap_or(self.order.len());
+        self.order.splice(at_pos..at_pos, at_item..at_item + k);
     }
 
-    /// 追加到队尾。
+    /// 追加到队尾（随机模式下也排在最后，已有的播放顺序不变）。
     pub fn append(&mut self, tracks: impl IntoIterator<Item = TrackId>) {
-        let current = self.current_index();
+        let start = self.items.len();
         self.items.extend(tracks);
-        self.rebuild_order(current);
+        self.order.extend(start..self.items.len());
+    }
+
+    /// 按**播放顺序**列出队列（UI 的"播放队列"页按这个显示）。
+    pub fn ordered(&self) -> Vec<TrackId> {
+        self.order
+            .iter()
+            .filter_map(|&i| self.items.get(i).copied())
+            .collect()
+    }
+
+    /// 当前曲目在播放顺序里的位置。
+    pub fn position(&self) -> Option<usize> {
+        self.cursor
+    }
+
+    /// 删除播放顺序里第 `pos` 首，返回被删的曲目。
+    ///
+    /// 删的是当前曲目时，游标落到原来的下一首（没有下一首就落到新的最后一首）。
+    pub fn remove_at(&mut self, pos: usize) -> Option<TrackId> {
+        if pos >= self.order.len() {
+            return None;
+        }
+        let idx = self.order.remove(pos);
+        let removed = self.items.remove(idx);
+        for o in &mut self.order {
+            if *o > idx {
+                *o -= 1;
+            }
+        }
+        if let Some(c) = self.cursor {
+            self.cursor = if self.order.is_empty() {
+                None
+            } else if pos < c {
+                Some(c - 1)
+            } else if pos == c {
+                Some(c.min(self.order.len() - 1))
+            } else {
+                Some(c)
+            };
+        }
+        Some(removed)
+    }
+
+    /// 把播放顺序里第 `from` 首挪到 `to`。当前曲目不变。越界时返回 `false`。
+    pub fn move_item(&mut self, from: usize, to: usize) -> bool {
+        let n = self.order.len();
+        if from >= n || to >= n {
+            return false;
+        }
+        if from == to {
+            return true;
+        }
+        if self.shuffle == ShuffleMode::Off {
+            // 顺序播放时 order 恒为 0..n：直接挪 items，关掉随机后也保持用户排好的顺序。
+            let t = self.items.remove(from);
+            self.items.insert(to, t);
+        } else {
+            let v = self.order.remove(from);
+            self.order.insert(to, v);
+        }
+        if let Some(c) = self.cursor {
+            self.cursor = Some(if c == from {
+                to
+            } else if from < c && c <= to {
+                c - 1
+            } else if to <= c && c < from {
+                c + 1
+            } else {
+                c
+            });
+        }
+        true
+    }
+
+    /// 循环模式。
+    pub fn repeat(&self) -> RepeatMode {
+        self.repeat
+    }
+
+    /// 随机模式。
+    pub fn shuffle(&self) -> ShuffleMode {
+        self.shuffle
     }
 
     /// 设置循环模式。
@@ -194,5 +290,65 @@ mod tests {
         q.set(ids(3), 0);
         q.play_next(TrackId(99));
         assert_eq!(q.peek_next(), Some(TrackId(99)));
+    }
+
+    #[test]
+    fn insert_after_current_keeps_shuffled_order() {
+        let mut q = Queue::default();
+        q.set(ids(10), 3);
+        q.set_shuffle(ShuffleMode::Random, 7);
+        let before = q.ordered();
+        q.insert_after_current(vec![TrackId(100), TrackId(101)]);
+        let after = q.ordered();
+        assert_eq!(q.current(), Some(TrackId(4)));
+        assert_eq!(after[0], TrackId(4));
+        assert_eq!(&after[1..3], &[TrackId(100), TrackId(101)]);
+        assert_eq!(&after[3..], &before[1..]);
+        q.append(vec![TrackId(200)]);
+        assert_eq!(q.ordered().last(), Some(&TrackId(200)));
+        assert_eq!(q.len(), 13);
+    }
+
+    #[test]
+    fn remove_and_move_track_the_cursor() {
+        let mut q = Queue::default();
+        q.set(ids(5), 2); // current = 3
+        assert_eq!(q.remove_at(0), Some(TrackId(1)));
+        assert_eq!(q.current(), Some(TrackId(3)));
+        assert_eq!(q.ordered(), vec![TrackId(2), TrackId(3), TrackId(4), TrackId(5)]);
+        // 删当前：落到下一首。
+        assert_eq!(q.remove_at(1), Some(TrackId(3)));
+        assert_eq!(q.current(), Some(TrackId(4)));
+        assert!(q.remove_at(9).is_none());
+
+        // [2, 4, 5]，当前 4：把 5 挪到最前。
+        assert!(q.move_item(2, 0));
+        assert_eq!(q.ordered(), vec![TrackId(5), TrackId(2), TrackId(4)]);
+        assert_eq!(q.current(), Some(TrackId(4)));
+        // 挪当前曲目本身。
+        assert!(q.move_item(2, 0));
+        assert_eq!(q.current(), Some(TrackId(4)));
+        assert_eq!(q.position(), Some(0));
+        assert!(!q.move_item(0, 3));
+
+        // 删到空。
+        q.remove_at(0);
+        q.remove_at(0);
+        q.remove_at(0);
+        assert!(q.is_empty());
+        assert_eq!(q.current(), None);
+    }
+
+    #[test]
+    fn move_in_shuffle_mode_only_changes_play_order() {
+        let mut q = Queue::default();
+        q.set(ids(6), 0);
+        q.set_shuffle(ShuffleMode::Random, 3);
+        let before = q.ordered();
+        assert!(q.move_item(5, 1));
+        let after = q.ordered();
+        assert_eq!(after[1], before[5]);
+        assert_eq!(q.current(), Some(before[0]));
+        assert_eq!(after.len(), 6);
     }
 }

@@ -359,6 +359,10 @@ pub struct Album {
     pub artwork_id: Option<ArtworkId>,
     /// MusicBrainz Release ID。
     pub mbid_release: Option<String>,
+    /// 生效封面的内容哈希（专辑自己没有封面时取它第一首有封面的曲目），
+    /// UI 直接拿它调 `artwork_path`，不用再逐张查。
+    #[serde(default)]
+    pub artwork_hash: Option<String>,
 }
 
 /// 艺人。
@@ -405,7 +409,10 @@ pub struct Lyrics {
     pub content: String,
     /// 来源（`embedded`、`sidecar`、`lrclib`、`plugin:<id>`……）。
     pub source: String,
-    /// 用户调整过的整体偏移（毫秒，正数表示歌词延后）。
+    /// 用户调整过的整体偏移（毫秒）。
+    ///
+    /// 约定与 LRC 的 `[offset:]` 标签一致：**正数表示歌词提前出现**（显示时间 = 时间戳 − offset），
+    /// 负数表示延后。核心只存储这个值，不改写时间戳；渲染时由 UI 套用。
     pub offset_ms: i32,
     /// 匹配置信度（0..=1）。
     pub confidence: f32,

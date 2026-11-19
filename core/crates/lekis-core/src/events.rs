@@ -53,7 +53,22 @@ pub(crate) async fn forward_playback(mut rx: watch::Receiver<PlaybackSnapshot>, 
                 buffered_ms: 0,
             });
         }
-        if snap.queue_len != last.queue_len || snap.queue_index != last.queue_index {
+        if snap.repeat != last.repeat
+            || snap.shuffle != last.shuffle
+            || snap.volume != last.volume
+            || snap.gapless != last.gapless
+        {
+            bus.emit(CoreEvent::PlaybackOptionsChanged {
+                repeat: snap.repeat,
+                shuffle: snap.shuffle,
+                volume: snap.volume,
+                gapless: snap.gapless,
+            });
+        }
+        if snap.queue_len != last.queue_len
+            || snap.queue_index != last.queue_index
+            || snap.queue_version != last.queue_version
+        {
             bus.emit(CoreEvent::QueueChanged {
                 length: snap.queue_len,
                 current_index: snap.queue_index,

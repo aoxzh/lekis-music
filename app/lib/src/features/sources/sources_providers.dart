@@ -1,0 +1,259 @@
+// 音源相关的状态：配置列表（来自核心）+ 运行时状态（扫描进度、可达性，来自事件流）。
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
+
+import '../../bridge/core_events.dart';
+import '../../rust/api/core.dart' as core;
+import '../../rust/api/dto.dart';
+import '../../rust/api/error.dart';
+import 'common.dart';
+import 'source_draft.dart';
+
+/// 已配置的全部音源。音源变化（`LibraryChanged(sources)`）时自动重新读取。
+final sourcesProvider =
+    AsyncNotifierProvider<SourcesNotifier, List<SourceConfigDto>>(
+      SourcesNotifier.new,
+    );
+
+class SourcesNotifier extends AsyncNotifier<List<SourceConfigDto>> {
+  @override
+  Future<List<SourceConfigDto>> build() {
+    ref.listen(coreEventsProvider, (_, next) {
+      final event = next.value;
+      if (event is CoreEventDto_LibraryChanged &&
+          event.scope == LibraryScopeDto.sources) {
+        ref.invalidateSelf();
+      }
+    });
+    return core.listSources();
+  }
+
+  Future<void> reload() async {
+    state = await AsyncValue.guard(core.listSources);
+  }
+}
+
+/// 最近一次扫描的结果（只记录本次启动期间看到的；核心暂时不提供持久化的扫描时间）。
+@immutable
+class ScanSummary {
+  const ScanSummary({
+    required this.finishedAt,
+    required this.added,
+    required this.updated,
+    required this.removed,
+  });
+
+  final DateTime finishedAt;
+  final int added;
+  final int updated;
+  final int removed;
+}
+
+/// 一个音源的运行时状态。
+@immutable
+class SourceRuntime {
+  const SourceRuntime({
+    this.scanning = false,
+    this.phase,
+    this.done = 0,
+    this.total,
+    this.lastScan,
+    this.reachable,
+    this.lastError,
+  });
+
+  /// 正在扫描（包括已经发起、还没收到第一条进度的阶段）。
+  final bool scanning;
+  final ScanPhaseDto? phase;
+  final int done;
+  final int? total;
+  final ScanSummary? lastScan;
+
+  /// `null` 表示还没有探测结果。
+  final bool? reachable;
+
+  /// 最近一次操作失败的原因（核心错误）。
+  final Object? lastError;
+
+  /// 0..1 的进度；总数未知时为 `null`（不确定进度条）。
+  double? get fraction {
+    final t = total;
+    if (t == null || t == 0) return null;
+    return (done / t).clamp(0.0, 1.0);
+  }
+
+  SourceRuntime copyWith({
+    bool? scanning,
+    ScanPhaseDto? phase,
+    int? done,
+    int? total,
+    ScanSummary? lastScan,
+    bool? reachable,
+    Object? lastError,
+    bool clearPhase = false,
+    bool clearError = false,
+  }) => SourceRuntime(
+    scanning: scanning ?? this.scanning,
+    phase: clearPhase ? null : (phase ?? this.phase),
+    done: done ?? this.done,
+    total: clearPhase ? null : (total ?? this.total),
+    lastScan: lastScan ?? this.lastScan,
+    reachable: reachable ?? this.reachable,
+    lastError: clearError ? null : (lastError ?? this.lastError),
+  );
+}
+
+/// 每个音源的运行时状态，按音源 ID 索引。
+final sourceRuntimeProvider =
+    NotifierProvider<SourceRuntimeNotifier, Map<int, SourceRuntime>>(
+      SourceRuntimeNotifier.new,
+    );
+
+class SourceRuntimeNotifier extends Notifier<Map<int, SourceRuntime>> {
+  @override
+  Map<int, SourceRuntime> build() {
+    ref.listen(coreEventsProvider, (_, next) {
+      final event = next.value;
+      if (event != null) _onEvent(event);
+    });
+    return const {};
+  }
+
+  SourceRuntime _get(int id) => state[id] ?? const SourceRuntime();
+
+  void _put(int id, SourceRuntime value) => state = {...state, id: value};
+
+  void _onEvent(CoreEventDto event) {
+    switch (event) {
+      case CoreEventDto_ScanProgress(
+        :final sourceId,
+        :final phase,
+        :final done,
+        :final total,
+      ):
+        final before = _get(sourceId);
+        if (before.reachable != true) {
+          // 能收到进度说明连上了，顺手告诉核心，让它调整选源顺序。
+          core.reportSourceReachability(sourceId: sourceId, reachable: true);
+        }
+        _put(
+          sourceId,
+          before.copyWith(
+            scanning: true,
+            phase: phase,
+            done: done.toInt(),
+            total: total?.toInt(),
+            reachable: true,
+            clearError: true,
+          ),
+        );
+      case CoreEventDto_ScanFinished(
+        :final sourceId,
+        :final added,
+        :final updated,
+        :final removed,
+      ):
+        _put(
+          sourceId,
+          SourceRuntime(
+            reachable: true,
+            lastScan: ScanSummary(
+              finishedAt: DateTime.now(),
+              added: added.toInt(),
+              updated: updated.toInt(),
+              removed: removed.toInt(),
+            ),
+          ),
+        );
+      case CoreEventDto_SourceReachability(:final sourceId, :final reachable):
+        final before = _get(sourceId);
+        _put(
+          sourceId,
+          // 服务器源同步失败时核心只发这条事件，所以不可达也意味着扫描结束了。
+          reachable
+              ? before.copyWith(reachable: true)
+              : before.copyWith(
+                  reachable: false,
+                  scanning: false,
+                  clearPhase: true,
+                ),
+        );
+      default:
+        break;
+    }
+  }
+
+  void markScanStarting(int id) => _put(
+    id,
+    _get(id)
+        .copyWith(scanning: true, done: 0, clearPhase: true, clearError: true),
+  );
+
+  void markFailed(int id, Object error) {
+    final unreachable = coreErrorKind(error) == ErrorKind.network;
+    _put(
+      id,
+      _get(id).copyWith(
+        scanning: false,
+        clearPhase: true,
+        lastError: error,
+        reachable: unreachable ? false : null,
+      ),
+    );
+  }
+}
+
+/// 添加音源的结果。`scanError` 非空表示音源已保存，但第一次扫描没能开始。
+@immutable
+class AddSourceResult {
+  const AddSourceResult(this.sourceId, {this.scanError});
+  final int sourceId;
+  final Object? scanError;
+}
+
+/// 音源相关的操作。界面只调用这里，不直接碰核心。
+final sourceActionsProvider = Provider<SourceActions>(SourceActions.new);
+
+class SourceActions {
+  SourceActions(this._ref);
+  final Ref _ref;
+
+  /// 保存音源并立即开始第一次扫描。保存失败时抛出核心错误。
+  ///
+  /// TODO(core-test-connection): 核心没有“只测试、不保存”的接口，也没有删除 / 修改
+  /// 音源的接口，所以这里只能“先保存再扫描”；扫描失败时音源仍会留在列表里。
+  Future<AddSourceResult> add(SourceDraft draft) async {
+    final int id;
+    try {
+      id = await core.addSource(source: draft.toConfig());
+    } finally {
+      draft.forgetSecret();
+    }
+    _ref.invalidate(sourcesProvider);
+    try {
+      await rescan(id);
+      return AddSourceResult(id);
+    } catch (e) {
+      return AddSourceResult(id, scanError: e);
+    }
+  }
+
+  /// 重新扫描一个音源。失败时抛出核心错误（同时记进运行时状态）。
+  Future<void> rescan(int id) async {
+    final runtime = _ref.read(sourceRuntimeProvider.notifier);
+    runtime.markScanStarting(id);
+    try {
+      await core.startScan(sourceId: id);
+    } catch (e) {
+      runtime.markFailed(id, e);
+      if (coreErrorKind(e) == ErrorKind.network) {
+        core.reportSourceReachability(sourceId: id, reachable: false);
+      }
+      rethrow;
+    }
+  }
+
+  /// 用这个文件系统音源跑一轮跨设备同步。
+  Future<SyncReportDto> syncNow(int id) => core.syncNow(sourceId: id);
+}

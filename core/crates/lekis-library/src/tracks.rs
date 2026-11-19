@@ -27,8 +27,26 @@ pub struct TrackFile {
     pub replaygain: ReplayGain,
 }
 
+/// 一个可以"整体播放"的浏览上下文（列表页的数据来源）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TrackContext {
+    /// 全部曲目，按某个维度排序（和 `list_track_rows` 一致）。
+    Library(TrackSort),
+    /// 一张专辑（碟号 + 曲号）。
+    Album(lekis_types::AlbumId),
+    /// 一位艺人参与的曲目。
+    Artist(lekis_types::ArtistId),
+    /// 一个流派。
+    Genre(String),
+    /// 一个歌单（含占位条目）。
+    Playlist(lekis_types::PlaylistId),
+    /// 收藏列表。
+    Loved,
+}
+
 pub(crate) const TRACK_ROW_COLUMNS: &str =
-    "t.id, t.title, t.artist_line, a.title, t.duration_ms, t.artwork_id,
+    "t.id, t.title, t.artist_line, a.title, t.duration_ms,
+     COALESCE(t.artwork_id, a.artwork_id),
      t.quality_badge, COALESCE(u.loved, 0)";
 
 pub(crate) fn map_track_row(r: &Row<'_>) -> rusqlite::Result<TrackRow> {
@@ -261,6 +279,155 @@ impl Library {
                 .map(|n| n as u64)
         })
         .await
+    }
+
+    /// 单首曲目的列表行（播放队列页用）。
+    pub async fn track_row(&self, id: TrackId) -> Result<TrackRow> {
+        let sql = format!(
+            "SELECT {TRACK_ROW_COLUMNS}
+             FROM track t
+             LEFT JOIN album a ON a.id = t.album_id
+             LEFT JOIN user_state u ON u.track_uid = t.uid
+             WHERE t.id = ?1"
+        );
+        self.read(move |c| {
+            c.query_row(&sql, params![id.0], map_track_row)
+                .optional()
+                .db()?
+                .ok_or_else(|| LekisError::not_found(format!("track {id}")))
+        })
+        .await
+    }
+
+    /// 专辑总数（滚动条用）。
+    pub async fn album_count(&self) -> Result<u64> {
+        self.count("SELECT COUNT(*) FROM album", None).await
+    }
+
+    /// 艺人总数（滚动条用）。
+    pub async fn artist_count(&self) -> Result<u64> {
+        self.count("SELECT COUNT(*) FROM artist", None).await
+    }
+
+    /// 某个流派的曲目数。
+    pub async fn genre_track_count(&self, name: &str) -> Result<u64> {
+        self.count(
+            "SELECT COUNT(*) FROM track_genre tg JOIN genre g ON g.id = tg.genre_id
+              WHERE g.name = ?1",
+            Some(name.to_string()),
+        )
+        .await
+    }
+
+    /// 收藏的曲目数。
+    pub async fn loved_count(&self) -> Result<u64> {
+        self.count(
+            "SELECT COUNT(*) FROM user_state u JOIN track t ON t.uid = u.track_uid
+              WHERE u.loved = 1",
+            None,
+        )
+        .await
+    }
+
+    async fn count(&self, sql: &'static str, arg: Option<String>) -> Result<u64> {
+        self.read(move |c| {
+            let n: i64 = match arg {
+                Some(a) => c.query_row(sql, params![a], |r| r.get(0)),
+                None => c.query_row(sql, [], |r| r.get(0)),
+            }
+            .db()?;
+            Ok(n.max(0) as u64)
+        })
+        .await
+    }
+
+    /// 最近播放过的曲目（首页"继续收听"），按最后播放时间倒序。
+    pub async fn recently_played(&self, limit: u32) -> Result<Vec<TrackRow>> {
+        if limit == 0 || limit > TrackQuery::MAX_LIMIT {
+            return Err(LekisError::invalid(format!(
+                "limit must be 1..={}",
+                TrackQuery::MAX_LIMIT
+            )));
+        }
+        let sql = format!(
+            "SELECT {TRACK_ROW_COLUMNS}
+             FROM track t
+             JOIN user_state u ON u.track_uid = t.uid
+             LEFT JOIN album a ON a.id = t.album_id
+             WHERE u.last_played IS NOT NULL
+             ORDER BY u.last_played DESC, t.id
+             LIMIT ?1"
+        );
+        self.read(move |c| {
+            let mut stmt = c.prepare_cached(&sql).db()?;
+            let rows = stmt.query_map(params![limit], map_track_row).db()?;
+            rows.collect::<rusqlite::Result<Vec<_>>>().db()
+        })
+        .await
+    }
+
+    /// 一个浏览上下文里的全部曲目 ID，顺序和对应列表页一致（"从这里开始播放整个列表"用）。
+    ///
+    /// 歌单里的占位条目（曲目暂时不可用，PL-05）用 `None` 表示，这样调用方能把 UI 的行号
+    /// 换算成真正的队列下标。
+    pub async fn context_track_ids(&self, context: TrackContext) -> Result<Vec<Option<TrackId>>> {
+        const PAGE: u32 = TrackQuery::MAX_LIMIT;
+        /// 防御：一个队列最多这么多首（超大资料库也不会把内存吃光）。
+        const CAP: usize = 100_000;
+        let mut out: Vec<Option<TrackId>> = Vec::new();
+        let mut offset = 0u32;
+        loop {
+            let page: Vec<Option<TrackId>> = match &context {
+                TrackContext::Library(sort) => self
+                    .list_track_rows(TrackQuery {
+                        sort: *sort,
+                        offset,
+                        limit: PAGE,
+                    })
+                    .await?
+                    .into_iter()
+                    .map(|r| Some(r.id))
+                    .collect(),
+                TrackContext::Album(id) => self
+                    .album_tracks(*id, offset, PAGE)
+                    .await?
+                    .into_iter()
+                    .map(|r| Some(r.id))
+                    .collect(),
+                TrackContext::Artist(id) => self
+                    .artist_tracks(*id, offset, PAGE)
+                    .await?
+                    .into_iter()
+                    .map(|r| Some(r.id))
+                    .collect(),
+                TrackContext::Genre(name) => self
+                    .genre_tracks(name, offset, PAGE)
+                    .await?
+                    .into_iter()
+                    .map(|r| Some(r.id))
+                    .collect(),
+                TrackContext::Loved => self
+                    .list_loved(offset, PAGE)
+                    .await?
+                    .into_iter()
+                    .map(|r| Some(r.id))
+                    .collect(),
+                TrackContext::Playlist(id) => self
+                    .playlist_items(*id, offset, PAGE)
+                    .await?
+                    .into_iter()
+                    .map(|e| e.track.map(|t| t.id))
+                    .collect(),
+            };
+            let got = page.len() as u32;
+            out.extend(page);
+            if got < PAGE || out.len() >= CAP {
+                break;
+            }
+            offset += got;
+        }
+        out.truncate(CAP);
+        Ok(out)
     }
 
     /// 设置收藏状态。

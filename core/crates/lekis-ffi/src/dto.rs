@@ -793,6 +793,19 @@ pub enum CoreEventDto {
         source_id: i64,
         reachable: bool,
     },
+    /// 后台扫描失败。
+    ScanFailed {
+        source_id: i64,
+        kind: crate::error::ErrorKind,
+        detail: String,
+    },
+    /// 播放选项变了。
+    PlaybackOptionsChanged {
+        repeat: RepeatModeDto,
+        shuffle: ShuffleModeDto,
+        volume: f32,
+        gapless: bool,
+    },
 }
 
 impl From<t::CoreEvent> for CoreEventDto {
@@ -859,6 +872,26 @@ impl From<t::CoreEvent> for CoreEventDto {
             } => Self::SourceReachability {
                 source_id: source_id.0,
                 reachable,
+            },
+            E::ScanFailed {
+                source_id,
+                code,
+                detail,
+            } => Self::ScanFailed {
+                source_id: source_id.0,
+                kind: code.into(),
+                detail,
+            },
+            E::PlaybackOptionsChanged {
+                repeat,
+                shuffle,
+                volume,
+                gapless,
+            } => Self::PlaybackOptionsChanged {
+                repeat: repeat.into(),
+                shuffle: shuffle.into(),
+                volume,
+                gapless,
             },
         }
     }

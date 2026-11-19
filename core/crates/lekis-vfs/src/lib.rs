@@ -97,11 +97,17 @@ pub trait Vfs: Send + Sync {
 /// 根据音源配置创建对应的文件系统实现。
 ///
 /// `password` 由调用方（lekis-core）从系统钥匙串里取出后传进来，VFS 不负责凭据存储。
+///
+/// 用户名可以写在地址里（`smb://ao@nas/music`），也可以放在 `options["username"]`
+/// （UI 推荐这样做：地址里不放任何凭据，密码按 `credential_ref` 存进钥匙串）。
+/// 地址里已经带用户名时以地址为准。
 pub fn open(config: &SourceConfig, password: Option<String>) -> Result<Arc<dyn Vfs>> {
-    let address = config
+    let raw = config
         .addresses
         .first()
         .ok_or_else(|| LekisError::invalid("source has no address"))?;
+    let address = with_username(raw, config.options.get("username").map(String::as_str));
+    let address = address.as_str();
     let vfs: Arc<dyn Vfs> = match config.kind {
         SourceKind::Local => Arc::new(local::LocalVfs::new(address)?),
         SourceKind::Smb => Arc::new(smb::SmbVfs::connect(address, password)?),
@@ -115,6 +121,53 @@ pub fn open(config: &SourceConfig, password: Option<String>) -> Result<Arc<dyn V
         }
     };
     Ok(vfs)
+}
+
+/// 地址里没有用户名、而选项里给了用户名时，把用户名补进 URL 的 userinfo。
+///
+/// 只处理带 `scheme://` 的 URL（本地路径原样返回），用户名按 URL 规则百分号编码。
+fn with_username(address: &str, username: Option<&str>) -> String {
+    let Some(user) = username.map(str::trim).filter(|u| !u.is_empty()) else {
+        return address.to_string();
+    };
+    if !address.contains("://") {
+        return address.to_string();
+    }
+    match url::Url::parse(address) {
+        Ok(mut parsed) if parsed.username().is_empty() => {
+            if parsed.set_username(user).is_ok() {
+                parsed.to_string()
+            } else {
+                address.to_string()
+            }
+        }
+        _ => address.to_string(),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod open_tests {
+    use super::with_username;
+
+    #[test]
+    fn username_option_fills_missing_userinfo_only() {
+        assert_eq!(
+            with_username("smb://nas/music", Some("ao")),
+            "smb://ao@nas/music"
+        );
+        assert_eq!(
+            with_username("smb://me@nas/music", Some("ao")),
+            "smb://me@nas/music"
+        );
+        assert_eq!(
+            with_username("https://nas:5006/dav", Some("a b")),
+            "https://a%20b@nas:5006/dav"
+        );
+        assert_eq!(with_username("smb://nas/music", None), "smb://nas/music");
+        assert_eq!(with_username("smb://nas/music", Some("  ")), "smb://nas/music");
+        assert_eq!(with_username("C:\\Music", Some("ao")), "C:\\Music");
+    }
 }
 
 /// 支持的音频文件扩展名（小写）。扫描器只处理这些文件。

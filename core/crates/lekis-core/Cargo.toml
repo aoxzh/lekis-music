@@ -21,6 +21,8 @@ tracing.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
+# 测试里造 PNG 封面（缩略图按需生成、接受封面候选）。
+image.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 async-trait.workspace = true
 bytes.workspace = true

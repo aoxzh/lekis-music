@@ -269,10 +269,138 @@ fn split(color: u32) -> (u32, u32, u32) {
     ((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF)
 }
 
+// ---------------------------------------------------------------------------
+// 多档缩略图（ENR-12）与带节流 / 缓存的下载
+// ---------------------------------------------------------------------------
+
+/// 缓存里为每张封面生成的边长档位。UI 按显示尺寸取"不小于需要的最近一档"。
+pub const THUMBNAIL_WIDTHS: [u32; 4] = [128, 256, 512, 1024];
+
+/// 一张封面的全部档位。
+#[derive(Debug, Clone, PartialEq)]
+pub struct ArtworkTiers {
+    /// 原始字节的 SHA-256。
+    pub hash: String,
+    /// 最大一档的实际宽度（入库用）。
+    pub width: u32,
+    /// 最大一档的实际高度（入库用）。
+    pub height: u32,
+    /// 主色（按最大一档计算）。
+    pub palette: Palette,
+    /// `(档位, WebP 字节)`。档位是**名义**边长（文件名用它），原图比档位小时内容不放大。
+    pub files: Vec<(u32, Vec<u8>)>,
+}
+
+/// 把一张图缩放到长边不超过 `target`（不放大），编码成无损 WebP。
+fn encode_scaled(image: &image::DynamicImage, target: u32) -> Result<(u32, u32, Vec<u8>, Vec<u8>)> {
+    let (src_w, src_h) = (image.width(), image.height());
+    let longest = src_w.max(src_h);
+    let scaled = if longest > target {
+        let ratio = target as f64 / longest as f64;
+        let w = ((src_w as f64 * ratio).round() as u32).max(1);
+        let h = ((src_h as f64 * ratio).round() as u32).max(1);
+        image.resize_exact(w, h, FILTER)
+    } else {
+        image.clone()
+    };
+    let (width, height) = (scaled.width(), scaled.height());
+    let rgb = scaled.to_rgb8();
+    let mut out = Vec::with_capacity(32 * 1024);
+    image::codecs::webp::WebPEncoder::new_lossless(&mut out)
+        .encode(rgb.as_raw(), width, height, image::ExtendedColorType::Rgb8)
+        .map_err(|e| LekisError::new(ErrorCode::Internal, format!("编码 WebP 失败：{e}")))?;
+    Ok((width, height, rgb.into_raw(), out))
+}
+
+/// 解码一次，按 `tiers` 里的每个档位各出一份 WebP（ENR-12）。`tiers` 为空时用 [`THUMBNAIL_WIDTHS`]。
+pub fn process_tiers(bytes: &[u8], tiers: &[u32]) -> Result<ArtworkTiers> {
+    if bytes.is_empty() {
+        return Err(LekisError::invalid("封面字节为空"));
+    }
+    let tiers: Vec<u32> = if tiers.is_empty() {
+        THUMBNAIL_WIDTHS.to_vec()
+    } else {
+        let mut t: Vec<u32> = tiers.iter().map(|w| (*w).clamp(96, 4096)).collect();
+        t.sort_unstable();
+        t.dedup();
+        t
+    };
+    let hash = hash_bytes(bytes);
+    let image = image::load_from_memory(bytes)
+        .map_err(|e| LekisError::new(ErrorCode::Decode, format!("解码封面失败：{e}")))?;
+    if image.width() == 0 || image.height() == 0 {
+        return Err(LekisError::new(ErrorCode::Decode, "封面尺寸为 0"));
+    }
+
+    let mut files = Vec::with_capacity(tiers.len());
+    let mut largest = (0, 0, fallback_palette());
+    for (i, tier) in tiers.iter().enumerate() {
+        let (w, h, rgb, webp) = encode_scaled(&image, *tier)?;
+        if i + 1 == tiers.len() {
+            largest = (w, h, palette_from_rgb(&rgb, w, h));
+        }
+        files.push((*tier, webp));
+    }
+    Ok(ArtworkTiers {
+        hash,
+        width: largest.0,
+        height: largest.1,
+        palette: largest.2,
+        files,
+    })
+}
+
+/// 所有封面图片下载共用的最小间隔（ENR-09）。图片来自各提供方的 CDN，限额比 API 宽，
+/// 但"全部接受"一次可能连下几十张，仍然要排队，不能并发打爆对方。
+static IMAGE_LIMITER: crate::throttle::RateLimiter =
+    crate::throttle::RateLimiter::new(std::time::Duration::from_millis(250));
+
+/// 按 URL 缓存最近下载的原图字节（同一张专辑封面被多首歌的候选同时引用时只下载一次）。
+fn image_cache() -> &'static crate::cache::TtlCache<std::sync::Arc<[u8]>> {
+    static CACHE: std::sync::OnceLock<crate::cache::TtlCache<std::sync::Arc<[u8]>>> =
+        std::sync::OnceLock::new();
+    CACHE.get_or_init(|| crate::cache::TtlCache::with_policy(crate::cache::DEFAULT_TTL, 16))
+}
+
+/// [`fetch_image`] 加上进程内节流（[`crate::throttle::RateLimiter`]）和结果缓存
+/// （[`crate::cache::TtlCache`]）。补全流水线和"接受候选"都应该走这个入口。
+pub async fn fetch_image_cached(url: &str) -> Result<std::sync::Arc<[u8]>> {
+    if let Some(hit) = image_cache().get(url) {
+        return Ok(hit);
+    }
+    IMAGE_LIMITER.acquire().await;
+    let bytes: std::sync::Arc<[u8]> = fetch_image(url).await?.into();
+    image_cache().insert(url.to_string(), bytes.clone());
+    Ok(bytes)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tiers_are_generated_for_every_width_without_upscaling() {
+        let png = solid_png(600, 300, [12, 200, 90]);
+        let out = process_tiers(&png, &[]).unwrap();
+        let widths: Vec<u32> = out.files.iter().map(|(w, _)| *w).collect();
+        assert_eq!(widths, THUMBNAIL_WIDTHS.to_vec());
+        // 最大一档按原图尺寸（不放大），主色正确。
+        assert_eq!((out.width, out.height), (600, 300));
+        let (_, g, _) = split(out.palette.primary);
+        assert!((g as i32 - 200).abs() <= 6);
+        for (_, bytes) in &out.files {
+            assert_eq!(&bytes[8..12], b"WEBP");
+        }
+        // 128 档真的缩小了。
+        let small = image::load_from_memory(&out.files[0].1).unwrap();
+        assert_eq!((small.width(), small.height()), (128, 64));
+        assert_eq!(out.hash, hash_bytes(&png));
+        assert_eq!(
+            process_tiers(b"", &[]).unwrap_err().code,
+            ErrorCode::InvalidArgument
+        );
+    }
 
     /// 造一张纯色 PNG，测解码 + 缩放 + 编码 + 主色。
     fn solid_png(width: u32, height: u32, rgb: [u8; 3]) -> Vec<u8> {

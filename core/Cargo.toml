@@ -12,6 +12,7 @@ members = [
   "crates/lekis-plugin-host",
   "crates/lekis-core",
   "crates/lekis-ffi",
+  "crates/lekis-bridge",
   "bins/lekis-node",
   "bins/uniffi-bindgen",
 ]
@@ -101,10 +102,16 @@ panic = "warn"
 dbg_macro = "warn"
 todo = "warn"
 
+# 日常真机测试用 release：并行编译、不做 LTO，改一行核心代码几十秒就能出包。
 [profile.release]
+codegen-units = 16
+strip = "debuginfo"
+
+# 上架 / 发布用：cargo build --profile dist（体积更小、更快，但编译慢很多）。
+[profile.dist]
+inherits = "release"
 lto = "thin"
 codegen-units = 1
-strip = "debuginfo"
 
 [profile.release-android]
 inherits = "release"

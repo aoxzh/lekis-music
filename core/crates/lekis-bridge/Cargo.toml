@@ -1,0 +1,50 @@
+[package]
+name = "lekis-bridge"
+description = "Lekis 的 Flutter 桥接层（flutter_rust_bridge）。"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "lekis_bridge"
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+lekis-core.workspace = true
+lekis-library.workspace = true
+lekis-playback.workspace = true
+lekis-types.workspace = true
+thiserror.workspace = true
+tracing = { workspace = true, features = ["log"] }
+flutter_rust_bridge = "=2.13.0"
+# 凭据文件（credentials.rs）：JSON + base64 密文。
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+
+# 系统媒体控件（Windows SMTC / macOS Now Playing / Linux MPRIS）。Linux 用纯 Rust 的 zbus，不依赖 libdbus。
+[target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
+souvlaki = { version = "0.9.3", default-features = false, features = ["use_zbus"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+android_logger = "0.14"
+log = "0.4"
+# 音频输出（cpal → AAudio/Oboe）需要先登记 JavaVM 和 Context（android_context.rs）。
+jni-sys = "0.3"
+ndk-context = "0.1"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_System_WinRT", "Win32_UI_WindowsAndMessaging"] }
+# 凭据加密（credentials.rs，DPAPI CryptProtectData）。
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
+
+# 生成的代码里有 unsafe 和没有文档的项。
+[lints.rust]
+unsafe_code = "allow"
+missing_docs = "allow"
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
+
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"

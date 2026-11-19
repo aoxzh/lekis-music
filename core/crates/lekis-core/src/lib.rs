@@ -10,8 +10,10 @@
 //! 所有耗时的公开方法都是 `async`，并且内部总是在核心自己的运行时上执行，
 //! 所以调用方用什么执行器（UniFFI 的 Kotlin 协程、C# Task）都可以。
 
+mod artwork_local;
 pub mod config;
 mod enrich;
+mod lyrics_local;
 pub mod events;
 pub mod platform;
 mod remote_scan;
@@ -29,12 +31,17 @@ pub use sync_engine::SyncReport;
 
 use events::EventBus;
 use lekis_library::{EnrichCandidateRow, Library, LyricsRow, PlaylistEntry};
+pub use lekis_library::{SourceInfo, TrackContext, TrackUserState};
 use lekis_playback::{EngineCommand, OutputDevice, OutputMode, PlaybackEngine};
 use lekis_scanner::{tags::LoftyTagReader, Scanner};
 use lekis_types::*;
 use std::future::Future;
 use std::sync::Arc;
 use tokio::runtime::{Handle, Runtime};
+
+/// 本次运行里已经在线查过歌词的曲目（查不到也不再重复请求）。
+static LYRICS_TRIED: std::sync::LazyLock<std::sync::Mutex<std::collections::HashSet<TrackId>>> =
+    std::sync::LazyLock::new(Default::default);
 
 /// 核心实例。一个进程里只应该有一个。
 pub struct LekisCore {
@@ -64,6 +71,8 @@ struct Services {
     enrich: Arc<enrich::EnrichPipeline>,
     /// 已经打开的 VFS（播放引擎按 `source_id` 取回来分块读音频）。
     vfs: std::sync::Mutex<std::collections::HashMap<SourceId, Arc<dyn lekis_vfs::Vfs>>>,
+    /// 选源器（持有服务器客户端缓存和 ReplayGain 模式）。
+    resolver: Arc<resolver::Resolver>,
 }
 
 impl Services {
@@ -76,7 +85,83 @@ impl Services {
             map.insert(source_id, vfs);
         }
     }
+
+    /// 按源配置打开 VFS；密码按 `credential_ref` 从平台钥匙串读（没有引用时退回地址里的密码）。
+    fn open_vfs(&self, source: &SourceConfig) -> Result<Arc<dyn lekis_vfs::Vfs>> {
+        let password = source
+            .credential_ref
+            .as_deref()
+            .filter(|r| !r.is_empty())
+            .and_then(|r| self.platform.credentials.get(r));
+        lekis_vfs::open(source, password)
+    }
+
+    /// 源配置或凭据变了：丢掉所有按旧配置构造的客户端，下次用到时重建。
+    fn forget_source(&self, source_id: SourceId) {
+        if let Ok(mut map) = self.vfs.lock() {
+            map.remove(&source_id);
+        }
+        if let Ok(mut map) = self.servers.lock() {
+            map.remove(&source_id);
+        }
+        self.resolver.forget(source_id);
+    }
+
+    /// 文件系统源：预先登记 VFS（不发网络请求），这样重启后不扫描也能直接播放。
+    fn register_vfs(&self, source: &SourceConfig) {
+        let Some(id) = source.id else { return };
+        if !source.kind.is_filesystem() || !source.enabled {
+            return;
+        }
+        match self.open_vfs(source) {
+            Ok(vfs) => self.vfs_put(id, vfs),
+            Err(e) => {
+                tracing::debug!(target: "core", %id, code = %e.code.as_str(), "cannot pre-open source")
+            }
+        }
+    }
+
+    /// 让一个设置项立即生效（启动时和每次 `set_setting` 后调用）。
+    fn apply_setting(&self, key: &str, value: Option<&str>) {
+        match key {
+            settings::GAPLESS => {
+                let enabled = value.map(|v| v.trim() != "false").unwrap_or(true);
+                let _ = self.engine.send(EngineCommand::SetGapless(enabled));
+            }
+            settings::REPLAYGAIN => self
+                .resolver
+                .set_replaygain_mode(resolver::ReplayGainMode::from_setting(value)),
+            _ => {}
+        }
+    }
+
+    /// 记录一次后台扫描失败：持久化到音源上，并推 `ScanFailed` 事件。
+    async fn scan_failed(&self, source_id: SourceId, error: &LekisError) {
+        tracing::warn!(target: "core", %source_id, error = %error, "scan failed");
+        if let Err(e) = self.library.mark_scan_failed(source_id, error).await {
+            tracing::warn!(target: "core", %source_id, error = %e, "cannot persist scan failure");
+        }
+        self.events.emit(CoreEvent::ScanFailed {
+            source_id,
+            code: error.code,
+            detail: error.message.clone(),
+        });
+        self.events.emit(CoreEvent::LibraryChanged {
+            scope: LibraryScope::Sources,
+        });
+    }
 }
+
+/// 核心自己会读的设置项。
+pub mod settings {
+    /// 是否提前解析下一首（`"true"` / `"false"`，默认开）。
+    pub const GAPLESS: &str = "playback.gapless";
+    /// ReplayGain：`track`（默认）/ `album` / `off`。
+    pub const REPLAYGAIN: &str = "playback.replaygain";
+}
+
+/// `test_source` 的整体超时。
+const TEST_SOURCE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
 
 impl LekisCore {
     /// 创建核心，并创建它自己的 tokio 运行时（客户端 App 用这个）。
@@ -135,7 +220,7 @@ impl LekisCore {
             health.clone(),
             platform.credentials.clone(),
         ));
-        handle.spawn(resolver.run(resolve_rx));
+        handle.spawn(resolver.clone().run(resolve_rx));
         handle.spawn(events::forward_playback(engine.subscribe(), events.clone()));
 
         let services = Arc::new(Services {
@@ -151,7 +236,23 @@ impl LekisCore {
             clock,
             enrich,
             vfs: std::sync::Mutex::new(std::collections::HashMap::new()),
+            resolver,
         });
+
+        // 启动时：让播放相关设置生效，并给文件系统源预先登记 VFS（不发网络请求）。
+        {
+            let s = services.clone();
+            handle.spawn(async move {
+                for key in [settings::GAPLESS, settings::REPLAYGAIN] {
+                    let value = s.library.get_setting(key).await.ok().flatten();
+                    s.apply_setting(key, value.as_deref());
+                }
+                match s.library.list_sources().await {
+                    Ok(sources) => sources.iter().for_each(|src| s.register_vfs(src)),
+                    Err(e) => tracing::warn!(target: "core", error = %e, "cannot list sources at startup"),
+                }
+            });
+        }
 
         // 播放引擎要按 Range 读音频文件，但「哪个 source_id 对应哪个 Vfs」只有 core 知道。
         // 用弱引用注册一个回调，避免 Services ↔ 注册表之间形成引用环（drop 时不泄漏）。
@@ -205,13 +306,125 @@ impl LekisCore {
             if config.addresses.is_empty() {
                 return Err(LekisError::invalid("source must have at least one address"));
             }
+            let mut stored = config.clone();
             let id = s.library.add_source(config).await?;
+            stored.id = Some(id);
+            s.register_vfs(&stored);
             s.events.emit(CoreEvent::LibraryChanged {
                 scope: LibraryScope::Sources,
             });
             Ok(id)
         })
         .await
+    }
+
+    /// 修改音源（`config.id` 必须有值）。旧的连接 / 客户端会被丢掉，下次按新配置重建。
+    pub async fn update_source(&self, config: SourceConfig) -> Result<()> {
+        let s = self.services.clone();
+        self.run(async move {
+            let id = config
+                .id
+                .ok_or_else(|| LekisError::invalid("update_source needs a source id"))?;
+            if config.addresses.is_empty() {
+                return Err(LekisError::invalid("source must have at least one address"));
+            }
+            s.library.update_source(config.clone()).await?;
+            s.forget_source(id);
+            s.register_vfs(&config);
+            s.events.emit(CoreEvent::LibraryChanged {
+                scope: LibraryScope::Sources,
+            });
+            Ok(())
+        })
+        .await
+    }
+
+    /// 删除音源以及它的曲目、索引行。不会删除钥匙串里的凭据（多个源可能共用一个引用），
+    /// 需要时 UI 再调 [`Self::delete_credential`]。
+    pub async fn remove_source(&self, source_id: SourceId) -> Result<()> {
+        let s = self.services.clone();
+        self.run(async move {
+            s.library.remove_source(source_id).await?;
+            s.forget_source(source_id);
+            s.health.record(source_id, Reachability::Unknown);
+            s.events.emit(CoreEvent::LibraryChanged {
+                scope: LibraryScope::Sources,
+            });
+            s.events.emit(CoreEvent::LibraryChanged {
+                scope: LibraryScope::Catalog,
+            });
+            Ok(())
+        })
+        .await
+    }
+
+    /// 试连一个音源（不保存）：文件系统源列根目录，服务器源 ping 并取一首曲目。
+    ///
+    /// 密码 / token 走 `credential_ref`：还没保存的源也可以先 [`Self::set_credential`] 再测试。
+    pub async fn test_source(&self, config: SourceConfig) -> Result<()> {
+        let s = self.services.clone();
+        self.run(async move {
+            if config.addresses.is_empty() {
+                return Err(LekisError::invalid("source must have at least one address"));
+            }
+            let probe = async {
+                if config.kind.is_filesystem() {
+                    let vfs = s.open_vfs(&config)?;
+                    vfs.list_dir(&lekis_vfs::VfsPath::root()).await.map(|_| ())
+                } else {
+                    let server = resolver::build_server(&config, s.platform.credentials.as_ref())?;
+                    server.ping().await?;
+                    server.list_tracks(0, 1, None).await.map(|_| ())
+                }
+            };
+            tokio::time::timeout(TEST_SOURCE_TIMEOUT, probe)
+                .await
+                .map_err(|_| LekisError::new(ErrorCode::Network, "source test timed out"))?
+        })
+        .await
+    }
+
+    /// 音源列表，带每个源最近一次扫描的时间和失败信息。
+    pub async fn list_source_infos(&self) -> Result<Vec<SourceInfo>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.list_source_infos().await })
+            .await
+    }
+
+    // -----------------------------------------------------------------------
+    // 凭据（SRC-15）
+    // -----------------------------------------------------------------------
+
+    /// 按引用保存一个密码 / token（`SourceConfig.credential_ref` 指向它）。
+    ///
+    /// 用到这个引用的源会丢掉旧连接，下次访问时用新密码重连。
+    pub async fn set_credential(&self, credential_ref: String, secret: String) -> Result<()> {
+        if credential_ref.trim().is_empty() {
+            return Err(LekisError::invalid("credential_ref must not be empty"));
+        }
+        let s = self.services.clone();
+        self.run(async move {
+            s.platform.credentials.set(&credential_ref, &secret)?;
+            forget_sources_using(&s, &credential_ref).await;
+            Ok(())
+        })
+        .await
+    }
+
+    /// 删除一个凭据。
+    pub async fn delete_credential(&self, credential_ref: String) -> Result<()> {
+        let s = self.services.clone();
+        self.run(async move {
+            s.platform.credentials.delete(&credential_ref)?;
+            forget_sources_using(&s, &credential_ref).await;
+            Ok(())
+        })
+        .await
+    }
+
+    /// 某个引用当前有没有保存密码（UI 显示"已保存"用；不返回密码本身）。
+    pub fn has_credential(&self, credential_ref: &str) -> bool {
+        self.services.platform.credentials.get(credential_ref).is_some()
     }
 
     /// 列出音源。
@@ -233,7 +446,13 @@ impl LekisCore {
 
         if !source.kind.is_filesystem() {
             // 服务器源（SRC-04~06）：没有文件和目录可遍历，直接拉曲目列表入库。
-            let server = self.server_for(&source)?;
+            let server = match self.server_for(&source) {
+                Ok(server) => server,
+                Err(e) => {
+                    s.scan_failed(source_id, &e).await;
+                    return Err(e);
+                }
+            };
             self.handle.spawn(async move {
                 match remote_scan::sync_source(server, s.library.clone(), source_id, s.events.clone())
                     .await
@@ -245,23 +464,27 @@ impl LekisCore {
                         });
                     }
                     Err(e) => {
-                        s.health.record(source_id, Reachability::Unreachable);
-                        s.events.emit(CoreEvent::SourceReachability {
-                            source_id,
-                            reachable: false,
-                        });
-                        tracing::warn!(target: "core", %source_id, error = %e, "media server sync failed");
+                        if matches!(e.code, ErrorCode::Network) {
+                            s.health.record(source_id, Reachability::Unreachable);
+                            s.events.emit(CoreEvent::SourceReachability {
+                                source_id,
+                                reachable: false,
+                            });
+                        }
+                        s.scan_failed(source_id, &e).await;
                     }
                 }
             });
             return Ok(());
         }
 
-        let password = source
-            .credential_ref
-            .as_deref()
-            .and_then(|r| s.platform.credentials.get(r));
-        let vfs = lekis_vfs::open(&source, password)?;
+        let vfs = match s.open_vfs(&source) {
+            Ok(vfs) => vfs,
+            Err(e) => {
+                s.scan_failed(source_id, &e).await;
+                return Err(e);
+            }
+        };
         // 播放引擎要按 Range 读这个音源里的音频文件，先登记进去。
         s.vfs_put(source_id, vfs.clone());
         self.handle.spawn(async move {
@@ -298,7 +521,7 @@ impl LekisCore {
                         .map(|v| v != "false")
                         .unwrap_or(true);
                     if write_index {
-                        match s.scanner.write_shared_index(source_id, vfs).await {
+                        match s.scanner.write_shared_index(source_id, vfs.clone()).await {
                             Ok(n) if n > 0 => {
                                 tracing::debug!(target: "core", %source_id, shards = n, "shared index written");
                             }
@@ -311,8 +534,27 @@ impl LekisCore {
                     s.events.emit(CoreEvent::LibraryChanged {
                         scope: LibraryScope::Catalog,
                     });
+
+                    // ENR-01 本地部分：扫描先把曲目显示出来，再在后台补封面。
+                    // 只在本地磁盘上跑；网络共享的大块读取留给补全管线。
+                    if source.kind == SourceKind::Local {
+                        if let Err(e) = artwork_local::ingest_missing(
+                            s.clone(),
+                            source_id,
+                            vfs.clone(),
+                        )
+                        .await
+                        {
+                            tracing::warn!(
+                                target: "core",
+                                %source_id,
+                                error = %e,
+                                "local artwork ingest failed"
+                            );
+                        }
+                    }
                 }
-                Err(e) => tracing::warn!(target: "core", %source_id, error = %e, "scan failed"),
+                Err(e) => s.scan_failed(source_id, &e).await,
             }
         });
         Ok(())
@@ -355,6 +597,55 @@ impl LekisCore {
         self.run(async move { s.library.get_track(id).await }).await
     }
 
+    /// 曲目详情 + 用户状态（收藏、评分、播放次数）。
+    pub async fn get_track_with_state(&self, id: TrackId) -> Result<(Track, TrackUserState)> {
+        let s = self.services.clone();
+        self.run(async move {
+            let track = s.library.get_track(id).await?;
+            let state = s.library.user_state(track.uid.clone()).await?;
+            Ok((track, state))
+        })
+        .await
+    }
+
+    /// 曲目总数。
+    pub async fn count_tracks(&self) -> Result<u64> {
+        let s = self.services.clone();
+        self.run(async move { s.library.track_count().await }).await
+    }
+
+    /// 专辑总数。
+    pub async fn count_albums(&self) -> Result<u64> {
+        let s = self.services.clone();
+        self.run(async move { s.library.album_count().await }).await
+    }
+
+    /// 艺人总数。
+    pub async fn count_artists(&self) -> Result<u64> {
+        let s = self.services.clone();
+        self.run(async move { s.library.artist_count().await }).await
+    }
+
+    /// 某个流派的曲目数。
+    pub async fn count_genre_tracks(&self, name: String) -> Result<u64> {
+        let s = self.services.clone();
+        self.run(async move { s.library.genre_track_count(&name).await })
+            .await
+    }
+
+    /// 收藏的曲目数。
+    pub async fn count_loved(&self) -> Result<u64> {
+        let s = self.services.clone();
+        self.run(async move { s.library.loved_count().await }).await
+    }
+
+    /// 最近播放过的曲目（首页"继续收听"）。
+    pub async fn recently_played(&self, limit: u32) -> Result<Vec<TrackRow>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.recently_played(limit).await })
+            .await
+    }
+
     /// 搜索。
     pub async fn search(&self, text: String, limit: u32) -> Result<SearchResults> {
         let s = self.services.clone();
@@ -380,6 +671,26 @@ impl LekisCore {
     pub async fn get_album(&self, id: AlbumId) -> Result<Album> {
         let s = self.services.clone();
         self.run(async move { s.library.get_album(id).await }).await
+    }
+
+    /// 专辑的生效封面（专辑自己没有时取它第一首有封面的曲目）。
+    pub async fn album_artwork(&self, id: AlbumId) -> Result<Option<lekis_library::ArtworkRow>> {
+        let s = self.services.clone();
+        self.run(async move {
+            let album = s.library.get_album(id).await?;
+            match album.artwork_hash {
+                Some(hash) => s.library.artwork_by_hash(&hash).await,
+                None => Ok(None),
+            }
+        })
+        .await
+    }
+
+    /// 按 ID 取封面元数据。
+    pub async fn get_artwork(&self, id: ArtworkId) -> Result<lekis_library::ArtworkRow> {
+        let s = self.services.clone();
+        self.run(async move { s.library.get_artwork(id).await })
+            .await
     }
 
     /// 专辑里的曲目（按碟号 + 曲号）。
@@ -519,6 +830,7 @@ impl LekisCore {
         let s = self.services.clone();
         self.run(async move {
             s.library.set_setting(&key, &value).await?;
+            s.apply_setting(&key, Some(&value));
             // 只有 `sync.` 前缀的设置项才跨设备同步（本机设置不同步）。
             if key.starts_with("sync.") {
                 let op = sync_engine::setting_op(&s.clock, &key, &value);
@@ -594,11 +906,7 @@ impl LekisCore {
                 "sync needs a filesystem source (local folder, SMB or WebDAV share)",
             ));
         }
-        let password = source
-            .credential_ref
-            .as_deref()
-            .and_then(|r| s.platform.credentials.get(r));
-        let vfs = lekis_vfs::open(&source, password)?;
+        let vfs = s.open_vfs(&source)?;
         s.vfs_put(source_id, vfs.clone());
         self.sync_now(vfs).await
     }
@@ -616,6 +924,94 @@ impl LekisCore {
             tracks,
             start: start as usize,
         })
+    }
+
+    /// 把一个浏览上下文（整个曲库、专辑、艺人、流派、歌单、收藏）整体放进队列，
+    /// 从 UI 列表里的第 `start_index` 行开始播放。
+    ///
+    /// 队列在核心里按上下文完整生成，不依赖 UI 已经加载了哪些行。歌单里的占位条目会被跳过，
+    /// `start_index` 指向占位时从它后面第一首可播放的开始。
+    pub async fn play_context(&self, context: TrackContext, start_index: u32) -> Result<u32> {
+        let s = self.services.clone();
+        let rows = self
+            .run(async move { s.library.context_track_ids(context).await })
+            .await?;
+        let (tracks, start) = queue_from_rows(rows, start_index as usize)
+            .ok_or_else(|| LekisError::invalid("nothing playable in this context"))?;
+        let len = tracks.len() as u32;
+        self.services
+            .engine
+            .send(EngineCommand::SetQueue { tracks, start })?;
+        Ok(len)
+    }
+
+    /// 追加到队尾（队列为空时直接开始播放）。
+    pub fn add_to_queue(&self, tracks: Vec<TrackId>) -> Result<()> {
+        if tracks.is_empty() {
+            return Ok(());
+        }
+        self.services.engine.send(EngineCommand::AddToQueue(tracks))
+    }
+
+    /// 插到当前曲目之后（"下一首播放"）。
+    pub fn play_next(&self, tracks: Vec<TrackId>) -> Result<()> {
+        if tracks.is_empty() {
+            return Ok(());
+        }
+        self.services.engine.send(EngineCommand::PlayNext(tracks))
+    }
+
+    /// 从队列删除播放顺序里的第 `index` 首。
+    pub fn queue_remove(&self, index: u32) -> Result<()> {
+        self.services
+            .engine
+            .send(EngineCommand::RemoveFromQueue(index as usize))
+    }
+
+    /// 在队列里移动一首（播放顺序下标）。
+    pub fn queue_move(&self, from: u32, to: u32) -> Result<()> {
+        self.services.engine.send(EngineCommand::MoveInQueue {
+            from: from as usize,
+            to: to as usize,
+        })
+    }
+
+    /// 队列的一页（按播放顺序；`PlaybackSnapshot.queue_index` 是这个顺序里的下标）。
+    pub async fn queue_items(&self, offset: u32, limit: u32) -> Result<Vec<TrackRow>> {
+        let limit = limit.clamp(1, TrackQuery::MAX_LIMIT) as usize;
+        let ids: Vec<TrackId> = self
+            .services
+            .engine
+            .snapshot()
+            .queue
+            .iter()
+            .skip(offset as usize)
+            .take(limit)
+            .copied()
+            .collect();
+        let s = self.services.clone();
+        self.run(async move {
+            let mut rows = Vec::with_capacity(ids.len());
+            for id in ids {
+                match s.library.track_row(id).await {
+                    Ok(row) => rows.push(row),
+                    // 曲目在队列里但已经被删（源被移除）：给一行占位，保持下标对齐。
+                    Err(e) if e.code == ErrorCode::NotFound => rows.push(TrackRow {
+                        id,
+                        title: String::new(),
+                        artist_line: String::new(),
+                        album_title: None,
+                        duration_ms: 0,
+                        artwork_id: None,
+                        quality_badge: None,
+                        loved: false,
+                    }),
+                    Err(e) => return Err(e),
+                }
+            }
+            Ok(rows)
+        })
+        .await
     }
 
     /// 播放 / 继续。
@@ -772,7 +1168,7 @@ impl LekisCore {
                 .into_iter()
                 .find(|r| r.id == id)
                 .ok_or_else(|| LekisError::not_found(format!("enrich candidate {id}")))?;
-            enrich::apply_candidate(&s.library, &row).await?;
+            s.enrich.apply_candidate(&s.library, &row).await?;
             s.library.accept_candidate(id).await?;
             let pending = s.library.pending_candidate_count().await? as u32;
             s.events.emit(CoreEvent::EnrichQueueChanged { pending });
@@ -808,7 +1204,7 @@ impl LekisCore {
                     .await?;
                 let mut applied = 0u64;
                 for row in &pending {
-                    if enrich::apply_candidate(&s.library, row).await.is_ok() {
+                    if s.enrich.apply_candidate(&s.library, row).await.is_ok() {
                         s.library.accept_candidate(row.id).await?;
                         applied += 1;
                     }
@@ -832,7 +1228,32 @@ impl LekisCore {
     /// 当前生效的歌词（ENR-03）。
     pub async fn lyrics(&self, id: TrackId) -> Result<Option<Lyrics>> {
         let s = self.services.clone();
-        self.run(async move { s.library.active_lyrics(id).await })
+        self.run(async move {
+            if let Some(found) = s.library.active_lyrics(id).await? {
+                return Ok(Some(found));
+            }
+            // 本地：同名 .lrc / 内嵌歌词标签。
+            match lyrics_local::find_and_store(&s, id).await {
+                Ok(Some(found)) => return Ok(Some(found)),
+                Ok(None) => {}
+                Err(e) => tracing::debug!(target: "core", code = %e.code.as_str(), "local lyrics lookup failed"),
+            }
+            // 在线：LRCLIB。每首歌每次运行只试一次，查不到不反复打网络。
+            let first_try = LYRICS_TRIED
+                .lock()
+                .map(|mut set| set.insert(id))
+                .unwrap_or(false);
+            if first_try {
+                let fetch = s.enrich.fetch_lyrics(&s.library, id);
+                match tokio::time::timeout(std::time::Duration::from_secs(12), fetch).await {
+                    Ok(Ok(())) => {}
+                    Ok(Err(e)) => tracing::warn!(target: "core", code = %e.code.as_str(), "LRCLIB lyrics lookup failed"),
+                    Err(_) => tracing::warn!(target: "core", "LRCLIB lyrics lookup timed out"),
+                }
+                return s.library.active_lyrics(id).await;
+            }
+            Ok(None)
+        })
             .await
     }
 
@@ -1080,6 +1501,33 @@ impl LekisCore {
     }
 }
 
+/// 凭据变了：丢掉所有引用它的源的连接。
+async fn forget_sources_using(s: &Services, credential_ref: &str) {
+    if let Ok(sources) = s.library.list_sources().await {
+        for src in sources {
+            if src.credential_ref.as_deref() == Some(credential_ref) {
+                if let Some(id) = src.id {
+                    s.forget_source(id);
+                    s.register_vfs(&src);
+                }
+            }
+        }
+    }
+}
+
+/// 上下文行（`None` 是歌单占位）→ 可播放的队列 + 起始下标。没有任何可播放曲目时返回 `None`。
+fn queue_from_rows(rows: Vec<Option<TrackId>>, start_row: usize) -> Option<(Vec<TrackId>, usize)> {
+    let start_row = start_row.min(rows.len().saturating_sub(1));
+    // 起始行之前有几首可播放的，就是队列里的起始下标（起始行是占位时自然落到它后面那首）。
+    let start = rows[..start_row].iter().filter(|r| r.is_some()).count();
+    let tracks: Vec<TrackId> = rows.into_iter().flatten().collect();
+    if tracks.is_empty() {
+        return None;
+    }
+    let last = tracks.len() - 1;
+    Some((tracks, start.min(last)))
+}
+
 /// 把一条 `SyncOp` 序列化成写进 outbox 的 JSON 文本。
 fn op_json(op: &lekis_sync::SyncOp) -> Result<String> {
     serde_json::to_string(op).map_err(|e| LekisError::internal(format!("serialize sync op: {e}")))
@@ -1107,6 +1555,27 @@ mod tests {
                 v.push(event);
             }
         }
+    }
+
+    #[test]
+    fn queue_from_rows_skips_placeholders_and_maps_start() {
+        let rows = vec![Some(TrackId(1)), None, Some(TrackId(3)), Some(TrackId(4))];
+        assert_eq!(
+            queue_from_rows(rows.clone(), 0),
+            Some((vec![TrackId(1), TrackId(3), TrackId(4)], 0))
+        );
+        // 起始行是占位：从它后面第一首开始。
+        assert_eq!(queue_from_rows(rows.clone(), 1).map(|q| q.1), Some(1));
+        assert_eq!(queue_from_rows(rows.clone(), 3).map(|q| q.1), Some(2));
+        // 越界钳到最后一行。
+        assert_eq!(queue_from_rows(rows, 99).map(|q| q.1), Some(2));
+        assert_eq!(queue_from_rows(vec![None, None], 0), None);
+        assert_eq!(queue_from_rows(vec![], 0), None);
+        // 最后一行是占位：退到最后一首可播放的。
+        assert_eq!(
+            queue_from_rows(vec![Some(TrackId(1)), None], 1).map(|q| q.1),
+            Some(0)
+        );
     }
 
     #[test]
@@ -1174,6 +1643,358 @@ mod tests {
         assert!(seen
             .iter()
             .any(|e| matches!(e, CoreEvent::ScanFinished { added: 1, .. })));
+        drop(core);
+        let _ = std::fs::remove_dir_all(&root);
+        Ok(())
+    }
+
+    /// 建一个带若干本地"音频"文件的核心，扫描完返回（核心、根目录、音源 ID、事件收集器）。
+    fn core_with_local_tracks(
+        name: &str,
+        files: &[&str],
+    ) -> Result<(LekisCore, std::path::PathBuf, SourceId, Arc<Collect>, tokio::runtime::Runtime)> {
+        let root = std::env::temp_dir().join(format!("lekis-core-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let music = root.join("music");
+        std::fs::create_dir_all(&music)?;
+        for f in files {
+            std::fs::write(music.join(f), b"not really audio")?;
+        }
+        let core = LekisCore::new(CoreConfig::for_tests(&root), PlatformServices::in_memory())?;
+        let events = Arc::new(Collect(Mutex::new(Vec::new())));
+        core.add_listener(events.clone());
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        let expected = files.len();
+        let source = rt.block_on(async {
+            let source = core
+                .add_source(SourceConfig {
+                    id: None,
+                    kind: SourceKind::Local,
+                    name: "Music".into(),
+                    addresses: vec![music.to_string_lossy().into_owned()],
+                    root_path: String::new(),
+                    credential_ref: None,
+                    options: Default::default(),
+                    enabled: true,
+                })
+                .await?;
+            core.start_scan(source).await?;
+            for _ in 0..200 {
+                if core.count_tracks().await? as usize == expected {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+            }
+            assert_eq!(core.count_tracks().await? as usize, expected);
+            Ok::<_, LekisError>(source)
+        })?;
+        Ok((core, root, source, events, rt))
+    }
+
+    fn seen(events: &Collect) -> Vec<CoreEvent> {
+        events.0.lock().map(|v| v.clone()).unwrap_or_default()
+    }
+
+    #[test]
+    fn update_test_and_remove_source() -> Result<()> {
+        let (core, root, source, events, rt) =
+            core_with_local_tracks("sources", &["01. Alpha.flac", "02. Beta.flac"])?;
+        rt.block_on(async {
+            let mut cfg = core.list_sources().await?.remove(0);
+            // 试连：存在的目录可以列出；不存在的目录报错且不入库。
+            core.test_source(cfg.clone()).await?;
+            let mut broken = cfg.clone();
+            broken.id = None;
+            broken.addresses = vec![root.join("nope").to_string_lossy().into_owned()];
+            assert!(core.test_source(broken).await.is_err());
+            assert_eq!(core.list_sources().await?.len(), 1);
+
+            cfg.name = "Renamed".into();
+            core.update_source(cfg.clone()).await?;
+            let infos = core.list_source_infos().await?;
+            assert_eq!(infos[0].config.name, "Renamed");
+            assert!(infos[0].last_scan_at.is_some());
+            assert!(infos[0].last_scan_error.is_none());
+
+            core.remove_source(source).await?;
+            assert!(core.list_sources().await?.is_empty());
+            assert_eq!(core.count_tracks().await?, 0);
+            assert_eq!(core.count_albums().await?, 0);
+            assert_eq!(core.count_artists().await?, 0);
+            Ok::<_, LekisError>(())
+        })?;
+        assert!(seen(&events).iter().any(|e| matches!(
+            e,
+            CoreEvent::LibraryChanged {
+                scope: LibraryScope::Catalog
+            }
+        )));
+        drop(core);
+        let _ = std::fs::remove_dir_all(&root);
+        Ok(())
+    }
+
+    #[test]
+    fn scan_failure_is_persisted_and_reported() -> Result<()> {
+        let (core, root, source, events, rt) = core_with_local_tracks("scanfail", &["a.flac"])?;
+        // 把音源目录删掉，再扫：要么同步返回错误，要么后台推 ScanFailed；两种情况都要落库。
+        std::fs::remove_dir_all(root.join("music"))?;
+        rt.block_on(async {
+            let started = core.start_scan(source).await;
+            for _ in 0..200 {
+                let info = core.list_source_infos().await?.remove(0);
+                if info.last_scan_error.is_some() {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+            }
+            let info = core.list_source_infos().await?.remove(0);
+            assert!(info.last_scan_error.is_some(), "failure must be persisted");
+            assert!(info.last_scan_error_code.is_some());
+            if started.is_ok() {
+                assert!(seen(&events)
+                    .iter()
+                    .any(|e| matches!(e, CoreEvent::ScanFailed { source_id, .. } if *source_id == source)));
+            }
+            Ok::<_, LekisError>(())
+        })?;
+        drop(core);
+        let _ = std::fs::remove_dir_all(&root);
+        Ok(())
+    }
+
+    #[test]
+    fn credentials_are_stored_by_reference() -> Result<()> {
+        let root = std::env::temp_dir().join(format!("lekis-core-creds-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let core = LekisCore::new(CoreConfig::for_tests(&root), PlatformServices::in_memory())?;
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        rt.block_on(async {
+            assert!(!core.has_credential("lekis.source.nas"));
+            core.set_credential("lekis.source.nas".into(), "hunter2".into())
+                .await?;
+            assert!(core.has_credential("lekis.source.nas"));
+            core.delete_credential("lekis.source.nas".into()).await?;
+            assert!(!core.has_credential("lekis.source.nas"));
+            assert_eq!(
+                core.set_credential(" ".into(), "x".into())
+                    .await
+                    .unwrap_err()
+                    .code,
+                ErrorCode::InvalidArgument
+            );
+            Ok::<_, LekisError>(())
+        })?;
+        drop(core);
+        let _ = std::fs::remove_dir_all(&root);
+        Ok(())
+    }
+
+    #[test]
+    fn play_context_queues_the_whole_library_and_queue_is_editable() -> Result<()> {
+        let (core, root, _source, events, rt) = core_with_local_tracks(
+            "context",
+            &["01. A.flac", "02. B.flac", "03. C.flac", "04. D.flac"],
+        )?;
+        rt.block_on(async {
+            let n = core
+                .play_context(TrackContext::Library(TrackSort::Title), 2)
+                .await?;
+            assert_eq!(n, 4);
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+            let snap = core.playback_snapshot();
+            assert_eq!(snap.queue_len, 4);
+            assert_eq!(snap.queue_index, Some(2));
+            let items = core.queue_items(0, 10).await?;
+            let titles: Vec<&str> = items.iter().map(|r| r.title.as_str()).collect();
+            assert_eq!(titles, vec!["A", "B", "C", "D"]);
+
+            core.queue_move(3, 0)?;
+            core.queue_remove(1)?; // 删掉 A
+            core.play_next(vec![items[0].id])?;
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+            let titles: Vec<String> = core
+                .queue_items(0, 10)
+                .await?
+                .into_iter()
+                .map(|r| r.title)
+                .collect();
+            assert_eq!(titles, vec!["D", "B", "C", "A"]);
+            assert_eq!(core.playback_snapshot().queue_index, Some(2));
+
+            core.set_repeat(RepeatMode::All)?;
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+            assert_eq!(core.playback_snapshot().repeat, RepeatMode::All);
+
+            // 记一次播放后出现在"最近播放"里。
+            core.record_play(items[1].id, 30_000).await?;
+            let recent = core.recently_played(10).await?;
+            assert_eq!(recent.first().map(|r| r.id), Some(items[1].id));
+            let (_, state) = core.get_track_with_state(items[1].id).await?;
+            assert_eq!(state.play_count, 1);
+            Ok::<_, LekisError>(())
+        })?;
+        let seen = seen(&events);
+        assert!(seen.iter().any(|e| matches!(
+            e,
+            CoreEvent::PlaybackOptionsChanged {
+                repeat: RepeatMode::All,
+                ..
+            }
+        )));
+        assert!(seen
+            .iter()
+            .any(|e| matches!(e, CoreEvent::QueueChanged { length: 4, .. })));
+        drop(core);
+        let _ = std::fs::remove_dir_all(&root);
+        Ok(())
+    }
+
+    #[test]
+    fn gapless_and_replaygain_settings_take_effect() -> Result<()> {
+        let root = std::env::temp_dir().join(format!("lekis-core-settings-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        {
+            let core = LekisCore::new(CoreConfig::for_tests(&root), PlatformServices::in_memory())?;
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?;
+            rt.block_on(async {
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                assert!(core.playback_snapshot().gapless);
+                core.set_setting(settings::GAPLESS.into(), "false".into())
+                    .await?;
+                core.set_setting(settings::REPLAYGAIN.into(), "album".into())
+                    .await?;
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                assert!(!core.playback_snapshot().gapless);
+                assert_eq!(
+                    core.services.resolver.replaygain_mode(),
+                    resolver::ReplayGainMode::Album
+                );
+                Ok::<_, LekisError>(())
+            })?;
+        }
+        // 重启后从数据库读回来。
+        let core = LekisCore::new(CoreConfig::for_tests(&root), PlatformServices::in_memory())?;
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        rt.block_on(async {
+            for _ in 0..40 {
+                if !core.playback_snapshot().gapless {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+            }
+        });
+        assert!(!core.playback_snapshot().gapless);
+        assert_eq!(
+            core.services.resolver.replaygain_mode(),
+            resolver::ReplayGainMode::Album
+        );
+        drop(core);
+        let _ = std::fs::remove_dir_all(&root);
+        Ok(())
+    }
+
+    /// 起一个只会回一张 PNG 的本地 HTTP 服务。
+    async fn serve_png(png: Vec<u8>) -> Result<String> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+        tokio::spawn(async move {
+            while let Ok((mut sock, _)) = listener.accept().await {
+                let body = png.clone();
+                tokio::spawn(async move {
+                    let mut buf = vec![0u8; 4096];
+                    let _ = sock.read(&mut buf).await;
+                    let head = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        body.len()
+                    );
+                    let _ = sock.write_all(head.as_bytes()).await;
+                    let _ = sock.write_all(&body).await;
+                    let _ = sock.shutdown().await;
+                });
+            }
+        });
+        Ok(format!("http://{addr}/cover.png"))
+    }
+
+    #[test]
+    fn accepting_an_artwork_candidate_applies_it() -> Result<()> {
+        let (core, root, _source, events, rt) =
+            core_with_local_tracks("artwork", &["01. Cover Me.flac"])?;
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+            600,
+            600,
+            image::Rgb([20, 90, 200]),
+        ))
+        .write_to(&mut png, image::ImageFormat::Png)
+        .map_err(|e| LekisError::internal(e.to_string()))?;
+        let png = png.into_inner();
+
+        rt.block_on(async {
+            let url = serve_png(png).await?;
+            let track = core
+                .list_tracks(TrackQuery {
+                    sort: TrackSort::Title,
+                    offset: 0,
+                    limit: 10,
+                })
+                .await?
+                .remove(0);
+            let full = core.get_track(track.id).await?;
+            core.services
+                .library
+                .insert_enrich_candidates(vec![lekis_library::NewEnrichCandidate {
+                    track_id: Some(track.id),
+                    album_id: full.album_id,
+                    kind: "artwork".into(),
+                    payload_json: serde_json::json!({ "url": url, "width": 600, "height": 600 })
+                        .to_string(),
+                    source: "itunes".into(),
+                    score: 0.7,
+                }])
+                .await?;
+            let candidate = core.pending_candidates(10).await?.remove(0);
+            core.accept_candidate(candidate.id).await?;
+
+            let art = core
+                .artwork(track.id)
+                .await?
+                .ok_or_else(|| LekisError::internal("artwork must be set"))?;
+            assert_eq!(art.width, Some(600));
+            for w in [128, 256, 512, 1024] {
+                let path = core.artwork_path(art.hash.clone(), w);
+                assert!(std::path::Path::new(&path).exists(), "tier {w} missing");
+            }
+            if let Some(album_id) = full.album_id {
+                let album = core.get_album(album_id).await?;
+                assert_eq!(album.artwork_hash.as_deref(), Some(art.hash.as_str()));
+                let album_art = core.album_artwork(album_id).await?;
+                assert_eq!(album_art.map(|a| a.hash), Some(art.hash.clone()));
+            }
+            assert_eq!(core.pending_candidate_count().await?, 0);
+            Ok::<_, LekisError>(())
+        })?;
+        assert!(seen(&events).iter().any(|e| matches!(
+            e,
+            CoreEvent::LibraryChanged {
+                scope: LibraryScope::Catalog
+            }
+        )));
+        // 原始音频文件没被动过。
+        assert_eq!(
+            std::fs::read(root.join("music/01. Cover Me.flac"))?,
+            b"not really audio"
+        );
         drop(core);
         let _ = std::fs::remove_dir_all(&root);
         Ok(())

@@ -2,8 +2,9 @@
 //!
 //! UI 通过事件更新界面，不要轮询。新增事件只能往后加变体，平台端遇到不认识的事件要忽略。
 
+use crate::error::ErrorCode;
 use crate::ids::*;
-use crate::model::PlaybackState;
+use crate::model::{PlaybackState, RepeatMode, ShuffleMode};
 use serde::{Deserialize, Serialize};
 
 /// 扫描阶段（LIB-03 渐进式扫描）。
@@ -118,5 +119,27 @@ pub enum CoreEvent {
         source_id: SourceId,
         /// 是否可达。
         reachable: bool,
+    },
+    /// 后台扫描 / 服务器同步失败（`start_scan` 已经返回 `Ok`，失败只能靠这个事件告诉 UI）。
+    ///
+    /// 同样的信息也会持久化到音源上（`last_scan_error`），UI 重启后也能看到。
+    ScanFailed {
+        /// 音源。
+        source_id: SourceId,
+        /// 稳定错误码（UI 据此显示本地化提示）。
+        code: ErrorCode,
+        /// 给开发者看的详情（不要直接展示给用户）。
+        detail: String,
+    },
+    /// 播放选项变了（循环、随机、音量、预解析下一首）。
+    PlaybackOptionsChanged {
+        /// 循环模式。
+        repeat: RepeatMode,
+        /// 随机模式。
+        shuffle: ShuffleMode,
+        /// 音量（0..=1）。
+        volume: f32,
+        /// 是否预解析下一首（`playback.gapless`）。
+        gapless: bool,
     },
 }

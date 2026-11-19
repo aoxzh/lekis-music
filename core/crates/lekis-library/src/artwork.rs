@@ -8,7 +8,9 @@
 
 use crate::db::DbResultExt;
 use crate::Library;
-use lekis_types::{now_ms, AlbumId, ArtistId, ArtworkId, LekisError, Palette, Result, TrackId};
+use lekis_types::{
+    now_ms, AlbumId, ArtistId, ArtworkId, LekisError, Palette, Result, SourceId, TrackId,
+};
 use rusqlite::{params, OptionalExtension};
 
 /// 封面元数据（不含图片字节）。
@@ -234,6 +236,68 @@ impl Library {
             Err(e) => Err(e),
         }
     }
+
+    /// 找出某个文件系统源里还没有封面的专辑 / 单曲，并给每个目标挑一个代表文件。
+    ///
+    /// 同一张专辑只返回一行（优先音质最高的文件）；没有专辑的曲目各自一行。
+    /// 已手动设置过曲目封面的曲目会跳过，避免覆盖用户的选择。
+    pub async fn artwork_candidates(
+        &self,
+        source_id: SourceId,
+        limit: usize,
+    ) -> Result<Vec<ArtworkCandidate>> {
+        self.read(move |c| {
+            let mut stmt = c
+                .prepare_cached(
+                    "WITH ranked AS (
+                       SELECT t.album_id AS album_id,
+                              t.id AS track_id,
+                              f.path AS path,
+                              ROW_NUMBER() OVER (
+                                PARTITION BY COALESCE(t.album_id, -t.id)
+                                ORDER BY tf.quality_score DESC, t.id
+                              ) AS rn
+                         FROM track t
+                         JOIN track_file tf ON tf.track_id = t.id
+                         JOIN file f ON f.id = tf.file_id
+                    LEFT JOIN album a ON a.id = t.album_id
+                        WHERE tf.source_id = ?1
+                          AND t.artwork_id IS NULL
+                          AND (t.album_id IS NULL OR a.artwork_id IS NULL)
+                    )
+                    SELECT album_id, track_id, path
+                      FROM ranked
+                     WHERE rn = 1
+                     ORDER BY album_id IS NULL, album_id, track_id
+                     LIMIT ?2",
+                )
+                .db()?;
+            let rows = stmt
+                .query_map(params![source_id.0, limit as i64], |r| {
+                    Ok(ArtworkCandidate {
+                        album_id: r.get::<_, Option<i64>>(0)?.map(AlbumId),
+                        track_id: TrackId(r.get(1)?),
+                        path: r.get(2)?,
+                    })
+                })
+                .db()?
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .db()?;
+            Ok(rows)
+        })
+        .await
+    }
+}
+
+/// 一个可以补封面的目标：有专辑就挂到专辑，没有专辑就挂到曲目。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArtworkCandidate {
+    /// 目标专辑；`None` 表示这是一首没有专辑的单曲。
+    pub album_id: Option<AlbumId>,
+    /// 代表曲目（专辑目标时用来找文件，单曲目标时就是挂封面的曲目）。
+    pub track_id: TrackId,
+    /// 相对音源根目录的文件路径（和 `file.path` 一致）。
+    pub path: String,
 }
 
 /// 封面在缓存目录里的相对路径（`artwork/<哈希前 2 位>/<哈希>_<尺寸>.webp`）。
@@ -274,6 +338,61 @@ mod tests {
                 ..Default::default()
             },
         }
+    }
+
+    /// 补封面候选：每个专辑只取一个代表文件，跳过已经有封面的专辑；
+    /// 没有专辑的单曲各自算一个目标。
+    #[tokio::test]
+    async fn artwork_candidates_skip_covered_albums_and_keep_singles() -> Result<()> {
+        let lib = temp_library("artwork-candidates")?;
+        let source = lib
+            .add_source(lekis_types::SourceConfig {
+                id: None,
+                kind: lekis_types::SourceKind::Local,
+                name: "本地".into(),
+                addresses: vec!["/music".into()],
+                root_path: String::new(),
+                credential_ref: None,
+                options: Default::default(),
+                enabled: true,
+            })
+            .await?;
+
+        let mut second_album = scanned(source, "b/以父之名.flac", "以父之名");
+        second_album.tags.album = Some("范特西".into());
+        let mut single = scanned(source, "single.flac", "单曲");
+        single.tags.album = None;
+
+        lib.upsert_scanned(vec![
+            scanned(source, "a/晴天.flac", "晴天"),
+            scanned(source, "a/三年二班.flac", "三年二班"),
+            second_album,
+            single,
+        ])
+        .await?;
+
+        let albums = lib
+            .list_albums(lekis_types::TrackSort::Title, 0, 10)
+            .await?;
+        let covered = albums
+            .iter()
+            .find(|album| album.title == "叶惠美")
+            .expect("album exists")
+            .id;
+        let art = lib
+            .upsert_artwork("aaaa".into(), "embedded".into(), None, None, None)
+            .await?;
+        lib.set_album_artwork(covered, Some(art)).await?;
+
+        let candidates = lib.artwork_candidates(source, 10).await?;
+        assert_eq!(candidates.len(), 2, "范特西 + 单曲；叶惠美已有封面");
+        assert_eq!(
+            candidates.iter().filter(|c| c.album_id.is_some()).count(),
+            1
+        );
+        assert!(candidates.iter().any(|c| c.album_id.is_none()));
+        assert!(candidates.iter().all(|c| !c.path.is_empty()));
+        Ok(())
     }
 
     #[tokio::test]

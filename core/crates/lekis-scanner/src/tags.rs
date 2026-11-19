@@ -144,7 +144,7 @@ pub struct LoftyTagReader;
 
 impl TagReader for LoftyTagReader {
     fn read(&self, path: &VfsPath, data: &PartialFile) -> Result<ScannedTags> {
-        let tagged = read_tagged_file(path, data)?;
+        let tagged = read_tagged_file(path, data, false)?;
 
         let mut tags = ScannedTags::default();
         if let Some(tag) = pick_tag(&tagged) {
@@ -176,12 +176,47 @@ impl TagReader for LoftyTagReader {
     }
 }
 
+/// 读取文件里第一张内嵌封面（ENR-01 的本地部分）。
+///
+/// 扫描阶段为了速度不解析封面；封面补填阶段用更大的头尾窗口调用这里。
+/// 一张图都没有时返回 `Ok(None)`；文件不是音频 / 标签损坏时返回错误，由调用方跳过。
+pub fn read_cover_art(path: &VfsPath, data: &PartialFile) -> Result<Option<Vec<u8>>> {
+    let tagged = read_tagged_file(path, data, true)?;
+    for tag in tagged.tags() {
+        if let Some(picture) = tag.pictures().first() {
+            if !picture.data().is_empty() {
+                return Ok(Some(picture.data().to_vec()));
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// 读内嵌歌词（ID3 USLT / Vorbis LYRICS / MP4 ©lyr）。没有时返回 `None`。
+pub fn read_lyrics(path: &VfsPath, data: &PartialFile) -> Result<Option<String>> {
+    let tagged = read_tagged_file(path, data, false)?;
+    for tag in tagged.tags() {
+        if let Some(text) = tag.get_string(ItemKey::Lyrics) {
+            let text = text.trim();
+            if !text.is_empty() {
+                return Ok(Some(text.to_string()));
+            }
+        }
+    }
+    Ok(None)
+}
+
 /// 用 lofty 打开文件并读出标签 + 流信息。
 ///
 /// 先按文件内容猜格式（`fLaC`、MP3 帧同步、MP4 `ftyp`……），猜不出来再按扩展名。
-fn read_tagged_file(path: &VfsPath, data: &PartialFile) -> Result<TaggedFile> {
-    // 只要标签和流信息，不需要封面（封面可能几百 KB，而且我们只缓存了头尾）。
-    let options = ParseOptions::new().read_cover_art(false);
+fn read_tagged_file(
+    path: &VfsPath,
+    data: &PartialFile,
+    read_cover_art: bool,
+) -> Result<TaggedFile> {
+    // 扫描阶段只要标签和流信息，不需要封面（封面可能几百 KB，而且我们只缓存了头尾）。
+    // 封面补填阶段会显式传 true，并用更大的头尾窗口。
+    let options = ParseOptions::new().read_cover_art(read_cover_art);
 
     let guessed = Probe::new(SparseReader::new(data))
         .options(options)

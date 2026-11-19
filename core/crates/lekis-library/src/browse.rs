@@ -32,6 +32,7 @@ pub(crate) fn map_album_row(r: &Row<'_>) -> rusqlite::Result<Album> {
         track_count: r.get::<_, i64>(4)?.max(0) as u32,
         artwork_id: r.get::<_, Option<i64>>(5)?.map(ArtworkId),
         mbid_release: r.get(6)?,
+        artwork_hash: r.get(7)?,
     })
 }
 
@@ -51,7 +52,11 @@ pub(crate) fn map_artist_row(r: &Row<'_>) -> rusqlite::Result<Artist> {
 
 /// 专辑列表的列（`track_count` 是实时统计出来的曲目数）。
 const ALBUM_COLUMNS: &str = "a.id, a.title, a.artist_line, a.year,
-     (SELECT COUNT(*) FROM track t WHERE t.album_id = a.id), a.artwork_id, a.mbid_release";
+     (SELECT COUNT(*) FROM track t WHERE t.album_id = a.id), a.artwork_id, a.mbid_release,
+     (SELECT ar.hash FROM artwork ar WHERE ar.id = COALESCE(a.artwork_id,
+        (SELECT t2.artwork_id FROM track t2
+          WHERE t2.album_id = a.id AND t2.artwork_id IS NOT NULL
+          ORDER BY t2.disc_no, t2.track_no LIMIT 1)))";
 
 impl Library {
     /// 按维度列出专辑。
@@ -301,15 +306,91 @@ impl Library {
     }
 }
 
+// ---------------------------------------------------------------------------
+// 搜索索引行的写入（LIB-07）
+// ---------------------------------------------------------------------------
+//
+// `search_index` 是 fts5 虚表，`kind` / `ref_id` 两列是 UNINDEXED：按它们 `WHERE` 会全表扫描，
+// 逐首入库时就成了 O(n²)。所以每一行都用**确定的 rowid**（`ref_id * 4 + 类型码`）写入，
+// 删除 / 判断存在都按 rowid 走 fts5 的主键（迁移 0004 把老数据换成了这种 rowid）。
+
+/// 曲目行的类型码。
+pub(crate) const INDEX_TRACK: i64 = 1;
+/// 专辑行的类型码。
+pub(crate) const INDEX_ALBUM: i64 = 2;
+/// 艺人行的类型码。
+pub(crate) const INDEX_ARTIST: i64 = 3;
+
+/// 一个实体在 `search_index` 里的 rowid。
+pub(crate) fn index_rowid(kind: i64, ref_id: i64) -> i64 {
+    ref_id * 4 + kind
+}
+
+fn kind_name(kind: i64) -> &'static str {
+    match kind {
+        INDEX_TRACK => "track",
+        INDEX_ALBUM => "album",
+        _ => "artist",
+    }
+}
+
+/// 这个实体在索引里有没有行。
+fn index_row_exists(tx: &rusqlite::Transaction<'_>, kind: i64, ref_id: i64) -> Result<bool> {
+    let hit: Option<i64> = tx
+        .query_row(
+            "SELECT rowid FROM search_index WHERE rowid = ?1",
+            params![index_rowid(kind, ref_id)],
+            |r| r.get(0),
+        )
+        .optional()
+        .db()?;
+    Ok(hit.is_some())
+}
+
+/// 删掉一个实体的索引行（按 rowid，不扫表）。
+pub(crate) fn delete_index_row(tx: &rusqlite::Transaction<'_>, kind: i64, ref_id: i64) -> Result<()> {
+    tx.execute(
+        "DELETE FROM search_index WHERE rowid = ?1",
+        params![index_rowid(kind, ref_id)],
+    )
+    .db()?;
+    Ok(())
+}
+
+/// 写一个实体的索引行。`replace = false` 表示调用方确定这行还不存在（新建的实体），跳过删除。
+pub(crate) fn write_index_row(
+    tx: &rusqlite::Transaction<'_>,
+    kind: i64,
+    ref_id: i64,
+    title: &str,
+    subtitle: &str,
+    keys: &str,
+    replace: bool,
+) -> Result<()> {
+    if replace {
+        delete_index_row(tx, kind, ref_id)?;
+    }
+    tx.execute(
+        "INSERT INTO search_index (rowid, kind, ref_id, title, subtitle, keys)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![
+            index_rowid(kind, ref_id),
+            kind_name(kind),
+            ref_id,
+            title,
+            subtitle,
+            keys
+        ],
+    )
+    .db()?;
+    Ok(())
+}
+
 /// 重建曲目的搜索索引行。
 ///
 /// 用户改了覆盖层（标题 / 艺人）之后要调一次，否则搜索结果还是旧标题。
 pub(crate) fn refresh_track_index(tx: &rusqlite::Transaction<'_>, track_id: i64) -> Result<()> {
-    tx.execute(
-        "DELETE FROM search_index WHERE kind = 'track' AND ref_id = ?1",
-        params![track_id],
-    )
-    .db()?;
+    delete_index_row(tx, INDEX_TRACK, track_id)?;
     let row: Option<(String, String, Option<String>, Option<String>)> = tx
         .query_row(
             "SELECT t.title, t.artist_line, a.title, t.overlay_json
@@ -336,28 +417,15 @@ pub(crate) fn refresh_track_index(tx: &rusqlite::Transaction<'_>, track_id: i64)
         }
     }
 
-    tx.execute(
-        "INSERT INTO search_index (kind, ref_id, title, subtitle, keys)
-         VALUES ('track', ?1, ?2, ?3, ?4)",
-        params![
-            track_id,
-            title,
-            artist_line,
-            crate::normalize::search_keys(&[
-                &title,
-                &artist_line,
-                album_title.as_deref().unwrap_or("")
-            ])
-        ],
-    )
-    .db()?;
-    Ok(())
+    let keys = crate::normalize::search_keys(&[
+        &title,
+        &artist_line,
+        album_title.as_deref().unwrap_or(""),
+    ]);
+    write_index_row(tx, INDEX_TRACK, track_id, &title, &artist_line, &keys, false)
 }
 
-/// 重建专辑的搜索索引行。
-///
-/// 曲目入库时专辑可能刚被创建，也可能只是新增了一首歌（曲目数变了）；
-/// 两种情况都调这个函数，用 `INSERT OR REPLACE` 覆盖即可。
+/// 重建专辑的搜索索引行（专辑改名 / 合并之后调用）。
 pub(crate) fn refresh_album_index(
     tx: &rusqlite::Transaction<'_>,
     album_id: Option<i64>,
@@ -365,11 +433,25 @@ pub(crate) fn refresh_album_index(
     let Some(album_id) = album_id else {
         return Ok(());
     };
-    tx.execute(
-        "DELETE FROM search_index WHERE kind = 'album' AND ref_id = ?1",
-        params![album_id],
-    )
-    .db()?;
+    delete_index_row(tx, INDEX_ALBUM, album_id)?;
+    write_album_row(tx, album_id)
+}
+
+/// 入库路径用：专辑的索引行只依赖标题和艺人（入库时不会改），已经有了就什么都不做。
+pub(crate) fn ensure_album_index(
+    tx: &rusqlite::Transaction<'_>,
+    album_id: Option<i64>,
+) -> Result<()> {
+    let Some(album_id) = album_id else {
+        return Ok(());
+    };
+    if index_row_exists(tx, INDEX_ALBUM, album_id)? {
+        return Ok(());
+    }
+    write_album_row(tx, album_id)
+}
+
+fn write_album_row(tx: &rusqlite::Transaction<'_>, album_id: i64) -> Result<()> {
     let row: Option<(String, String)> = tx
         .query_row(
             "SELECT title, artist_line FROM album WHERE id = ?1",
@@ -381,27 +463,25 @@ pub(crate) fn refresh_album_index(
     let Some((title, artist_line)) = row else {
         return Ok(());
     };
-    tx.execute(
-        "INSERT INTO search_index (kind, ref_id, title, subtitle, keys)
-         VALUES ('album', ?1, ?2, ?3, ?4)",
-        params![
-            album_id,
-            title,
-            artist_line,
-            crate::normalize::search_keys(&[&title, &artist_line])
-        ],
-    )
-    .db()?;
-    Ok(())
+    let keys = crate::normalize::search_keys(&[&title, &artist_line]);
+    write_index_row(tx, INDEX_ALBUM, album_id, &title, &artist_line, &keys, false)
 }
 
-/// 重建艺人的搜索索引行。
+/// 重建艺人的搜索索引行（改名 / 加别名之后调用）。
 pub(crate) fn refresh_artist_index(tx: &rusqlite::Transaction<'_>, artist_id: i64) -> Result<()> {
-    tx.execute(
-        "DELETE FROM search_index WHERE kind = 'artist' AND ref_id = ?1",
-        params![artist_id],
-    )
-    .db()?;
+    delete_index_row(tx, INDEX_ARTIST, artist_id)?;
+    write_artist_row(tx, artist_id)
+}
+
+/// 入库路径用：艺人的索引行只依赖名字和别名（入库时不会改），已经有了就什么都不做。
+pub(crate) fn ensure_artist_index(tx: &rusqlite::Transaction<'_>, artist_id: i64) -> Result<()> {
+    if index_row_exists(tx, INDEX_ARTIST, artist_id)? {
+        return Ok(());
+    }
+    write_artist_row(tx, artist_id)
+}
+
+fn write_artist_row(tx: &rusqlite::Transaction<'_>, artist_id: i64) -> Result<()> {
     let row: Option<(String, Option<String>)> = tx
         .query_row(
             "SELECT name, aliases_json FROM artist WHERE id = ?1",
@@ -420,13 +500,8 @@ pub(crate) fn refresh_artist_index(tx: &rusqlite::Transaction<'_>, artist_id: i6
     for alias in &alias_list {
         parts.push(alias.as_str());
     }
-    tx.execute(
-        "INSERT INTO search_index (kind, ref_id, title, subtitle, keys)
-         VALUES ('artist', ?1, ?2, '', ?3)",
-        params![artist_id, name, crate::normalize::search_keys(&parts)],
-    )
-    .db()?;
-    Ok(())
+    let keys = crate::normalize::search_keys(&parts);
+    write_index_row(tx, INDEX_ARTIST, artist_id, &name, "", &keys, false)
 }
 
 #[cfg(test)]

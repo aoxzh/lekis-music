@@ -24,7 +24,7 @@ mod sources;
 mod sync;
 mod tracks;
 
-pub use artwork::{cache_relative_path, ArtworkRow};
+pub use artwork::{cache_relative_path, ArtworkCandidate, ArtworkRow};
 pub use db::{DbResultExt, Library};
 pub use enrich_queue::{EnrichCandidateRow, NewEnrichCandidate};
 pub use lyrics::LyricsRow;
@@ -32,5 +32,6 @@ pub use playlists::{Playlist, PlaylistEntry, PlaylistItem, PlaylistKind};
 pub use remote::{RemoteTrackRow, RemoteUpsertStats};
 pub use scanned::{quality_score, ScannedFile, ScannedTags, UpsertStats};
 pub use smart::{AllowedColumns, Rule, RuleField, RuleGroup, RuleOp, RuleValue, SmartRules};
+pub use sources::SourceInfo;
 pub use sync::OutboxEntry;
-pub use tracks::{TrackFile, TrackUserState};
+pub use tracks::{TrackContext, TrackFile, TrackUserState};

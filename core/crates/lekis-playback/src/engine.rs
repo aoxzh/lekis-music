@@ -73,6 +73,23 @@ pub enum EngineCommand {
     ///
     /// 换模式同样重建输出流并从当前位置接着放。
     SetOutputMode(OutputMode),
+    /// 追加到队尾（队列为空时等同于 `SetQueue { start: 0 }`）。
+    AddToQueue(Vec<TrackId>),
+    /// 插到当前曲目之后（"下一首播放"）；队列为空时等同于 `SetQueue { start: 0 }`。
+    PlayNext(Vec<TrackId>),
+    /// 删除播放顺序里的第 N 首。删的是正在播的曲目时切到下一首（暂停中则只换曲不出声）。
+    RemoveFromQueue(usize),
+    /// 在播放顺序里移动一首。
+    MoveInQueue {
+        /// 原位置（播放顺序下标）。
+        from: usize,
+        /// 新位置（播放顺序下标）。
+        to: usize,
+    },
+    /// 是否提前解析下一首（`playback.gapless` 设置，PLY-01）。
+    ///
+    /// 目前引擎能做到的"无缝"只有预解析；关掉后换曲时现场解析。样本级无缝见 TODO(PLY-01)。
+    SetGapless(bool),
     /// 停止并退出引擎任务。
     Shutdown,
 }
@@ -98,6 +115,16 @@ pub struct PlaybackSnapshot {
     pub output_device: Option<String>,
     /// 当前输出模式（PLY-12）。
     pub output_mode: OutputMode,
+    /// 循环模式。
+    pub repeat: RepeatMode,
+    /// 随机模式。
+    pub shuffle: ShuffleMode,
+    /// 是否开启预解析下一首（`playback.gapless`）。
+    pub gapless: bool,
+    /// 按播放顺序排列的整个队列（`queue_index` 是它的下标）。共享指针，克隆快照很便宜。
+    pub queue: std::sync::Arc<[TrackId]>,
+    /// 队列内容每变一次加一（增删、移动、替换），UI 据此决定要不要重新拉队列。
+    pub queue_version: u64,
 }
 
 impl Default for PlaybackSnapshot {
@@ -112,6 +139,11 @@ impl Default for PlaybackSnapshot {
             volume: 1.0,
             output_device: None,
             output_mode: OutputMode::Shared,
+            repeat: RepeatMode::Off,
+            shuffle: ShuffleMode::Off,
+            gapless: true,
+            queue: std::sync::Arc::from(Vec::<TrackId>::new()),
+            queue_version: 0,
         }
     }
 }
@@ -175,6 +207,10 @@ struct State {
     device_id: Option<String>,
     /// 输出模式（PLY-12）。
     mode: OutputMode,
+    /// 是否预解析下一首（`playback.gapless`）。
+    gapless: bool,
+    /// 队列内容变了、快照里的 `queue` 需要重建。
+    queue_dirty: bool,
 }
 
 impl State {
@@ -191,6 +227,8 @@ impl State {
             prefetch_tx: tx,
             device_id: None,
             mode: OutputMode::Shared,
+            gapless: true,
+            queue_dirty: false,
         }
     }
 
@@ -205,6 +243,7 @@ impl State {
     async fn handle(&mut self, cmd: EngineCommand) {
         match cmd {
             EngineCommand::SetQueue { tracks, start } => {
+                self.queue_dirty = true;
                 self.queue.set(tracks, start);
                 self.prefetched.clear();
                 self.snap.position_ms = 0;
@@ -256,9 +295,80 @@ impl State {
                     }
                 }
             }
-            EngineCommand::SetRepeat(mode) => self.queue.set_repeat(mode),
+            EngineCommand::SetRepeat(mode) => {
+                self.queue.set_repeat(mode);
+                self.spawn_prefetch();
+            }
             EngineCommand::SetShuffle(mode) => {
-                self.queue.set_shuffle(mode, lekis_types::now_ms() as u64)
+                if mode != self.queue.shuffle() {
+                    self.queue_dirty = true;
+                    self.queue.set_shuffle(mode, lekis_types::now_ms() as u64);
+                    self.spawn_prefetch();
+                }
+            }
+            EngineCommand::AddToQueue(tracks) | EngineCommand::PlayNext(tracks)
+                if self.queue.is_empty() =>
+            {
+                if tracks.is_empty() {
+                    return;
+                }
+                self.queue_dirty = true;
+                self.queue.set(tracks, 0);
+                self.prefetched.clear();
+                self.snap.position_ms = 0;
+                self.load_current().await;
+            }
+            EngineCommand::AddToQueue(tracks) => {
+                self.queue_dirty = true;
+                self.queue.append(tracks);
+                self.spawn_prefetch();
+            }
+            EngineCommand::PlayNext(tracks) => {
+                self.queue_dirty = true;
+                self.queue.insert_after_current(tracks);
+                self.spawn_prefetch();
+            }
+            EngineCommand::RemoveFromQueue(pos) => {
+                let was_current = self.queue.position() == Some(pos);
+                if self.queue.remove_at(pos).is_none() {
+                    return;
+                }
+                self.queue_dirty = true;
+                if was_current {
+                    self.snap.position_ms = 0;
+                    if self.queue.is_empty() {
+                        self.close_session();
+                        self.snap.track_id = None;
+                        self.snap.duration_ms = 0;
+                        self.snap.state = PlaybackState::Idle;
+                    } else if self.snap.state == PlaybackState::Playing {
+                        self.load_current().await;
+                    } else {
+                        // 暂停中：换成新的当前曲目，但不出声；用户点播放时再加载。
+                        self.close_session();
+                        self.snap.track_id = self.queue.current();
+                        self.snap.duration_ms = 0;
+                        if self.snap.state != PlaybackState::Idle {
+                            self.snap.state = PlaybackState::Paused;
+                        }
+                    }
+                }
+                self.spawn_prefetch();
+            }
+            EngineCommand::MoveInQueue { from, to } => {
+                if self.queue.move_item(from, to) && from != to {
+                    self.queue_dirty = true;
+                    self.spawn_prefetch();
+                }
+            }
+            EngineCommand::SetGapless(enabled) => {
+                self.gapless = enabled;
+                self.snap.gapless = enabled;
+                if enabled {
+                    self.spawn_prefetch();
+                } else {
+                    self.prefetched.clear();
+                }
             }
             EngineCommand::SetVolume(v) => {
                 let v = v.clamp(0.0, 1.0);
@@ -476,6 +586,9 @@ impl State {
 
     /// 后台解析下一首，结果进 `prefetch_rx`。
     fn spawn_prefetch(&mut self) {
+        if !self.gapless {
+            return;
+        }
         let Some(next) = self.queue.peek_next() else {
             return;
         };
@@ -499,8 +612,15 @@ impl State {
     /// 回写队列相关的快照字段。
     fn refresh_queue_fields(&mut self) {
         self.snap.queue_len = self.queue.len() as u32;
-        self.snap.queue_index = self.queue.current_index().map(|i| i as u32);
+        self.snap.queue_index = self.queue.position().map(|i| i as u32);
         self.snap.track_id = self.queue.current().or(self.snap.track_id);
+        self.snap.repeat = self.queue.repeat();
+        self.snap.shuffle = self.queue.shuffle();
+        if self.queue_dirty {
+            self.queue_dirty = false;
+            self.snap.queue = std::sync::Arc::from(self.queue.ordered());
+            self.snap.queue_version = self.snap.queue_version.wrapping_add(1);
+        }
     }
 }
 

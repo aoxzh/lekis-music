@@ -355,11 +355,12 @@ pub(crate) fn sweep_orphans(tx: &Transaction<'_>) -> Result<()> {
         [],
     )
     .db()?;
+    // 按 rowid 编码（ref_id * 4 + 类型码）判断，不读 UNINDEXED 列；整表只扫一遍 rowid。
     tx.execute(
         "DELETE FROM search_index
-         WHERE (kind = 'track' AND ref_id NOT IN (SELECT id FROM track))
-            OR (kind = 'album' AND ref_id NOT IN (SELECT id FROM album))
-            OR (kind = 'artist' AND ref_id NOT IN (SELECT id FROM artist))",
+         WHERE (rowid % 4 = 1 AND rowid / 4 NOT IN (SELECT id FROM track))
+            OR (rowid % 4 = 2 AND rowid / 4 NOT IN (SELECT id FROM album))
+            OR (rowid % 4 = 3 AND rowid / 4 NOT IN (SELECT id FROM artist))",
         [],
     )
     .db()?;
@@ -425,6 +426,12 @@ fn upsert_one(tx: &Transaction<'_>, f: &ScannedFile) -> Result<bool> {
     };
     let replaygain_json = serde_json::to_string(&t.replaygain).map_err(json_err)?;
     let quality_badge = t.audio.as_ref().map(AudioProps::quality_badge);
+    // 曲目是不是第一次出现（同一首歌可能已经从别的文件 / 源入过库）：新曲目不用删旧索引行。
+    let track_existed: bool = tx
+        .query_row("SELECT 1 FROM track WHERE uid = ?1", params![uid.0], |_| Ok(()))
+        .optional()
+        .db()?
+        .is_some();
 
     let track_id: i64 = tx
         .query_row(
@@ -479,11 +486,11 @@ fn upsert_one(tx: &Transaction<'_>, f: &ScannedFile) -> Result<bool> {
         )
         .db()?;
         // 艺人是刚建的话，搜索索引里也要有一行（LIB-07 按艺人搜）。
-        crate::browse::refresh_artist_index(tx, artist_id)?;
+        crate::browse::ensure_artist_index(tx, artist_id)?;
     }
 
-    // 专辑的曲目数 / 年份可能刚变，重建它的搜索索引行。
-    crate::browse::refresh_album_index(tx, album_id)?;
+    // 专辑是刚建的话补上索引行（专辑行只含标题 + 艺人，入库不会改它们）。
+    crate::browse::ensure_album_index(tx, album_id)?;
 
     // 流派（LIB-06：按流派浏览）。
     tx.execute(
@@ -512,21 +519,16 @@ fn upsert_one(tx: &Transaction<'_>, f: &ScannedFile) -> Result<bool> {
         .db()?;
     }
 
-    tx.execute(
-        "DELETE FROM search_index WHERE kind = 'track' AND ref_id = ?1",
-        params![track_id],
-    )
-    .db()?;
-    tx.execute(
-        "INSERT INTO search_index (kind, ref_id, title, subtitle, keys) VALUES ('track', ?1, ?2, ?3, ?4)",
-        params![
-            track_id,
-            t.title,
-            artist_line,
-            search_keys(&[&t.title, &artist_line, t.album.as_deref().unwrap_or("")])
-        ],
-    )
-    .db()?;
+    let keys = search_keys(&[&t.title, &artist_line, t.album.as_deref().unwrap_or("")]);
+    crate::browse::write_index_row(
+        tx,
+        crate::browse::INDEX_TRACK,
+        track_id,
+        &t.title,
+        &artist_line,
+        &keys,
+        track_existed,
+    )?;
 
     Ok(is_new)
 }
@@ -640,6 +642,43 @@ mod tests {
 
         let found = lib.search("晴天", 10).await?;
         assert_eq!(found.tracks.len(), 1);
+        Ok(())
+    }
+
+    /// 同一首歌的两个文件（同一源）都能入库：track 合并成一行，track_file 各留一行。
+    /// 回归：0002 的部分唯一索引曾把本地行的空 external_id 也算进去，第二次插入就会
+    /// 撞上 `UNIQUE constraint failed: track_file.track_id, track_file.source_id,
+    /// track_file.external_id` 并让整次扫描回滚。
+    #[tokio::test]
+    async fn same_track_from_two_files_is_allowed() -> Result<()> {
+        let lib = temp_library("two-files")?;
+        let source_id = lib
+            .add_source(SourceConfig {
+                id: None,
+                kind: SourceKind::Local,
+                name: "Music".into(),
+                addresses: vec!["/music".into()],
+                root_path: String::new(),
+                credential_ref: None,
+                options: BTreeMap::new(),
+                enabled: true,
+            })
+            .await?;
+
+        lib.upsert_scanned(vec![
+            sample(source_id, "a/晴天.flac", "晴天"),
+            sample(source_id, "b/晴天.flac", "晴天"),
+        ])
+        .await?;
+
+        let rows = lib
+            .list_track_rows(TrackQuery {
+                sort: TrackSort::Title,
+                offset: 0,
+                limit: 50,
+            })
+            .await?;
+        assert_eq!(rows.len(), 1, "同一首歌只应有一条 track");
         Ok(())
     }
 

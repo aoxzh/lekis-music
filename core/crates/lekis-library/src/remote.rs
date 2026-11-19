@@ -155,7 +155,8 @@ fn upsert_remote_one(
     tx.execute(
         "INSERT INTO track_file (track_id, file_id, source_id, external_id, quality_score)
          VALUES (?1, NULL, ?2, ?3, ?4)
-         ON CONFLICT (track_id, source_id, external_id) WHERE external_id IS NOT NULL
+         ON CONFLICT (track_id, source_id, external_id)
+           WHERE external_id IS NOT NULL AND external_id <> ''
          DO UPDATE SET quality_score = excluded.quality_score",
         params![track_id, source_id.0, t.external_id, t.quality_score],
     )
@@ -171,21 +172,16 @@ fn upsert_remote_one(
         .db()?;
     }
 
-    tx.execute(
-        "DELETE FROM search_index WHERE kind = 'track' AND ref_id = ?1",
-        params![track_id],
-    )
-    .db()?;
-    tx.execute(
-        "INSERT INTO search_index (kind, ref_id, title, subtitle, keys) VALUES ('track', ?1, ?2, ?3, ?4)",
-        params![
-            track_id,
-            t.title,
-            artist_line,
-            search_keys(&[&t.title, &artist_line, t.album.as_deref().unwrap_or("")])
-        ],
-    )
-    .db()?;
+    let keys = search_keys(&[&t.title, &artist_line, t.album.as_deref().unwrap_or("")]);
+    crate::browse::write_index_row(
+        tx,
+        crate::browse::INDEX_TRACK,
+        track_id,
+        &t.title,
+        &artist_line,
+        &keys,
+        true,
+    )?;
 
     Ok(is_new)
 }

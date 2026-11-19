@@ -11,6 +11,18 @@ const MIGRATIONS: &[(i64, &str)] = &[
         2,
         include_str!("../migrations/0002_remote_track_unique.sql"),
     ),
+    (
+        3,
+        include_str!("../migrations/0003_source_scan_error.sql"),
+    ),
+    (
+        4,
+        include_str!("../migrations/0004_search_index_rowid.sql"),
+    ),
+    (
+        5,
+        include_str!("../migrations/0005_local_track_file_unique.sql"),
+    ),
 ];
 
 pub(crate) fn run(conn: &mut Connection) -> Result<()> {
