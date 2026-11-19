@@ -12,6 +12,7 @@ import 'package:lekis/src/features/library/widgets/shelf.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/widgets/current_track.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
+import 'package:lekis/src/features/stats/listening_stats_page.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/routes.dart';
 import 'package:lekis/src/theme/theme.dart';
@@ -96,6 +97,16 @@ class HomePage extends ConsumerWidget {
                                       color:
                                           context.lekisColors.onSurfaceVariant,
                                     ),
+                              ),
+                              const SizedBox(height: LekisSpacing.xs),
+                              TextButton.icon(
+                                onPressed: () => Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => const ListeningStatsPage(),
+                                  ),
+                                ),
+                                icon: const Icon(Icons.insights_outlined),
+                                label: const Text('听歌统计'),
                               ),
                             ],
                           ),

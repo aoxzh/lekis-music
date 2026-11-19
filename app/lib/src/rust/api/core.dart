@@ -611,6 +611,19 @@ Future<List<TrackRowDto>> lovedTracks({
 Future<List<TrackRowDto>> mostPlayed({required int limit}) =>
     RustLib.instance.api.crateApiCoreMostPlayed(limit: limit);
 
+/// 有听歌记录的年份，新的在前（DIS-06）。
+Future<Int32List> listeningYears() =>
+    RustLib.instance.api.crateApiCoreListeningYears();
+
+/// 某年/全部时间的听歌报告（DIS-06）。
+Future<ListeningSummaryDto> listeningSummary({
+  int? year,
+  required int topLimit,
+}) => RustLib.instance.api.crateApiCoreListeningSummary(
+  year: year,
+  topLimit: topLimit,
+);
+
 /// 记一次播放（写播放历史 + 累加播放次数）。
 Future<void> recordPlay({
   required PlatformInt64 trackId,

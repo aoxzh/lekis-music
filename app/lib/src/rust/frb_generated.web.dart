@@ -44,7 +44,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AlbumDto dco_decode_album_dto(dynamic raw);
 
   @protected
+  AlbumListeningDto dco_decode_album_listening_dto(dynamic raw);
+
+  @protected
   ArtistDto dco_decode_artist_dto(dynamic raw);
+
+  @protected
+  ArtistListeningDto dco_decode_artist_listening_dto(dynamic raw);
 
   @protected
   ArtworkDto dco_decode_artwork_dto(dynamic raw);
@@ -172,7 +178,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<AlbumDto> dco_decode_list_album_dto(dynamic raw);
 
   @protected
+  List<AlbumListeningDto> dco_decode_list_album_listening_dto(dynamic raw);
+
+  @protected
   List<ArtistDto> dco_decode_list_artist_dto(dynamic raw);
+
+  @protected
+  List<ArtistListeningDto> dco_decode_list_artist_listening_dto(dynamic raw);
 
   @protected
   List<DiscoveredServiceDto> dco_decode_list_discovered_service_dto(
@@ -190,6 +202,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<GenreCountDto> dco_decode_list_genre_count_dto(dynamic raw);
+
+  @protected
+  List<ListeningBucketDto> dco_decode_list_listening_bucket_dto(dynamic raw);
 
   @protected
   List<LyricsRowDto> dco_decode_list_lyrics_row_dto(dynamic raw);
@@ -213,6 +228,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<PluginSettingDto> dco_decode_list_plugin_setting_dto(dynamic raw);
 
   @protected
+  Int32List dco_decode_list_prim_i_32_strict(dynamic raw);
+
+  @protected
   Int64List dco_decode_list_prim_i_64_strict(dynamic raw);
 
   @protected
@@ -234,7 +252,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<SourceInfoDto> dco_decode_list_source_info_dto(dynamic raw);
 
   @protected
+  List<TrackListeningDto> dco_decode_list_track_listening_dto(dynamic raw);
+
+  @protected
   List<TrackRowDto> dco_decode_list_track_row_dto(dynamic raw);
+
+  @protected
+  ListeningBucketDto dco_decode_listening_bucket_dto(dynamic raw);
+
+  @protected
+  ListeningSummaryDto dco_decode_listening_summary_dto(dynamic raw);
 
   @protected
   LyricsDto dco_decode_lyrics_dto(dynamic raw);
@@ -418,6 +445,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TrackDto dco_decode_track_dto(dynamic raw);
 
   @protected
+  TrackListeningDto dco_decode_track_listening_dto(dynamic raw);
+
+  @protected
   TrackOverlayDto dco_decode_track_overlay_dto(dynamic raw);
 
   @protected
@@ -461,7 +491,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AlbumDto sse_decode_album_dto(SseDeserializer deserializer);
 
   @protected
+  AlbumListeningDto sse_decode_album_listening_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ArtistDto sse_decode_artist_dto(SseDeserializer deserializer);
+
+  @protected
+  ArtistListeningDto sse_decode_artist_listening_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ArtworkDto sse_decode_artwork_dto(SseDeserializer deserializer);
@@ -615,7 +655,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<AlbumDto> sse_decode_list_album_dto(SseDeserializer deserializer);
 
   @protected
+  List<AlbumListeningDto> sse_decode_list_album_listening_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<ArtistDto> sse_decode_list_artist_dto(SseDeserializer deserializer);
+
+  @protected
+  List<ArtistListeningDto> sse_decode_list_artist_listening_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<DiscoveredServiceDto> sse_decode_list_discovered_service_dto(
@@ -639,6 +689,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<GenreCountDto> sse_decode_list_genre_count_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ListeningBucketDto> sse_decode_list_listening_bucket_dto(
     SseDeserializer deserializer,
   );
 
@@ -676,6 +731,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  Int32List sse_decode_list_prim_i_32_strict(SseDeserializer deserializer);
+
+  @protected
   Int64List sse_decode_list_prim_i_64_strict(SseDeserializer deserializer);
 
   @protected
@@ -705,7 +763,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<TrackListeningDto> sse_decode_list_track_listening_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<TrackRowDto> sse_decode_list_track_row_dto(SseDeserializer deserializer);
+
+  @protected
+  ListeningBucketDto sse_decode_listening_bucket_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ListeningSummaryDto sse_decode_listening_summary_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   LyricsDto sse_decode_lyrics_dto(SseDeserializer deserializer);
@@ -923,6 +996,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TrackDto sse_decode_track_dto(SseDeserializer deserializer);
 
   @protected
+  TrackListeningDto sse_decode_track_listening_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TrackOverlayDto sse_decode_track_overlay_dto(SseDeserializer deserializer);
 
   @protected
@@ -971,7 +1049,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_album_dto(AlbumDto self, SseSerializer serializer);
 
   @protected
+  void sse_encode_album_listening_dto(
+    AlbumListeningDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_artist_dto(ArtistDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_artist_listening_dto(
+    ArtistListeningDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_artwork_dto(ArtworkDto self, SseSerializer serializer);
@@ -1166,8 +1256,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_album_dto(List<AlbumDto> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_album_listening_dto(
+    List<AlbumListeningDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_artist_dto(
     List<ArtistDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_artist_listening_dto(
+    List<ArtistListeningDto> self,
     SseSerializer serializer,
   );
 
@@ -1198,6 +1300,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_genre_count_dto(
     List<GenreCountDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_listening_bucket_dto(
+    List<ListeningBucketDto> self,
     SseSerializer serializer,
   );
 
@@ -1244,6 +1352,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_prim_i_32_strict(
+    Int32List self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_prim_i_64_strict(
     Int64List self,
     SseSerializer serializer,
@@ -1286,8 +1400,26 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_track_listening_dto(
+    List<TrackListeningDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_track_row_dto(
     List<TrackRowDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_listening_bucket_dto(
+    ListeningBucketDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_listening_summary_dto(
+    ListeningSummaryDto self,
     SseSerializer serializer,
   );
 
@@ -1569,6 +1701,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_track_dto(TrackDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_track_listening_dto(
+    TrackListeningDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_track_overlay_dto(

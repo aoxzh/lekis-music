@@ -44,6 +44,7 @@ use lekis_library::{EnrichCandidateRow, Library, LyricsRow, PlaylistEntry};
 pub use lekis_library::{
     OfflineDownload, OfflineStats, PlaybackStateRow, SourceInfo, TrackContext, TrackUserState,
 };
+pub use lekis_library::ListeningSummary;
 use lekis_playback::{EngineCommand, OutputDevice, OutputMode, PlaybackEngine};
 use lekis_scanner::{tags::LoftyTagReader, Scanner};
 use lekis_types::*;
@@ -1875,6 +1876,24 @@ impl LekisCore {
     pub async fn most_played(&self, limit: u32) -> Result<Vec<TrackRow>> {
         let s = self.services.clone();
         self.run(async move { s.library.most_played(limit).await })
+            .await
+    }
+
+    /// 有听歌记录的年份，新的在前（DIS-06）。
+    pub async fn listening_years(&self) -> Result<Vec<i32>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.listening_years().await })
+            .await
+    }
+
+    /// 某年/全部时间的听歌统计（DIS-06）。
+    pub async fn listening_summary(
+        &self,
+        year: Option<i32>,
+        top_limit: u32,
+    ) -> Result<ListeningSummary> {
+        let s = self.services.clone();
+        self.run(async move { s.library.listening_summary(year, top_limit).await })
             .await
     }
 

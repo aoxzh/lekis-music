@@ -294,6 +294,118 @@ impl From<t::TrackRow> for TrackRowDto {
     }
 }
 
+/// 月度/小时听歌柱状图的一格（DIS-06）。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ListeningBucketDto {
+    pub index: u32,
+    pub plays: u64,
+    pub played_ms: u64,
+}
+
+/// 按听歌时长排名的艺人。
+#[derive(Debug, Clone, Default)]
+pub struct ArtistListeningDto {
+    pub artist: String,
+    pub plays: u64,
+    pub played_ms: u64,
+}
+
+/// 按听歌时长排名的专辑。
+#[derive(Debug, Clone, Default)]
+pub struct AlbumListeningDto {
+    pub title: String,
+    pub artist: String,
+    pub plays: u64,
+    pub played_ms: u64,
+}
+
+/// 按听歌时长排名的曲目。
+#[derive(Debug, Clone)]
+pub struct TrackListeningDto {
+    pub track: TrackRowDto,
+    pub plays: u64,
+    pub played_ms: u64,
+}
+
+/// 年度/全部时间听歌报告（DIS-06）。
+#[derive(Debug, Clone, Default)]
+pub struct ListeningSummaryDto {
+    pub total_plays: u64,
+    pub total_played_ms: u64,
+    pub unique_tracks: u64,
+    pub unique_artists: u64,
+    pub unique_albums: u64,
+    pub first_played_at: Option<i64>,
+    pub last_played_at: Option<i64>,
+    pub available_years: Vec<i32>,
+    pub months: Vec<ListeningBucketDto>,
+    pub hours: Vec<ListeningBucketDto>,
+    pub top_artists: Vec<ArtistListeningDto>,
+    pub top_albums: Vec<AlbumListeningDto>,
+    pub top_tracks: Vec<TrackListeningDto>,
+}
+
+impl From<lekis_core::ListeningSummary> for ListeningSummaryDto {
+    fn from(s: lekis_core::ListeningSummary) -> Self {
+        Self {
+            total_plays: s.total_plays,
+            total_played_ms: s.total_played_ms,
+            unique_tracks: s.unique_tracks,
+            unique_artists: s.unique_artists,
+            unique_albums: s.unique_albums,
+            first_played_at: s.first_played_at,
+            last_played_at: s.last_played_at,
+            available_years: s.available_years,
+            months: s
+                .months
+                .into_iter()
+                .map(|b| ListeningBucketDto {
+                    index: b.index,
+                    plays: b.plays,
+                    played_ms: b.played_ms,
+                })
+                .collect(),
+            hours: s
+                .hours
+                .into_iter()
+                .map(|b| ListeningBucketDto {
+                    index: b.index,
+                    plays: b.plays,
+                    played_ms: b.played_ms,
+                })
+                .collect(),
+            top_artists: s
+                .top_artists
+                .into_iter()
+                .map(|a| ArtistListeningDto {
+                    artist: a.artist,
+                    plays: a.plays,
+                    played_ms: a.played_ms,
+                })
+                .collect(),
+            top_albums: s
+                .top_albums
+                .into_iter()
+                .map(|a| AlbumListeningDto {
+                    title: a.title,
+                    artist: a.artist,
+                    plays: a.plays,
+                    played_ms: a.played_ms,
+                })
+                .collect(),
+            top_tracks: s
+                .top_tracks
+                .into_iter()
+                .map(|t| TrackListeningDto {
+                    track: t.track.into(),
+                    plays: t.plays,
+                    played_ms: t.played_ms,
+                })
+                .collect(),
+        }
+    }
+}
+
 /// 曲目覆盖层：用户手工改过的元数据（ENR-07）。空字段表示"用文件标签的原值"。
 #[derive(Debug, Clone, Default)]
 pub struct TrackOverlayDto {

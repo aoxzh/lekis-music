@@ -11,7 +11,7 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'dto.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `into_rule_group`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `try_from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `try_from`
 
 /// 专辑（LIB-06）。
 class AlbumDto {
@@ -63,6 +63,38 @@ class AlbumDto {
           artworkHash == other.artworkHash;
 }
 
+/// 按听歌时长排名的专辑。
+class AlbumListeningDto {
+  final String title;
+  final String artist;
+  final BigInt plays;
+  final BigInt playedMs;
+
+  const AlbumListeningDto({
+    required this.title,
+    required this.artist,
+    required this.plays,
+    required this.playedMs,
+  });
+
+  static Future<AlbumListeningDto> default_() =>
+      RustLib.instance.api.crateApiDtoAlbumListeningDtoDefault();
+
+  @override
+  int get hashCode =>
+      title.hashCode ^ artist.hashCode ^ plays.hashCode ^ playedMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AlbumListeningDto &&
+          runtimeType == other.runtimeType &&
+          title == other.title &&
+          artist == other.artist &&
+          plays == other.plays &&
+          playedMs == other.playedMs;
+}
+
 /// 艺人（LIB-06）。
 class ArtistDto {
   final PlatformInt64 id;
@@ -101,6 +133,34 @@ class ArtistDto {
           aliases == other.aliases &&
           artworkId == other.artworkId &&
           mbid == other.mbid;
+}
+
+/// 按听歌时长排名的艺人。
+class ArtistListeningDto {
+  final String artist;
+  final BigInt plays;
+  final BigInt playedMs;
+
+  const ArtistListeningDto({
+    required this.artist,
+    required this.plays,
+    required this.playedMs,
+  });
+
+  static Future<ArtistListeningDto> default_() =>
+      RustLib.instance.api.crateApiDtoArtistListeningDtoDefault();
+
+  @override
+  int get hashCode => artist.hashCode ^ plays.hashCode ^ playedMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ArtistListeningDto &&
+          runtimeType == other.runtimeType &&
+          artist == other.artist &&
+          plays == other.plays &&
+          playedMs == other.playedMs;
 }
 
 /// 封面元数据（图片字节按路径从缓存目录取）。
@@ -465,6 +525,105 @@ class GenreCountDto {
 }
 
 enum LibraryScopeDto { catalog, playlists, userState, sources }
+
+/// 月度/小时听歌柱状图的一格（DIS-06）。
+class ListeningBucketDto {
+  final int index;
+  final BigInt plays;
+  final BigInt playedMs;
+
+  const ListeningBucketDto({
+    required this.index,
+    required this.plays,
+    required this.playedMs,
+  });
+
+  static Future<ListeningBucketDto> default_() =>
+      RustLib.instance.api.crateApiDtoListeningBucketDtoDefault();
+
+  @override
+  int get hashCode => index.hashCode ^ plays.hashCode ^ playedMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ListeningBucketDto &&
+          runtimeType == other.runtimeType &&
+          index == other.index &&
+          plays == other.plays &&
+          playedMs == other.playedMs;
+}
+
+/// 年度/全部时间听歌报告（DIS-06）。
+class ListeningSummaryDto {
+  final BigInt totalPlays;
+  final BigInt totalPlayedMs;
+  final BigInt uniqueTracks;
+  final BigInt uniqueArtists;
+  final BigInt uniqueAlbums;
+  final PlatformInt64? firstPlayedAt;
+  final PlatformInt64? lastPlayedAt;
+  final Int32List availableYears;
+  final List<ListeningBucketDto> months;
+  final List<ListeningBucketDto> hours;
+  final List<ArtistListeningDto> topArtists;
+  final List<AlbumListeningDto> topAlbums;
+  final List<TrackListeningDto> topTracks;
+
+  const ListeningSummaryDto({
+    required this.totalPlays,
+    required this.totalPlayedMs,
+    required this.uniqueTracks,
+    required this.uniqueArtists,
+    required this.uniqueAlbums,
+    this.firstPlayedAt,
+    this.lastPlayedAt,
+    required this.availableYears,
+    required this.months,
+    required this.hours,
+    required this.topArtists,
+    required this.topAlbums,
+    required this.topTracks,
+  });
+
+  static Future<ListeningSummaryDto> default_() =>
+      RustLib.instance.api.crateApiDtoListeningSummaryDtoDefault();
+
+  @override
+  int get hashCode =>
+      totalPlays.hashCode ^
+      totalPlayedMs.hashCode ^
+      uniqueTracks.hashCode ^
+      uniqueArtists.hashCode ^
+      uniqueAlbums.hashCode ^
+      firstPlayedAt.hashCode ^
+      lastPlayedAt.hashCode ^
+      availableYears.hashCode ^
+      months.hashCode ^
+      hours.hashCode ^
+      topArtists.hashCode ^
+      topAlbums.hashCode ^
+      topTracks.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ListeningSummaryDto &&
+          runtimeType == other.runtimeType &&
+          totalPlays == other.totalPlays &&
+          totalPlayedMs == other.totalPlayedMs &&
+          uniqueTracks == other.uniqueTracks &&
+          uniqueArtists == other.uniqueArtists &&
+          uniqueAlbums == other.uniqueAlbums &&
+          firstPlayedAt == other.firstPlayedAt &&
+          lastPlayedAt == other.lastPlayedAt &&
+          availableYears == other.availableYears &&
+          months == other.months &&
+          hours == other.hours &&
+          topArtists == other.topArtists &&
+          topAlbums == other.topAlbums &&
+          topTracks == other.topTracks;
+}
 
 /// 歌词。
 class LyricsDto {
@@ -1846,6 +2005,31 @@ class TrackDto {
           loved == other.loved &&
           rating == other.rating &&
           playCount == other.playCount;
+}
+
+/// 按听歌时长排名的曲目。
+class TrackListeningDto {
+  final TrackRowDto track;
+  final BigInt plays;
+  final BigInt playedMs;
+
+  const TrackListeningDto({
+    required this.track,
+    required this.plays,
+    required this.playedMs,
+  });
+
+  @override
+  int get hashCode => track.hashCode ^ plays.hashCode ^ playedMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TrackListeningDto &&
+          runtimeType == other.runtimeType &&
+          track == other.track &&
+          plays == other.plays &&
+          playedMs == other.playedMs;
 }
 
 /// 曲目覆盖层：用户手工改过的元数据（ENR-07）。空字段表示"用文件标签的原值"。

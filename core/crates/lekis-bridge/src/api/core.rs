@@ -993,6 +993,19 @@ pub async fn most_played(limit: u32) -> Result<Vec<TrackRowDto>, CoreError> {
         .collect())
 }
 
+/// 有听歌记录的年份，新的在前（DIS-06）。
+pub async fn listening_years() -> Result<Vec<i32>, CoreError> {
+    Ok(core().listening_years().await?)
+}
+
+/// 某年/全部时间的听歌报告（DIS-06）。
+pub async fn listening_summary(
+    year: Option<i32>,
+    top_limit: u32,
+) -> Result<ListeningSummaryDto, CoreError> {
+    Ok(core().listening_summary(year, top_limit).await?.into())
+}
+
 /// 记一次播放（写播放历史 + 累加播放次数）。
 pub async fn record_play(track_id: i64, ms_played: u64) -> Result<(), CoreError> {
     Ok(core()

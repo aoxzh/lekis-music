@@ -11,6 +11,7 @@ mod browse;
 mod db;
 mod enrich_queue;
 mod folders;
+mod listening;
 mod lyrics;
 mod migrations;
 pub mod normalize;
@@ -32,6 +33,9 @@ pub use artwork::{cache_relative_path, ArtworkCandidate, ArtworkRow};
 pub use db::{DbResultExt, Library};
 pub use enrich_queue::{EnrichCandidateRow, NewEnrichCandidate};
 pub use folders::{normalize_folder_path, FolderEntry, FolderListing, FolderRoot};
+pub use listening::{
+    AlbumListening, ArtistListening, ListeningBucket, ListeningSummary, TrackListening,
+};
 pub use lyrics::LyricsRow;
 pub use offline::{OfflineDownload, OfflineStats};
 pub use playback_state::PlaybackStateRow;
