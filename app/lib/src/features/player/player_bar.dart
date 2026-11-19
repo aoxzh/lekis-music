@@ -70,8 +70,8 @@ class PlayerBar extends ConsumerWidget {
               onPressed: hasTrack
                   ? () {
                       ref
-                          .read(nowPlayingLyricsVisibleProvider.notifier)
-                          .set(true);
+                          .read(nowPlayingPaneProvider.notifier)
+                          .set(NowPlayingPane.lyrics);
                       openNowPlaying(context);
                     }
                   : null,

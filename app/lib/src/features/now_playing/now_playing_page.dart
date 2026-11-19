@@ -1,38 +1,42 @@
+import 'dart:math' as math;
+import 'dart:ui' show lerpDouble;
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/library/widgets/artwork.dart';
+import 'package:lekis/src/features/now_playing/cover_wall.dart';
 import 'package:lekis/src/features/now_playing/lyrics_view.dart';
 import 'package:lekis/src/features/now_playing/now_playing_artwork.dart';
 import 'package:lekis/src/features/now_playing/now_playing_background.dart';
 import 'package:lekis/src/features/now_playing/now_playing_library_actions.dart';
+import 'package:lekis/src/features/now_playing/now_playing_layout.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/features/now_playing/now_playing_route.dart';
 import 'package:lekis/src/features/now_playing/now_playing_tint.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/player/queue_panel.dart';
 import 'package:lekis/src/features/player/queue_view.dart';
 import 'package:lekis/src/features/player/widgets/current_track.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
 import 'package:lekis/src/layout/adaptive_two_pane.dart';
 import 'package:lekis/src/layout/fold.dart';
 import 'package:lekis/src/layout/window_size.dart';
+import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
-
-/// Width from which lyrics get a third column next to cover and controls
-/// (common 1024-wide tablets in landscape get the reference
-/// cover | controls | lyrics layout).
-const double _threePaneMinWidth = 1024;
 
 /// Full-screen Now Playing.
 ///
 /// Layouts (chosen from the window, never the device type):
-/// * tabletop (half-open, horizontal hinge): artwork / lyrics above the
-///   crease, controls below; nothing on the crease.
+/// * tabletop (half-open, horizontal hinge): artwork / wall / lyrics above
+///   the crease, controls below; nothing on the crease.
 /// * landscape-ish, short, or split by a vertical fold / hinge: regions
-///   side by side – cover | controls; with lyrics shown, cover + controls |
-///   lyrics (or cover | controls | lyrics on very wide windows). The split
-///   lands exactly on a vertical fold / hinge when there is one.
-/// * portrait: artwork above controls, lyrics as a toggle in place of the
-///   artwork.
+///   side by side – cover | controls; with lyrics or queue shown, cover +
+///   controls | lyrics/queue (or cover | controls | lyrics/queue on very
+///   wide windows). The split lands exactly on a vertical fold / hinge when
+///   there is one.
+/// * portrait: artwork / wall / lyrics above controls, with the cover wall
+///   as a paged grid mode and the queue as a bottom sheet.
 ///
 /// Drag down (outside the lyrics list) to push the page back into the mini
 /// player; swipe the cover sideways to skip.
@@ -149,21 +153,148 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
   }
 }
 
-class _NowPlayingLayout extends ConsumerWidget {
+class _NowPlayingLayout extends ConsumerStatefulWidget {
   const _NowPlayingLayout({required this.lowPower, required this.onClose});
 
   final bool lowPower;
   final VoidCallback onClose;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_NowPlayingLayout> createState() => _NowPlayingLayoutState();
+}
+
+class _NowPlayingLayoutState extends ConsumerState<_NowPlayingLayout>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _coverFlight = AnimationController(
+    vsync: this,
+    duration: LekisMotion.slow,
+  );
+  OverlayEntry? _coverFlightEntry;
+  AlbumDto? _flightAlbum;
+  Rect _flightFrom = Rect.zero;
+  Rect _flightTo = Rect.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _coverFlight.addStatusListener((status) {
+      if (status == AnimationStatus.completed) _removeCoverFlight();
+    });
+  }
+
+  @override
+  void dispose() {
+    _coverFlightEntry?.remove();
+    _coverFlight.dispose();
+    super.dispose();
+  }
+
+  void _removeCoverFlight() {
+    _coverFlightEntry?.remove();
+    _coverFlightEntry = null;
+    _flightAlbum = null;
+  }
+
+  /// Cover-wall tap: play the album and fly the tapped cover into the large
+  /// Now Playing artwork (shared-element style, no route push involved).
+  void _playFromWall(AlbumDto album, Rect source) {
+    ref.read(playerActionsProvider).playAlbum(album.id.toInt());
+    final desktop = usesNowPlayingSidePanels(context);
+    ref.read(nowPlayingPaneProvider.notifier).set(NowPlayingPane.cover);
+    if (!desktop ||
+        MediaQuery.disableAnimationsOf(context) ||
+        source == Rect.zero ||
+        _coverFlight.isAnimating) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _flyCover(album, source, _coverDestination());
+    });
+  }
+
+  /// Where the large cover sits after the wall closes: the left half of a
+  /// wide page, centered below the top bar and inside its 24 dp padding.
+  Rect _coverDestination() {
+    final size = MediaQuery.sizeOf(context);
+    final padding = MediaQuery.paddingOf(context);
+    final top = padding.top + LekisSizes.touchTargetMin + LekisSpacing.xs * 2;
+    final left = Rect.fromLTRB(
+      0,
+      top,
+      size.width * 0.5,
+      size.height - padding.bottom,
+    ).deflate(LekisSpacing.xl);
+    final side = math.min(left.width, left.height);
+    return Rect.fromCenter(center: left.center, width: side, height: side);
+  }
+
+  void _flyCover(AlbumDto album, Rect from, Rect to) {
+    final overlay = Overlay.of(context, rootOverlay: true);
+    _removeCoverFlight();
+    _flightAlbum = album;
+    _flightFrom = from;
+    _flightTo = to;
+    final entry = OverlayEntry(
+      builder: (context) => IgnorePointer(
+        child: AnimatedBuilder(
+          animation: _coverFlight,
+          builder: (context, _) {
+            final t = Curves.easeOutCubic.transform(_coverFlight.value);
+            final rect = Rect.lerp(_flightFrom, _flightTo, t)!;
+            final radius = lerpDouble(
+              LekisRadius.artworkGrid,
+              LekisRadius.artworkFor(_flightTo.shortestSide),
+              t,
+            )!;
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned.fromRect(
+                  rect: rect,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(radius),
+                      boxShadow: [
+                        BoxShadow(
+                          color: context.lekisColors.scrim.withValues(
+                            alpha: 0.4 * (1 - t),
+                          ),
+                          blurRadius: LekisSpacing.xxl * (1 - t),
+                          offset: Offset(0, LekisSpacing.md * (1 - t)),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(radius),
+                      child: AlbumArtwork(
+                        album: _flightAlbum ?? album,
+                        radius: 0,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+    _coverFlightEntry = entry;
+    overlay.insert(entry);
+    _coverFlight.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final trackId = ref.watch(playbackProvider.select((s) => s.trackId));
-    final showLyrics = ref.watch(nowPlayingLyricsVisibleProvider);
+    final pane = ref.watch(nowPlayingPaneProvider);
     final fold = context.fold;
     final size = MediaQuery.sizeOf(context);
     final short = context.heightClass < WindowHeightClass.medium;
     final verticalFold = fold.hasHinge && fold.hingeAxis == Axis.vertical;
     final landscapeish = size.width >= 600 && size.width >= size.height * 0.95;
+    final desktopPanels = usesNowPlayingSidePanels(context);
 
     Widget lyrics({bool compact = false}) => trackId == null
         ? const SizedBox.shrink()
@@ -171,7 +302,7 @@ class _NowPlayingLayout extends ConsumerWidget {
             key: ValueKey('lyrics-$trackId'),
             trackId: trackId,
             compact: compact,
-            lowPower: lowPower,
+            lowPower: widget.lowPower,
           );
 
     const artwork = Padding(
@@ -179,19 +310,48 @@ class _NowPlayingLayout extends ConsumerWidget {
       child: NowPlayingArtwork(),
     );
 
+    Widget mainPane({required bool compact}) {
+      if (pane == NowPlayingPane.wall) {
+        return KeyedSubtree(
+          key: const ValueKey('cover-wall'),
+          child: CoverWall(onPlayAlbum: _playFromWall),
+        );
+      }
+      if (!desktopPanels && pane == NowPlayingPane.lyrics) {
+        return KeyedSubtree(
+          key: const ValueKey('lyrics'),
+          child: lyrics(compact: compact),
+        );
+      }
+      return KeyedSubtree(key: const ValueKey('art'), child: artwork);
+    }
+
     Widget switcher({required bool compact}) => AnimatedSwitcher(
-      duration: lowPower ? Duration.zero : LekisMotion.normal,
-      child: showLyrics
-          ? KeyedSubtree(
-              key: const ValueKey('lyrics'),
-              child: lyrics(compact: compact),
-            )
-          : const KeyedSubtree(key: ValueKey('art'), child: artwork),
+      duration: widget.lowPower ? Duration.zero : LekisMotion.normal,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      layoutBuilder: (current, previous) =>
+          Stack(fit: StackFit.expand, children: [...previous, ?current]),
+      child: mainPane(compact: compact),
     );
 
-    final topBar = _TopBar(onClose: onClose);
+    Widget controls() => Center(
+      child: SingleChildScrollView(
+        primary: false,
+        padding: const EdgeInsets.symmetric(vertical: LekisSpacing.lg),
+        child: NowPlayingControls(
+          showLyricsToggle: true,
+          desktopPanels: desktopPanels,
+        ),
+      ),
+    );
 
-    // Tabletop: top half = artwork / lyrics, bottom half = controls.
+    final topBar = _TopBar(
+      onClose: widget.onClose,
+      desktopPanels: desktopPanels,
+    );
+
+    // Tabletop: top half = artwork / wall / lyrics, bottom half = controls.
     if (fold.isTabletop) {
       return AdaptiveTwoPane(
         primary: SafeArea(
@@ -202,67 +362,90 @@ class _NowPlayingLayout extends ConsumerWidget {
             ],
           ),
         ),
-        secondary: const SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              primary: false,
-              child: NowPlayingControls(showLyricsToggle: true),
-            ),
-          ),
-        ),
+        secondary: SafeArea(child: controls()),
         primaryFraction: 0.5,
       );
     }
 
     // Regions side by side.
     if (short || landscapeish || verticalFold) {
-      const controls = Center(
-        child: SingleChildScrollView(
-          primary: false,
-          padding: EdgeInsets.symmetric(vertical: LekisSpacing.lg),
-          child: NowPlayingControls(showLyricsToggle: true),
-        ),
-      );
-      final threePane =
-          showLyrics &&
-          !short &&
-          !verticalFold &&
-          size.width >= _threePaneMinWidth;
+      final sidePane = desktopPanels
+          ? switch (pane) {
+              NowPlayingPane.lyrics => lyrics(),
+              NowPlayingPane.queue => _SidePaneEntrance(
+                child: QueuePanel(
+                  onClose: () => ref
+                      .read(nowPlayingPaneProvider.notifier)
+                      .set(NowPlayingPane.cover),
+                ),
+              ),
+              _ => null,
+            }
+          : null;
 
       final String mode;
       final Widget regions;
-      if (!showLyrics) {
-        mode = 'cover|controls';
-        regions = const _Split(fraction: 0.5, first: artwork, second: controls);
-      } else if (threePane) {
-        mode = 'cover|controls|lyrics';
-        regions = _Split(
-          fraction: 0.62,
-          first: const _Split(fraction: 0.55, first: artwork, second: controls),
-          second: lyrics(),
-        );
-      } else if (short) {
-        // Too short to stack cover and controls: lyrics take the cover's
-        // place.
-        mode = 'controls|lyrics';
-        regions = _Split(
-          fraction: 0.5,
-          first: controls,
-          second: lyrics(compact: true),
-        );
-      } else {
-        mode = 'cover+controls|lyrics';
-        regions = _Split(
-          fraction: 0.45,
-          first: const Column(
+      if (sidePane != null) {
+        if (pane == NowPlayingPane.queue) {
+          mode = 'cover|controls|queue';
+          regions = Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(child: artwork),
-              NowPlayingControls(showLyricsToggle: true),
-              SizedBox(height: LekisSpacing.xl),
+              Expanded(
+                child: _Split(
+                  fraction: 0.55,
+                  first: artwork,
+                  second: controls(),
+                ),
+              ),
+              SizedBox(width: QueuePanel.width, child: sidePane),
             ],
-          ),
-          second: lyrics(),
+          );
+        } else {
+          mode = 'cover|controls|lyrics';
+          regions = _Split(
+            fraction: 0.62,
+            first: _Split(fraction: 0.55, first: artwork, second: controls()),
+            second: sidePane,
+          );
+        }
+      } else if (pane == NowPlayingPane.wall) {
+        mode = 'wall|controls';
+        regions = _Split(
+          fraction: 0.68,
+          first: CoverWall(onPlayAlbum: _playFromWall),
+          second: controls(),
         );
+      } else if (!desktopPanels && pane == NowPlayingPane.lyrics) {
+        if (short) {
+          // Too short to stack cover and controls: lyrics take the cover's
+          // place.
+          mode = 'controls|lyrics';
+          regions = _Split(
+            fraction: 0.5,
+            first: controls(),
+            second: lyrics(compact: true),
+          );
+        } else {
+          mode = 'cover+controls|lyrics';
+          regions = _Split(
+            fraction: 0.45,
+            first: Column(
+              children: [
+                Expanded(child: artwork),
+                NowPlayingControls(
+                  showLyricsToggle: true,
+                  desktopPanels: desktopPanels,
+                ),
+                const SizedBox(height: LekisSpacing.xl),
+              ],
+            ),
+            second: lyrics(),
+          );
+        }
+      } else {
+        mode = 'cover|controls';
+        regions = _Split(fraction: 0.5, first: artwork, second: controls());
       }
 
       return SafeArea(
@@ -271,7 +454,7 @@ class _NowPlayingLayout extends ConsumerWidget {
             topBar,
             Expanded(
               child: AnimatedSwitcher(
-                duration: lowPower ? Duration.zero : LekisMotion.normal,
+                duration: widget.lowPower ? Duration.zero : LekisMotion.normal,
                 switchInCurve: Curves.easeOutCubic,
                 switchOutCurve: Curves.easeInCubic,
                 layoutBuilder: (current, previous) => Stack(
@@ -298,12 +481,40 @@ class _NowPlayingLayout extends ConsumerWidget {
             children: [
               topBar,
               Expanded(child: switcher(compact: true)),
-              const NowPlayingControls(showLyricsToggle: true),
+              NowPlayingControls(
+                showLyricsToggle: true,
+                desktopPanels: desktopPanels,
+              ),
               const SizedBox(height: LekisSpacing.lg),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Fade + short slide for the third pane when it opens.
+class _SidePaneEntrance extends StatelessWidget {
+  const _SidePaneEntrance({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) return child;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: LekisMotion.normal,
+      curve: Curves.easeOutCubic,
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        child: Transform.translate(
+          offset: Offset(LekisSpacing.lg * (1 - t), 0),
+          child: child,
+        ),
+      ),
+      child: child,
     );
   }
 }
@@ -354,16 +565,35 @@ class _Split extends StatelessWidget {
   }
 }
 
-class _TopBar extends StatelessWidget {
-  const _TopBar({required this.onClose});
+class _TopBar extends ConsumerWidget {
+  const _TopBar({required this.onClose, required this.desktopPanels});
+
   final VoidCallback onClose;
 
+  /// When true, lyrics / queue open in the third pane; otherwise the queue
+  /// uses the bottom sheet and lyrics / wall replace the cover.
+  final bool desktopPanels;
+
+  void _toggle(WidgetRef ref, NowPlayingPane pane) {
+    final current = ref.read(nowPlayingPaneProvider);
+    ref
+        .read(nowPlayingPaneProvider.notifier)
+        .set(current == pane ? NowPlayingPane.cover : pane);
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final fg = Theme.of(context).colorScheme.onSurface;
+    final colors = context.lekisColors;
+    final pane = ref.watch(nowPlayingPaneProvider);
+    final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
+    final queueLength = ref.watch(
+      playbackProvider.select((s) => s.queueLength),
+    );
+    final showQueueSelected = desktopPanels && pane == NowPlayingPane.queue;
     return Padding(
       padding: const EdgeInsets.symmetric(
-        horizontal: LekisSpacing.sm,
+        horizontal: LekisSpacing.xs,
         vertical: LekisSpacing.xs,
       ),
       child: Row(
@@ -390,7 +620,58 @@ class _TopBar extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: LekisSizes.touchTargetMin),
+          IconButton(
+            key: const ValueKey('now-playing.top-bar.wall'),
+            tooltip: pane == NowPlayingPane.wall ? '隐藏封面墙' : '封面墙',
+            isSelected: pane == NowPlayingPane.wall,
+            constraints: const BoxConstraints(
+              minWidth: LekisSizes.touchTargetMin,
+              minHeight: LekisSizes.touchTargetMin,
+            ),
+            onPressed: () => _toggle(ref, NowPlayingPane.wall),
+            icon: const Icon(Icons.grid_view_outlined),
+            selectedIcon: const Icon(Icons.grid_view_rounded),
+          ),
+          IconButton(
+            key: const ValueKey('now-playing.top-bar.lyrics'),
+            tooltip: pane == NowPlayingPane.lyrics ? '显示封面' : '显示歌词',
+            isSelected: pane == NowPlayingPane.lyrics,
+            constraints: const BoxConstraints(
+              minWidth: LekisSizes.touchTargetMin,
+              minHeight: LekisSizes.touchTargetMin,
+            ),
+            onPressed: hasTrack
+                ? () => _toggle(ref, NowPlayingPane.lyrics)
+                : null,
+            icon: const Icon(Icons.lyrics_outlined),
+            selectedIcon: const Icon(Icons.lyrics_rounded),
+          ),
+          IconButton(
+            key: const ValueKey('now-playing.top-bar.queue'),
+            tooltip: queueLength == 0 ? '播放队列' : '播放队列（$queueLength 首）',
+            isSelected: showQueueSelected,
+            constraints: const BoxConstraints(
+              minWidth: LekisSizes.touchTargetMin,
+              minHeight: LekisSizes.touchTargetMin,
+            ),
+            onPressed: hasTrack
+                ? () {
+                    if (desktopPanels) {
+                      _toggle(ref, NowPlayingPane.queue);
+                    } else {
+                      showQueueSheet(context);
+                    }
+                  }
+                : null,
+            icon: Badge.count(
+              key: const ValueKey('now-playing.top-bar.queue-badge'),
+              count: queueLength,
+              isLabelVisible: queueLength > 0,
+              backgroundColor: colors.accent,
+              textColor: colors.onAccent,
+              child: const Icon(Icons.queue_music_rounded),
+            ),
+          ),
         ],
       ),
     );
@@ -399,15 +680,28 @@ class _TopBar extends StatelessWidget {
 
 /// Title, seek bar, transport, volume and the lyrics / queue row.
 class NowPlayingControls extends ConsumerWidget {
-  const NowPlayingControls({super.key, required this.showLyricsToggle});
+  const NowPlayingControls({
+    super.key,
+    required this.showLyricsToggle,
+    this.desktopPanels = false,
+  });
 
   final bool showLyricsToggle;
+
+  /// True when the page has the third pane (so queue toggles it instead of
+  /// opening the compact bottom sheet).
+  final bool desktopPanels;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final showLyrics = ref.watch(nowPlayingLyricsVisibleProvider);
+    final colors = context.lekisColors;
+    final pane = ref.watch(nowPlayingPaneProvider);
+    final showLyrics = pane == NowPlayingPane.lyrics;
     final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
+    final queueLength = ref.watch(
+      playbackProvider.select((s) => s.queueLength),
+    );
     return ConstrainedBox(
       constraints: const BoxConstraints(
         maxWidth: LekisSizes.desktopSidebarWidth * 2.5,
@@ -453,9 +747,16 @@ class NowPlayingControls extends ConsumerWidget {
                       minHeight: LekisSizes.touchTargetMin,
                     ),
                     onPressed: hasTrack
-                        ? () => ref
-                              .read(nowPlayingLyricsVisibleProvider.notifier)
-                              .set(!showLyrics)
+                        ? () {
+                            final notifier = ref.read(
+                              nowPlayingPaneProvider.notifier,
+                            );
+                            notifier.set(
+                              showLyrics
+                                  ? NowPlayingPane.cover
+                                  : NowPlayingPane.lyrics,
+                            );
+                          }
                         : null,
                     icon: const Icon(Icons.lyrics_outlined),
                     selectedIcon: const Icon(Icons.lyrics_rounded),
@@ -463,12 +764,34 @@ class NowPlayingControls extends ConsumerWidget {
                 const SizedBox(width: LekisSpacing.sm),
                 IconButton(
                   tooltip: '播放队列',
+                  isSelected: desktopPanels && pane == NowPlayingPane.queue,
                   constraints: const BoxConstraints(
                     minWidth: LekisSizes.touchTargetMin,
                     minHeight: LekisSizes.touchTargetMin,
                   ),
-                  onPressed: hasTrack ? () => showQueueSheet(context) : null,
-                  icon: const Icon(Icons.queue_music_rounded),
+                  onPressed: hasTrack
+                      ? () {
+                          if (desktopPanels) {
+                            final notifier = ref.read(
+                              nowPlayingPaneProvider.notifier,
+                            );
+                            notifier.set(
+                              pane == NowPlayingPane.queue
+                                  ? NowPlayingPane.cover
+                                  : NowPlayingPane.queue,
+                            );
+                          } else {
+                            showQueueSheet(context);
+                          }
+                        }
+                      : null,
+                  icon: Badge.count(
+                    count: queueLength,
+                    isLabelVisible: queueLength > 0,
+                    backgroundColor: colors.accent,
+                    textColor: colors.onAccent,
+                    child: const Icon(Icons.queue_music_rounded),
+                  ),
                 ),
               ],
             ),

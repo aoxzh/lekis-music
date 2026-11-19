@@ -4,7 +4,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/now_playing/lyrics_view.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
-import 'package:lekis/src/features/player/queue_view.dart';
+import 'package:lekis/src/features/player/queue_panel.dart';
 import 'package:lekis/src/features/player/widgets/current_track.dart';
 import 'package:lekis/src/shell/routes.dart';
 import 'package:lekis/src/theme/tokens.dart';
@@ -115,7 +115,7 @@ class _NowPlayingContextPanelState
             Expanded(
               child: _tab == 0
                   ? LyricsView(trackId: trackId, compact: true)
-                  : const QueueList(compact: true),
+                  : const QueuePanel(embedded: false, showHeader: false),
             ),
             Padding(
               padding: const EdgeInsets.all(LekisSpacing.lg),

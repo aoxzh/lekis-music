@@ -3,10 +3,17 @@ import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 
-/// Whether Now Playing shows lyrics (compact: instead of the artwork).
-/// The desktop player bar sets this before opening Now Playing.
-final nowPlayingLyricsVisibleProvider =
-    NotifierProvider<SimpleValue<bool>, bool>(() => SimpleValue<bool>(false));
+/// What the main Now Playing area shows. On wide windows `lyrics` and
+/// `queue` move to the third pane next to cover + controls; on compact
+/// windows they replace the cover (the queue opens as a bottom sheet).
+enum NowPlayingPane { cover, wall, lyrics, queue }
+
+/// Currently selected Now Playing pane. The desktop player bar sets
+/// [NowPlayingPane.lyrics] before opening the page.
+final nowPlayingPaneProvider =
+    NotifierProvider<SimpleValue<NowPlayingPane>, NowPlayingPane>(
+      () => SimpleValue<NowPlayingPane>(NowPlayingPane.cover),
+    );
 
 final lyricsProvider = FutureProvider.autoDispose.family<ParsedLyrics?, int>((
   ref,
