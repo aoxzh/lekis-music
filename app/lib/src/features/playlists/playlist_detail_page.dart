@@ -389,7 +389,7 @@ class _PlaylistHeader extends ConsumerWidget {
                   OutlinedButton.icon(
                     onPressed: onExport,
                     icon: const Icon(Icons.ios_share_rounded),
-                    label: const Text('导出 M3U'),
+                    label: const Text('导出歌单'),
                   ),
                 PopupMenuButton<String>(
                   tooltip: '歌单操作',

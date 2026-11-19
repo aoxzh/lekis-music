@@ -16,7 +16,9 @@ use crate::playlists::new_playlist_uid;
 use crate::position::key_between;
 use crate::Library;
 use lekis_types::{now_ms, LekisError, PlaylistId, Result, SourceKind};
-use percent_encoding::percent_decode_str;
+use percent_encoding::{percent_decode_str, utf8_percent_encode, AsciiSet, CONTROLS};
+use quick_xml::events::Event;
+use quick_xml::Reader;
 use rusqlite::{params, OptionalExtension, Transaction};
 use std::collections::HashMap;
 
@@ -90,6 +92,122 @@ struct PendingExtInf {
     duration_secs: Option<f64>,
     artist: Option<String>,
     title: Option<String>,
+}
+
+/// Parse an XSPF playlist (PL-03).
+///
+/// XSPF is namespaced XML; we match on local names so both the default
+/// `http://xspf.org/ns/0/` namespace and unnamespaced exports work. Only
+/// `location`, `title`, `creator` and `duration` inside `<track>` are used.
+pub fn parse_xspf(content: &str) -> Result<Vec<M3uEntry>> {
+    let mut reader = Reader::from_str(content);
+    reader.config_mut().trim_text(false);
+    let mut out = Vec::new();
+    let mut current: Option<M3uEntry> = None;
+    let mut field: Option<&'static str> = None;
+    let mut buffer = String::new();
+
+    loop {
+        let event = reader
+            .read_event()
+            .map_err(|e| LekisError::invalid(format!("XSPF parse failed: {e}")))?;
+        match event {
+            Event::Start(start) => match start.local_name().as_ref() {
+                "track" => {
+                    current = Some(M3uEntry::default());
+                    field = None;
+                    buffer.clear();
+                }
+                "location" => {
+                    field = Some("location");
+                    buffer.clear();
+                }
+                "title" => {
+                    field = Some("title");
+                    buffer.clear();
+                }
+                "creator" => {
+                    field = Some("creator");
+                    buffer.clear();
+                }
+                "duration" => {
+                    field = Some("duration");
+                    buffer.clear();
+                }
+                _ => {}
+            },
+            Event::Empty(start) => {
+                if start.local_name().as_ref() == "track" {
+                    if let Some(track) = current.take() {
+                        if !track.path.is_empty() {
+                            out.push(track);
+                        }
+                    }
+                }
+            }
+            Event::Text(text) => {
+                if field.is_some() {
+                    buffer.push_str(text.as_ref());
+                }
+            }
+            Event::CData(text) => {
+                if field.is_some() {
+                    buffer.push_str(text.as_ref());
+                }
+            }
+            Event::GeneralRef(reference) => {
+                if field.is_some() {
+                    let raw = format!("&{};", reference.as_ref());
+                    match quick_xml::escape::unescape(&raw) {
+                        Ok(value) => buffer.push_str(&value),
+                        Err(_) => buffer.push_str(&raw),
+                    }
+                }
+            }
+            Event::End(end) => match end.local_name().as_ref() {
+                "track" => {
+                    field = None;
+                    buffer.clear();
+                    if let Some(track) = current.take() {
+                        if !track.path.is_empty() {
+                            out.push(track);
+                        }
+                    }
+                }
+                "location" | "title" | "creator" | "duration" => {
+                    if let Some(name) = field {
+                        commit_xspf_field(current.as_mut(), name, buffer.trim());
+                    }
+                    field = None;
+                    buffer.clear();
+                }
+                _ => {}
+            },
+            Event::Eof => break,
+            _ => {}
+        }
+    }
+    Ok(out)
+}
+
+fn commit_xspf_field(track: Option<&mut M3uEntry>, field: &str, value: &str) {
+    let Some(track) = track else { return };
+    if value.is_empty() {
+        return;
+    }
+    match field {
+        "location" => track.path = value.to_string(),
+        "title" => track.title = Some(value.to_string()),
+        "creator" => track.artist = Some(value.to_string()),
+        "duration" => {
+            track.duration_secs = value
+                .parse::<f64>()
+                .ok()
+                .filter(|v| v.is_finite())
+                .map(|ms| ms / 1000.0);
+        }
+        _ => {}
+    }
 }
 
 fn parse_extinf(rest: &str) -> PendingExtInf {
@@ -249,11 +367,29 @@ impl Library {
         name: &str,
         content: &str,
     ) -> Result<PlaylistImportReport> {
+        self.import_playlist_entries(name, parse_m3u(content))
+            .await
+    }
+
+    /// 从 XSPF 文本新建一个普通歌单（PL-03）。
+    pub async fn import_playlist_xspf(
+        &self,
+        name: &str,
+        content: &str,
+    ) -> Result<PlaylistImportReport> {
+        self.import_playlist_entries(name, parse_xspf(content)?)
+            .await
+    }
+
+    async fn import_playlist_entries(
+        &self,
+        name: &str,
+        entries: Vec<M3uEntry>,
+    ) -> Result<PlaylistImportReport> {
         let name = name.trim().to_string();
         if name.is_empty() {
             return Err(LekisError::invalid("playlist name must not be empty"));
         }
-        let entries = parse_m3u(content);
         let total = entries.len() as u32;
 
         self.write(move |conn| {
@@ -294,6 +430,101 @@ impl Library {
                 total,
                 missing,
             })
+        })
+        .await
+    }
+
+    /// 把普通歌单导出成 XSPF 1.0 文本（UTF-8，适合其他播放器）。
+    ///
+    /// 和 M3U 一样跳过占位条目；智能歌单返回 [`LekisError::invalid`]。
+    pub async fn export_playlist_xspf(&self, id: PlaylistId) -> Result<String> {
+        self.read(move |c| {
+            let playlist: Option<(String, String)> = c
+                .query_row(
+                    "SELECT kind, name FROM playlist WHERE id = ?1 AND deleted = 0",
+                    params![id.0],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .optional()
+                .db()?;
+            let Some((kind, name)) = playlist else {
+                return Err(not_found(id));
+            };
+            if kind == "smart" {
+                return Err(LekisError::invalid(
+                    "smart playlists cannot be exported to XSPF",
+                ));
+            }
+
+            let mut stmt = c
+                .prepare_cached(
+                    "SELECT pi.position_key, t.title, t.artist_line, t.duration_ms,
+                            f.path, s.kind, s.root_path, tf.external_id
+                     FROM playlist_item pi
+                     LEFT JOIN track t ON t.uid = pi.track_uid
+                     LEFT JOIN track_file tf ON tf.track_id = t.id
+                     LEFT JOIN file f ON f.id = tf.file_id
+                     LEFT JOIN source s ON s.id = tf.source_id
+                     WHERE pi.playlist_id = ?1
+                     ORDER BY pi.position_key, tf.quality_score DESC, s.priority DESC,
+                              s.id, tf.file_id",
+                )
+                .db()?;
+            let rows = stmt
+                .query_map(params![id.0], |r| {
+                    Ok(ExportRow {
+                        position_key: r.get(0)?,
+                        title: r.get(1)?,
+                        artist_line: r.get(2)?,
+                        duration_ms: r.get(3)?,
+                        path: r.get(4)?,
+                        source_kind: r.get(5)?,
+                        root_path: r.get(6)?,
+                        external_id: r.get(7)?,
+                    })
+                })
+                .db()?;
+
+            let mut out = String::from(
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+                 <playlist version=\"1\" xmlns=\"http://xspf.org/ns/0/\">\n",
+            );
+            out.push_str(&format!("  <title>{}</title>\n", xml_escape(&name)));
+            out.push_str("  <trackList>\n");
+            let mut seen = std::collections::HashSet::new();
+            for row in rows {
+                let row = row.db()?;
+                if !seen.insert(row.position_key.clone()) {
+                    continue;
+                }
+                let Some(path) = row.export_path() else {
+                    continue;
+                };
+                out.push_str("    <track>\n");
+                out.push_str(&format!(
+                    "      <location>{}</location>\n",
+                    xml_escape(&xspf_location(&path))
+                ));
+                if let Some(title) = row.title.as_deref().map(single_line) {
+                    if !title.is_empty() {
+                        out.push_str(&format!("      <title>{}</title>\n", xml_escape(&title)));
+                    }
+                }
+                if let Some(artist) = row.artist_line.as_deref().map(single_line) {
+                    if !artist.is_empty() {
+                        out.push_str(&format!(
+                            "      <creator>{}</creator>\n",
+                            xml_escape(&artist)
+                        ));
+                    }
+                }
+                if let Some(ms) = row.duration_ms.filter(|ms| *ms > 0) {
+                    out.push_str(&format!("      <duration>{ms}</duration>\n"));
+                }
+                out.push_str("    </track>\n");
+            }
+            out.push_str("  </trackList>\n</playlist>\n");
+            Ok(out)
         })
         .await
     }
@@ -578,6 +809,47 @@ fn single_line(value: &str) -> String {
         .chars()
         .map(|ch| if ch == '\r' || ch == '\n' { ' ' } else { ch })
         .collect()
+}
+
+/// Characters that must be percent-encoded in an XSPF `<location>` URI.
+/// `/`, `:` and non-ASCII UTF-8 stay readable; import decodes `%xx` again.
+const XSPF_URI_ESCAPE: &AsciiSet = &CONTROLS
+    .add(b' ')
+    .add(b'"')
+    .add(b'&')
+    .add(b'#')
+    .add(b'%')
+    .add(b'<')
+    .add(b'>')
+    .add(b'?')
+    .add(b'[')
+    .add(b']');
+
+fn xspf_location(path: &str) -> String {
+    if is_url(path) {
+        return path.to_string();
+    }
+    let path = normalize_local(path);
+    let uri = if path.starts_with("//") {
+        format!("file:{path}")
+    } else if path.starts_with('/') {
+        format!("file://{path}")
+    } else if path.as_bytes().get(1) == Some(&b':') {
+        format!("file:///{path}")
+    } else {
+        path
+    };
+    utf8_percent_encode(&uri, XSPF_URI_ESCAPE).to_string()
+}
+
+fn xml_escape(value: &str) -> String {
+    let value = single_line(value);
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
 }
 
 fn not_found(id: PlaylistId) -> LekisError {
@@ -875,5 +1147,89 @@ mod tests {
         assert_eq!(entries[1].path, "music/b.flac");
         assert_eq!(entries[1].title.as_deref(), Some("Title"));
         assert_eq!(entries[1].duration_secs, Some(12.0));
+    }
+
+    #[test]
+    fn xspf_parser_handles_namespace_entities_and_duration() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<playlist version="1" xmlns="http://xspf.org/ns/0/">
+  <title>我的歌单</title>
+  <trackList>
+    <track>
+      <location>file:///music/A%20B.flac</location>
+      <title>一 &amp; 二</title>
+      <creator>周杰伦</creator>
+      <duration>123000</duration>
+    </track>
+    <track>
+      <location>C:\Music\b.flac</location>
+      <title>普通朋友</title>
+    </track>
+  </trackList>
+</playlist>"#;
+        let entries = parse_xspf(xml).expect("valid xspf");
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].path, "file:///music/A%20B.flac");
+        assert_eq!(entries[0].title.as_deref(), Some("一 & 二"));
+        assert_eq!(entries[0].artist.as_deref(), Some("周杰伦"));
+        assert_eq!(entries[0].duration_secs, Some(123.0));
+        assert_eq!(entries[1].path, "C:\\Music\\b.flac");
+        assert_eq!(entries[1].title.as_deref(), Some("普通朋友"));
+        assert_eq!(entries[1].duration_secs, None);
+    }
+
+    #[tokio::test]
+    async fn xspf_roundtrips_three_local_files() -> Result<()> {
+        let lib = temp_library("xspf-roundtrip")?;
+        let src = local_source(&lib, "/music").await?;
+        add_file(&lib, src, "Jay/01 晴天.flac", "晴天", "周杰伦").await?;
+        add_file(&lib, src, "Jay/02 以父之名.flac", "以父之名", "周杰伦").await?;
+        add_file(&lib, src, "Other/03 普通朋友.flac", "普通朋友", "陶喆").await?;
+
+        let id = lib.create_playlist("通勤", None).await?;
+        for title in ["晴天", "以父之名", "普通朋友"] {
+            lib.add_to_playlist(id, track_uid(&lib, title).await?, None, None)
+                .await?;
+        }
+
+        let text = lib.export_playlist_xspf(id).await?;
+        assert!(text.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
+        assert!(text.contains("<title>通勤</title>"));
+        assert_eq!(text.matches("<location>").count(), 3);
+        assert!(text.contains("<duration>269000</duration>"));
+        assert_eq!(text, lib.export_playlist_xspf(id).await?);
+
+        let report = lib.import_playlist_xspf("导入 XSPF", &text).await?;
+        assert_eq!(report.matched, 3);
+        assert_eq!(report.total, 3);
+        assert!(report.missing.is_empty());
+        assert_eq!(
+            titles(&lib.playlist_items(report.playlist_id, 0, 10).await?),
+            vec!["晴天", "以父之名", "普通朋友"]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn xspf_empty_and_smart_playlists() -> Result<()> {
+        let lib = temp_library("xspf-empty-smart")?;
+        let id = lib.create_playlist("空歌单", None).await?;
+        let text = lib.export_playlist_xspf(id).await?;
+        assert!(text.contains("<trackList>\n  </trackList>"));
+        let report = lib.import_playlist_xspf("空导入", &text).await?;
+        assert_eq!(report.total, 0);
+        assert_eq!(report.matched, 0);
+
+        let smart = lib.create_playlist("智能", None).await?;
+        let rules = crate::SmartRules {
+            root: crate::RuleGroup::All(vec![]),
+            limit: None,
+            sort: None,
+            sort_desc: false,
+        };
+        lib.set_playlist_rules(smart, Some(&rules)).await?;
+        let err = lib.export_playlist_xspf(smart).await.unwrap_err();
+        assert_eq!(err.code, lekis_types::ErrorCode::InvalidArgument);
+        Ok(())
     }
 }

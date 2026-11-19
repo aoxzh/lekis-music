@@ -541,6 +541,19 @@ Future<PlaylistImportReportDto> importPlaylistM3U({
   content: content,
 );
 
+/// 把普通歌单导出成 XSPF 1.0 文本；智能歌单返回参数错误。
+Future<String> exportPlaylistXspf({required PlatformInt64 playlistId}) =>
+    RustLib.instance.api.crateApiCoreExportPlaylistXspf(playlistId: playlistId);
+
+/// 从 XSPF 文本新建歌单，返回匹配数和缺失路径。
+Future<PlaylistImportReportDto> importPlaylistXspf({
+  required String name,
+  required String content,
+}) => RustLib.instance.api.crateApiCoreImportPlaylistXspf(
+  name: name,
+  content: content,
+);
+
 /// 所有智能歌单。
 Future<List<PlaylistDto>> smartPlaylists() =>
     RustLib.instance.api.crateApiCoreSmartPlaylists();

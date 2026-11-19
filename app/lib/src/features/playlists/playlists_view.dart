@@ -96,7 +96,7 @@ class PlaylistsView extends ConsumerWidget {
                   OutlinedButton.icon(
                     onPressed: () => _import(context, ref),
                     icon: const Icon(Icons.file_open_rounded),
-                    label: const Text('导入 M3U'),
+                    label: const Text('导入歌单'),
                   ),
                 ],
               ),

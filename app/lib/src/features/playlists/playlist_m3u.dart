@@ -69,6 +69,22 @@ String playlistM3uFileName(String name) {
   return '$base.m3u8';
 }
 
+/// XSPF 导出文件名，规则和 M3U 一样，扩展名不同。
+String playlistXspfFileName(String name) {
+  final base = playlistM3uFileName(name);
+  return '${base.substring(0, base.length - '.m3u8'.length)}.xspf';
+}
+
+/// 导入时按内容判断格式，避免用户为了选错扩展名被拒绝。
+bool looksLikeXspf(String content) {
+  final text = content.trimLeft().toLowerCase();
+  return text.startsWith('<?xml') || text.startsWith('<playlist');
+}
+
+/// XSPF 里真正的 `<track>` 数量。
+int countXspfTracks(String content) =>
+    RegExp(r'<track(?:\s|>)', caseSensitive: false).allMatches(content).length;
+
 /// 从文件名猜一个歌单名（`通勤.m3u8` → `通勤`）。
 String playlistNameFromM3uFile(String fileName) {
   final dot = fileName.lastIndexOf('.');
@@ -89,9 +105,11 @@ int countM3uEntries(String content) {
   return count;
 }
 
+enum _PlaylistExportFormat { m3u, xspf }
+
 enum _M3uExportAction { copy, save }
 
-/// 导出普通歌单：先让用户选"复制"还是"保存文件"。
+/// 导出普通歌单：先选格式（M3U / XSPF），再选“复制”或“保存文件”。
 Future<void> exportPlaylistM3uFlow(
   BuildContext context,
   PlaylistDto playlist,
@@ -99,24 +117,61 @@ Future<void> exportPlaylistM3uFlow(
   if (playlist.kind != PlaylistKindDto.static_) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('智能歌单没有固定条目，不能导出 M3U')));
+      ..showSnackBar(const SnackBar(content: Text('智能歌单没有固定条目，不能导出')));
     return;
   }
 
+  final format = await showDialog<_PlaylistExportFormat>(
+    context: context,
+    builder: (context) => SimpleDialog(
+      title: const Text('导出歌单'),
+      children: [
+        SimpleDialogOption(
+          onPressed: () =>
+              Navigator.of(context).pop(_PlaylistExportFormat.m3u),
+          child: const ListTile(
+            leading: Icon(Icons.playlist_play_rounded),
+            title: Text('M3U8'),
+            subtitle: Text('兼容大多数播放器、车载和 NAS'),
+          ),
+        ),
+        SimpleDialogOption(
+          onPressed: () =>
+              Navigator.of(context).pop(_PlaylistExportFormat.xspf),
+          child: const ListTile(
+            leading: Icon(Icons.code_rounded),
+            title: Text('XSPF'),
+            subtitle: Text('XML 格式，保留艺人和标题元数据'),
+          ),
+        ),
+      ],
+    ),
+  );
+  if (format == null || !context.mounted) return;
+
   final String text;
   try {
-    text = await core.exportPlaylistM3U(playlistId: playlist.id);
+    text = switch (format) {
+      _PlaylistExportFormat.m3u => await core.exportPlaylistM3U(
+        playlistId: playlist.id,
+      ),
+      _PlaylistExportFormat.xspf => await core.exportPlaylistXspf(
+        playlistId: playlist.id,
+      ),
+    };
   } catch (e) {
     if (context.mounted) showPlaylistError(context, e);
     return;
   }
   if (!context.mounted) return;
 
-  final count = countM3uEntries(text);
+  final isM3u = format == _PlaylistExportFormat.m3u;
+  final count = isM3u ? countM3uEntries(text) : countXspfTracks(text);
+  final formatName = isM3u ? 'M3U8' : 'XSPF';
   final action = await showDialog<_M3uExportAction>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('导出 M3U'),
+      title: Text('导出 $formatName'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -124,7 +179,9 @@ Future<void> exportPlaylistM3uFlow(
           Text('“${playlist.name}”共 $count 个条目。'),
           const SizedBox(height: LekisSpacing.sm),
           Text(
-            '文件是 UTF-8 编码的 .m3u8，可以复制后粘贴到别处，或直接保存到设备。',
+            isM3u
+                ? '文件是 UTF-8 编码的 .m3u8，可以复制后粘贴到别处，或直接保存到设备。'
+                : '文件是 UTF-8 编码的 .xspf（XML），适合保留艺人/标题并导入其他播放器。',
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: context.lekisColors.onSurfaceVariant),
           ),
@@ -153,18 +210,20 @@ Future<void> exportPlaylistM3uFlow(
   if (action == _M3uExportAction.copy) {
     await Clipboard.setData(ClipboardData(text: text));
     if (context.mounted) {
-      _snack(context, '已复制 M3U 文本（$count 个条目）');
+      _snack(context, '已复制 $formatName 文本（$count 个条目）');
     }
     return;
   }
 
-  final fileName = playlistM3uFileName(playlist.name);
+  final fileName = isM3u
+      ? playlistM3uFileName(playlist.name)
+      : playlistXspfFileName(playlist.name);
   try {
     final saved = await FilePicker.saveFile(
-      dialogTitle: '导出 M3U',
+      dialogTitle: '导出 $formatName',
       fileName: fileName,
       bytes: Uint8List.fromList(utf8.encode(text)),
-      mimeType: 'audio/x-mpegurl',
+      mimeType: isM3u ? 'audio/x-mpegurl' : 'application/xspf+xml',
     );
     if (saved != null && context.mounted) _snack(context, '已保存 $fileName');
   } catch (e) {
@@ -198,9 +257,9 @@ class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
   Future<void> _pickFile() async {
     try {
       final file = await FilePicker.pickFile(
-        dialogTitle: '选择 M3U 播放列表',
+        dialogTitle: '选择播放列表',
         type: FileType.custom,
-        allowedExtensions: const ['m3u', 'm3u8'],
+        allowedExtensions: const ['m3u', 'm3u8', 'xspf'],
       );
       if (file == null) return;
       final bytes = await file.readAsBytes();
@@ -238,7 +297,7 @@ class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
       return;
     }
     if (content.trim().isEmpty) {
-      setState(() => _error = '请选择 M3U 文件或粘贴内容');
+      setState(() => _error = '请选择歌单文件或粘贴内容');
       return;
     }
     setState(() {
@@ -246,7 +305,9 @@ class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
       _error = null;
     });
     try {
-      final report = await core.importPlaylistM3U(name: name, content: content);
+      final report = looksLikeXspf(content)
+          ? await core.importPlaylistXspf(name: name, content: content)
+          : await core.importPlaylistM3U(name: name, content: content);
       if (!mounted) return;
       Navigator.of(context).pop(PlaylistImportOutcome.fromReport(report));
     } catch (e) {
@@ -262,7 +323,7 @@ class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AlertDialog(
-      title: const Text('导入 M3U'),
+      title: const Text('导入歌单'),
       content: SizedBox(
         width: 560,
         child: SingleChildScrollView(
@@ -302,7 +363,7 @@ class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
                 maxLines: 10,
                 style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
                 decoration: const InputDecoration(
-                  hintText: '把 .m3u / .m3u8 的内容粘贴到这里，或者点上面的“选择文件”',
+                  hintText: '把 .m3u / .m3u8 / .xspf 的内容粘贴到这里，或者点上面的“选择文件”',
                   border: OutlineInputBorder(),
                 ),
               ),

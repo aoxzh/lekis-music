@@ -1789,6 +1789,29 @@ impl LekisCore {
         Ok(report)
     }
 
+    /// 把普通歌单导出成 XSPF 文本；智能歌单没有固定条目，返回 `invalid`。
+    pub async fn export_playlist_xspf(&self, id: PlaylistId) -> Result<String> {
+        let s = self.services.clone();
+        self.run(async move { s.library.export_playlist_xspf(id).await })
+            .await
+    }
+
+    /// 从 XSPF 文本新建一个普通歌单，返回匹配统计和缺失路径。
+    pub async fn import_playlist_xspf(
+        &self,
+        name: String,
+        content: String,
+    ) -> Result<lekis_library::PlaylistImportReport> {
+        let s = self.services.clone();
+        let report = self
+            .run(async move { s.library.import_playlist_xspf(&name, &content).await })
+            .await?;
+        self.services.events.emit(CoreEvent::LibraryChanged {
+            scope: LibraryScope::Playlists,
+        });
+        Ok(report)
+    }
+
     // -----------------------------------------------------------------------
     // 智能歌单（DIS-01）
     // -----------------------------------------------------------------------
@@ -2532,8 +2555,11 @@ mod tests {
             .enable_all()
             .build()?;
         rt.block_on(async {
-            for _ in 0..40 {
-                if !core.playback_snapshot().gapless {
+            for _ in 0..400 {
+                if !core.playback_snapshot().gapless
+                    && core.services.resolver.replaygain_mode()
+                        == resolver::ReplayGainMode::Album
+                {
                     break;
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(25)).await;

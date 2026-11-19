@@ -868,6 +868,21 @@ pub async fn import_playlist_m3u(
     Ok(core().import_playlist_m3u(name, content).await?.into())
 }
 
+/// 把普通歌单导出成 XSPF 1.0 文本；智能歌单返回参数错误。
+pub async fn export_playlist_xspf(playlist_id: i64) -> Result<String, CoreError> {
+    Ok(core()
+        .export_playlist_xspf(lekis_types::PlaylistId(playlist_id))
+        .await?)
+}
+
+/// 从 XSPF 文本新建歌单，返回匹配数和缺失路径。
+pub async fn import_playlist_xspf(
+    name: String,
+    content: String,
+) -> Result<PlaylistImportReportDto, CoreError> {
+    Ok(core().import_playlist_xspf(name, content).await?.into())
+}
+
 // ---- 智能歌单（DIS-01）----
 
 /// 所有智能歌单。
