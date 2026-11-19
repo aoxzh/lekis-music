@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/library/artist_detail_page.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/album_card.dart';
@@ -102,6 +103,7 @@ class AlbumDetailView extends ConsumerWidget {
                 child: _AlbumHeader(
                   album: album,
                   heroTag: heroTag,
+                  trackIds: [for (final row in rows) row.id],
                   onPlay: rows.isEmpty ? null : () => actions.playRows(rows),
                   onShuffle: rows.isEmpty
                       ? null
@@ -143,12 +145,14 @@ class _AlbumHeader extends ConsumerWidget {
   const _AlbumHeader({
     required this.album,
     required this.heroTag,
+    required this.trackIds,
     required this.onPlay,
     required this.onShuffle,
   });
 
   final AlbumDto album;
   final Object? heroTag;
+  final List<int> trackIds;
   final VoidCallback? onPlay;
   final VoidCallback? onShuffle;
 
@@ -215,6 +219,8 @@ class _AlbumHeader extends ConsumerWidget {
             ),
             const SizedBox(height: LekisSpacing.lg),
             PlayShuffleButtons(onPlay: onPlay, onShuffle: onShuffle),
+            if (trackIds.isNotEmpty)
+              BatchDownloadButton(trackIds: trackIds, tooltip: '下载整张专辑'),
           ],
         );
 

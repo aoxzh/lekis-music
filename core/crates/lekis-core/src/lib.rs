@@ -14,9 +14,10 @@ mod artwork_local;
 pub mod config;
 pub mod discovery;
 mod enrich;
+pub mod events;
 mod folders;
 mod lyrics_local;
-pub mod events;
+mod offline;
 pub mod platform;
 mod remote_scan;
 mod resolver;
@@ -26,8 +27,8 @@ mod sync_engine;
 
 pub use config::{CoreConfig, PlatformKind};
 pub use enrich::EnrichReport;
-pub use folders::{FolderEntry, FolderListing, FolderRoot};
 pub use events::EventListener;
+pub use folders::{FolderEntry, FolderListing, FolderRoot};
 pub use lekis_playback::PlaybackSnapshot;
 pub use platform::{CredentialStore, MemoryCredentialStore, PlatformServices};
 pub use scrobble::{ScrobbleSettings, ScrobbleSettingsInput, ScrobbleStatus};
@@ -36,7 +37,9 @@ pub use sync_engine::SyncReport;
 
 use events::EventBus;
 use lekis_library::{EnrichCandidateRow, Library, LyricsRow, PlaylistEntry};
-pub use lekis_library::{PlaybackStateRow, SourceInfo, TrackContext, TrackUserState};
+pub use lekis_library::{
+    OfflineDownload, OfflineStats, PlaybackStateRow, SourceInfo, TrackContext, TrackUserState,
+};
 use lekis_playback::{EngineCommand, OutputDevice, OutputMode, PlaybackEngine};
 use lekis_scanner::{tags::LoftyTagReader, Scanner};
 use lekis_types::*;
@@ -80,6 +83,9 @@ struct Services {
     resolver: Arc<resolver::Resolver>,
     /// 第三方听歌记录上报（DIS-07）。
     scrobble: Arc<scrobble::Scrobbler>,
+    /// 正在进行的离线下载（曲目 → 取消标记）。
+    downloads:
+        std::sync::Mutex<std::collections::HashMap<TrackId, Arc<std::sync::atomic::AtomicBool>>>,
 }
 
 impl Services {
@@ -250,6 +256,7 @@ impl LekisCore {
             vfs: std::sync::Mutex::new(std::collections::HashMap::new()),
             resolver,
             scrobble: scrobbler,
+            downloads: std::sync::Mutex::new(std::collections::HashMap::new()),
         });
 
         // 启动时：让播放相关设置生效，并给文件系统源预先登记 VFS（不发网络请求）。
@@ -264,8 +271,12 @@ impl LekisCore {
                 s.scrobble.load().await;
                 match s.library.list_sources().await {
                     Ok(sources) => sources.iter().for_each(|src| s.register_vfs(src)),
-                    Err(e) => tracing::warn!(target: "core", error = %e, "cannot list sources at startup"),
+                    Err(e) => {
+                        tracing::warn!(target: "core", error = %e, "cannot list sources at startup")
+                    }
                 }
+                // OFF-04：上次进程中断留下的 downloading 行改回 queued；不自动继续。
+                offline::recover(s.clone()).await;
             });
         }
 
@@ -410,7 +421,10 @@ impl LekisCore {
     /// 局域网自动发现 SMB / WebDAV / DLNA 服务（一次性，`timeout` 后返回）。
     ///
     /// Android 上调用方要先拿到 `MulticastLock`，否则收不到 mDNS 应答。
-    pub async fn discover_lan(&self, timeout: std::time::Duration) -> Vec<discovery::DiscoveredService> {
+    pub async fn discover_lan(
+        &self,
+        timeout: std::time::Duration,
+    ) -> Vec<discovery::DiscoveredService> {
         self.run(async move { Ok(discovery::discover(timeout).await) })
             .await
             .unwrap_or_default()
@@ -456,7 +470,11 @@ impl LekisCore {
 
     /// 某个引用当前有没有保存密码（UI 显示"已保存"用；不返回密码本身）。
     pub fn has_credential(&self, credential_ref: &str) -> bool {
-        self.services.platform.credentials.get(credential_ref).is_some()
+        self.services
+            .platform
+            .credentials
+            .get(credential_ref)
+            .is_some()
     }
 
     /// 列出音源。
@@ -655,7 +673,8 @@ impl LekisCore {
     /// 艺人总数。
     pub async fn count_artists(&self) -> Result<u64> {
         let s = self.services.clone();
-        self.run(async move { s.library.artist_count().await }).await
+        self.run(async move { s.library.artist_count().await })
+            .await
     }
 
     /// 某个流派的曲目数。
@@ -941,6 +960,67 @@ impl LekisCore {
         let vfs = s.open_vfs(&source)?;
         s.vfs_put(source_id, vfs.clone());
         self.sync_now(vfs).await
+    }
+
+    // -----------------------------------------------------------------------
+    // 离线下载（OFF-01/02/04）
+    // -----------------------------------------------------------------------
+
+    /// 把一首歌加入离线下载队列。立即返回，进度靠 `OfflineProgress` / `OfflineChanged` 事件。
+    ///
+    /// 已下载且缓存文件还在时不重复下载；可重复调用。
+    pub async fn download_track(&self, id: TrackId) -> Result<()> {
+        let s = self.services.clone();
+        self.run(async move { offline::schedule(&s, id).await })
+            .await
+    }
+
+    /// 批量加入下载队列，返回成功入队 / 已在下载的条数。
+    pub async fn download_tracks(&self, ids: Vec<TrackId>) -> Result<u32> {
+        let s = self.services.clone();
+        self.run(async move {
+            let mut count = 0u32;
+            for id in ids {
+                match offline::schedule(&s, id).await {
+                    Ok(()) => count += 1,
+                    Err(e) => tracing::warn!(
+                        target: "core::offline",
+                        %id,
+                        error = %e,
+                        "cannot schedule offline download"
+                    ),
+                }
+            }
+            Ok(count)
+        })
+        .await
+    }
+
+    /// 全部离线记录（下载中 / 排队 / 已完成 / 失败）。
+    pub async fn offline_downloads(&self) -> Result<Vec<OfflineDownload>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.offline_downloads().await })
+            .await
+    }
+
+    /// 已下载曲目数 + 缓存总字节数。
+    pub async fn offline_stats(&self) -> Result<OfflineStats> {
+        let s = self.services.clone();
+        self.run(async move { s.library.offline_stats().await })
+            .await
+    }
+
+    /// 某首歌的离线状态；没有记录时为 `None`。
+    pub async fn offline_status(&self, id: TrackId) -> Result<Option<OfflineDownload>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.offline_download(id).await })
+            .await
+    }
+
+    /// 删除离线记录和缓存文件；正在下载时同时取消。
+    pub async fn remove_download(&self, id: TrackId) -> Result<()> {
+        let s = self.services.clone();
+        self.run(async move { offline::remove(&s, id).await }).await
     }
 
     // -----------------------------------------------------------------------
@@ -1674,7 +1754,8 @@ impl LekisCore {
         input: ScrobbleSettingsInput,
     ) -> Result<ScrobbleSettings> {
         let s = self.services.clone();
-        self.run(async move { s.scrobble.update(input).await }).await
+        self.run(async move { s.scrobble.update(input).await })
+            .await
     }
 
     /// 上报状态：是否配置完整、队列条数、最近错误 / 成功时间。
@@ -1861,7 +1942,13 @@ mod tests {
     fn core_with_local_tracks(
         name: &str,
         files: &[&str],
-    ) -> Result<(LekisCore, std::path::PathBuf, SourceId, Arc<Collect>, tokio::runtime::Runtime)> {
+    ) -> Result<(
+        LekisCore,
+        std::path::PathBuf,
+        SourceId,
+        Arc<Collect>,
+        tokio::runtime::Runtime,
+    )> {
         let root = std::env::temp_dir().join(format!("lekis-core-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let music = root.join("music");
@@ -1964,9 +2051,9 @@ mod tests {
             assert!(info.last_scan_error.is_some(), "failure must be persisted");
             assert!(info.last_scan_error_code.is_some());
             if started.is_ok() {
-                assert!(seen(&events)
-                    .iter()
-                    .any(|e| matches!(e, CoreEvent::ScanFailed { source_id, .. } if *source_id == source)));
+                assert!(seen(&events).iter().any(
+                    |e| matches!(e, CoreEvent::ScanFailed { source_id, .. } if *source_id == source)
+                ));
             }
             Ok::<_, LekisError>(())
         })?;
@@ -2191,6 +2278,63 @@ mod tests {
             }
         });
         Ok(format!("http://{addr}/cover.png"))
+    }
+
+    /// OFF-01/02 端到端（本地源，不走网络）：入队 → 分块拷贝 → 原子落盘 → 统计 → 删除。
+    #[test]
+    fn offline_download_copies_local_track_and_removes_it() -> Result<()> {
+        let (core, root, _source, events, rt) =
+            core_with_local_tracks("offline-download", &["01. Tone.wav"])?;
+        rt.block_on(async {
+            let track = core
+                .list_tracks(TrackQuery {
+                    sort: TrackSort::Title,
+                    offset: 0,
+                    limit: 10,
+                })
+                .await?
+                .remove(0);
+            core.download_track(track.id).await?;
+            let mut row = None;
+            for _ in 0..300 {
+                if let Some(current) = core.offline_status(track.id).await? {
+                    if current.state == OfflineState::Ready || current.state == OfflineState::Failed
+                    {
+                        row = Some(current);
+                        break;
+                    }
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            }
+            let row = row.expect("download should finish");
+            assert_eq!(row.state, OfflineState::Ready, "error: {:?}", row.error);
+            let source_bytes = std::fs::read(root.join("music/01. Tone.wav"))?;
+            let cached = std::fs::read(&row.cache_path)?;
+            assert_eq!(cached, source_bytes, "缓存文件必须和源逐字节一致");
+            assert_eq!(row.bytes, source_bytes.len() as u64);
+            let stats = core.offline_stats().await?;
+            assert_eq!(stats.count, 1);
+            assert_eq!(stats.bytes, source_bytes.len() as u64);
+
+            core.remove_download(track.id).await?;
+            assert!(core.offline_status(track.id).await?.is_none());
+            assert!(!std::path::Path::new(&row.cache_path).exists());
+            Ok::<_, LekisError>(())
+        })?;
+        let seen = seen(&events);
+        assert!(seen.iter().any(|e| matches!(
+            e,
+            CoreEvent::OfflineChanged {
+                state: OfflineState::Ready,
+                ..
+            }
+        )));
+        assert!(seen
+            .iter()
+            .any(|e| matches!(e, CoreEvent::OfflineProgress { .. })));
+        drop(core);
+        let _ = std::fs::remove_dir_all(&root);
+        Ok(())
     }
 
     #[test]

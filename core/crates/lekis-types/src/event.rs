@@ -4,7 +4,7 @@
 
 use crate::error::ErrorCode;
 use crate::ids::*;
-use crate::model::{PlaybackState, RepeatMode, ShuffleMode};
+use crate::model::{OfflineState, PlaybackState, RepeatMode, ShuffleMode};
 use serde::{Deserialize, Serialize};
 
 /// 扫描阶段（LIB-03 渐进式扫描）。
@@ -141,5 +141,28 @@ pub enum CoreEvent {
         volume: f32,
         /// 是否预解析下一首（`playback.gapless`）。
         gapless: bool,
+    },
+    /// 离线下载进度（OFF-02）。下载线程按块节流推送，不阻塞播放。
+    OfflineProgress {
+        /// 曲目。
+        track_id: TrackId,
+        /// 已写字节数。
+        downloaded: u64,
+        /// 源文件总字节数（未知时为 `None`）。
+        total: Option<u64>,
+    },
+    /// 离线下载状态变了（入队 / 开始 / 完成 / 失败）。
+    OfflineChanged {
+        /// 曲目。
+        track_id: TrackId,
+        /// 新状态。
+        state: OfflineState,
+        /// 失败原因（给开发者看，不直接展示）。
+        error: Option<String>,
+    },
+    /// 离线下载记录被删除（缓存文件也删了）。
+    OfflineRemoved {
+        /// 曲目。
+        track_id: TrackId,
     },
 }

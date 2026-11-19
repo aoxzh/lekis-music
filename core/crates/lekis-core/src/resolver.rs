@@ -91,10 +91,7 @@ impl Resolver {
     /// 当前 ReplayGain 模式（测试用）。
     #[cfg(test)]
     pub(crate) fn replaygain_mode(&self) -> ReplayGainMode {
-        self.replaygain_mode
-            .read()
-            .map(|m| *m)
-            .unwrap_or_default()
+        self.replaygain_mode.read().map(|m| *m).unwrap_or_default()
     }
 
     /// 忘掉某个源缓存的服务器客户端（源配置或凭据变了之后调用）。
@@ -116,6 +113,48 @@ impl Resolver {
     }
 
     async fn resolve(&self, track_id: TrackId) -> Result<MediaSource> {
+        // OFF-03：已经有完整缓存时优先播本机文件。即使 NAS / 服务器暂时离线也能播。
+        if let Some(download) = self.library.offline_ready_download(track_id).await? {
+            if std::path::Path::new(&download.cache_path).is_file() {
+                let duration_hint_ms = self
+                    .library
+                    .get_track(track_id)
+                    .await
+                    .map(|t| t.duration_ms)
+                    .unwrap_or(0);
+                // 缓存文件仍然沿用普通播放会话 / 解码链路，ReplayGain 设置也照常生效。
+                let gain_db = match self.library.track_files(track_id).await {
+                    Ok(files) => {
+                        let net = self.health.network();
+                        selection::pick_best(&files, &|id| self.health.get(id), net)
+                            .map(|f| f.replaygain.clone())
+                            .and_then(|rg| {
+                                self.replaygain_mode
+                                    .read()
+                                    .ok()
+                                    .map(|m| m.pick(&rg))
+                                    .unwrap_or_default()
+                            })
+                    }
+                    Err(_) => None,
+                };
+                tracing::debug!(target: "core", %track_id, "playing offline cache");
+                return Ok(MediaSource {
+                    track_id,
+                    location: MediaLocation::CachedFile {
+                        path: download.cache_path,
+                    },
+                    duration_hint_ms,
+                    gain_db,
+                });
+            }
+            tracing::warn!(
+                target: "core",
+                %track_id,
+                path = %download.cache_path,
+                "offline cache missing, falling back to source"
+            );
+        }
         let files = self.library.track_files(track_id).await?;
         let net = self.health.network();
         let best = selection::pick_best(&files, &|id| self.health.get(id), net)
@@ -124,6 +163,21 @@ impl Resolver {
                 LekisError::not_found(format!("no playable file for track {track_id}"))
             })?;
         self.media_source(track_id, &best, net).await
+    }
+
+    /// 解析一个"下载用"的源（不优先走缓存）。
+    ///
+    /// 返回选中的文件和播放地址，供 `lekis-core::offline` 决定用 VFS 还是 HTTP 拷贝。
+    pub(crate) async fn resolve_file(&self, track_id: TrackId) -> Result<(TrackFile, MediaSource)> {
+        let files = self.library.track_files(track_id).await?;
+        let net = self.health.network();
+        let best = selection::pick_best(&files, &|id| self.health.get(id), net)
+            .cloned()
+            .ok_or_else(|| {
+                LekisError::not_found(format!("no playable file for track {track_id}"))
+            })?;
+        let media = self.media_source(track_id, &best, net).await?;
+        Ok((best, media))
     }
 
     /// 把一个具体的文件变成可播放的媒体描述。
@@ -178,11 +232,7 @@ impl Resolver {
 
     /// ReplayGain 增益（PLY-03），按 [`ReplayGainMode`] 选曲目增益或专辑增益。
     async fn gain_db(&self, file: &TrackFile) -> Option<f32> {
-        let mode = self
-            .replaygain_mode
-            .read()
-            .map(|m| *m)
-            .unwrap_or_default();
+        let mode = self.replaygain_mode.read().map(|m| *m).unwrap_or_default();
         mode.pick(&file.replaygain)
     }
 
@@ -340,8 +390,14 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(ReplayGainMode::from_setting(None), ReplayGainMode::Track);
-        assert_eq!(ReplayGainMode::from_setting(Some("off")), ReplayGainMode::Off);
-        assert_eq!(ReplayGainMode::from_setting(Some("album")), ReplayGainMode::Album);
+        assert_eq!(
+            ReplayGainMode::from_setting(Some("off")),
+            ReplayGainMode::Off
+        );
+        assert_eq!(
+            ReplayGainMode::from_setting(Some("album")),
+            ReplayGainMode::Album
+        );
         assert_eq!(ReplayGainMode::Off.pick(&rg), None);
         assert_eq!(ReplayGainMode::Track.pick(&rg), Some(-3.0));
         assert_eq!(ReplayGainMode::Album.pick(&rg), Some(-5.0));
@@ -393,6 +449,73 @@ mod tests {
             .await?;
         assert_eq!(media.gain_db, None, "关闭时不能偷偷套用曲目增益");
 
+        drop(resolver);
+        let _ = std::fs::remove_dir_all(&root);
+        Ok(())
+    }
+
+    /// OFF-03：有完整缓存时，即使源文件已经不可达也要直接播本机缓存。
+    #[tokio::test]
+    async fn ready_offline_cache_wins_over_source() -> Result<()> {
+        let root = std::env::temp_dir().join(format!(
+            "lekis-resolver-offline-{}-{}",
+            std::process::id(),
+            lekis_types::now_ms()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root)?;
+        let library = Library::open(&root.join("library.sqlite"))?;
+        let source = library
+            .add_source(SourceConfig {
+                id: None,
+                kind: SourceKind::Local,
+                name: "Music".into(),
+                addresses: vec![root.join("music").to_string_lossy().into_owned()],
+                root_path: String::new(),
+                credential_ref: None,
+                options: Default::default(),
+                enabled: true,
+            })
+            .await?;
+        use lekis_library::DbResultExt;
+        let track = library
+            .write(|c| {
+                let now = lekis_types::now_ms();
+                c.execute(
+                    "INSERT INTO track (uid, title, duration_ms, created_at, updated_at)
+                     VALUES ('offline-resolver', 'Offline', 4200, ?1, ?1)",
+                    [now],
+                )
+                .db()?;
+                Ok(TrackId(c.last_insert_rowid()))
+            })
+            .await?;
+        let cache = root.join("offline/1.flac");
+        std::fs::create_dir_all(cache.parent().unwrap_or(&root))?;
+        std::fs::write(&cache, b"cached bytes")?;
+        library
+            .upsert_offline_queued(
+                track,
+                source,
+                cache.to_string_lossy().into_owned(),
+                b"cached bytes".len() as u64,
+            )
+            .await?;
+        library
+            .mark_offline_ready(track, b"cached bytes".len() as u64)
+            .await?;
+
+        let resolver = Resolver::new(
+            library,
+            Arc::new(SourceHealth::new()),
+            Arc::new(MemoryCredentialStore::default()),
+        );
+        let media = resolver.resolve(track).await?;
+        match media.location {
+            MediaLocation::CachedFile { path } => assert_eq!(path, cache.to_string_lossy()),
+            other => panic!("expected cached file, got {other:?}"),
+        }
+        assert_eq!(media.duration_hint_ms, 4200);
         drop(resolver);
         let _ = std::fs::remove_dir_all(&root);
         Ok(())

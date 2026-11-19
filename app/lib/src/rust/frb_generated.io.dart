@@ -69,6 +69,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   LyricsDto dco_decode_box_autoadd_lyrics_dto(dynamic raw);
 
   @protected
+  OfflineDownloadDto dco_decode_box_autoadd_offline_download_dto(dynamic raw);
+
+  @protected
   PaletteDto dco_decode_box_autoadd_palette_dto(dynamic raw);
 
   @protected
@@ -190,6 +193,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<LyricsRowDto> dco_decode_list_lyrics_row_dto(dynamic raw);
 
   @protected
+  List<OfflineDownloadDto> dco_decode_list_offline_download_dto(dynamic raw);
+
+  @protected
   List<OutputDeviceDto> dco_decode_list_output_device_dto(dynamic raw);
 
   @protected
@@ -232,6 +238,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   LyricsRowDto dco_decode_lyrics_row_dto(dynamic raw);
 
   @protected
+  OfflineDownloadDto dco_decode_offline_download_dto(dynamic raw);
+
+  @protected
+  OfflineStateDto dco_decode_offline_state_dto(dynamic raw);
+
+  @protected
+  OfflineStatsDto dco_decode_offline_stats_dto(dynamic raw);
+
+  @protected
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
@@ -248,6 +263,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   LyricsDto? dco_decode_opt_box_autoadd_lyrics_dto(dynamic raw);
+
+  @protected
+  OfflineDownloadDto? dco_decode_opt_box_autoadd_offline_download_dto(
+    dynamic raw,
+  );
 
   @protected
   PaletteDto? dco_decode_opt_box_autoadd_palette_dto(dynamic raw);
@@ -450,6 +470,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   LyricsDto sse_decode_box_autoadd_lyrics_dto(SseDeserializer deserializer);
 
   @protected
+  OfflineDownloadDto sse_decode_box_autoadd_offline_download_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   PaletteDto sse_decode_box_autoadd_palette_dto(SseDeserializer deserializer);
 
   @protected
@@ -603,6 +628,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<OfflineDownloadDto> sse_decode_list_offline_download_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<OutputDeviceDto> sse_decode_list_output_device_dto(
     SseDeserializer deserializer,
   );
@@ -657,6 +687,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   LyricsRowDto sse_decode_lyrics_row_dto(SseDeserializer deserializer);
 
   @protected
+  OfflineDownloadDto sse_decode_offline_download_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  OfflineStateDto sse_decode_offline_state_dto(SseDeserializer deserializer);
+
+  @protected
+  OfflineStatsDto sse_decode_offline_stats_dto(SseDeserializer deserializer);
+
+  @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
@@ -677,6 +718,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   LyricsDto? sse_decode_opt_box_autoadd_lyrics_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  OfflineDownloadDto? sse_decode_opt_box_autoadd_offline_download_dto(
     SseDeserializer deserializer,
   );
 
@@ -921,6 +967,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_offline_download_dto(
+    OfflineDownloadDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_palette_dto(
     PaletteDto self,
     SseSerializer serializer,
@@ -1110,6 +1162,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_offline_download_dto(
+    List<OfflineDownloadDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_output_device_dto(
     List<OutputDeviceDto> self,
     SseSerializer serializer,
@@ -1188,6 +1246,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_lyrics_row_dto(LyricsRowDto self, SseSerializer serializer);
 
   @protected
+  void sse_encode_offline_download_dto(
+    OfflineDownloadDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_offline_state_dto(
+    OfflineStateDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_offline_stats_dto(
+    OfflineStatsDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
@@ -1214,6 +1290,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_lyrics_dto(
     LyricsDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_offline_download_dto(
+    OfflineDownloadDto? self,
     SseSerializer serializer,
   );
 

@@ -229,6 +229,30 @@ void reportSourceReachability({
 Future<SyncReportDto> syncNow({required PlatformInt64 sourceId}) =>
     RustLib.instance.api.crateApiCoreSyncNow(sourceId: sourceId);
 
+/// 把一首歌加入离线下载队列。立即返回，进度通过 `coreEvents` 推送。
+Future<void> downloadTrack({required PlatformInt64 trackId}) =>
+    RustLib.instance.api.crateApiCoreDownloadTrack(trackId: trackId);
+
+/// 批量加入离线下载队列，返回成功入队 / 已在下载的条数。
+Future<int> downloadTracks({required Int64List trackIds}) =>
+    RustLib.instance.api.crateApiCoreDownloadTracks(trackIds: trackIds);
+
+/// 全部离线记录（下载中 / 排队 / 已完成 / 失败）。
+Future<List<OfflineDownloadDto>> offlineDownloads() =>
+    RustLib.instance.api.crateApiCoreOfflineDownloads();
+
+/// 已下载曲目数 + 缓存总字节数。
+Future<OfflineStatsDto> offlineStats() =>
+    RustLib.instance.api.crateApiCoreOfflineStats();
+
+/// 某首歌的离线状态；没有记录时为 `null`。
+Future<OfflineDownloadDto?> offlineStatus({required PlatformInt64 trackId}) =>
+    RustLib.instance.api.crateApiCoreOfflineStatus(trackId: trackId);
+
+/// 删除离线记录和缓存文件；正在下载时同时取消。
+Future<void> removeDownload({required PlatformInt64 trackId}) =>
+    RustLib.instance.api.crateApiCoreRemoveDownload(trackId: trackId);
+
 void playTracks({required Int64List trackIds, required int start}) => RustLib
     .instance
     .api
