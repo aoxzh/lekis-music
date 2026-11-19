@@ -338,6 +338,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlaylistEntryDto dco_decode_playlist_entry_dto(dynamic raw);
 
   @protected
+  PlaylistImportReportDto dco_decode_playlist_import_report_dto(dynamic raw);
+
+  @protected
   PlaylistKindDto dco_decode_playlist_kind_dto(dynamic raw);
 
   @protected
@@ -826,6 +829,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlaylistEntryDto sse_decode_playlist_entry_dto(SseDeserializer deserializer);
+
+  @protected
+  PlaylistImportReportDto sse_decode_playlist_import_report_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   PlaylistKindDto sse_decode_playlist_kind_dto(SseDeserializer deserializer);
@@ -1443,6 +1451,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_playlist_entry_dto(
     PlaylistEntryDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_playlist_import_report_dto(
+    PlaylistImportReportDto self,
     SseSerializer serializer,
   );
 

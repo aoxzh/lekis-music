@@ -851,6 +851,23 @@ pub async fn set_playlist_artwork(
         .await?)
 }
 
+// ---- M3U / M3U8 导入导出（PL-03）----
+
+/// 把普通歌单导出成 M3U8 文本（UTF-8）。智能歌单会返回参数错误。
+pub async fn export_playlist_m3u(playlist_id: i64) -> Result<String, CoreError> {
+    Ok(core()
+        .export_playlist_m3u(lekis_types::PlaylistId(playlist_id))
+        .await?)
+}
+
+/// 从 M3U / M3U8 文本新建歌单，返回匹配数、缺失路径和新歌单 ID。
+pub async fn import_playlist_m3u(
+    name: String,
+    content: String,
+) -> Result<PlaylistImportReportDto, CoreError> {
+    Ok(core().import_playlist_m3u(name, content).await?.into())
+}
+
 // ---- 智能歌单（DIS-01）----
 
 /// 所有智能歌单。

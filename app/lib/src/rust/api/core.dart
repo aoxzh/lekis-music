@@ -528,6 +528,19 @@ Future<void> setPlaylistArtwork({
   artworkId: artworkId,
 );
 
+/// 把普通歌单导出成 M3U8 文本（UTF-8）。智能歌单会返回参数错误。
+Future<String> exportPlaylistM3U({required PlatformInt64 playlistId}) =>
+    RustLib.instance.api.crateApiCoreExportPlaylistM3U(playlistId: playlistId);
+
+/// 从 M3U / M3U8 文本新建歌单，返回匹配数、缺失路径和新歌单 ID。
+Future<PlaylistImportReportDto> importPlaylistM3U({
+  required String name,
+  required String content,
+}) => RustLib.instance.api.crateApiCoreImportPlaylistM3U(
+  name: name,
+  content: content,
+);
+
 /// 所有智能歌单。
 Future<List<PlaylistDto>> smartPlaylists() =>
     RustLib.instance.api.crateApiCoreSmartPlaylists();

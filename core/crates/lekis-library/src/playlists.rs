@@ -469,7 +469,7 @@ fn not_found(id: PlaylistId) -> LekisError {
 /// `lekis-library` 不依赖 `uuid` / `rand`（这个 crate 的依赖越少越好），所以用
 /// `RandomState` 的随机种子做熵源：48 位毫秒时间戳 + 72 位随机数，按 v7 的位布局拼出来。
 /// 只在新建歌单时调用一次，之后一直存在数据库里。
-fn new_playlist_uid() -> String {
+pub(crate) fn new_playlist_uid() -> String {
     use std::collections::hash_map::RandomState;
     use std::hash::{BuildHasher, Hasher};
 

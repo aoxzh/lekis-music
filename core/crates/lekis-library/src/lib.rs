@@ -16,6 +16,7 @@ mod migrations;
 pub mod normalize;
 mod offline;
 mod playback_state;
+mod playlist_io;
 mod playlists;
 mod position;
 mod remote;
@@ -34,6 +35,7 @@ pub use folders::{normalize_folder_path, FolderEntry, FolderListing, FolderRoot}
 pub use lyrics::LyricsRow;
 pub use offline::{OfflineDownload, OfflineStats};
 pub use playback_state::PlaybackStateRow;
+pub use playlist_io::{parse_m3u, M3uEntry, PlaylistImportReport};
 pub use playlists::{Playlist, PlaylistEntry, PlaylistItem, PlaylistKind};
 pub use remote::{RemoteTrackRow, RemoteUpsertStats};
 pub use scanned::{quality_score, ScannedFile, ScannedTags, UpsertStats};

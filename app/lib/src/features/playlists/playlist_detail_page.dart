@@ -7,6 +7,7 @@ import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/playlists/playlist_actions.dart';
+import 'package:lekis/src/features/playlists/playlist_m3u.dart';
 import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/features/playlists/smart_playlist_editor_page.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
@@ -164,6 +165,7 @@ class _StaticPlaylistBody extends ConsumerWidget {
               onPlay: rows.any((e) => e.track != null)
                   ? () => playPlaylistContext(context, playlist)
                   : null,
+              onExport: () => exportPlaylistM3uFlow(context, playlist),
             ),
           ),
         ),
@@ -291,12 +293,14 @@ class _PlaylistHeader extends ConsumerWidget {
     required this.subtitle,
     required this.onPlay,
     this.onEditRules,
+    this.onExport,
   });
 
   final PlaylistDto playlist;
   final String subtitle;
   final VoidCallback? onPlay;
   final VoidCallback? onEditRules;
+  final VoidCallback? onExport;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -380,6 +384,12 @@ class _PlaylistHeader extends ConsumerWidget {
                     onPressed: onEditRules,
                     icon: const Icon(Icons.tune_rounded),
                     label: const Text('编辑规则'),
+                  ),
+                if (onExport != null)
+                  OutlinedButton.icon(
+                    onPressed: onExport,
+                    icon: const Icon(Icons.ios_share_rounded),
+                    label: const Text('导出 M3U'),
                   ),
                 PopupMenuButton<String>(
                   tooltip: '歌单操作',
