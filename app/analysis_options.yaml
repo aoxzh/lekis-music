@@ -17,6 +17,9 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
+    # Cargokit's standalone build tool has its own dependencies; it is not
+    # part of the Lekis Flutter app's analysis unit.
+    - rust_builder/cargokit/**
 
 linter:
   # The lint rules applied to this project can be customized in the

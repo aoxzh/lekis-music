@@ -1,6 +1,6 @@
 // Adaptive navigation shell.
 //
-//  * compact width            → bottom NavigationBar + MiniPlayer above it
+//  * compact width            → floating translucent tab bar + MiniPlayer above it
 //  * medium width             → NavigationRail + MiniPlayer under the content
 //  * expanded width and up    → sidebar + desktop PlayerBar along the bottom
 //  * compact height (any width, e.g. phone landscape) → NavigationRail
@@ -19,6 +19,7 @@ import 'destinations.dart';
 import 'now_playing_context.dart';
 import 'routes.dart';
 import 'sidebar.dart';
+import 'tab_bar.dart';
 
 export 'destinations.dart' show LekisDestination;
 export 'routes.dart' show openEnrichReview, openNowPlaying, NowPlayingRoute;
@@ -223,20 +224,7 @@ class _BottomBarLayout extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const _OpensNowPlaying(child: MiniPlayer()),
-          NavigationBar(
-            selectedIndex: current.index,
-            onDestinationSelected: (i) =>
-                onSelected(LekisDestination.values[i]),
-            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-            destinations: [
-              for (final d in LekisDestination.values)
-                NavigationDestination(
-                  icon: Icon(d.icon),
-                  selectedIcon: Icon(d.selectedIcon),
-                  label: d.label,
-                ),
-            ],
-          ),
+          LekisTabBar(selected: current, onSelected: onSelected),
         ],
       ),
     );
