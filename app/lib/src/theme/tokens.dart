@@ -348,14 +348,26 @@ abstract final class LekisType {
 }
 
 /// Now Playing dynamic background tokens.
+///
+/// Defaults follow Symfonik's `modern` Now Playing style: the artwork itself
+/// is the background (blur 160), with no global dimming layer
+/// (`backgroundProtection = 0`). Only the top bar gets a protection gradient
+/// (`topBarBackgroundProtection = 2`, transparency 60 → 40% at the top).
 abstract final class LekisNowPlaying {
   static const int gradientColors = 4;
   static const Duration gradientCycle = Duration(milliseconds: 24000);
   static const double blurRadius = 160;
 
-  /// Darkening (or lightening, on light artwork) laid over the blurred
-  /// artwork so text keeps its contrast.
-  static const double protectionOpacity = 0.35;
+  /// No full-screen dimming; contrast comes from the adaptive tint and from
+  /// the protected top bar. Kept as a token so a future "classic" style can
+  /// turn global protection back on.
+  static const double protectionOpacity = 0;
+
+  /// Strength of the top-bar scrim (transparency 60 → 40% opacity).
+  static const double topBarProtectionOpacity = 0.40;
+
+  /// Share of the window height the top-bar scrim fades across.
+  static const double topBarProtectionHeight = 0.22;
 
   /// Opacity of the palette gradient drifting over the blurred artwork.
   static const double gradientOpacity = 0.55;

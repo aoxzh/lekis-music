@@ -6,6 +6,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
+import 'package:lekis/src/features/now_playing/now_playing_tint.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
@@ -31,10 +32,6 @@ List<Color> gradientColorsFor(PaletteDto? palette, BuildContext context) {
   return [for (var i = 0; i < n; i++) src[i % src.length]];
 }
 
-/// Foreground color that reads on the palette background.
-Color? foregroundFor(PaletteDto? palette) =>
-    palette == null ? null : _rgb(palette.onPrimary);
-
 /// Logical size of the artwork copy that gets blurred and scaled up: tiny,
 /// so the blur costs next to nothing and the upscale adds its own softness.
 const double _blurSource = 64;
@@ -44,23 +41,16 @@ const double _blurSource = 64;
 ///    to fill the window, cross-fading on track change;
 /// 2. the palette's flowing gradient (≈24 s loop) drifting over it at
 ///    [LekisNowPlaying.gradientOpacity];
-/// 3. a protection layer that pushes the whole thing towards dark (or light,
-///    for dark text) so the foreground keeps its contrast;
+/// 3. a top-bar protection gradient only – the reference `modern` style has
+///    `backgroundProtection = 0`, so the cover is not dimmed globally;
 /// 4. a faint static grain against banding in the soft gradients.
 ///
-/// [lowPower] (reduce-motion / battery saver) drops the moving gradient, so
-/// nothing is redrawn per frame.
+/// [lowPower] (reduce-motion / battery saver) freezes the gradient at its
+/// first frame and drops the cross-fade, so nothing is redrawn per frame.
 class NowPlayingBackground extends ConsumerStatefulWidget {
-  const NowPlayingBackground({
-    super.key,
-    required this.lowPower,
-    this.lightForeground = true,
-  });
+  const NowPlayingBackground({super.key, required this.lowPower});
 
   final bool lowPower;
-
-  /// Whether text on top is light (protect by darkening) or dark (lighten).
-  final bool lightForeground;
 
   @override
   ConsumerState<NowPlayingBackground> createState() =>
@@ -100,50 +90,92 @@ class _NowPlayingBackgroundState extends ConsumerState<NowPlayingBackground>
   Widget build(BuildContext context) {
     final artwork = ref.watch(currentArtworkProvider).value;
     final colors = gradientColorsFor(artwork?.palette, context);
-    final protection =
-        (widget.lightForeground
-                ? const Color(0xFF000000)
-                : const Color(0xFFFFFFFF))
-            .withValues(alpha: LekisNowPlaying.protectionOpacity);
+    final tint = NowPlayingTint.resolve(
+      artwork?.palette,
+      Theme.of(context).colorScheme,
+    );
+    final crossfade = widget.lowPower
+        ? Duration.zero
+        : LekisMotion.backgroundCrossfade;
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        ColoredBox(color: colors.first),
-        RepaintBoundary(
-          child: AnimatedSwitcher(
-            duration: LekisMotion.backgroundCrossfade,
-            layoutBuilder: (current, previous) =>
-                Stack(fit: StackFit.expand, children: [...previous, ?current]),
-            child: artwork == null
-                ? const SizedBox.expand(key: ValueKey('none'))
-                : _BlurredArtwork(
-                    key: ValueKey(artwork.hash),
-                    hash: artwork.hash,
-                  ),
-          ),
-        ),
-        if (!widget.lowPower)
+    return ExcludeSemantics(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ColoredBox(color: colors.first),
           RepaintBoundary(
-            child: TweenAnimationBuilder<List<Color>>(
-              tween: _ColorListTween(end: colors),
-              duration: LekisMotion.backgroundCrossfade,
-              curve: Curves.easeInOut,
-              builder: (context, value, _) => CustomPaint(
-                painter: _FlowingGradientPainter(
-                  colors: value,
-                  cycle: _cycle,
-                  opacity: artwork == null
-                      ? 1
-                      : LekisNowPlaying.gradientOpacity,
-                ),
-                child: const SizedBox.expand(),
+            child: AnimatedSwitcher(
+              duration: crossfade,
+              layoutBuilder: (current, previous) => Stack(
+                fit: StackFit.expand,
+                children: [...previous, ?current],
               ),
+              child: artwork == null
+                  ? const SizedBox.expand(key: ValueKey('none'))
+                  : _BlurredArtwork(
+                      key: ValueKey(artwork.hash),
+                      hash: artwork.hash,
+                    ),
             ),
           ),
-        ColoredBox(color: protection),
-        const RepaintBoundary(child: _Grain()),
-      ],
+          RepaintBoundary(
+            child: widget.lowPower
+                ? CustomPaint(
+                    painter: _FlowingGradientPainter(
+                      colors: colors,
+                      cycle: const AlwaysStoppedAnimation(0),
+                      opacity: artwork == null
+                          ? 0.9
+                          : LekisNowPlaying.gradientOpacity,
+                    ),
+                    child: const SizedBox.expand(),
+                  )
+                : TweenAnimationBuilder<List<Color>>(
+                    tween: _ColorListTween(end: colors),
+                    duration: crossfade,
+                    curve: Curves.easeInOut,
+                    builder: (context, value, _) => CustomPaint(
+                      painter: _FlowingGradientPainter(
+                        colors: value,
+                        cycle: _cycle,
+                        opacity: artwork == null
+                            ? 1
+                            : LekisNowPlaying.gradientOpacity,
+                      ),
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+          ),
+          // The reference modern style only protects the top bar. Everything
+          // else keeps the full cover colour and relies on the adaptive
+          // foreground / top-bar scrim for legibility.
+          if (LekisNowPlaying.topBarProtectionOpacity > 0)
+            IgnorePointer(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: FractionallySizedBox(
+                  heightFactor: LekisNowPlaying.topBarProtectionHeight,
+                  widthFactor: 1,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          tint.scene.withValues(
+                            alpha: LekisNowPlaying.topBarProtectionOpacity,
+                          ),
+                          tint.scene.withValues(alpha: 0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          const RepaintBoundary(child: _Grain()),
+        ],
+      ),
     );
   }
 }
@@ -202,7 +234,7 @@ class _GrainState extends State<_Grain> {
   ui.Image? _loaded;
 
   static Future<ui.Image> _make() {
-    const n = 96;
+    const n = 128;
     final rnd = math.Random(7);
     final px = Uint8List(n * n * 4);
     for (var i = 0; i < n * n; i++) {
