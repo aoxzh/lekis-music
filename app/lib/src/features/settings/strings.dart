@@ -31,6 +31,12 @@ abstract final class SettingsStrings {
   static const themeDark = '深色';
   static const themeOled = '纯黑';
   static const themeOledHint = '纯黑适合 OLED 屏幕，更省电';
+  static const tabBarStyle = '标签栏样式';
+  static const tabBarStyleHint = '液态玻璃有模糊、流动高光与弹簧；扁平更利落、开销更低。';
+  static const tabBarLiquid = '液态玻璃';
+  static const tabBarLiquidHint = '模糊 · 流动 · 弹簧';
+  static const tabBarFlat = '扁平';
+  static const tabBarFlatHint = '纯色 · 快速 · 低开销';
 
   static const library = '资料库';
   static const sources = '音源';

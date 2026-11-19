@@ -1,19 +1,25 @@
-// Floating tab bar: selection semantics, reduced-motion fallback and a
-// narrow phone width must all behave without layout overflows.
+// Floating tab bar: both materials, live style switching, selection
+// semantics, reduced-motion fallback and a narrow phone width.
 
 import 'dart:ui' show Tristate;
 
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lekis/src/shell/destinations.dart';
 import 'package:lekis/src/shell/tab_bar.dart';
+import 'package:lekis/src/shell/tab_bar_style.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
 class _TabHarness extends StatefulWidget {
-  const _TabHarness({required this.reducedMotion});
+  const _TabHarness({
+    required this.reducedMotion,
+    this.style = TabBarStyle.liquid,
+  });
 
   final bool reducedMotion;
+  final TabBarStyle style;
 
   @override
   State<_TabHarness> createState() => _TabHarnessState();
@@ -38,9 +44,42 @@ class _TabHarnessState extends State<_TabHarness> {
         bottomNavigationBar: LekisTabBar(
           selected: _selected,
           onSelected: (destination) => setState(() => _selected = destination),
+          style: widget.style,
         ),
       ),
     );
+  }
+}
+
+class _StyleProviderHarness extends ConsumerWidget {
+  const _StyleProviderHarness();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final style = ref.watch(tabBarStyleProvider);
+    return MaterialApp(
+      theme: lekisDarkTheme(),
+      home: Scaffold(
+        body: const SizedBox.expand(),
+        bottomNavigationBar: LekisTabBar(
+          selected: LekisDestination.home,
+          onSelected: (_) {},
+          style: style,
+        ),
+      ),
+    );
+  }
+}
+
+/// Avoids touching the Rust core while still exercising provider-driven
+/// live restyling.
+class _TestStyleNotifier extends TabBarStyleNotifier {
+  @override
+  TabBarStyle build() => TabBarStyle.liquid;
+
+  @override
+  Future<void> set(TabBarStyle value) async {
+    state = value;
   }
 }
 
@@ -51,6 +90,17 @@ void main() {
           .flagsCollection
           .isSelected ==
       Tristate.isTrue;
+
+  test('style storage defaults to liquid and parses flat', () {
+    expect(TabBarStyle.fromStorage(null), TabBarStyle.liquid);
+    expect(TabBarStyle.fromStorage('unknown'), TabBarStyle.liquid);
+    expect(TabBarStyle.fromStorage('liquid'), TabBarStyle.liquid);
+    expect(TabBarStyle.fromStorage('flat'), TabBarStyle.flat);
+
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    expect(container.read(tabBarStyleProvider), TabBarStyle.liquid);
+  });
 
   testWidgets('exposes five destinations with selected semantics', (
     tester,
@@ -73,25 +123,67 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('reduced motion jumps the pill and fades without a spring', (
+  testWidgets('liquid blurs; flat stays opaque and hairline-only', (
     tester,
   ) async {
-    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(const _TabHarness(reducedMotion: false));
 
-    await tester.pumpWidget(const _TabHarness(reducedMotion: true));
+    expect(find.byKey(LekisTabBar.liquidSurfaceKey), findsOneWidget);
+    expect(find.byType(BackdropFilter), findsOneWidget);
 
-    final before = tester.getRect(find.byKey(LekisTabBar.selectionKey));
-    await tester.tap(find.byKey(LekisTabBar.tabKey(LekisDestination.search)));
-    await tester.pump();
+    await tester.pumpWidget(
+      const _TabHarness(reducedMotion: false, style: TabBarStyle.flat),
+    );
+    await tester.pumpAndSettle();
 
-    final after = tester.getRect(find.byKey(LekisTabBar.selectionKey));
-    expect(after.left, greaterThan(before.left));
-    expect(isSelected(tester, LekisDestination.search), isTrue);
-
-    await tester.pump(LekisMotion.fast);
+    expect(find.byKey(LekisTabBar.flatSurfaceKey), findsOneWidget);
+    expect(find.byType(BackdropFilter), findsNothing);
     expect(tester.takeException(), isNull);
-    semantics.dispose();
   });
+
+  testWidgets('switching the provider restyles the bar live', (tester) async {
+    final container = ProviderContainer(
+      overrides: [tabBarStyleProvider.overrideWith(_TestStyleNotifier.new)],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const _StyleProviderHarness(),
+      ),
+    );
+    expect(find.byType(BackdropFilter), findsOneWidget);
+
+    await container.read(tabBarStyleProvider.notifier).set(TabBarStyle.flat);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BackdropFilter), findsNothing);
+    expect(find.byKey(LekisTabBar.flatSurfaceKey), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final style in TabBarStyle.values) {
+    testWidgets('reduced motion jumps the pill (${style.name})', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+
+      await tester.pumpWidget(_TabHarness(reducedMotion: true, style: style));
+
+      final before = tester.getRect(find.byKey(LekisTabBar.selectionKey));
+      await tester.tap(find.byKey(LekisTabBar.tabKey(LekisDestination.search)));
+      await tester.pump();
+
+      final after = tester.getRect(find.byKey(LekisTabBar.selectionKey));
+      expect(after.left, greaterThan(before.left));
+      expect(isSelected(tester, LekisDestination.search), isTrue);
+
+      await tester.pump(LekisMotion.fast);
+      expect(tester.takeException(), isNull);
+      semantics.dispose();
+    });
+  }
 
   testWidgets('fits a 320 dp phone and sends a selection haptic', (
     tester,

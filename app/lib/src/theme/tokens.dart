@@ -102,6 +102,9 @@ abstract final class LekisMotion {
   /// Squash-and-stretch of a destination icon after it becomes active.
   static const Duration navBounce = Duration(milliseconds: 480);
 
+  /// Flat tab bar selection: short ease, deliberately no spring.
+  static const Duration navFlat = Duration(milliseconds: 170);
+
   static SpringDescription _spring(double stiffness, double dampingRatio) =>
       SpringDescription.withDampingRatio(
         mass: 1,

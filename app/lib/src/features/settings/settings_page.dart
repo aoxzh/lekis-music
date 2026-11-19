@@ -6,11 +6,13 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../rust/api/dto.dart';
 import '../../shell/app_shell.dart';
+import '../../shell/tab_bar_style.dart';
 import '../../theme/tokens.dart';
 import '../enrich/enrich_providers.dart';
 import '../sources/common.dart';
 import 'settings_providers.dart';
 import 'strings.dart';
+import 'tab_bar_style_picker.dart';
 import 'theme_preference.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -300,37 +302,59 @@ class _AppearanceSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pref = ref.watch(themePreferenceProvider);
-    return _BlockTile(
-      title: SettingsStrings.theme,
-      hint: SettingsStrings.themeOledHint,
-      child: SegmentedButton<ThemePreference>(
-        showSelectedIcon: false,
-        segments: const [
-          ButtonSegment(
-            value: ThemePreference.system,
-            label: Text(SettingsStrings.themeSystem),
-            icon: Icon(Icons.brightness_auto_outlined),
+    final tabBarStyle = ref.watch(tabBarStyleProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _BlockTile(
+          title: SettingsStrings.theme,
+          hint: SettingsStrings.themeOledHint,
+          child: SegmentedButton<ThemePreference>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(
+                value: ThemePreference.system,
+                label: Text(SettingsStrings.themeSystem),
+                icon: Icon(Icons.brightness_auto_outlined),
+              ),
+              ButtonSegment(
+                value: ThemePreference.light,
+                label: Text(SettingsStrings.themeLight),
+                icon: Icon(Icons.light_mode_outlined),
+              ),
+              ButtonSegment(
+                value: ThemePreference.dark,
+                label: Text(SettingsStrings.themeDark),
+                icon: Icon(Icons.dark_mode_outlined),
+              ),
+              ButtonSegment(
+                value: ThemePreference.oledBlack,
+                label: Text(SettingsStrings.themeOled),
+                icon: Icon(Icons.contrast),
+              ),
+            ],
+            selected: {pref},
+            onSelectionChanged: (s) =>
+                _guard(context, () => setThemePreference(ref, s.first)),
           ),
-          ButtonSegment(
-            value: ThemePreference.light,
-            label: Text(SettingsStrings.themeLight),
-            icon: Icon(Icons.light_mode_outlined),
+        ),
+        const Divider(
+          indent: LekisSpacing.lg,
+          endIndent: LekisSpacing.lg,
+          height: 1,
+        ),
+        _BlockTile(
+          title: SettingsStrings.tabBarStyle,
+          hint: SettingsStrings.tabBarStyleHint,
+          child: TabBarStylePicker(
+            selected: tabBarStyle,
+            onChanged: (style) => _guard(
+              context,
+              () => ref.read(tabBarStyleProvider.notifier).set(style),
+            ),
           ),
-          ButtonSegment(
-            value: ThemePreference.dark,
-            label: Text(SettingsStrings.themeDark),
-            icon: Icon(Icons.dark_mode_outlined),
-          ),
-          ButtonSegment(
-            value: ThemePreference.oledBlack,
-            label: Text(SettingsStrings.themeOled),
-            icon: Icon(Icons.contrast),
-          ),
-        ],
-        selected: {pref},
-        onSelectionChanged: (s) =>
-            _guard(context, () => setThemePreference(ref, s.first)),
-      ),
+        ),
+      ],
     );
   }
 }

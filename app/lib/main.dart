@@ -8,6 +8,7 @@ import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/features/settings/theme_preference.dart';
 import 'package:lekis/src/platform/media_session.dart';
 import 'package:lekis/src/rust/frb_generated.dart';
+import 'package:lekis/src/shell/tab_bar_style.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,6 +36,7 @@ Future<void> main() async {
   await Future.wait([
     restoreThemePreference(container),
     restorePlaybackOutput(),
+    restoreTabBarStyle(container),
   ]);
   // 锁屏 / 通知栏 / 系统媒体控制 / 媒体键。
   await initSystemMediaSession();
