@@ -23,5 +23,10 @@ bytes.workspace = true
 # PLY-08：HTTP Range 流播放。blocking 版只在专用解码线程上用（那里不能有 tokio 上下文）。
 reqwest = { workspace = true, features = ["blocking"] }
 
+# PLY-05：Windows 上的 WASAPI 独占（比特完美）输出。wasapi crate 是 MIT 许可，
+# 把 IAudioClient 的 COM unsafe 都封装在里面，本 crate 仍然保持 `unsafe_code = "deny"`。
+[target.'cfg(windows)'.dependencies]
+wasapi = "0.27"
+
 [lints]
 workspace = true

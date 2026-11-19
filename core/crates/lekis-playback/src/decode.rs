@@ -29,6 +29,22 @@ pub struct PcmFormat {
     pub channels: u16,
 }
 
+/// 解码器的原生样本格式（PLY-05 比特完美输出用）。
+///
+/// 比特完美链路不经过 f32：整数源以**左对齐的 i32** 交错样本传递（16 bit 的样本在高 16 位，
+/// 低位全零；24 bit 在高 24 位），这样无论设备容器是 16 / 24 / 24-in-32 / 32 bit，
+/// 打包时都只是截取高位字节，不做任何算术。浮点源以 f32 的**位模式**（`f32::to_bits`）传递。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeSampleFormat {
+    /// 整数 PCM，`bits` 是有效位数（8 / 16 / 20 / 24 / 32……）。
+    Int {
+        /// 有效位数。
+        bits: u8,
+    },
+    /// 32 位浮点（浮点 WAV；有损编码的解码输出也是这个）。
+    Float32,
+}
+
 /// 解码器。在解码线程上使用，不能在实时线程上调用。
 pub trait Decoder: Send {
     /// 流信息。
@@ -45,6 +61,21 @@ pub trait Decoder: Send {
 
     /// 跳转到指定位置（毫秒）。返回实际跳到的位置。
     fn seek(&mut self, position_ms: u64) -> Result<u64>;
+
+    /// 原生样本格式；`None` 表示这个解码器不支持比特完美输出（例如 f64 源）。
+    fn native_format(&self) -> Option<NativeSampleFormat> {
+        None
+    }
+
+    /// 按 [`Self::native_format`] 解码下一块样本（左对齐 i32 或 f32 位模式），追加到 `out`。
+    /// 返回 `Ok(false)` 表示到达结尾。和 [`Self::decode_next`] 共享同一个读取位置，二者择一使用。
+    fn decode_next_native(&mut self, out: &mut Vec<i32>) -> Result<bool> {
+        let _ = out;
+        Err(LekisError::new(
+            ErrorCode::Unsupported,
+            "decoder has no native (bit-perfect) output",
+        ))
+    }
 }
 
 /// 按 [`MediaSource`] 打开解码器。

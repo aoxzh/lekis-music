@@ -21,20 +21,23 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// 解码侧：往环形缓冲区里写样本。
-pub struct RingSourceWriter {
-    prod: HeapProd<f32>,
+///
+/// 样本类型默认是 f32（共享模式的 DSP 链路）；比特完美链路（PLY-05）用 `i32`
+/// （左对齐的整数 PCM，或 f32 的位模式），见 [`crate::output::bitperfect`]。
+pub struct RingSourceWriter<T = f32> {
+    prod: HeapProd<T>,
 }
 
-impl RingSourceWriter {
+impl<T: Copy> RingSourceWriter<T> {
     /// 写入尽可能多的样本，返回写入数量（缓冲区满时可能少于 `samples.len()`）。
-    pub fn push(&mut self, samples: &[f32]) -> usize {
+    pub fn push(&mut self, samples: &[T]) -> usize {
         self.prod.push_slice(samples)
     }
 
     /// 阻塞写入全部样本。缓冲区满时短暂让出 CPU 等消费者腾地方。
     ///
     /// `stop` 变 `true` 时立即返回已写入的数量，保证停止命令不会卡住解码线程。
-    pub fn push_blocking(&mut self, samples: &[f32], stop: &AtomicBool) -> usize {
+    pub fn push_blocking(&mut self, samples: &[T], stop: &AtomicBool) -> usize {
         let mut written = 0;
         while written < samples.len() {
             if stop.load(Ordering::Relaxed) {
@@ -141,8 +144,8 @@ impl RingProgress {
 }
 
 /// 输出侧：[`SampleSource`] 实现，在实时回调里被调用。
-pub struct RingSource {
-    cons: HeapCons<f32>,
+pub struct RingSource<T = f32> {
+    cons: HeapCons<T>,
     progress: RingProgress,
     /// 已观察到的最新清空序号。
     seen_flush: u64,
@@ -150,15 +153,17 @@ pub struct RingSource {
     channels: u16,
 }
 
-impl RingSource {
+impl<T: Copy + Default> RingSource<T> {
     /// 欠载次数。
     pub fn underruns(&self) -> u64 {
         self.progress.underruns()
     }
-}
 
-impl SampleSource for RingSource {
-    fn fill(&mut self, out: &mut [f32]) -> usize {
+    /// 填满 `out`；数据不够时补"零值"（`T::default()`，即静音），返回实际取到的样本数。
+    ///
+    /// 与 [`SampleSource::fill`] 语义相同，只是样本类型泛化了（比特完美链路用 `i32`）。
+    /// 实时线程安全：不分配、不加锁、不做 IO。
+    pub fn fill_samples(&mut self, out: &mut [T]) -> usize {
         // seek / 切歌后第一次回调：丢弃旧数据，并向上游确认。
         let current_flush = self.progress.flush.load(Ordering::Acquire);
         if current_flush != self.seen_flush {
@@ -176,7 +181,7 @@ impl SampleSource for RingSource {
                 end -= end % ch;
             }
             for s in &mut out[n..end.max(n)] {
-                *s = 0.0;
+                *s = T::default();
             }
         }
         self.progress.add_played(n);
@@ -184,10 +189,24 @@ impl SampleSource for RingSource {
     }
 }
 
+impl SampleSource for RingSource<f32> {
+    fn fill(&mut self, out: &mut [f32]) -> usize {
+        self.fill_samples(out)
+    }
+}
+
 /// 创建一对（写端, 读端）和一个进度句柄。`capacity` 是**样本数**（帧数 × 声道）。
 pub fn ring_buffer(capacity: usize, channels: u16) -> (RingSourceWriter, RingSource, RingProgress) {
+    ring_buffer_of::<f32>(capacity, channels)
+}
+
+/// 和 [`ring_buffer`] 一样，但样本类型可选（比特完美链路用 `i32`）。
+pub fn ring_buffer_of<T: Copy>(
+    capacity: usize,
+    channels: u16,
+) -> (RingSourceWriter<T>, RingSource<T>, RingProgress) {
     let capacity = capacity.max(usize::from(channels.max(1)) * 1024);
-    let rb = HeapRb::<f32>::new(capacity);
+    let rb = HeapRb::<T>::new(capacity);
     let (prod, cons) = rb.split();
     let progress = RingProgress {
         played: Arc::new(AtomicU64::new(0)),
