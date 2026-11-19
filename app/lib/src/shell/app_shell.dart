@@ -25,7 +25,12 @@ import 'tab_bar_style.dart';
 
 export 'destinations.dart' show LekisDestination;
 export 'routes.dart'
-    show openDownloads, openEnrichReview, openNowPlaying, NowPlayingRoute;
+    show
+        openDownloads,
+        openEnrichReview,
+        openNowPlaying,
+        openPlugins,
+        NowPlayingRoute;
 
 enum _ChromeMode { bottomBar, rail, sidebar }
 

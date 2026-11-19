@@ -64,6 +64,7 @@
           "key": { "type": "string", "pattern": "^[a-zA-Z][a-zA-Z0-9_]*$" },
           "type": { "enum": ["string", "password", "boolean", "select"] },
           "label": { "description": "显示文字，或 locales 里的键。", "type": "string" },
+          "help": { "description": "帮助文字，或 locales 里的键。", "type": "string" },
           "default": {},
           "options": { "type": "array", "items": { "type": "string" } }
         }

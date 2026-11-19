@@ -19,6 +19,7 @@ mod folders;
 mod lyrics_local;
 mod offline;
 pub mod platform;
+pub mod plugins;
 mod remote_scan;
 mod resolver;
 pub mod scrobble;
@@ -31,6 +32,7 @@ pub use events::EventListener;
 pub use folders::{FolderEntry, FolderListing, FolderRoot};
 pub use lekis_playback::PlaybackSnapshot;
 pub use platform::{CredentialStore, MemoryCredentialStore, PlatformServices};
+pub use plugins::{PluginInfo, PluginPermissions, PluginSettingView};
 pub use scrobble::{ScrobbleSettings, ScrobbleSettingsInput, ScrobbleStatus};
 pub use selection::{NetworkContext, Reachability, SourceHealth};
 pub use sync_engine::SyncReport;
@@ -86,6 +88,8 @@ struct Services {
     /// 正在进行的离线下载（曲目 → 取消标记）。
     downloads:
         std::sync::Mutex<std::collections::HashMap<TrackId, Arc<std::sync::atomic::AtomicBool>>>,
+    /// 本地插件管理（PLG-01~07）。
+    plugins: Arc<plugins::PluginManager>,
 }
 
 impl Services {
@@ -240,6 +244,10 @@ impl LekisCore {
             platform.credentials.clone(),
             &config.data_dir,
         ));
+        let plugins = Arc::new(plugins::PluginManager::new(
+            &config.data_dir,
+            library.clone(),
+        ));
 
         let services = Arc::new(Services {
             config,
@@ -257,6 +265,7 @@ impl LekisCore {
             resolver,
             scrobble: scrobbler,
             downloads: std::sync::Mutex::new(std::collections::HashMap::new()),
+            plugins,
         });
 
         // 启动时：让播放相关设置生效，并给文件系统源预先登记 VFS（不发网络请求）。
@@ -935,6 +944,59 @@ impl LekisCore {
             Ok(())
         })
         .await
+    }
+
+    // -----------------------------------------------------------------------
+    // 本地插件（PLG-01~07）
+    // -----------------------------------------------------------------------
+
+    /// 本地插件目录（`<data_dir>/plugins`）。设置页可以展示或复制这个路径。
+    pub fn plugins_dir(&self) -> String {
+        self.services.plugins.root().to_string_lossy().into_owned()
+    }
+
+    /// 已安装插件列表。清单损坏的插件也会返回，错误放在 `error` 字段。
+    pub async fn plugins(&self) -> Result<Vec<plugins::PluginInfo>> {
+        self.services.plugins.list().await
+    }
+
+    /// 从本地文件夹或 `.zip` 安装插件。
+    pub async fn install_plugin_from_path(&self, path: String) -> Result<plugins::PluginInfo> {
+        self.services
+            .plugins
+            .install(std::path::Path::new(&path))
+            .await
+    }
+
+    /// 启用 / 停用插件。状态持久化在资料库设置里。
+    pub async fn set_plugin_enabled(&self, plugin_id: String, enabled: bool) -> Result<()> {
+        self.services.plugins.set_enabled(&plugin_id, enabled).await
+    }
+
+    /// 移除插件目录、插件数据和相关设置。
+    pub async fn remove_plugin(&self, plugin_id: String) -> Result<()> {
+        self.services.plugins.remove(&plugin_id).await
+    }
+
+    /// 插件声明的设置项及当前值（密码项不回传值）。
+    pub async fn plugin_settings(
+        &self,
+        plugin_id: String,
+    ) -> Result<Vec<plugins::PluginSettingView>> {
+        self.services.plugins.settings(&plugin_id).await
+    }
+
+    /// 保存一个插件设置项。
+    pub async fn set_plugin_setting(
+        &self,
+        plugin_id: String,
+        key: String,
+        value: String,
+    ) -> Result<()> {
+        self.services
+            .plugins
+            .set_setting(&plugin_id, &key, &value)
+            .await
     }
 
     /// 当前网络环境（SRC-14）。平台层在 Wi-Fi 切换时调用。

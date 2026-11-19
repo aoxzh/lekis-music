@@ -11,7 +11,7 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'dto.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `into_rule_group`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `try_from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `try_from`
 
 /// 专辑（LIB-06）。
 class AlbumDto {
@@ -1022,6 +1022,219 @@ enum PlaylistKindDto {
 
   /// 智能歌单（规则驱动）。
   smart,
+}
+
+/// 已安装的本地插件。
+class PluginInfoDto {
+  /// 插件 id；清单损坏时是目录名。
+  final String id;
+
+  /// 名称；清单损坏时是目录名。
+  final String name;
+
+  /// 版本。
+  final String version;
+
+  /// 插件 API 版本。
+  final String apiVersion;
+
+  /// `js` / `wasm` / `none`。
+  final String runtime;
+
+  /// 插件类型。
+  final List<String> kinds;
+
+  /// 入口文件。
+  final String? entry;
+
+  /// 是否启用。
+  final bool enabled;
+
+  /// 清单错误（正常为 `None`）。
+  final String? error;
+
+  /// 插件目录名。
+  final String directory;
+
+  /// 作者。
+  final String? author;
+
+  /// 主页。
+  final String? homepage;
+
+  /// 权限摘要。
+  final PluginPermissionsDto permissions;
+
+  /// 设置项。
+  final List<PluginSettingDto> settings;
+
+  const PluginInfoDto({
+    required this.id,
+    required this.name,
+    required this.version,
+    required this.apiVersion,
+    required this.runtime,
+    required this.kinds,
+    this.entry,
+    required this.enabled,
+    this.error,
+    required this.directory,
+    this.author,
+    this.homepage,
+    required this.permissions,
+    required this.settings,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      version.hashCode ^
+      apiVersion.hashCode ^
+      runtime.hashCode ^
+      kinds.hashCode ^
+      entry.hashCode ^
+      enabled.hashCode ^
+      error.hashCode ^
+      directory.hashCode ^
+      author.hashCode ^
+      homepage.hashCode ^
+      permissions.hashCode ^
+      settings.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PluginInfoDto &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          version == other.version &&
+          apiVersion == other.apiVersion &&
+          runtime == other.runtime &&
+          kinds == other.kinds &&
+          entry == other.entry &&
+          enabled == other.enabled &&
+          error == other.error &&
+          directory == other.directory &&
+          author == other.author &&
+          homepage == other.homepage &&
+          permissions == other.permissions &&
+          settings == other.settings;
+}
+
+/// 插件声明的权限摘要。
+class PluginPermissionsDto {
+  /// 允许访问的域名。
+  final List<String> network;
+
+  /// 允许启动的外部程序。
+  final List<String> process;
+
+  /// 需要附加请求头的域名（不包含头的值）。
+  final List<String> requestHeaderHosts;
+
+  /// 是否需要网页登录。
+  final bool webSignIn;
+
+  /// 存储配额（KB）。
+  final int storageKb;
+
+  const PluginPermissionsDto({
+    required this.network,
+    required this.process,
+    required this.requestHeaderHosts,
+    required this.webSignIn,
+    required this.storageKb,
+  });
+
+  @override
+  int get hashCode =>
+      network.hashCode ^
+      process.hashCode ^
+      requestHeaderHosts.hashCode ^
+      webSignIn.hashCode ^
+      storageKb.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PluginPermissionsDto &&
+          runtimeType == other.runtimeType &&
+          network == other.network &&
+          process == other.process &&
+          requestHeaderHosts == other.requestHeaderHosts &&
+          webSignIn == other.webSignIn &&
+          storageKb == other.storageKb;
+}
+
+/// 一个插件设置项及当前值。
+class PluginSettingDto {
+  /// 设置 key。
+  final String key;
+
+  /// 展示标签（可能是 locales 里的键）。
+  final String label;
+
+  /// 帮助文字（可能是 locales 里的键）。
+  final String? help;
+
+  /// `string` / `password` / `boolean` / `select`。
+  final String kind;
+
+  /// 下拉选项。
+  final List<String> options;
+
+  /// 默认值（密码为空）。
+  final String? defaultValue;
+
+  /// 当前值（密码永远为 `None`）。
+  final String? value;
+
+  /// 是否已经保存过值。
+  final bool hasValue;
+
+  /// 是否是密码项。
+  final bool secret;
+
+  const PluginSettingDto({
+    required this.key,
+    required this.label,
+    this.help,
+    required this.kind,
+    required this.options,
+    this.defaultValue,
+    this.value,
+    required this.hasValue,
+    required this.secret,
+  });
+
+  @override
+  int get hashCode =>
+      key.hashCode ^
+      label.hashCode ^
+      help.hashCode ^
+      kind.hashCode ^
+      options.hashCode ^
+      defaultValue.hashCode ^
+      value.hashCode ^
+      hasValue.hashCode ^
+      secret.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PluginSettingDto &&
+          runtimeType == other.runtimeType &&
+          key == other.key &&
+          label == other.label &&
+          help == other.help &&
+          kind == other.kind &&
+          options == other.options &&
+          defaultValue == other.defaultValue &&
+          value == other.value &&
+          hasValue == other.hasValue &&
+          secret == other.secret;
 }
 
 enum RepeatModeDto { off, all, one }

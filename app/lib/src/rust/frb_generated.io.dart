@@ -205,6 +205,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<PlaylistEntryDto> dco_decode_list_playlist_entry_dto(dynamic raw);
 
   @protected
+  List<PluginInfoDto> dco_decode_list_plugin_info_dto(dynamic raw);
+
+  @protected
+  List<PluginSettingDto> dco_decode_list_plugin_setting_dto(dynamic raw);
+
+  @protected
   Int64List dco_decode_list_prim_i_64_strict(dynamic raw);
 
   @protected
@@ -333,6 +339,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlaylistKindDto dco_decode_playlist_kind_dto(dynamic raw);
+
+  @protected
+  PluginInfoDto dco_decode_plugin_info_dto(dynamic raw);
+
+  @protected
+  PluginPermissionsDto dco_decode_plugin_permissions_dto(dynamic raw);
+
+  @protected
+  PluginSettingDto dco_decode_plugin_setting_dto(dynamic raw);
 
   @protected
   (String, String) dco_decode_record_string_string(dynamic raw);
@@ -646,6 +661,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<PluginInfoDto> sse_decode_list_plugin_info_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<PluginSettingDto> sse_decode_list_plugin_setting_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Int64List sse_decode_list_prim_i_64_strict(SseDeserializer deserializer);
 
   @protected
@@ -804,6 +829,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlaylistKindDto sse_decode_playlist_kind_dto(SseDeserializer deserializer);
+
+  @protected
+  PluginInfoDto sse_decode_plugin_info_dto(SseDeserializer deserializer);
+
+  @protected
+  PluginPermissionsDto sse_decode_plugin_permissions_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PluginSettingDto sse_decode_plugin_setting_dto(SseDeserializer deserializer);
 
   @protected
   (String, String) sse_decode_record_string_string(
@@ -1186,6 +1222,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_plugin_info_dto(
+    List<PluginInfoDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_plugin_setting_dto(
+    List<PluginSettingDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_prim_i_64_strict(
     Int64List self,
     SseSerializer serializer,
@@ -1401,6 +1449,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_playlist_kind_dto(
     PlaylistKindDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_plugin_info_dto(PluginInfoDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_plugin_permissions_dto(
+    PluginPermissionsDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_plugin_setting_dto(
+    PluginSettingDto self,
     SseSerializer serializer,
   );
 

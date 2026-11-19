@@ -367,6 +367,58 @@ pub async fn set_setting(key: String, value: String) -> Result<(), CoreError> {
     Ok(core().set_setting(key, value).await?)
 }
 
+// ---- 本地插件 ----
+
+/// 已安装插件列表。清单损坏的插件也会返回，错误放在 `error` 字段。
+pub async fn plugins() -> Result<Vec<PluginInfoDto>, CoreError> {
+    Ok(core()
+        .plugins()
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// 从本地文件夹或 `.zip` 安装插件。
+pub async fn install_plugin_from_path(path: String) -> Result<PluginInfoDto, CoreError> {
+    Ok(core().install_plugin_from_path(path).await?.into())
+}
+
+/// 启用 / 停用插件（状态持久化）。
+pub async fn set_plugin_enabled(plugin_id: String, enabled: bool) -> Result<(), CoreError> {
+    Ok(core().set_plugin_enabled(plugin_id, enabled).await?)
+}
+
+/// 移除插件及其数据目录和设置。
+pub async fn remove_plugin(plugin_id: String) -> Result<(), CoreError> {
+    Ok(core().remove_plugin(plugin_id).await?)
+}
+
+/// 插件的设置项及当前值（密码项不回传值）。
+pub async fn plugin_settings(plugin_id: String) -> Result<Vec<PluginSettingDto>, CoreError> {
+    Ok(core()
+        .plugin_settings(plugin_id)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// 保存一个插件设置项。
+pub async fn set_plugin_setting(
+    plugin_id: String,
+    key: String,
+    value: String,
+) -> Result<(), CoreError> {
+    Ok(core().set_plugin_setting(plugin_id, key, value).await?)
+}
+
+/// 本地插件目录（设置页可以复制路径）。
+#[frb(sync)]
+pub fn plugins_dir() -> String {
+    core().plugins_dir()
+}
+
 // ---- 网络与同步 ----
 
 /// 告诉核心当前的网络环境（`away = true` 表示离开了家庭网络）。

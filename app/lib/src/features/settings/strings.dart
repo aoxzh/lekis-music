@@ -58,6 +58,11 @@ abstract final class SettingsStrings {
   static String downloadsSummary(int count, String size, int active) =>
       '$count 首 · $size${active > 0 ? ' · $active 首下载中' : ''}';
 
+  static const plugins = '插件';
+  static const pluginsEmpty = '未安装插件';
+  static const pluginLoadFailed = '读取插件列表失败';
+  static String pluginsInstalled(int n) => '已安装 $n 个插件';
+
   static const scrobbling = '听歌记录';
   static const scrobbleEnable = '上报听歌记录';
   static const scrobbleEnableHint =
