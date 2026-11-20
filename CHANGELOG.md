@@ -2,6 +2,22 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号用语义化版本；只记用户看得见的变化和影响发布的工程变更，内部重构和测试不列。逐项进度和验收情况见 [docs/HANDOFF.md](docs/HANDOFF.md)。
 
+## [未发布]
+
+### 变更
+
+- Windows 版本改用 Skia 渲染（Impeller 在 Windows 上会为每个全窗渐变/模糊/着色器保留设备尺寸的
+  GPU 内存，见 flutter#196198）；等上游修复进入 stable 再评估回切。
+- 播放页背景改为预烘焙纹理：模糊封面、调色板渐变、噪点、顶栏压暗各烘焙一次后逐帧只做纹理绘制。
+  在这台 2880×1800 的 Windows 机器上，打开播放页的峰值私有内存从 1710 MB 降到 520 MB。
+- 桌面端（Windows / macOS / Linux）统一走桌面 UI：玻璃材质换不透明面板、底部表换对话框、
+  隐藏只在移动端有意义的设置项。
+
+### 修复
+
+- 桌面无障碍树不再被 Material 滑块的浮层语义节点破坏（此前会导致 `flutter_windows.dll`
+  偶发 0xC0000005）。
+
 ## [0.1.0-alpha.1] - 2026-11-20
 
 第一个公开预览版，只有 Android APK 和 Windows 免安装 zip；macOS / iOS / Linux 留到 Beta。Flutter 客户端全面替换冻结的原生 UI，Android 和 Windows 上已经能走完日常听歌流程，但离 Alpha 退出标准还有差距。
