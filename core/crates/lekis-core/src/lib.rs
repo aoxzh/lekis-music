@@ -12,6 +12,7 @@
 
 mod artwork_local;
 pub mod config;
+pub mod connect;
 pub mod discovery;
 mod enrich;
 pub mod equalizer;
