@@ -311,6 +311,12 @@ class _SideTabsLayout extends ConsumerWidget {
         ? LekisSizes.miniPlayerHeight + LekisSizes.miniPlayerMargin
         : 0.0;
     return Scaffold(
+      // The content below gets a MediaQuery read from *outside* this
+      // Scaffold, i.e. still carrying the keyboard inset. If this Scaffold
+      // also shrank for the keyboard, the page's own Scaffold would subtract
+      // it a second time and a form with the keyboard up (Sources > Add >
+      // host) went blank on the Fold5. Leave the keyboard to the page.
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           Positioned.fill(
@@ -375,6 +381,12 @@ class _RailLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // The content below gets a MediaQuery read from *outside* this
+      // Scaffold, i.e. still carrying the keyboard inset. If this Scaffold
+      // also shrank for the keyboard, the page's own Scaffold would subtract
+      // it a second time and a form with the keyboard up (Sources > Add >
+      // host) went blank on the Fold5. Leave the keyboard to the page.
+      resizeToAvoidBottomInset: false,
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -426,6 +438,12 @@ class _SidebarLayout extends StatelessWidget {
     // Room for content plus the 320 dp lyrics / queue panel.
     final sidePanel = context.widthClass >= WindowWidthClass.large;
     return Scaffold(
+      // The content below gets a MediaQuery read from *outside* this
+      // Scaffold, i.e. still carrying the keyboard inset. If this Scaffold
+      // also shrank for the keyboard, the page's own Scaffold would subtract
+      // it a second time and a form with the keyboard up (Sources > Add >
+      // host) went blank on the Fold5. Leave the keyboard to the page.
+      resizeToAvoidBottomInset: false,
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
