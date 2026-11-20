@@ -2867,3 +2867,53 @@ mod tests {
         assert_eq!(parsed.root, group);
     }
 }
+
+/// 一次换封面的结果（撤销用）。
+#[derive(Debug, Clone)]
+pub struct ArtworkChangeDto {
+    /// 新封面 ID。
+    pub artwork_id: i64,
+    /// 换了封面的曲目。
+    pub track_ids: Vec<i64>,
+    /// 这些曲目原来自己钉的封面（和 `track_ids` 一一对应）。
+    pub previous_track_artwork: Vec<Option<i64>>,
+    /// 换了封面的专辑。
+    pub album_id: Option<i64>,
+    /// 专辑原来的封面。
+    pub previous_album_artwork: Option<i64>,
+}
+
+impl From<lekis_core::ArtworkChange> for ArtworkChangeDto {
+    fn from(c: lekis_core::ArtworkChange) -> Self {
+        let (track_ids, previous_track_artwork) = c
+            .previous_tracks
+            .into_iter()
+            .map(|(t, a)| (t.0, a.map(|a| a.0)))
+            .unzip();
+        Self {
+            artwork_id: c.artwork_id.0,
+            track_ids,
+            previous_track_artwork,
+            album_id: c.previous_album.map(|(a, _)| a.0),
+            previous_album_artwork: c.previous_album.and_then(|(_, p)| p.map(|p| p.0)),
+        }
+    }
+}
+
+impl From<ArtworkChangeDto> for lekis_core::ArtworkChange {
+    fn from(d: ArtworkChangeDto) -> Self {
+        use lekis_types::{AlbumId, ArtworkId, TrackId};
+        Self {
+            artwork_id: ArtworkId(d.artwork_id),
+            previous_tracks: d
+                .track_ids
+                .into_iter()
+                .zip(d.previous_track_artwork)
+                .map(|(t, a)| (TrackId(t), a.map(ArtworkId)))
+                .collect(),
+            previous_album: d
+                .album_id
+                .map(|a| (AlbumId(a), d.previous_album_artwork.map(ArtworkId))),
+        }
+    }
+}

@@ -44,7 +44,7 @@ Future<ProviderContainer> _pump(
   addTearDown(tester.view.reset);
   final container = ProviderContainer(
     overrides: [
-      coreEventsProvider.overrideWith((ref) => const Stream.empty()),
+      coreEventSourceProvider.overrideWithValue(const Stream.empty()),
       connectGatewayProvider.overrideWithValue(gateway),
       playbackProvider.overrideWith(() => _FakePlayback(localTrack)),
     ],

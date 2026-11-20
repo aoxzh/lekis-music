@@ -102,7 +102,7 @@ PaletteDto _palette(int primary, int secondary, int onPrimary) => PaletteDto(
   late _FakeActions actions;
   final container = ProviderContainer(
     overrides: [
-      coreEventsProvider.overrideWith((ref) => const Stream.empty()),
+      coreEventSourceProvider.overrideWithValue(const Stream.empty()),
       playbackProvider.overrideWith(playback ?? _FakePlayback.new),
       positionProvider.overrideWith(_FakePosition.new),
       currentTrackProvider.overrideWith((ref) async => null),
@@ -237,7 +237,7 @@ void main() {
     final playback = _MutablePlayback();
     final container = ProviderContainer(
       overrides: [
-        coreEventsProvider.overrideWith((ref) => const Stream.empty()),
+        coreEventSourceProvider.overrideWithValue(const Stream.empty()),
         playbackProvider.overrideWith(() => playback),
         positionProvider.overrideWith(_FakePosition.new),
         currentTrackProvider.overrideWith((ref) async {

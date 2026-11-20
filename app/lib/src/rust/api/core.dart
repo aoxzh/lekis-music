@@ -582,6 +582,22 @@ Future<void> setTrackArtwork({
   artworkId: artworkId,
 );
 
+/// 用用户选的图片（原始字节）当封面：给了 `album_id` 换专辑封面，
+/// `track_ids` 里的曲目钉上这张图。返回换之前的状态（交给 [`restore_artwork`] 撤销）。
+Future<ArtworkChangeDto> setArtworkFromImage({
+  required List<int> image,
+  required Int64List trackIds,
+  PlatformInt64? albumId,
+}) => RustLib.instance.api.crateApiCoreSetArtworkFromImage(
+  image: image,
+  trackIds: trackIds,
+  albumId: albumId,
+);
+
+/// 撤销一次换封面。
+Future<void> restoreArtwork({required ArtworkChangeDto change}) =>
+    RustLib.instance.api.crateApiCoreRestoreArtwork(change: change);
+
 /// 新建歌单，返回 ID。
 Future<PlatformInt64> createPlaylist({required String name}) =>
     RustLib.instance.api.crateApiCoreCreatePlaylist(name: name);

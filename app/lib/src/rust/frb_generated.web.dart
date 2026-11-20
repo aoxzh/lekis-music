@@ -60,6 +60,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ArtistListeningDto dco_decode_artist_listening_dto(dynamic raw);
 
   @protected
+  ArtworkChangeDto dco_decode_artwork_change_dto(dynamic raw);
+
+  @protected
   ArtworkDto dco_decode_artwork_dto(dynamic raw);
 
   @protected
@@ -67,6 +70,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   bool dco_decode_bool(dynamic raw);
+
+  @protected
+  ArtworkChangeDto dco_decode_box_autoadd_artwork_change_dto(dynamic raw);
 
   @protected
   ArtworkDto dco_decode_box_autoadd_artwork_dto(dynamic raw);
@@ -318,6 +324,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<OfflineDownloadDto> dco_decode_list_offline_download_dto(dynamic raw);
 
   @protected
+  List<PlatformInt64?> dco_decode_list_opt_box_autoadd_i_64(dynamic raw);
+
+  @protected
   List<OutputDeviceDto> dco_decode_list_output_device_dto(dynamic raw);
 
   @protected
@@ -352,6 +361,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Uint32List dco_decode_list_prim_u_32_strict(dynamic raw);
+
+  @protected
+  List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
@@ -719,6 +731,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  ArtworkChangeDto sse_decode_artwork_change_dto(SseDeserializer deserializer);
+
+  @protected
   ArtworkDto sse_decode_artwork_dto(SseDeserializer deserializer);
 
   @protected
@@ -728,6 +743,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   bool sse_decode_bool(SseDeserializer deserializer);
+
+  @protected
+  ArtworkChangeDto sse_decode_box_autoadd_artwork_change_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ArtworkDto sse_decode_box_autoadd_artwork_dto(SseDeserializer deserializer);
@@ -1061,6 +1081,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<PlatformInt64?> sse_decode_list_opt_box_autoadd_i_64(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<OutputDeviceDto> sse_decode_list_output_device_dto(
     SseDeserializer deserializer,
   );
@@ -1107,6 +1132,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Uint32List sse_decode_list_prim_u_32_strict(SseDeserializer deserializer);
+
+  @protected
+  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
@@ -1554,6 +1582,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_artwork_change_dto(
+    ArtworkChangeDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_artwork_dto(ArtworkDto self, SseSerializer serializer);
 
   @protected
@@ -1564,6 +1598,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_artwork_change_dto(
+    ArtworkChangeDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_artwork_dto(
@@ -1983,6 +2023,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_opt_box_autoadd_i_64(
+    List<PlatformInt64?> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_output_device_dto(
     List<OutputDeviceDto> self,
     SseSerializer serializer,
@@ -2053,6 +2099,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     Uint32List self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_prim_u_8_strict(

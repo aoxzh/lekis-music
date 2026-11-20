@@ -945,6 +945,25 @@ pub async fn set_track_artwork(track_id: i64, artwork_id: Option<i64>) -> Result
         .await?)
 }
 
+/// 用用户选的图片（原始字节）当封面：给了 `album_id` 换专辑封面，
+/// `track_ids` 里的曲目钉上这张图。返回换之前的状态（交给 [`restore_artwork`] 撤销）。
+pub async fn set_artwork_from_image(
+    image: Vec<u8>,
+    track_ids: Vec<i64>,
+    album_id: Option<i64>,
+) -> Result<ArtworkChangeDto, CoreError> {
+    let ids = track_ids.into_iter().map(lekis_types::TrackId).collect();
+    Ok(core()
+        .set_artwork_from_image(image, ids, album_id.map(lekis_types::AlbumId))
+        .await?
+        .into())
+}
+
+/// 撤销一次换封面。
+pub async fn restore_artwork(change: ArtworkChangeDto) -> Result<(), CoreError> {
+    Ok(core().restore_artwork(change.into()).await?)
+}
+
 // ---- 歌单（PL-01/PL-05）----
 
 /// 新建歌单，返回 ID。

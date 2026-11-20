@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/enrich/enrich_actions.dart';
+import 'package:lekis/src/features/library/artwork_actions.dart';
 import 'package:lekis/src/features/library/artist_detail_page.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/album_card.dart';
@@ -228,6 +229,11 @@ class _AlbumHeader extends ConsumerWidget {
               onEnrich: trackIds.isEmpty
                   ? null
                   : () => enrichTracksFlow(context, trackIds),
+              onChangeArtwork: () => changeArtworkFlow(
+                context,
+                trackIds: trackIds,
+                albumId: album.id.toInt(),
+              ),
               trailing: [
                 if (trackIds.isNotEmpty)
                   BatchDownloadButton(trackIds: trackIds, tooltip: '下载整张专辑'),
@@ -271,6 +277,7 @@ class PlayShuffleButtons extends StatelessWidget {
     required this.onShuffle,
     this.queueTrackIds = const [],
     this.onEnrich,
+    this.onChangeArtwork,
     this.alignment = WrapAlignment.center,
     this.trailing = const [],
   });
@@ -283,6 +290,9 @@ class PlayShuffleButtons extends StatelessWidget {
 
   /// 非空时"更多"菜单里多一项"补全封面和歌词"。
   final VoidCallback? onEnrich;
+
+  /// 非空时"更多"菜单里多一项"更换封面…"。
+  final VoidCallback? onChangeArtwork;
 
   final WrapAlignment alignment;
 
@@ -329,6 +339,7 @@ class PlayShuffleButtons extends StatelessWidget {
                 queueTrackIds,
                 where: QueuePlacement.end,
               ),
+              'artwork' => onChangeArtwork?.call(),
               _ => onEnrich?.call(),
             },
             itemBuilder: (_) => [
@@ -362,6 +373,16 @@ class PlayShuffleButtons extends StatelessWidget {
                   ),
                 ),
               ],
+              if (onChangeArtwork != null)
+                const PopupMenuItem(
+                  value: 'artwork',
+                  child: ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.image_outlined),
+                    title: Text(ArtworkActionStrings.change),
+                  ),
+                ),
             ],
           ),
         ...trailing,

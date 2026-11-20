@@ -832,7 +832,8 @@ impl Session {
         }
         fade.fade_out();
         let channels = u64::from(self.device_format.channels.max(1));
-        let frames = crate::dsp::fade_frames(self.device_format.sample_rate, DEFAULT_FADE_MS) as u64;
+        let frames =
+            crate::dsp::fade_frames(self.device_format.sample_rate, DEFAULT_FADE_MS) as u64;
         let needed = frames.saturating_mul(channels);
         let start = self.progress.played_samples();
         let deadline = Instant::now() + Duration::from_millis(60);
@@ -1850,7 +1851,10 @@ mod tests {
             "首帧应约为 {:.6}，实际 {first:.6}",
             level * step
         );
-        assert!(span[..fade].windows(2).all(|w| w[1] >= w[0]), "淡入不能回头");
+        assert!(
+            span[..fade].windows(2).all(|w| w[1] >= w[0]),
+            "淡入不能回头"
+        );
         assert!(
             (span[fade - 1] - level).abs() < 1e-5,
             "第 {fade} 帧应回到原幅度，实际 {:.6}",

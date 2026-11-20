@@ -166,6 +166,38 @@ impl Library {
         .await
     }
 
+    /// 曲目自己钉的封面（不合并专辑封面），没有返回 `None`。撤销换封面用。
+    pub async fn track_own_artwork(&self, id: TrackId) -> Result<Option<ArtworkId>> {
+        self.read(move |c| {
+            c.query_row(
+                "SELECT artwork_id FROM track WHERE id = ?1",
+                params![id.0],
+                |r| r.get::<_, Option<i64>>(0),
+            )
+            .optional()
+            .db()?
+            .ok_or_else(|| LekisError::not_found(format!("track {id}")))
+            .map(|v| v.map(ArtworkId))
+        })
+        .await
+    }
+
+    /// 专辑当前的封面，没有返回 `None`。撤销换封面用。
+    pub async fn album_own_artwork(&self, id: AlbumId) -> Result<Option<ArtworkId>> {
+        self.read(move |c| {
+            c.query_row(
+                "SELECT artwork_id FROM album WHERE id = ?1",
+                params![id.0],
+                |r| r.get::<_, Option<i64>>(0),
+            )
+            .optional()
+            .db()?
+            .ok_or_else(|| LekisError::not_found(format!("album {id}")))
+            .map(|v| v.map(ArtworkId))
+        })
+        .await
+    }
+
     /// 给专辑设置封面。
     pub async fn set_album_artwork(
         &self,

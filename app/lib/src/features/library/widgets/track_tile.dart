@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/downloads/downloads_providers.dart';
 import 'package:lekis/src/features/enrich/enrich_actions.dart';
+import 'package:lekis/src/features/library/artwork_actions.dart';
 import 'package:lekis/src/features/library/tag_editor_dialog.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
@@ -29,6 +30,7 @@ enum _TrackMenuAction {
   rate,
   editTags,
   enrich,
+  artwork,
   download,
 }
 
@@ -147,6 +149,8 @@ class TrackTile extends ConsumerWidget {
           );
         case _TrackMenuAction.enrich:
           enrichTracksFlow(context, [track.id]);
+        case _TrackMenuAction.artwork:
+          changeArtworkFlow(context, trackIds: [track.id]);
         case _TrackMenuAction.download:
           runDownloadMenuAction(context, ref, track.id, downloadState);
       }
@@ -206,6 +210,15 @@ class TrackTile extends ConsumerWidget {
           contentPadding: EdgeInsets.zero,
           leading: Icon(Icons.auto_fix_high_rounded),
           title: Text(EnrichActionStrings.action),
+        ),
+      ),
+      const PopupMenuItem(
+        value: _TrackMenuAction.artwork,
+        child: ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.image_outlined),
+          title: Text(ArtworkActionStrings.change),
         ),
       ),
       PopupMenuItem(

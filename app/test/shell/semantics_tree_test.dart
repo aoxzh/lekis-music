@@ -139,7 +139,7 @@ Future<ProviderContainer> _pumpDesktopShell(WidgetTester tester) async {
 
   final container = ProviderContainer(
     overrides: [
-      coreEventsProvider.overrideWith((ref) => const Stream.empty()),
+      coreEventSourceProvider.overrideWithValue(const Stream.empty()),
       playbackProvider.overrideWith(_FakePlayback.new),
       positionProvider.overrideWith(_FakePosition.new),
       currentTrackProvider.overrideWith((ref) async => null),
