@@ -45,7 +45,8 @@ pub(crate) struct PendingPair {
 
 pub(crate) enum Opened {
     Session(Arc<Session>),
-    NeedsCode(PendingPair),
+    /// 还没输配对码；`Box` 是因为它比另一个变体大很多，而 `Opened` 只在配对时传一次。
+    NeedsCode(Box<PendingPair>),
 }
 
 fn deny_error(reason: DenyReason) -> LekisError {
@@ -197,7 +198,7 @@ pub(crate) async fn open(s: &Arc<Services>, target: &Discovered, allow_pairing: 
             let Msg::PairChallenge { public_key } = expect(&mut g.reader).await? else {
                 return Err(LekisError::invalid("expected pair challenge"));
             };
-            Ok(Opened::NeedsCode(PendingPair {
+            Ok(Opened::NeedsCode(Box::new(PendingPair {
                 reader: g.reader,
                 writer: g.writer,
                 local_ip: g.local_ip,
@@ -205,7 +206,7 @@ pub(crate) async fn open(s: &Arc<Services>, target: &Discovered, allow_pairing: 
                 server_public: public_key,
                 transcript: g.transcript,
                 peer: g.peer,
-            }))
+            })))
         }
     }
 }

@@ -94,28 +94,47 @@ pub enum PairStart {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConnectEvent {
     /// 设备列表变了。
-    DevicesChanged { devices: Vec<ConnectDevice> },
+    DevicesChanged {
+        /// 当前局域网里（含手动添加的）所有设备。
+        devices: Vec<ConnectDevice>,
+    },
     /// 本机作为被控端：有设备请求配对，请把配对码显示出来。
     PairingCode {
+        /// 请求配对的设备 ID。
         peer_id: String,
+        /// 请求配对的设备名。
         peer_name: String,
+        /// 6 位配对码，用户需要把它输进那台设备。
         code: String,
     },
     /// 本机作为被控端：配对结束（成功或失败），可以收起配对码。
     PairingFinished {
+        /// 请求配对的设备 ID。
         peer_id: String,
+        /// 请求配对的设备名。
         peer_name: String,
+        /// 是否成功。
         success: bool,
     },
     /// 本机作为控制端：远端设备的状态变了。
     RemoteState {
+        /// 哪台设备。
         device_id: String,
+        /// 它的最新状态。
         state: RemoteState,
     },
     /// 本机作为控制端：和远端设备的连接断了。
-    SessionClosed { device_id: String, reason: String },
+    SessionClosed {
+        /// 哪台设备。
+        device_id: String,
+        /// 断开的原因（给日志 / 提示用）。
+        reason: String,
+    },
     /// 本机作为被控端：有设备连上 / 断开了。
-    ControllersChanged { names: Vec<String> },
+    ControllersChanged {
+        /// 当前连着本机的控制端名字。
+        names: Vec<String>,
+    },
 }
 
 /// Connect 事件监听者（回调在核心线程上，不能阻塞）。
@@ -145,7 +164,7 @@ struct HubState {
     accept_task: Option<tokio::task::AbortHandle>,
     devices: BTreeMap<String, Discovered>,
     sessions: HashMap<String, Arc<client::Session>>,
-    pending: HashMap<String, client::PendingPair>,
+    pending: HashMap<String, Box<client::PendingPair>>,
     /// 连着本机的控制端：连接序号 → 名称。
     controllers: BTreeMap<u64, String>,
 }
@@ -556,7 +575,7 @@ impl LekisCore {
                 .with_state(|st| st.pending.remove(&device_id))
                 .flatten()
                 .ok_or_else(|| LekisError::invalid("no pairing in progress"))?;
-            let session = client::finish_pair(&s, pending, code.trim()).await?;
+            let session = client::finish_pair(&s, *pending, code.trim()).await?;
             install_session(&s, &device_id, session);
             Ok(())
         })
