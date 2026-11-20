@@ -1,17 +1,22 @@
 name: release
 
-# 推送 v* 标签（例如 v0.1.0-alpha.1）时：构建签名的 Android APK（arm64-v8a，外加尽力而为的
-# armeabi-v7a）和 Windows x64 免安装 zip，然后创建 GitHub Release。
+# 推送 v* 标签（例如 v0.1.0-alpha.1）时：构建签名的 Android arm64-v8a APK 和 Windows x64
+# 免安装 zip，然后创建 pre-release 草稿（draft），人工确认内容后再点发布。
 # 版本号带 "-"（alpha / beta / rc）时标成 pre-release。
+#
+# Android 只编设备 ABI：不传 --target-platform 时 Flutter 会把 arm / arm64 / x64 三套 Rust
+# 核心各编一遍（见 tools/dev-android.ps1），所以这里固定 android-arm64。
 #
 # 需要的仓库 secrets（Settings → Secrets and variables → Actions）：
 #   LEKIS_KEYSTORE_BASE64    release keystore 的 base64（不带换行或带换行都行）
 #   LEKIS_KEYSTORE_PASSWORD  keystore 密码
 #   LEKIS_KEY_ALIAS          key 别名
-#   LEKIS_KEY_PASSWORD       key 密码（PKCS12 keystore 和 keystore 密码相同）
+#   LEKIS_KEY_PASSWORD       key 密码（PKCS12 keystore 和 keystore 密码相同；留空则用 keystore 密码）
 # 标签构建缺 secrets 会直接失败，不会发布 debug 签名的 APK。
 #
 # 手动运行（workflow_dispatch）只构建并上传 artifacts，不创建 Release；没有 secrets 时用 debug 签名。
+#
+# Flutter 用 stable 通道（和 app.yml 一致）：仓库里没有版本固定文件，app/pubspec.yaml 要求 Dart ^3.14.0。
 
 on:
   push:
@@ -73,8 +78,13 @@ jobs:
       - name: Require signing secrets for tag builds
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          if [ -z "$LEKIS_KEYSTORE_BASE64" ] || [ -z "$LEKIS_KEYSTORE_PASSWORD" ] || [ -z "$LEKIS_KEY_ALIAS" ]; then
-            echo '::error::LEKIS_KEYSTORE_BASE64 / LEKIS_KEYSTORE_PASSWORD / LEKIS_KEY_ALIAS secrets are required to publish a release'
+          missing=''
+          [ -n "$LEKIS_KEYSTORE_BASE64" ] || missing="$missing LEKIS_KEYSTORE_BASE64"
+          [ -n "$LEKIS_KEYSTORE_PASSWORD" ] || missing="$missing LEKIS_KEYSTORE_PASSWORD"
+          [ -n "$LEKIS_KEY_ALIAS" ] || missing="$missing LEKIS_KEY_ALIAS"
+          if [ -n "$missing" ]; then
+            echo "::error::tag builds need these repository secrets (Settings → Secrets and variables → Actions):$missing"
+            echo '::error::without them the APK would be debug-signed, so refusing to build a release APK'
             exit 1
           fi
 
@@ -95,7 +105,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi
+          targets: aarch64-linux-android
 
       - uses: subosito/flutter-action@v2
         with:
@@ -107,42 +117,32 @@ jobs:
           workspaces: core
           key: release-android
 
+      # --target-platform android-arm64 只编 arm64-v8a 这一套 Rust 核心。
       - name: Build release APK (arm64-v8a)
         working-directory: app
         run: |
           set -euo pipefail
-          flutter build apk --release --split-per-abi --target-platform android-arm64
+          flutter build apk --release --target-platform android-arm64
           mkdir -p ../dist
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "../dist/lekis-$VERSION-android-arm64-v8a.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "../dist/lekis-$VERSION-android-arm64-v8a.apk"
 
-      # 32 位 ARM 是尽力而为：失败不挡发布，只是 Release 里少一个 APK。
-      - name: Build release APK (armeabi-v7a)
-        id: armv7
-        continue-on-error: true
-        working-directory: app
+      - name: Verify APK (Rust core present, not debug-signed)
         run: |
           set -euo pipefail
-          flutter build apk --release --split-per-abi --target-platform android-arm
-          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk "../dist/lekis-$VERSION-android-armeabi-v7a.apk"
-
-      - name: Verify APKs (Rust core present, not debug-signed)
-        run: |
-          set -euo pipefail
+          apk=dist/lekis-$VERSION-android-arm64-v8a.apk
+          echo "== $apk"
+          unzip -l "$apk" | grep -q 'lib/arm64-v8a/liblekis_bridge\.so' \
+            || { echo "::error::$apk is missing lib/arm64-v8a/liblekis_bridge.so"; exit 1; }
           apksigner=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | sort -V | tail -n1)
-          for apk in dist/*.apk; do
-            echo "== $apk"
-            listing=$(unzip -l "$apk")
-            grep -qE 'lib/(arm64-v8a|armeabi-v7a)/liblekis_bridge\.so' <<<"$listing" \
-              || { echo "::error::$apk is missing liblekis_bridge.so"; exit 1; }
-            certs=$("$apksigner" verify --print-certs "$apk")
-            grep -E 'Signer #1 certificate (DN|SHA-256)' <<<"$certs"
-            if [[ "$GITHUB_REF" == refs/tags/* ]] && grep -q 'CN=Android Debug' <<<"$certs"; then
-              echo "::error::$apk is signed with the debug key"
-              exit 1
-            fi
-          done
+          certs=$("$apksigner" verify --print-certs "$apk")
+          grep -E 'Signer #1 certificate (DN|SHA-256)' <<<"$certs"
+          # workflow_dispatch 没有 secrets 时允许 debug 签名，标签构建不允许。
+          if [[ "$GITHUB_REF" == refs/tags/* ]] && grep -q 'CN=Android Debug' <<<"$certs"; then
+            echo "::error::$apk is signed with the debug key"
+            exit 1
+          fi
 
-      - name: Upload APKs
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: android
@@ -178,9 +178,10 @@ jobs:
         working-directory: app
         run: flutter build windows --release
 
+      # 打包和 zip 内部结构由 tools/package-windows.ps1 负责（版本号、VC++ 运行库都在脚本里）。
       - name: Package zip
         shell: pwsh
-        run: ./tools/package-windows.ps1 -SkipBuild -Version $env:VERSION
+        run: ./tools/package-windows.ps1 -SkipBuild -Version "$env:VERSION"
 
       - name: Upload zip
         uses: actions/upload-artifact@v4
@@ -225,6 +226,8 @@ jobs:
         with:
           name: Lekis ${{ needs.version.outputs.version }}
           body_path: ${{ steps.notes.outputs.path }}
+          # 先落成草稿：检查过 APK / zip / 校验和再人工点发布。
+          draft: true
           prerelease: ${{ needs.version.outputs.prerelease == 'true' }}
           fail_on_unmatched_files: true
           files: |

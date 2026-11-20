@@ -49,7 +49,7 @@
 
 **工程**
 - 许可证改为 MPL-2.0，新增 `THIRD_PARTY_NOTICES.md`；GPL 的 `zhconv` 换成 `ferrous-opencc`。
-- 删除冻结的原生 UI（`apps/`）、`lekis-ffi`、UniFFI 绑定脚本和对应 CI；FRB 生成代码统一在 `lekis-bridge`。
+- 桥只有 `lekis-bridge`（flutter_rust_bridge），Dart 和 Rust 生成代码统一放在这个 crate 里；删掉的东西见下面的「移除」。
 - Android 只编设备 ABI、dev 构建精简调试信息；新增 `v*` 标签触发的 release workflow（签名 APK + Windows zip）。
 
 ### 改进
@@ -57,6 +57,12 @@
 - 正在播放页：从封面取色的自适应背景、封面切换动效，操作合并成单个工具栏。
 - 列表和首页更紧凑，统一底部留白；设置页改成扁平行；空状态只留品牌标记。
 - 歌词默认改成经典样式并降低舞台开销；迷你播放器和 TabBar 共用玻璃材质。
+
+### 移除
+
+- 冻结的原生 UI：`apps/android`（Kotlin / Compose）、`apps/windows`（C# / WinUI）、`apps/linux`（GTK），以及只服务它们的 `lekis-ffi`（UniFFI）crate、`tools/gen-bindings.*` 绑定生成脚本和 `core/bins/uniffi-bindgen`；旧代码从 git 历史里取。
+- 三个按平台划分的 CI 工作流：`.github/workflows/android.yml`、`windows.yml`、`linux.yml`。CI 只剩 `core.yml`（Rust）、`app.yml`（Flutter）和 `release.yml`（标签发布）。
+- 不再生成 UniFFI 绑定；对外接口只有 flutter_rust_bridge 的 `lekis-bridge` 一套。
 
 ### 修复
 

@@ -6,7 +6,7 @@
 
 第一个公开预览版，给愿意早点用、也愿意报 bug 的人。**这是预览软件，不是正式版**：会崩，有没做完的地方，数据和设置格式也可能在后续版本里变。
 
-- 只有 Android APK（arm64-v8a，外加尽力而为的 armeabi-v7a）和 Windows x64 免安装 zip。
+- 只有 Android APK（arm64-v8a）和 Windows x64 免安装 zip。
 - macOS、iOS、Linux 不在这个版本里，Beta 跟进。
 - 代码在 `phase-0` 分支；Alpha 的四条退出标准还没全部达成，进度见 [HANDOFF.md](HANDOFF.md)。
 
@@ -30,7 +30,7 @@
 
 ### Android
 
-- 下载对应 CPU 的 APK：绝大多数手机用 `lekis-0.1.0-alpha.1-android-arm64-v8a.apk`；老的 32 位设备用 `...-android-armeabi-v7a.apk`（尽力而为，构建失败时可能没有这个文件）。
+- 下载 APK：`lekis-0.1.0-alpha.1-android-arm64-v8a.apk`（只提供 64 位 ARM 版，绝大多数手机和折叠屏都适用）。
 - 没有上架任何商店，需要侧载：允许「安装未知应用」，用文件管理器点开 APK 安装。需要 Android 8.0（API 26）及以上。
 - 官方包用 release key 签名；自己本地构建又没配 keystore 时会退回 debug 签名，那种包装不上正式版，也不能覆盖升级。
 

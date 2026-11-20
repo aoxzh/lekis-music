@@ -118,13 +118,19 @@ cd core && cargo run -p lekis-library --example seed_fake_library --release -- <
 ```
 
 ```powershell
-# Windows 免安装包：把 release 构建打成 dist/lekis-<版本>-windows-x64.zip（dist/ 不提交）
-tools/package-windows.ps1            # 先 flutter build windows --release；-SkipBuild 只打包
+# Windows 免安装包：把 release 构建打成 dist/lekis-<版本>-windows-x64.zip（外加同名 .sha256；dist/ 不提交）
+tools/package-windows.ps1            # 先 flutter build windows --release；-SkipBuild 只打包已有构建，-InDir 换构建目录
+```
+
+```powershell
+# Windows 开始菜单快捷方式：免安装构建也能从开始菜单和搜索里找到 Lekis（-Uninstall 删除）
+tools/install-windows-shortcut.ps1   # 指向 app/build/windows/x64/runner/Release/lekis.exe
+tools/package-windows.ps1 -Shortcut  # 指向打包出来的 dist/lekis-<版本>-windows-x64/（保留 staging 不删）
 ```
 
 ## 发布
 
-推送 `v*` 标签（例如 `v0.1.0-alpha.1`）会触发 [`.github/workflows/release.yml`](.github/workflows/release.yml)：构建签名的 Android APK（arm64-v8a、armeabi-v7a）和 Windows x64 zip，并创建 GitHub pre-release。需要的仓库 secrets：`LEKIS_KEYSTORE_BASE64`、`LEKIS_KEYSTORE_PASSWORD`、`LEKIS_KEY_ALIAS`、`LEKIS_KEY_PASSWORD`。
+推送 `v*` 标签（例如 `v0.1.0-alpha.1`）会触发 [`.github/workflows/release.yml`](.github/workflows/release.yml)：构建签名的 Android APK（arm64-v8a，只编设备 ABI）和 Windows x64 zip，并创建 GitHub pre-release。需要的仓库 secrets：`LEKIS_KEYSTORE_BASE64`、`LEKIS_KEYSTORE_PASSWORD`、`LEKIS_KEY_ALIAS`、`LEKIS_KEY_PASSWORD`。
 
 本机签名：在 `app/android/key.properties`（不提交）里写 `storeFile`、`storePassword`、`keyAlias`、`keyPassword`，keystore 放在仓库外。没有 keystore 时 release 构建会退回 debug 签名并在 Gradle 输出里警告，这样的包不能发布。
 
