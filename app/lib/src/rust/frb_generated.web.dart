@@ -65,6 +65,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CoreConfigDto dco_decode_box_autoadd_core_config_dto(dynamic raw);
 
   @protected
+  EqualizerDto dco_decode_box_autoadd_equalizer_dto(dynamic raw);
+
+  @protected
   ErrorKind dco_decode_box_autoadd_error_kind(dynamic raw);
 
   @protected
@@ -142,6 +145,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   EnrichReportDto dco_decode_enrich_report_dto(dynamic raw);
 
   @protected
+  EqualizerDto dco_decode_equalizer_dto(dynamic raw);
+
+  @protected
+  EqualizerPresetDto dco_decode_equalizer_preset_dto(dynamic raw);
+
+  @protected
   ErrorKind dco_decode_error_kind(dynamic raw);
 
   @protected
@@ -195,6 +204,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<EnrichCandidateDto> dco_decode_list_enrich_candidate_dto(dynamic raw);
 
   @protected
+  List<EqualizerPresetDto> dco_decode_list_equalizer_preset_dto(dynamic raw);
+
+  @protected
   List<FolderEntryDto> dco_decode_list_folder_entry_dto(dynamic raw);
 
   @protected
@@ -226,6 +238,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<PluginSettingDto> dco_decode_list_plugin_setting_dto(dynamic raw);
+
+  @protected
+  Float32List dco_decode_list_prim_f_32_strict(dynamic raw);
 
   @protected
   Int32List dco_decode_list_prim_i_32_strict(dynamic raw);
@@ -518,6 +533,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  EqualizerDto sse_decode_box_autoadd_equalizer_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ErrorKind sse_decode_box_autoadd_error_kind(SseDeserializer deserializer);
 
   @protected
@@ -619,6 +639,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   EnrichReportDto sse_decode_enrich_report_dto(SseDeserializer deserializer);
 
   @protected
+  EqualizerDto sse_decode_equalizer_dto(SseDeserializer deserializer);
+
+  @protected
+  EqualizerPresetDto sse_decode_equalizer_preset_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ErrorKind sse_decode_error_kind(SseDeserializer deserializer);
 
   @protected
@@ -678,6 +706,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<EqualizerPresetDto> sse_decode_list_equalizer_preset_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<FolderEntryDto> sse_decode_list_folder_entry_dto(
     SseDeserializer deserializer,
   );
@@ -729,6 +762,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<PluginSettingDto> sse_decode_list_plugin_setting_dto(
     SseDeserializer deserializer,
   );
+
+  @protected
+  Float32List sse_decode_list_prim_f_32_strict(SseDeserializer deserializer);
 
   @protected
   Int32List sse_decode_list_prim_i_32_strict(SseDeserializer deserializer);
@@ -1082,6 +1118,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_equalizer_dto(
+    EqualizerDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_error_kind(
     ErrorKind self,
     SseSerializer serializer,
@@ -1211,6 +1253,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_equalizer_dto(EqualizerDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_equalizer_preset_dto(
+    EqualizerPresetDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_error_kind(ErrorKind self, SseSerializer serializer);
 
   @protected
@@ -1286,6 +1337,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_equalizer_preset_dto(
+    List<EqualizerPresetDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_folder_entry_dto(
     List<FolderEntryDto> self,
     SseSerializer serializer,
@@ -1348,6 +1405,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_plugin_setting_dto(
     List<PluginSettingDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_prim_f_32_strict(
+    Float32List self,
     SseSerializer serializer,
   );
 

@@ -14,6 +14,7 @@ mod artwork_local;
 pub mod config;
 pub mod discovery;
 mod enrich;
+pub mod equalizer;
 pub mod events;
 mod folders;
 /// In-memory diagnostic log ring for the Settings screen (SET-03).
@@ -30,6 +31,7 @@ mod sync_engine;
 
 pub use config::{CoreConfig, PlatformKind};
 pub use enrich::EnrichReport;
+pub use equalizer::EqualizerSettings;
 pub use events::EventListener;
 pub use folders::{FolderEntry, FolderListing, FolderRoot};
 pub use lekis_playback::PlaybackSnapshot;
@@ -45,7 +47,7 @@ pub use lekis_library::{
     OfflineDownload, OfflineStats, PlaybackStateRow, SourceInfo, TrackContext, TrackUserState,
 };
 pub use lekis_library::ListeningSummary;
-use lekis_playback::{EngineCommand, OutputDevice, OutputMode, PlaybackEngine};
+use lekis_playback::{EngineCommand, EqControl, OutputDevice, OutputMode, PlaybackEngine};
 use lekis_scanner::{tags::LoftyTagReader, Scanner};
 use lekis_types::*;
 use std::future::Future;
@@ -93,6 +95,8 @@ struct Services {
         std::sync::Mutex<std::collections::HashMap<TrackId, Arc<std::sync::atomic::AtomicBool>>>,
     /// 本地插件管理（PLG-01~07）。
     plugins: Arc<plugins::PluginManager>,
+    /// 10 段均衡器参数（PLY-04）；和播放引擎共享，设置后立即生效。
+    eq: Arc<EqControl>,
 }
 
 impl Services {
@@ -151,6 +155,32 @@ impl Services {
             settings::REPLAYGAIN => self
                 .resolver
                 .set_replaygain_mode(resolver::ReplayGainMode::from_setting(value)),
+            settings::EQ_ENABLED => {
+                let mut current = self.eq.settings();
+                current.enabled = value
+                    .map(|value| value.trim() != "false" && value.trim() != "0")
+                    .unwrap_or(false);
+                self.eq.set(current);
+            }
+            settings::EQ_PREAMP => {
+                let mut current = self.eq.settings();
+                current.preamp_db = value
+                    .and_then(|value| value.trim().parse::<f32>().ok())
+                    .unwrap_or(0.0);
+                self.eq.set(current);
+            }
+            settings::EQ_BANDS => {
+                let mut current = self.eq.settings();
+                if let Some(bands) = value.and_then(|value| {
+                    serde_json::from_str::<Vec<f32>>(value)
+                        .ok()
+                        .map(|bands| lekis_playback::EqSettings::new(true, 0.0, &bands))
+                }) {
+                    current.bands_db = bands.bands_db;
+                }
+                self.eq.set(current);
+            }
+            settings::EQ_PRESET => {}
             _ => {}
         }
     }
@@ -178,6 +208,14 @@ pub mod settings {
     pub const GAPLESS: &str = "playback.gapless";
     /// ReplayGain：`track`（默认）/ `album` / `off`。
     pub const REPLAYGAIN: &str = "playback.replaygain";
+    /// 均衡器开关：`true` / `false`（默认关，PLY-04）。
+    pub const EQ_ENABLED: &str = "playback.eq.enabled";
+    /// 均衡器 preamp（dB，-12..=+12）。
+    pub const EQ_PREAMP: &str = "playback.eq.preamp";
+    /// 均衡器 10 段增益（dB）的 JSON 数组。
+    pub const EQ_BANDS: &str = "playback.eq.bands";
+    /// 均衡器当前预设 ID（可选）。
+    pub const EQ_PRESET: &str = "playback.eq.preset";
 }
 
 /// `test_source` 的整体超时。
@@ -235,7 +273,8 @@ impl LekisCore {
         // 播放引擎和后台任务都要在运行时上下文里创建。
         let _guard = handle.enter();
         let (resolve_tx, resolve_rx) = tokio::sync::mpsc::channel(16);
-        let engine = PlaybackEngine::spawn(resolve_tx);
+        let eq = Arc::new(EqControl::default());
+        let engine = PlaybackEngine::spawn_with_eq(resolve_tx, eq.clone());
         let resolver = Arc::new(resolver::Resolver::new(
             library.clone(),
             health.clone(),
@@ -270,13 +309,20 @@ impl LekisCore {
             scrobble: scrobbler,
             downloads: std::sync::Mutex::new(std::collections::HashMap::new()),
             plugins,
+            eq,
         });
 
         // 启动时：让播放相关设置生效，并给文件系统源预先登记 VFS（不发网络请求）。
         {
             let s = services.clone();
             handle.spawn(async move {
-                for key in [settings::GAPLESS, settings::REPLAYGAIN] {
+                for key in [
+                    settings::GAPLESS,
+                    settings::REPLAYGAIN,
+                    settings::EQ_BANDS,
+                    settings::EQ_PREAMP,
+                    settings::EQ_ENABLED,
+                ] {
                     let value = s.library.get_setting(key).await.ok().flatten();
                     s.apply_setting(key, value.as_deref());
                 }
@@ -961,6 +1007,54 @@ impl LekisCore {
                     .enqueue_sync_op(op.hlc.to_string(), op_json(&op)?)
                     .await?;
             }
+            Ok(())
+        })
+        .await
+    }
+
+    /// 读取 10 段均衡器设置（PLY-04）。缺省值是关闭、平直曲线。
+    pub async fn equalizer(&self) -> Result<EqualizerSettings> {
+        let s = self.services.clone();
+        self.run(async move {
+            let enabled = s.library.get_setting(settings::EQ_ENABLED).await?;
+            let preamp = s.library.get_setting(settings::EQ_PREAMP).await?;
+            let bands = s.library.get_setting(settings::EQ_BANDS).await?;
+            let preset = s.library.get_setting(settings::EQ_PRESET).await?;
+            Ok(equalizer::from_values(
+                enabled.as_deref(),
+                preamp.as_deref(),
+                bands.as_deref(),
+                preset.as_deref(),
+            ))
+        })
+        .await
+    }
+
+    /// 保存并立即应用 10 段均衡器设置。
+    ///
+    /// 输入会先钳制到合法范围；正在播放的共享输出会话会在下一个解码块使用新参数。
+    /// 比特完美独占输出不经过 DSP，因此不受影响（UI 会提示）。
+    pub async fn set_equalizer(&self, settings: EqualizerSettings) -> Result<()> {
+        let settings = settings.sanitized();
+        let s = self.services.clone();
+        self.run(async move {
+            let bands = serde_json::to_string(&settings.bands_db)
+                .map_err(|e| LekisError::internal(format!("serialize eq bands: {e}")))?;
+            s.library
+                .set_setting(settings::EQ_ENABLED, if settings.enabled { "true" } else { "false" })
+                .await?;
+            s.library
+                .set_setting(settings::EQ_PREAMP, &settings.preamp_db.to_string())
+                .await?;
+            s.library.set_setting(settings::EQ_BANDS, &bands).await?;
+            s.library
+                .set_setting(
+                    settings::EQ_PRESET,
+                    settings.preset.as_deref().unwrap_or(""),
+                )
+                .await?;
+            // 全部写完后一次性更新共享参数，避免解码线程看到半套设置。
+            s.eq.set(settings.to_playback());
             Ok(())
         })
         .await
@@ -2570,6 +2664,61 @@ mod tests {
             core.services.resolver.replaygain_mode(),
             resolver::ReplayGainMode::Album
         );
+        drop(core);
+        let _ = std::fs::remove_dir_all(&root);
+        Ok(())
+    }
+
+    /// PLY-04：设置写入资料库、立即进入播放控制句柄，重启后还能读回来。
+    #[test]
+    fn equalizer_settings_persist_and_apply_immediately() -> Result<()> {
+        let root =
+            std::env::temp_dir().join(format!("lekis-core-eq-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let saved = EqualizerSettings {
+            enabled: true,
+            preamp_db: 99.0,
+            bands_db: vec![-99.0, 99.0, 3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            preset: Some("sennheiser-hd-600".into()),
+        };
+        {
+            let core = LekisCore::new(CoreConfig::for_tests(&root), PlatformServices::in_memory())?;
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?;
+            rt.block_on(async {
+                // 等启动任务读完全部设置，避免和测试写入互相覆盖。
+                tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                core.set_equalizer(saved.clone()).await?;
+                let loaded = core.equalizer().await?;
+                assert!(loaded.enabled);
+                assert_eq!(loaded.preamp_db, 12.0);
+                assert_eq!(loaded.bands_db.len(), 10);
+                assert_eq!(loaded.bands_db[0], -12.0);
+                assert_eq!(loaded.bands_db[1], 12.0);
+                assert_eq!(loaded.bands_db[2], 3.0);
+                assert_eq!(loaded.bands_db[9], 0.0);
+                assert_eq!(loaded.preset.as_deref(), Some("sennheiser-hd-600"));
+
+                // 共享控制句柄必须已经收到新参数（不需要重启播放会话）。
+                let live = core.services.eq.settings();
+                assert!(live.enabled);
+                assert_eq!(live.preamp_db, 12.0);
+                assert_eq!(live.bands_db, loaded.to_playback().bands_db);
+                Ok::<_, LekisError>(())
+            })?;
+        }
+        let core = LekisCore::new(CoreConfig::for_tests(&root), PlatformServices::in_memory())?;
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        let loaded = rt.block_on(async {
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+            core.equalizer().await
+        })?;
+        assert!(loaded.enabled);
+        assert_eq!(loaded.bands_db[2], 3.0);
+        assert_eq!(core.services.eq.settings().bands_db[2], 3.0);
         drop(core);
         let _ = std::fs::remove_dir_all(&root);
         Ok(())

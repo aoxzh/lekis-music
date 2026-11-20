@@ -10,6 +10,7 @@ import '../../shell/tab_bar_style.dart';
 import '../../theme/tokens.dart';
 import '../downloads/downloads_models.dart';
 import '../downloads/downloads_providers.dart';
+import 'equalizer_page.dart';
 import 'logs_page.dart';
 import '../enrich/enrich_providers.dart';
 import '../now_playing/lyrics_stage_settings.dart';
@@ -147,6 +148,15 @@ class _PlaybackSection extends ConsumerWidget {
             selected: {output.mode},
             onSelectionChanged: (s) =>
                 _guard(context, () => notifier.setMode(s.first)),
+          ),
+        ),
+        SettingsTile(
+          icon: Icons.graphic_eq_rounded,
+          title: EqualizerStrings.title,
+          subtitle: const Text(EqualizerStrings.entryHint),
+          chevron: true,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const EqualizerPage()),
           ),
         ),
         SettingsSwitchTile(

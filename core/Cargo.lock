@@ -2512,6 +2512,7 @@ dependencies = [
  "lekis-types",
  "percent-encoding",
  "pinyin",
+ "quick-xml",
  "rusqlite",
  "serde",
  "serde_json",

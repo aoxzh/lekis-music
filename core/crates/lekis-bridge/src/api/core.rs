@@ -367,6 +367,27 @@ pub async fn set_setting(key: String, value: String) -> Result<(), CoreError> {
     Ok(core().set_setting(key, value).await?)
 }
 
+// ---- 均衡器（PLY-04） ----
+
+/// 读取 10 段均衡器设置；缺省为关闭、平直曲线。
+pub async fn equalizer() -> Result<EqualizerDto, CoreError> {
+    Ok(core().equalizer().await?.into())
+}
+
+/// 保存并立即应用均衡器设置。输入会被钳制到合法范围。
+pub async fn set_equalizer(settings: EqualizerDto) -> Result<(), CoreError> {
+    Ok(core().set_equalizer(settings.into()).await?)
+}
+
+/// 内置的 AutoEQ 风格预设（近似曲线，不是官方测量数据）。
+#[frb(sync)]
+pub fn equalizer_presets() -> Vec<EqualizerPresetDto> {
+    lekis_core::equalizer::presets()
+        .iter()
+        .map(EqualizerPresetDto::from)
+        .collect()
+}
+
 // ---- 本地插件 ----
 
 /// 已安装插件列表。清单损坏的插件也会返回，错误放在 `error` 字段。

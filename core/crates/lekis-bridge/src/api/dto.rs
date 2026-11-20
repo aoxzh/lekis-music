@@ -740,6 +740,68 @@ impl From<lekis_core::PlaybackSnapshot> for PlaybackSnapshotDto {
     }
 }
 
+/// 10 段均衡器设置（PLY-04）。
+#[derive(Debug, Clone)]
+pub struct EqualizerDto {
+    /// 是否启用。
+    pub enabled: bool,
+    /// 前级增益（dB，-12..=+12）。
+    pub preamp_db: f32,
+    /// 10 段增益（dB），顺序为 31 Hz 到 16 kHz。
+    pub bands_db: Vec<f32>,
+    /// 当前预设 ID；`None` 表示自定义 / 平直。
+    pub preset: Option<String>,
+}
+
+impl From<lekis_core::EqualizerSettings> for EqualizerDto {
+    fn from(value: lekis_core::EqualizerSettings) -> Self {
+        Self {
+            enabled: value.enabled,
+            preamp_db: value.preamp_db,
+            bands_db: value.bands_db,
+            preset: value.preset,
+        }
+    }
+}
+
+impl From<EqualizerDto> for lekis_core::EqualizerSettings {
+    fn from(value: EqualizerDto) -> Self {
+        Self {
+            enabled: value.enabled,
+            preamp_db: value.preamp_db,
+            bands_db: value.bands_db,
+            preset: value.preset,
+        }
+    }
+}
+
+/// 内置均衡器预设。
+#[derive(Debug, Clone)]
+pub struct EqualizerPresetDto {
+    /// 稳定 ID。
+    pub id: String,
+    /// 显示名称。
+    pub name: String,
+    /// 来源 / 适用场景说明。
+    pub description: String,
+    /// 建议 preamp（dB）。
+    pub preamp_db: f32,
+    /// 10 段增益（dB）。
+    pub bands_db: Vec<f32>,
+}
+
+impl From<&lekis_playback::EqPreset> for EqualizerPresetDto {
+    fn from(value: &lekis_playback::EqPreset) -> Self {
+        Self {
+            id: value.id.to_string(),
+            name: value.name.to_string(),
+            description: value.description.to_string(),
+            preamp_db: value.preamp_db,
+            bands_db: value.bands_db.to_vec(),
+        }
+    }
+}
+
 /// 保存下来的播放会话（重启后恢复用）。
 #[derive(Debug, Clone)]
 pub struct PlaybackSessionDto {

@@ -35,6 +35,7 @@
 
 use crate::decode::{open_decoder, Decoder, NativeSampleFormat, PcmFormat};
 use crate::dsp::{db_to_linear, DspNode, FadeControl, SoftClipper, DEFAULT_FADE_MS};
+use crate::eq::{EqControl, ParametricEq};
 use crate::gapless::{AudibleTrack, TrackTimeline};
 use crate::output::bitperfect::{choose_decode_path, DecodePath, NativePlan};
 use crate::output::ring_source::{
@@ -227,12 +228,40 @@ impl Session {
     }
 
     /// 和 [`Self::start`] 一样，但输出后端由调用方提供（测试注入空输出）。
+    ///
+    /// 均衡器默认旁路；需要实时 EQ 时用 [`Self::start_with_factory_and_eq`]。
     pub async fn start_with_factory(
         media: &MediaSource,
         device_id: Option<&str>,
         mode: OutputMode,
         volume: f32,
         handle: Handle,
+        output_factory: Arc<dyn OutputFactory>,
+    ) -> Result<Self> {
+        Self::start_with_factory_and_eq(
+            media,
+            device_id,
+            mode,
+            volume,
+            handle,
+            Arc::new(EqControl::default()),
+            output_factory,
+        )
+        .await
+    }
+
+    /// 和 [`Self::start_with_factory`] 一样，但把共享的均衡器参数接进解码线程。
+    ///
+    /// 参数通过 [`EqControl`] 无锁传递，运行中改设置会在下一个解码块生效。
+    /// 比特完美独占链路不经过 DSP，EQ 会被跳过并记录一条 warn。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn start_with_factory_and_eq(
+        media: &MediaSource,
+        device_id: Option<&str>,
+        mode: OutputMode,
+        volume: f32,
+        handle: Handle,
+        eq: Arc<EqControl>,
         output_factory: Arc<dyn OutputFactory>,
     ) -> Result<Self> {
         let stop = Arc::new(AtomicBool::new(false));
@@ -267,6 +296,7 @@ impl Session {
         let t_eof = eof.clone();
         let t_splices = splices.clone();
         let t_next_token = next_token.clone();
+        let t_eq = eq.clone();
         let join = std::thread::Builder::new()
             .name("lekis-decode".to_string())
             .spawn(move || {
@@ -328,6 +358,12 @@ impl Session {
                             duration_ms: duration,
                             gain_linear,
                         };
+                        // EQ 在设备采样率上运行，所以要在格式转换之后处理。
+                        let mut equalizer = ParametricEq::new(
+                            t_eq.clone(),
+                            device_format.sample_rate,
+                            device_format.channels,
+                        );
                         decode_loop(
                             active,
                             &mut ctx,
@@ -336,6 +372,7 @@ impl Session {
                             handle,
                             prepare_tx,
                             prepare_rx,
+                            &mut equalizer,
                         );
                     }
                     WorkerWire::Native {
@@ -344,6 +381,12 @@ impl Session {
                         timeline,
                     } => {
                         // 比特完美：设备格式与内容格式一致，不建重采样器、不套增益。
+                        if t_eq.enabled() {
+                            tracing::warn!(
+                                target: "playback::eq",
+                                "equalizer is bypassed on bit-perfect exclusive output; switch to shared mode to use EQ"
+                            );
+                        }
                         let mut ctx = WorkerCtx::<i32> {
                             writer,
                             progress,
@@ -455,6 +498,12 @@ impl Session {
                             target: "playback::gapless",
                             "bit-perfect exclusive output is not gapless; the engine restarts the stream between tracks"
                         );
+                        if eq.enabled() {
+                            tracing::warn!(
+                                target: "playback::eq",
+                                "equalizer is bypassed on bit-perfect exclusive output; switch to shared mode to use EQ"
+                            );
+                        }
                         // 比特完美链路不建淡入淡出包络：任何增益都会破坏位模式。
                         (actual, progress, wire, true, None)
                     }
@@ -968,6 +1017,8 @@ enum PreparedConverter {
 /// 当前曲目 EOF 时，如果下一首已经预装好，就在**同一条环形缓冲**里直接接着写，
 /// 输出流和会话都不重建（PLY-01）。只有拿不到预装（关闭无缝、解析失败、坏文件、
 /// 队列被改）时才把 EOF 报给引擎，退回「重建会话」的有缝路径。
+// 这里是内部装配函数，参数多但都是解码线程必须的上下文；拆结构体反而更吵。
+#[allow(clippy::too_many_arguments)]
 fn decode_loop(
     mut active: ActiveTrack,
     ctx: &mut WorkerCtx,
@@ -976,6 +1027,7 @@ fn decode_loop(
     handle: Handle,
     prepare_tx: Sender<PreparedResult>,
     prepare_rx: Receiver<PreparedResult>,
+    equalizer: &mut ParametricEq,
 ) {
     let device_channels = usize::from(device_format.channels.max(1));
     let mut buffer: Vec<f32> = Vec::with_capacity(device_channels * 4_096);
@@ -1037,6 +1089,8 @@ fn decode_loop(
                     if let Some(converter) = active.converter.as_mut() {
                         converter.reset();
                     }
+                    // 滤波器历史同样属于上一段音频，清掉避免 seek 后的爆音。
+                    equalizer.reset();
                 }
                 Ok(WorkerCmd::QueueNext { media, token }) => {
                     prepared = None;
@@ -1099,7 +1153,15 @@ fn decode_loop(
                 .is_some_and(|track| track.token == token_now);
             if fresh {
                 if let Some(next) = prepared.take() {
-                    if splice_next(&mut active, next, ctx, device_format, &mut converted) {
+                    if splice_next(
+                        &mut active,
+                        next,
+                        ctx,
+                        device_format,
+                        &mut converted,
+                        equalizer,
+                        &mut clipper,
+                    ) {
                         continue;
                     }
                     // 停止标志在拼接过程中被置位：直接收尾。
@@ -1107,7 +1169,13 @@ fn decode_loop(
                 }
             }
             // 没有可用的下一首：把转换器尾巴吐完，再把 EOF 报给引擎（有缝回退）。
-            flush_converter_tail(&mut active, ctx);
+            flush_converter_tail(
+                &mut active,
+                ctx,
+                device_format.channels,
+                equalizer,
+                &mut clipper,
+            );
             ctx.eof.store(true, Ordering::Release);
             return;
         }
@@ -1121,20 +1189,22 @@ fn decode_loop(
             active.gain_linear,
             ctx.volume.load(Ordering::Acquire),
             content_channels,
-            &mut clipper,
         );
         // 重采样在解码线程上做，实时回调只拿已经转好的设备格式样本。
-        let to_push: &[f32] = match active.converter.as_mut() {
+        let to_push: &mut [f32] = match active.converter.as_mut() {
             Some(converter) => {
                 converted.clear();
                 converter.process(&buffer, &mut converted);
-                &converted
+                &mut converted
             }
-            None => &buffer,
+            None => &mut buffer,
         };
         if to_push.is_empty() {
             continue;
         }
+        // EQ 必须按设备采样率运行，所以放在重采样 / 声道映射之后；
+        // 限幅也放在 EQ 之后，才能拦住均衡器带来的正增益削波。
+        process_output(to_push, device_format.channels, equalizer, &mut clipper);
         let written = ctx.writer.push_blocking(to_push, &ctx.stop);
         ctx.progress.add_pushed(written as u64);
     }
@@ -1249,9 +1319,11 @@ fn splice_next(
     ctx: &mut WorkerCtx,
     device_format: PcmFormat,
     converted: &mut Vec<f32>,
+    equalizer: &mut ParametricEq,
+    clipper: &mut SoftClipper,
 ) -> bool {
     let format_changed = next.format != active.format;
-    let (converter, flushed) = match next.converter {
+    let (converter, mut flushed) = match next.converter {
         PreparedConverter::Reuse => (active.converter.take(), None),
         PreparedConverter::Direct => {
             let mut tail = Vec::new();
@@ -1270,9 +1342,11 @@ fn splice_next(
     };
     // 换格式时先把上一首转换器里的尾巴（最多一个重采样块）补零翻出去，
     // 不能直接丢掉；同格式复用转换器时没有尾巴，边界完全连续。
-    if let Some(tail) = flushed {
+    if let Some(tail) = flushed.as_mut() {
         if !tail.is_empty() {
-            let written = ctx.writer.push_blocking(&tail, &ctx.stop);
+            // 尾巴也是设备格式，必须走同一级 EQ + 限幅，否则拼接点会不一致。
+            process_output(tail, device_format.channels, equalizer, clipper);
+            let written = ctx.writer.push_blocking(tail, &ctx.stop);
             ctx.progress.add_pushed(written as u64);
             if ctx.stop.load(Ordering::Relaxed) {
                 return false;
@@ -1327,13 +1401,20 @@ fn splice_next(
 }
 
 /// 曲目结束且没有下一首可接时，把转换器里不足一块的尾巴吐出来。
-fn flush_converter_tail(active: &mut ActiveTrack, ctx: &mut WorkerCtx) {
+fn flush_converter_tail(
+    active: &mut ActiveTrack,
+    ctx: &mut WorkerCtx,
+    device_channels: u16,
+    equalizer: &mut ParametricEq,
+    clipper: &mut SoftClipper,
+) {
     let Some(mut converter) = active.converter.take() else {
         return;
     };
     let mut tail = Vec::new();
     converter.finish(&mut tail);
     if !tail.is_empty() {
+        process_output(&mut tail, device_channels, equalizer, clipper);
         let written = ctx.writer.push_blocking(&tail, &ctx.stop);
         ctx.progress.add_pushed(written as u64);
     }
@@ -1347,19 +1428,15 @@ fn samples_per_ms(format: PcmFormat) -> f64 {
     f64::from(format.sample_rate) * f64::from(format.channels) / 1_000.0
 }
 
-/// 对一块样本套上 ReplayGain + 用户音量，再过软限幅（PLY-03）。
+/// 对一块样本套上 ReplayGain + 用户音量（PLY-03）。
 ///
 /// 这是共享链路里**唯一**乘 ReplayGain 的地方：`media.gain_db` 由 lekis-core 的
 /// resolver 按 `playback.replaygain`（track / album / off）选好，这里和用户音量合成
 /// 一个线性系数后只遍历一次。输出回调里的 20 ms 淡入淡出是另一层包络，不会再次
 /// 乘 ReplayGain，所以不会出现"双倍增益"。
-fn apply_gain(
-    samples: &mut [f32],
-    gain_linear: f32,
-    volume_bits: u32,
-    channels: u16,
-    clipper: &mut SoftClipper,
-) {
+///
+/// 限幅不在这里做：EQ 在格式转换之后运行，必须排在 EQ 之后才能拦住均衡器增益。
+fn apply_gain(samples: &mut [f32], gain_linear: f32, volume_bits: u32, _channels: u16) {
     let volume = f32::from_bits(volume_bits).clamp(0.0, 1.0);
     let gain = gain_linear * volume;
     if (gain - 1.0).abs() > f32::EPSILON {
@@ -1367,6 +1444,16 @@ fn apply_gain(
             *sample *= gain;
         }
     }
+}
+
+/// 设备格式样本的最后一级：EQ 后接软限幅。
+fn process_output(
+    samples: &mut [f32],
+    channels: u16,
+    equalizer: &mut ParametricEq,
+    clipper: &mut SoftClipper,
+) {
+    equalizer.process(samples, channels);
     clipper.process(samples, channels);
 }
 
@@ -1435,15 +1522,10 @@ mod tests {
     #[test]
     fn gain_and_clip_stays_in_range() {
         let mut samples = vec![0.5f32, -0.5, 0.99, -0.99];
+        // 音量 1.0、ReplayGain +6 dB；限幅级现在在 EQ 之后，单独套一次。
+        apply_gain(&mut samples, db_to_linear(6.0), 1.0f32.to_bits(), 2);
         let mut clipper = SoftClipper;
-        // 音量 1.0、ReplayGain +6 dB。
-        apply_gain(
-            &mut samples,
-            db_to_linear(6.0),
-            1.0f32.to_bits(),
-            2,
-            &mut clipper,
-        );
+        clipper.process(&mut samples, 2);
         assert!(samples.iter().all(|s| s.abs() <= 1.0), "越界: {samples:?}");
     }
 
@@ -1451,8 +1533,7 @@ mod tests {
     #[test]
     fn zero_volume_is_silent() {
         let mut samples = vec![0.8f32, -0.8];
-        let mut clipper = SoftClipper;
-        apply_gain(&mut samples, 1.0, 0.0f32.to_bits(), 2, &mut clipper);
+        apply_gain(&mut samples, 1.0, 0.0f32.to_bits(), 2);
         assert!(samples.iter().all(|s| *s == 0.0));
     }
 
@@ -1831,6 +1912,103 @@ mod tests {
             (steady - expected).abs() < 1e-4,
             "ReplayGain 应只乘一次：期望 {expected:.6}，实际 {steady:.6}（双倍增益会是 {:.6}）",
             level * db_to_linear(gain_db) * db_to_linear(gain_db)
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// PLY-04：共享链路里的 EQ 在格式转换之后生效，preamp 改变实际输出幅度。
+    #[tokio::test]
+    async fn shared_session_applies_equalizer_preamp() {
+        let dir = temp_dir("eq-preamp");
+        let frames = 3_200usize;
+        let path = write_wav(&dir, "eq.wav", 8_000, 1, frames, 8_000);
+        let format = PcmFormat {
+            sample_rate: 8_000,
+            channels: 1,
+        };
+        let factory = Arc::new(NullOutputFactory::new(format));
+        let eq = Arc::new(EqControl::new(crate::eq::EqSettings::new(
+            true,
+            6.0,
+            &[0.0; crate::eq::BAND_COUNT],
+        )));
+        let mut session = Session::start_with_factory_and_eq(
+            &cached_media(1, &path, 400),
+            None,
+            OutputMode::Shared,
+            1.0,
+            Handle::current(),
+            eq,
+            factory.clone(),
+        )
+        .await
+        .expect("start shared session with EQ");
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline && !session.finished() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        session.stop();
+
+        let captured = factory.captured();
+        let span = nonzero_span(&captured);
+        let fade = crate::dsp::fade_frames(8_000, crate::dsp::DEFAULT_FADE_MS);
+        let steady = steady_mean(span, fade);
+        let level = 8_000.0f32 / 32_768.0;
+        let expected = level * db_to_linear(6.0);
+        assert!(
+            (steady - expected).abs() < 1e-4,
+            "EQ preamp 应生效：期望 {expected:.6}，实际 {steady:.6}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// PLY-04 / PLY-05：比特完美独占链路必须跳过 EQ，样本逐位不变。
+    #[tokio::test]
+    async fn native_session_ignores_equalizer() {
+        let dir = temp_dir("native-eq");
+        let frames = 3_200usize;
+        let path = write_wav(&dir, "native-eq.wav", 8_000, 1, frames, -8_000);
+        let format = PcmFormat {
+            sample_rate: 8_000,
+            channels: 1,
+        };
+        let factory = Arc::new(NativeNullFactory::new(format));
+        let eq = Arc::new(EqControl::new(crate::eq::EqSettings::new(
+            true,
+            12.0,
+            &[12.0; crate::eq::BAND_COUNT],
+        )));
+        let mut session = Session::start_with_factory_and_eq(
+            &cached_media(1, &path, 400),
+            None,
+            OutputMode::Exclusive,
+            1.0,
+            Handle::current(),
+            eq,
+            factory.clone(),
+        )
+        .await
+        .expect("start native session");
+        assert!(session.native_bit_perfect());
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline && !session.finished() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        session.stop();
+
+        let captured = factory.captured();
+        let first = captured
+            .iter()
+            .position(|sample| *sample != 0)
+            .expect("必须录到原生样本");
+        let expected = i32::from(-8_000i16) << 16;
+        assert!(
+            captured[first..first + frames]
+                .iter()
+                .all(|sample| *sample == expected),
+            "比特完美链路不能被 EQ 改动"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }

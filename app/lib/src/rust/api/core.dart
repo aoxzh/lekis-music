@@ -208,6 +208,18 @@ Future<String?> getSetting({required String key}) =>
 Future<void> setSetting({required String key, required String value}) =>
     RustLib.instance.api.crateApiCoreSetSetting(key: key, value: value);
 
+/// 读取 10 段均衡器设置；缺省为关闭、平直曲线。
+Future<EqualizerDto> equalizer() =>
+    RustLib.instance.api.crateApiCoreEqualizer();
+
+/// 保存并立即应用均衡器设置。输入会被钳制到合法范围。
+Future<void> setEqualizer({required EqualizerDto settings}) =>
+    RustLib.instance.api.crateApiCoreSetEqualizer(settings: settings);
+
+/// 内置的 AutoEQ 风格预设（近似曲线，不是官方测量数据）。
+List<EqualizerPresetDto> equalizerPresets() =>
+    RustLib.instance.api.crateApiCoreEqualizerPresets();
+
 /// 已安装插件列表。清单损坏的插件也会返回，错误放在 `error` 字段。
 Future<List<PluginInfoDto>> plugins() =>
     RustLib.instance.api.crateApiCorePlugins();
