@@ -2272,6 +2272,348 @@ impl From<t::CoreEvent> for CoreEventDto {
 }
 
 // ---------------------------------------------------------------------------
+// 在其他设备上播放 / 遥控其他设备（Lekis Connect，CST-01~06）
+// ---------------------------------------------------------------------------
+
+/// 「在其他设备上播放」的设置。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConnectSettingsDto {
+    /// 本机在其他设备上显示的名字。
+    pub device_name: String,
+    /// 允许其他设备控制本机（默认允许，仍需配对）。
+    pub allow_control: bool,
+}
+
+impl From<lekis_core::connect::ConnectSettings> for ConnectSettingsDto {
+    fn from(s: lekis_core::connect::ConnectSettings) -> Self {
+        Self {
+            device_name: s.device_name,
+            allow_control: s.allow_control,
+        }
+    }
+}
+
+impl From<ConnectSettingsDto> for lekis_core::connect::ConnectSettings {
+    fn from(s: ConnectSettingsDto) -> Self {
+        Self {
+            device_name: s.device_name,
+            allow_control: s.allow_control,
+        }
+    }
+}
+
+/// 局域网里的一台 Lekis（mDNS 看到的或手动添加的）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConnectDeviceDto {
+    /// 设备 ID。
+    pub device_id: String,
+    /// 名称。
+    pub name: String,
+    /// 平台（`android` / `windows` / ...）。
+    pub platform: String,
+    /// 地址。
+    pub host: String,
+    /// 端口。
+    pub port: u16,
+    /// 已经配对过。
+    pub paired: bool,
+    /// 当前有控制连接。
+    pub connected: bool,
+}
+
+impl From<lekis_core::connect::ConnectDevice> for ConnectDeviceDto {
+    fn from(d: lekis_core::connect::ConnectDevice) -> Self {
+        Self {
+            device_id: d.device_id,
+            name: d.name,
+            platform: d.platform,
+            host: d.host,
+            port: d.port,
+            paired: d.paired,
+            connected: d.connected,
+        }
+    }
+}
+
+/// 一台已配对的设备（长期密钥在凭据库里，不经过桥接层）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PairedPeerDto {
+    /// 设备 ID。
+    pub device_id: String,
+    /// 配对时的设备名。
+    pub name: String,
+    /// 平台。
+    pub platform: String,
+    /// 配对时间（Unix 毫秒）。
+    pub paired_at_ms: i64,
+}
+
+impl From<lekis_core::connect::PairedPeer> for PairedPeerDto {
+    fn from(p: lekis_core::connect::PairedPeer) -> Self {
+        Self {
+            device_id: p.device_id,
+            name: p.name,
+            platform: p.platform,
+            paired_at_ms: p.paired_at_ms,
+        }
+    }
+}
+
+/// 一首歌在被控端是怎么播的。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MediaViaDto {
+    /// 被控端自己的资料库里有同一首歌。
+    Library,
+    /// 两边接了同一个音源，被控端直接从音源读。
+    SameSource,
+    /// 控制端通过局域网把文件流给被控端。
+    Stream,
+}
+
+mirror_enum!(MediaViaDto <=> lekis_core::connect::MediaVia { Library, SameSource, Stream });
+
+/// 被控端上的一首歌（显示用）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct RemoteTrackDto {
+    /// 被控端本机的曲目 ID（取封面时用）。
+    pub id: i64,
+    /// 跨设备 ID（被控端没有封面时，按它在本地找同一首歌）。
+    pub uid: Option<String>,
+    /// 标题。
+    pub title: String,
+    /// 艺人。
+    pub artist: String,
+    /// 专辑名。
+    pub album: Option<String>,
+    /// 时长（毫秒）。
+    pub duration_ms: u64,
+    /// 这首歌是怎么解析的。
+    pub via: Option<MediaViaDto>,
+}
+
+impl From<lekis_core::connect::RemoteTrack> for RemoteTrackDto {
+    fn from(t: lekis_core::connect::RemoteTrack) -> Self {
+        Self {
+            id: t.id,
+            uid: t.uid,
+            title: t.title,
+            artist: t.artist,
+            album: t.album,
+            duration_ms: t.duration_ms,
+            via: t.via.map(Into::into),
+        }
+    }
+}
+
+/// 被控端的播放状态。
+#[derive(Debug, Clone, PartialEq)]
+pub struct RemoteStateDto {
+    /// 播放 / 暂停 / 缓冲……
+    pub state: PlaybackStateDto,
+    /// 当前曲目（空队列时为 `None`）。
+    pub track: Option<RemoteTrackDto>,
+    /// 当前位置（毫秒）。
+    pub position_ms: u64,
+    /// 当前曲目时长（毫秒）。
+    pub duration_ms: u64,
+    /// 音量（0..=1）。
+    pub volume: f32,
+    /// 队列长度。
+    pub queue_len: u32,
+    /// 当前曲目在队列里的下标。
+    pub queue_index: Option<u32>,
+    /// 循环模式。
+    pub repeat: RepeatModeDto,
+    /// 随机模式。
+    pub shuffle: ShuffleModeDto,
+    /// 队列版本（变了就说明队列内容变了）。
+    pub queue_version: u64,
+}
+
+impl From<lekis_core::connect::RemoteState> for RemoteStateDto {
+    fn from(s: lekis_core::connect::RemoteState) -> Self {
+        Self {
+            state: s.state.into(),
+            track: s.track.map(Into::into),
+            position_ms: s.position_ms,
+            duration_ms: s.duration_ms,
+            volume: s.volume,
+            queue_len: s.queue_len,
+            queue_index: s.queue_index,
+            repeat: s.repeat.into(),
+            shuffle: s.shuffle.into(),
+            queue_version: s.queue_version,
+        }
+    }
+}
+
+/// 遥控动作（和 `connect::Control` 一一对应）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ControlActionDto {
+    /// 播放 / 继续。
+    Play,
+    /// 暂停。
+    Pause,
+    /// 播放中就暂停，否则开始播放。
+    Toggle,
+    /// 下一首。
+    Next,
+    /// 上一首（播了几秒时回到本曲开头）。
+    Previous,
+    /// 跳转。
+    Seek {
+        /// 目标位置（毫秒）。
+        position_ms: u64,
+    },
+    /// 音量。
+    Volume {
+        /// 0..=1。
+        volume: f32,
+    },
+    /// 循环模式。
+    Repeat {
+        /// 新的循环模式。
+        mode: RepeatModeDto,
+    },
+    /// 随机模式。
+    Shuffle {
+        /// 新的随机模式。
+        mode: ShuffleModeDto,
+    },
+    /// 播放队列里的第 N 首。
+    PlayIndex {
+        /// 队列下标（越界时取最后一首）。
+        index: u32,
+    },
+}
+
+impl From<ControlActionDto> for lekis_core::connect::Control {
+    fn from(a: ControlActionDto) -> Self {
+        match a {
+            ControlActionDto::Play => Self::Play,
+            ControlActionDto::Pause => Self::Pause,
+            ControlActionDto::Toggle => Self::Toggle,
+            ControlActionDto::Next => Self::Next,
+            ControlActionDto::Previous => Self::Previous,
+            ControlActionDto::Seek { position_ms } => Self::Seek { position_ms },
+            ControlActionDto::Volume { volume } => Self::Volume { volume },
+            ControlActionDto::Repeat { mode } => Self::Repeat { mode: mode.into() },
+            ControlActionDto::Shuffle { mode } => Self::Shuffle { mode: mode.into() },
+            ControlActionDto::PlayIndex { index } => Self::PlayIndex { index },
+        }
+    }
+}
+
+/// 把队列交给另一台设备的结果：每种方式各解析了几首。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct QueueReportDto {
+    /// 一共几首。
+    pub total: u32,
+    /// 从被控端自己的资料库里找到的。
+    pub library: u32,
+    /// 同一个音源上直接读的。
+    pub same_source: u32,
+    /// 走控制端局域网流的。
+    pub stream: u32,
+    /// 解析不了、被跳过的。
+    pub skipped: u32,
+}
+
+impl From<lekis_core::connect::QueueReport> for QueueReportDto {
+    fn from(r: lekis_core::connect::QueueReport) -> Self {
+        Self {
+            total: r.total,
+            library: r.library,
+            same_source: r.same_source,
+            stream: r.stream,
+            skipped: r.skipped,
+        }
+    }
+}
+
+/// Connect 事件（和 `CoreEventDto` 分开，界面单独订阅）。
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConnectEventDto {
+    /// 设备列表变了。
+    DevicesChanged {
+        /// 当前局域网里（含手动添加的）所有设备。
+        devices: Vec<ConnectDeviceDto>,
+    },
+    /// 本机作为被控端：有设备请求配对，请把配对码显示出来。
+    PairingCode {
+        /// 请求配对的设备 ID。
+        peer_id: String,
+        /// 请求配对的设备名。
+        peer_name: String,
+        /// 6 位配对码，用户需要把它输进那台设备。
+        code: String,
+    },
+    /// 本机作为被控端：配对结束（成功或失败），可以收起配对码。
+    PairingFinished {
+        /// 请求配对的设备 ID。
+        peer_id: String,
+        /// 请求配对的设备名。
+        peer_name: String,
+        /// 是否成功。
+        success: bool,
+    },
+    /// 本机作为控制端：远端设备的状态变了。
+    RemoteState {
+        /// 哪台设备。
+        device_id: String,
+        /// 它的最新状态。
+        state: RemoteStateDto,
+    },
+    /// 本机作为控制端：和远端设备的连接断了。
+    SessionClosed {
+        /// 哪台设备。
+        device_id: String,
+        /// 断开的原因（给日志 / 提示用）。
+        reason: String,
+    },
+    /// 本机作为被控端：有设备连上 / 断开了。
+    ControllersChanged {
+        /// 当前连着本机的控制端名字。
+        names: Vec<String>,
+    },
+}
+
+impl From<lekis_core::connect::ConnectEvent> for ConnectEventDto {
+    fn from(e: lekis_core::connect::ConnectEvent) -> Self {
+        use lekis_core::connect::ConnectEvent as E;
+        match e {
+            E::DevicesChanged { devices } => Self::DevicesChanged {
+                devices: devices.into_iter().map(Into::into).collect(),
+            },
+            E::PairingCode {
+                peer_id,
+                peer_name,
+                code,
+            } => Self::PairingCode {
+                peer_id,
+                peer_name,
+                code,
+            },
+            E::PairingFinished {
+                peer_id,
+                peer_name,
+                success,
+            } => Self::PairingFinished {
+                peer_id,
+                peer_name,
+                success,
+            },
+            E::RemoteState { device_id, state } => Self::RemoteState {
+                device_id,
+                state: state.into(),
+            },
+            E::SessionClosed { device_id, reason } => Self::SessionClosed { device_id, reason },
+            E::ControllersChanged { names } => Self::ControllersChanged { names },
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // 本地插件（PLG-01~07）
 // ---------------------------------------------------------------------------
 

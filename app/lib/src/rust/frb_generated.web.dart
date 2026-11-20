@@ -6,6 +6,7 @@
 // Static analysis wrongly picks the IO variant, thus ignore this
 // ignore_for_file: argument_type_not_assignable
 
+import 'api/connect.dart';
 import 'api/core.dart';
 import 'api/dto.dart';
 import 'api/error.dart';
@@ -32,6 +33,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Map<String, String> dco_decode_Map_String_String_None(dynamic raw);
+
+  @protected
+  RustStreamSink<ConnectEventDto> dco_decode_StreamSink_connect_event_dto_Sse(
+    dynamic raw,
+  );
 
   @protected
   RustStreamSink<CoreEventDto> dco_decode_StreamSink_core_event_dto_Sse(
@@ -66,6 +72,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ArtworkDto dco_decode_box_autoadd_artwork_dto(dynamic raw);
 
   @protected
+  ControlActionDto dco_decode_box_autoadd_control_action_dto(dynamic raw);
+
+  @protected
   CoreConfigDto dco_decode_box_autoadd_core_config_dto(dynamic raw);
 
   @protected
@@ -84,6 +93,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   LyricsDto dco_decode_box_autoadd_lyrics_dto(dynamic raw);
 
   @protected
+  MediaViaDto dco_decode_box_autoadd_media_via_dto(dynamic raw);
+
+  @protected
   OfflineDownloadDto dco_decode_box_autoadd_offline_download_dto(dynamic raw);
 
   @protected
@@ -94,6 +106,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlaybackSessionDto dco_decode_box_autoadd_playback_session_dto(dynamic raw);
+
+  @protected
+  RemoteStateDto dco_decode_box_autoadd_remote_state_dto(dynamic raw);
+
+  @protected
+  RemoteTrackDto dco_decode_box_autoadd_remote_track_dto(dynamic raw);
 
   @protected
   RuleDto dco_decode_box_autoadd_rule_dto(dynamic raw);
@@ -127,6 +145,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  int dco_decode_box_autoadd_u_16(dynamic raw);
+
+  @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
 
   @protected
@@ -134,6 +155,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_box_autoadd_u_8(dynamic raw);
+
+  @protected
+  ConnectDeviceDto dco_decode_connect_device_dto(dynamic raw);
+
+  @protected
+  ConnectEventDto dco_decode_connect_event_dto(dynamic raw);
+
+  @protected
+  ConnectSettingsDto dco_decode_connect_settings_dto(dynamic raw);
+
+  @protected
+  ControlActionDto dco_decode_control_action_dto(dynamic raw);
 
   @protected
   CoreConfigDto dco_decode_core_config_dto(dynamic raw);
@@ -239,6 +272,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<ConnectDeviceDto> dco_decode_list_connect_device_dto(dynamic raw);
+
+  @protected
   List<DirectoryPodcastDto> dco_decode_list_directory_podcast_dto(dynamic raw);
 
   @protected
@@ -285,6 +321,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<OutputDeviceDto> dco_decode_list_output_device_dto(dynamic raw);
 
   @protected
+  List<PairedPeerDto> dco_decode_list_paired_peer_dto(dynamic raw);
+
+  @protected
   List<PlaylistDto> dco_decode_list_playlist_dto(dynamic raw);
 
   @protected
@@ -329,6 +368,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<(String, String)> dco_decode_list_record_string_string(dynamic raw);
 
   @protected
+  List<RemoteTrackDto> dco_decode_list_remote_track_dto(dynamic raw);
+
+  @protected
   List<RuleGroupDto> dco_decode_list_rule_group_dto(dynamic raw);
 
   @protected
@@ -362,6 +404,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   LyricsRowDto dco_decode_lyrics_row_dto(dynamic raw);
 
   @protected
+  MediaViaDto dco_decode_media_via_dto(dynamic raw);
+
+  @protected
   OfflineDownloadDto dco_decode_offline_download_dto(dynamic raw);
 
   @protected
@@ -392,6 +437,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   LyricsDto? dco_decode_opt_box_autoadd_lyrics_dto(dynamic raw);
 
   @protected
+  MediaViaDto? dco_decode_opt_box_autoadd_media_via_dto(dynamic raw);
+
+  @protected
   OfflineDownloadDto? dco_decode_opt_box_autoadd_offline_download_dto(
     dynamic raw,
   );
@@ -403,6 +451,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlaybackSessionDto? dco_decode_opt_box_autoadd_playback_session_dto(
     dynamic raw,
   );
+
+  @protected
+  RemoteTrackDto? dco_decode_opt_box_autoadd_remote_track_dto(dynamic raw);
 
   @protected
   RuleDto? dco_decode_opt_box_autoadd_rule_dto(dynamic raw);
@@ -430,6 +481,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  int? dco_decode_opt_box_autoadd_u_16(dynamic raw);
+
+  @protected
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
 
   @protected
@@ -442,10 +496,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String>? dco_decode_opt_list_String(dynamic raw);
 
   @protected
+  Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
+
+  @protected
   OutputDeviceDto dco_decode_output_device_dto(dynamic raw);
 
   @protected
   OutputModeDto dco_decode_output_mode_dto(dynamic raw);
+
+  @protected
+  PairedPeerDto dco_decode_paired_peer_dto(dynamic raw);
 
   @protected
   PaletteDto dco_decode_palette_dto(dynamic raw);
@@ -496,6 +556,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PodcastRefreshReportDto dco_decode_podcast_refresh_report_dto(dynamic raw);
 
   @protected
+  QueueReportDto dco_decode_queue_report_dto(dynamic raw);
+
+  @protected
   RadioFilterOptionDto dco_decode_radio_filter_option_dto(dynamic raw);
 
   @protected
@@ -512,6 +575,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   (String, String) dco_decode_record_string_string(dynamic raw);
+
+  @protected
+  RemoteStateDto dco_decode_remote_state_dto(dynamic raw);
+
+  @protected
+  RemoteTrackDto dco_decode_remote_track_dto(dynamic raw);
 
   @protected
   RepeatModeDto dco_decode_repeat_mode_dto(dynamic raw);
@@ -621,6 +690,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<ConnectEventDto> sse_decode_StreamSink_connect_event_dto_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RustStreamSink<CoreEventDto> sse_decode_StreamSink_core_event_dto_Sse(
     SseDeserializer deserializer,
   );
@@ -659,6 +733,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ArtworkDto sse_decode_box_autoadd_artwork_dto(SseDeserializer deserializer);
 
   @protected
+  ControlActionDto sse_decode_box_autoadd_control_action_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   CoreConfigDto sse_decode_box_autoadd_core_config_dto(
     SseDeserializer deserializer,
   );
@@ -681,6 +760,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   LyricsDto sse_decode_box_autoadd_lyrics_dto(SseDeserializer deserializer);
 
   @protected
+  MediaViaDto sse_decode_box_autoadd_media_via_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   OfflineDownloadDto sse_decode_box_autoadd_offline_download_dto(
     SseDeserializer deserializer,
   );
@@ -695,6 +779,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlaybackSessionDto sse_decode_box_autoadd_playback_session_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RemoteStateDto sse_decode_box_autoadd_remote_state_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RemoteTrackDto sse_decode_box_autoadd_remote_track_dto(
     SseDeserializer deserializer,
   );
 
@@ -742,6 +836,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  int sse_decode_box_autoadd_u_16(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
@@ -749,6 +846,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_box_autoadd_u_8(SseDeserializer deserializer);
+
+  @protected
+  ConnectDeviceDto sse_decode_connect_device_dto(SseDeserializer deserializer);
+
+  @protected
+  ConnectEventDto sse_decode_connect_event_dto(SseDeserializer deserializer);
+
+  @protected
+  ConnectSettingsDto sse_decode_connect_settings_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ControlActionDto sse_decode_control_action_dto(SseDeserializer deserializer);
 
   @protected
   CoreConfigDto sse_decode_core_config_dto(SseDeserializer deserializer);
@@ -880,6 +991,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<ConnectDeviceDto> sse_decode_list_connect_device_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<DirectoryPodcastDto> sse_decode_list_directory_podcast_dto(
     SseDeserializer deserializer,
   );
@@ -950,6 +1066,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<PairedPeerDto> sse_decode_list_paired_peer_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<PlaylistDto> sse_decode_list_playlist_dto(SseDeserializer deserializer);
 
   @protected
@@ -1006,6 +1127,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<RemoteTrackDto> sse_decode_list_remote_track_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<RuleGroupDto> sse_decode_list_rule_group_dto(
     SseDeserializer deserializer,
   );
@@ -1051,6 +1177,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   LyricsRowDto sse_decode_lyrics_row_dto(SseDeserializer deserializer);
 
   @protected
+  MediaViaDto sse_decode_media_via_dto(SseDeserializer deserializer);
+
+  @protected
   OfflineDownloadDto sse_decode_offline_download_dto(
     SseDeserializer deserializer,
   );
@@ -1091,6 +1220,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  MediaViaDto? sse_decode_opt_box_autoadd_media_via_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   OfflineDownloadDto? sse_decode_opt_box_autoadd_offline_download_dto(
     SseDeserializer deserializer,
   );
@@ -1102,6 +1236,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlaybackSessionDto? sse_decode_opt_box_autoadd_playback_session_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RemoteTrackDto? sse_decode_opt_box_autoadd_remote_track_dto(
     SseDeserializer deserializer,
   );
 
@@ -1139,6 +1278,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  int? sse_decode_opt_box_autoadd_u_16(SseDeserializer deserializer);
+
+  @protected
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
@@ -1151,10 +1293,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String>? sse_decode_opt_list_String(SseDeserializer deserializer);
 
   @protected
+  Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
   OutputDeviceDto sse_decode_output_device_dto(SseDeserializer deserializer);
 
   @protected
   OutputModeDto sse_decode_output_mode_dto(SseDeserializer deserializer);
+
+  @protected
+  PairedPeerDto sse_decode_paired_peer_dto(SseDeserializer deserializer);
 
   @protected
   PaletteDto sse_decode_palette_dto(SseDeserializer deserializer);
@@ -1217,6 +1365,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  QueueReportDto sse_decode_queue_report_dto(SseDeserializer deserializer);
+
+  @protected
   RadioFilterOptionDto sse_decode_radio_filter_option_dto(
     SseDeserializer deserializer,
   );
@@ -1239,6 +1390,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   (String, String) sse_decode_record_string_string(
     SseDeserializer deserializer,
   );
+
+  @protected
+  RemoteStateDto sse_decode_remote_state_dto(SseDeserializer deserializer);
+
+  @protected
+  RemoteTrackDto sse_decode_remote_track_dto(SseDeserializer deserializer);
 
   @protected
   RepeatModeDto sse_decode_repeat_mode_dto(SseDeserializer deserializer);
@@ -1364,6 +1521,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_connect_event_dto_Sse(
+    RustStreamSink<ConnectEventDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_StreamSink_core_event_dto_Sse(
     RustStreamSink<CoreEventDto> self,
     SseSerializer serializer,
@@ -1409,6 +1572,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_control_action_dto(
+    ControlActionDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_core_config_dto(
     CoreConfigDto self,
     SseSerializer serializer,
@@ -1442,6 +1611,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_media_via_dto(
+    MediaViaDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_offline_download_dto(
     OfflineDownloadDto self,
     SseSerializer serializer,
@@ -1462,6 +1637,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_playback_session_dto(
     PlaybackSessionDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_remote_state_dto(
+    RemoteStateDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_remote_track_dto(
+    RemoteTrackDto self,
     SseSerializer serializer,
   );
 
@@ -1517,6 +1704,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_u_16(int self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
 
   @protected
@@ -1524,6 +1714,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_u_8(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_connect_device_dto(
+    ConnectDeviceDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_connect_event_dto(
+    ConnectEventDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_connect_settings_dto(
+    ConnectSettingsDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_control_action_dto(
+    ControlActionDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_core_config_dto(CoreConfigDto self, SseSerializer serializer);
@@ -1685,6 +1899,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_connect_device_dto(
+    List<ConnectDeviceDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_directory_podcast_dto(
     List<DirectoryPodcastDto> self,
     SseSerializer serializer,
@@ -1765,6 +1985,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_output_device_dto(
     List<OutputDeviceDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_paired_peer_dto(
+    List<PairedPeerDto> self,
     SseSerializer serializer,
   );
 
@@ -1853,6 +2079,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_remote_track_dto(
+    List<RemoteTrackDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_rule_group_dto(
     List<RuleGroupDto> self,
     SseSerializer serializer,
@@ -1910,6 +2142,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_lyrics_row_dto(LyricsRowDto self, SseSerializer serializer);
 
   @protected
+  void sse_encode_media_via_dto(MediaViaDto self, SseSerializer serializer);
+
+  @protected
   void sse_encode_offline_download_dto(
     OfflineDownloadDto self,
     SseSerializer serializer,
@@ -1964,6 +2199,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_media_via_dto(
+    MediaViaDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_offline_download_dto(
     OfflineDownloadDto? self,
     SseSerializer serializer,
@@ -1978,6 +2219,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_playback_session_dto(
     PlaybackSessionDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_remote_track_dto(
+    RemoteTrackDto? self,
     SseSerializer serializer,
   );
 
@@ -2024,6 +2271,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_u_16(int? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
 
   @protected
@@ -2036,6 +2286,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_list_String(List<String>? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_list_prim_u_8_strict(
+    Uint8List? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_output_device_dto(
     OutputDeviceDto self,
     SseSerializer serializer,
@@ -2043,6 +2299,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_output_mode_dto(OutputModeDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_paired_peer_dto(PairedPeerDto self, SseSerializer serializer);
 
   @protected
   void sse_encode_palette_dto(PaletteDto self, SseSerializer serializer);
@@ -2126,6 +2385,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_queue_report_dto(
+    QueueReportDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_radio_filter_option_dto(
     RadioFilterOptionDto self,
     SseSerializer serializer,
@@ -2152,6 +2417,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_record_string_string(
     (String, String) self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_remote_state_dto(
+    RemoteStateDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_remote_track_dto(
+    RemoteTrackDto self,
     SseSerializer serializer,
   );
 

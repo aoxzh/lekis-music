@@ -11,7 +11,7 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'dto.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `into_rule_group`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `try_from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `try_from`
 
 /// 专辑（LIB-06）。
 class AlbumDto {
@@ -241,6 +241,197 @@ class BatchTagWriteItemDto {
           result == other.result &&
           errorKind == other.errorKind &&
           error == other.error;
+}
+
+/// 局域网里的一台 Lekis（mDNS 看到的或手动添加的）。
+class ConnectDeviceDto {
+  /// 设备 ID。
+  final String deviceId;
+
+  /// 名称。
+  final String name;
+
+  /// 平台（`android` / `windows` / ...）。
+  final String platform;
+
+  /// 地址。
+  final String host;
+
+  /// 端口。
+  final int port;
+
+  /// 已经配对过。
+  final bool paired;
+
+  /// 当前有控制连接。
+  final bool connected;
+
+  const ConnectDeviceDto({
+    required this.deviceId,
+    required this.name,
+    required this.platform,
+    required this.host,
+    required this.port,
+    required this.paired,
+    required this.connected,
+  });
+
+  @override
+  int get hashCode =>
+      deviceId.hashCode ^
+      name.hashCode ^
+      platform.hashCode ^
+      host.hashCode ^
+      port.hashCode ^
+      paired.hashCode ^
+      connected.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ConnectDeviceDto &&
+          runtimeType == other.runtimeType &&
+          deviceId == other.deviceId &&
+          name == other.name &&
+          platform == other.platform &&
+          host == other.host &&
+          port == other.port &&
+          paired == other.paired &&
+          connected == other.connected;
+}
+
+@freezed
+sealed class ConnectEventDto with _$ConnectEventDto {
+  const ConnectEventDto._();
+
+  /// 设备列表变了。
+  const factory ConnectEventDto.devicesChanged({
+    /// 当前局域网里（含手动添加的）所有设备。
+    required List<ConnectDeviceDto> devices,
+  }) = ConnectEventDto_DevicesChanged;
+
+  /// 本机作为被控端：有设备请求配对，请把配对码显示出来。
+  const factory ConnectEventDto.pairingCode({
+    /// 请求配对的设备 ID。
+    required String peerId,
+
+    /// 请求配对的设备名。
+    required String peerName,
+
+    /// 6 位配对码，用户需要把它输进那台设备。
+    required String code,
+  }) = ConnectEventDto_PairingCode;
+
+  /// 本机作为被控端：配对结束（成功或失败），可以收起配对码。
+  const factory ConnectEventDto.pairingFinished({
+    /// 请求配对的设备 ID。
+    required String peerId,
+
+    /// 请求配对的设备名。
+    required String peerName,
+
+    /// 是否成功。
+    required bool success,
+  }) = ConnectEventDto_PairingFinished;
+
+  /// 本机作为控制端：远端设备的状态变了。
+  const factory ConnectEventDto.remoteState({
+    /// 哪台设备。
+    required String deviceId,
+
+    /// 它的最新状态。
+    required RemoteStateDto state,
+  }) = ConnectEventDto_RemoteState;
+
+  /// 本机作为控制端：和远端设备的连接断了。
+  const factory ConnectEventDto.sessionClosed({
+    /// 哪台设备。
+    required String deviceId,
+
+    /// 断开的原因（给日志 / 提示用）。
+    required String reason,
+  }) = ConnectEventDto_SessionClosed;
+
+  /// 本机作为被控端：有设备连上 / 断开了。
+  const factory ConnectEventDto.controllersChanged({
+    /// 当前连着本机的控制端名字。
+    required List<String> names,
+  }) = ConnectEventDto_ControllersChanged;
+}
+
+/// 「在其他设备上播放」的设置。
+class ConnectSettingsDto {
+  /// 本机在其他设备上显示的名字。
+  final String deviceName;
+
+  /// 允许其他设备控制本机（默认允许，仍需配对）。
+  final bool allowControl;
+
+  const ConnectSettingsDto({
+    required this.deviceName,
+    required this.allowControl,
+  });
+
+  @override
+  int get hashCode => deviceName.hashCode ^ allowControl.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ConnectSettingsDto &&
+          runtimeType == other.runtimeType &&
+          deviceName == other.deviceName &&
+          allowControl == other.allowControl;
+}
+
+@freezed
+sealed class ControlActionDto with _$ControlActionDto {
+  const ControlActionDto._();
+
+  /// 播放 / 继续。
+  const factory ControlActionDto.play() = ControlActionDto_Play;
+
+  /// 暂停。
+  const factory ControlActionDto.pause() = ControlActionDto_Pause;
+
+  /// 播放中就暂停，否则开始播放。
+  const factory ControlActionDto.toggle() = ControlActionDto_Toggle;
+
+  /// 下一首。
+  const factory ControlActionDto.next() = ControlActionDto_Next;
+
+  /// 上一首（播了几秒时回到本曲开头）。
+  const factory ControlActionDto.previous() = ControlActionDto_Previous;
+
+  /// 跳转。
+  const factory ControlActionDto.seek({
+    /// 目标位置（毫秒）。
+    required BigInt positionMs,
+  }) = ControlActionDto_Seek;
+
+  /// 音量。
+  const factory ControlActionDto.volume({
+    /// 0..=1。
+    required double volume,
+  }) = ControlActionDto_Volume;
+
+  /// 循环模式。
+  const factory ControlActionDto.repeat({
+    /// 新的循环模式。
+    required RepeatModeDto mode,
+  }) = ControlActionDto_Repeat;
+
+  /// 随机模式。
+  const factory ControlActionDto.shuffle({
+    /// 新的随机模式。
+    required ShuffleModeDto mode,
+  }) = ControlActionDto_Shuffle;
+
+  /// 播放队列里的第 N 首。
+  const factory ControlActionDto.playIndex({
+    /// 队列下标（越界时取最后一首）。
+    required int index,
+  }) = ControlActionDto_PlayIndex;
 }
 
 class CoreConfigDto {
@@ -1236,6 +1427,18 @@ class LyricsRowDto {
           isActive == other.isActive;
 }
 
+/// 一首歌在被控端是怎么播的。
+enum MediaViaDto {
+  /// 被控端自己的资料库里有同一首歌。
+  library_,
+
+  /// 两边接了同一个音源，被控端直接从音源读。
+  sameSource,
+
+  /// 控制端通过局域网把文件流给被控端。
+  stream,
+}
+
 /// 一条离线下载记录。
 class OfflineDownloadDto {
   /// 曲目。
@@ -1379,6 +1582,45 @@ enum OutputModeDto {
 
   /// 独占 / 比特完美。
   exclusive,
+}
+
+/// 一台已配对的设备（长期密钥在凭据库里，不经过桥接层）。
+class PairedPeerDto {
+  /// 设备 ID。
+  final String deviceId;
+
+  /// 配对时的设备名。
+  final String name;
+
+  /// 平台。
+  final String platform;
+
+  /// 配对时间（Unix 毫秒）。
+  final PlatformInt64 pairedAtMs;
+
+  const PairedPeerDto({
+    required this.deviceId,
+    required this.name,
+    required this.platform,
+    required this.pairedAtMs,
+  });
+
+  @override
+  int get hashCode =>
+      deviceId.hashCode ^
+      name.hashCode ^
+      platform.hashCode ^
+      pairedAtMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PairedPeerDto &&
+          runtimeType == other.runtimeType &&
+          deviceId == other.deviceId &&
+          name == other.name &&
+          platform == other.platform &&
+          pairedAtMs == other.pairedAtMs;
 }
 
 /// 封面调色板（ENR-12）。颜色是 `0xRRGGBB`。
@@ -1962,6 +2204,54 @@ class PluginSettingDto {
           secret == other.secret;
 }
 
+/// 把队列交给另一台设备的结果：每种方式各解析了几首。
+class QueueReportDto {
+  /// 一共几首。
+  final int total;
+
+  /// 从被控端自己的资料库里找到的。
+  final int library_;
+
+  /// 同一个音源上直接读的。
+  final int sameSource;
+
+  /// 走控制端局域网流的。
+  final int stream;
+
+  /// 解析不了、被跳过的。
+  final int skipped;
+
+  const QueueReportDto({
+    required this.total,
+    required this.library_,
+    required this.sameSource,
+    required this.stream,
+    required this.skipped,
+  });
+
+  static Future<QueueReportDto> default_() =>
+      RustLib.instance.api.crateApiDtoQueueReportDtoDefault();
+
+  @override
+  int get hashCode =>
+      total.hashCode ^
+      library_.hashCode ^
+      sameSource.hashCode ^
+      stream.hashCode ^
+      skipped.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is QueueReportDto &&
+          runtimeType == other.runtimeType &&
+          total == other.total &&
+          library_ == other.library_ &&
+          sameSource == other.sameSource &&
+          stream == other.stream &&
+          skipped == other.skipped;
+}
+
 /// 一个筛选选项。
 class RadioFilterOptionDto {
   /// 显示名。
@@ -2156,6 +2446,138 @@ class RadioStationDto {
           custom == other.custom &&
           favorite == other.favorite &&
           lastPlayedAt == other.lastPlayedAt;
+}
+
+/// 被控端的播放状态。
+class RemoteStateDto {
+  /// 播放 / 暂停 / 缓冲……
+  final PlaybackStateDto state;
+
+  /// 当前曲目（空队列时为 `None`）。
+  final RemoteTrackDto? track;
+
+  /// 当前位置（毫秒）。
+  final BigInt positionMs;
+
+  /// 当前曲目时长（毫秒）。
+  final BigInt durationMs;
+
+  /// 音量（0..=1）。
+  final double volume;
+
+  /// 队列长度。
+  final int queueLen;
+
+  /// 当前曲目在队列里的下标。
+  final int? queueIndex;
+
+  /// 循环模式。
+  final RepeatModeDto repeat;
+
+  /// 随机模式。
+  final ShuffleModeDto shuffle;
+
+  /// 队列版本（变了就说明队列内容变了）。
+  final BigInt queueVersion;
+
+  const RemoteStateDto({
+    required this.state,
+    this.track,
+    required this.positionMs,
+    required this.durationMs,
+    required this.volume,
+    required this.queueLen,
+    this.queueIndex,
+    required this.repeat,
+    required this.shuffle,
+    required this.queueVersion,
+  });
+
+  @override
+  int get hashCode =>
+      state.hashCode ^
+      track.hashCode ^
+      positionMs.hashCode ^
+      durationMs.hashCode ^
+      volume.hashCode ^
+      queueLen.hashCode ^
+      queueIndex.hashCode ^
+      repeat.hashCode ^
+      shuffle.hashCode ^
+      queueVersion.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RemoteStateDto &&
+          runtimeType == other.runtimeType &&
+          state == other.state &&
+          track == other.track &&
+          positionMs == other.positionMs &&
+          durationMs == other.durationMs &&
+          volume == other.volume &&
+          queueLen == other.queueLen &&
+          queueIndex == other.queueIndex &&
+          repeat == other.repeat &&
+          shuffle == other.shuffle &&
+          queueVersion == other.queueVersion;
+}
+
+/// 被控端上的一首歌（显示用）。
+class RemoteTrackDto {
+  /// 被控端本机的曲目 ID（取封面时用）。
+  final PlatformInt64 id;
+
+  /// 跨设备 ID（被控端没有封面时，按它在本地找同一首歌）。
+  final String? uid;
+
+  /// 标题。
+  final String title;
+
+  /// 艺人。
+  final String artist;
+
+  /// 专辑名。
+  final String? album;
+
+  /// 时长（毫秒）。
+  final BigInt durationMs;
+
+  /// 这首歌是怎么解析的。
+  final MediaViaDto? via;
+
+  const RemoteTrackDto({
+    required this.id,
+    this.uid,
+    required this.title,
+    required this.artist,
+    this.album,
+    required this.durationMs,
+    this.via,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      uid.hashCode ^
+      title.hashCode ^
+      artist.hashCode ^
+      album.hashCode ^
+      durationMs.hashCode ^
+      via.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RemoteTrackDto &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          uid == other.uid &&
+          title == other.title &&
+          artist == other.artist &&
+          album == other.album &&
+          durationMs == other.durationMs &&
+          via == other.via;
 }
 
 enum RepeatModeDto { off, all, one }
