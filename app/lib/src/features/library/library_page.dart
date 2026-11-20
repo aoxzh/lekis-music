@@ -170,11 +170,52 @@ class _AlbumsSegment extends ConsumerWidget {
           }
         },
       ),
-      secondary: twoPane
-          ? (selected == null
-                ? const _PickPrompt(text: '选择一张专辑')
-                : AlbumDetailView(key: ValueKey(selected), albumId: selected))
+      // The album grid is the page; the detail pane only opens once an
+      // album is picked (an empty "pick one" half wasted a desktop window).
+      // On a separating hinge the split stays so nothing sits on the crease.
+      secondary: !twoPane
+          ? null
+          : selected != null
+          ? _ClosablePane(
+              onClose: () =>
+                  ref.read(selectedAlbumProvider.notifier).set(null),
+              child: AlbumDetailView(
+                key: ValueKey(selected),
+                albumId: selected,
+              ),
+            )
+          : context.fold.isSeparating
+          ? const _PickPrompt(text: '选择一张专辑')
           : null,
+    );
+  }
+}
+
+/// A detail pane with a close button in its top trailing corner.
+class _ClosablePane extends StatelessWidget {
+  const _ClosablePane({required this.onClose, required this.child});
+  final VoidCallback onClose;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(child: child),
+        Positioned(
+          top: LekisSpacing.sm,
+          right: LekisSpacing.sm,
+          child: SafeArea(
+            bottom: false,
+            left: false,
+            child: IconButton.filledTonal(
+              tooltip: '关闭',
+              onPressed: onClose,
+              icon: const Icon(Icons.close_rounded),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -73,7 +73,14 @@ class _AppShellState extends State<AppShell> {
     for (final _ in _destinations) MaterialApp.createMaterialHeroController(),
   ];
 
-  LekisDestination _current = LekisDestination.home;
+  // Dev / screenshot builds can open on another tab:
+  // --dart-define=LEKIS_START_TAB=library
+  static const _startTab = String.fromEnvironment('LEKIS_START_TAB');
+
+  LekisDestination _current = LekisDestination.values.firstWhere(
+    (d) => d.name == _startTab,
+    orElse: () => LekisDestination.home,
+  );
 
   NavigatorState? get _currentNavigator =>
       _navigatorKeys[_current.index].currentState;
