@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/download_status.dart';
+import 'package:lekis/src/features/enrich/enrich_actions.dart';
 import 'package:lekis/src/features/library/artist_detail_page.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/album_card.dart';
@@ -222,10 +223,16 @@ class _AlbumHeader extends ConsumerWidget {
             PlayShuffleButtons(
               onPlay: onPlay,
               onShuffle: onShuffle,
+              alignment: wide ? WrapAlignment.start : WrapAlignment.center,
               queueTrackIds: trackIds,
+              onEnrich: trackIds.isEmpty
+                  ? null
+                  : () => enrichTracksFlow(context, trackIds),
+              trailing: [
+                if (trackIds.isNotEmpty)
+                  BatchDownloadButton(trackIds: trackIds, tooltip: '下载整张专辑'),
+              ],
             ),
-            if (trackIds.isNotEmpty)
-              BatchDownloadButton(trackIds: trackIds, tooltip: '下载整张专辑'),
           ],
         );
 
@@ -263,6 +270,9 @@ class PlayShuffleButtons extends StatelessWidget {
     required this.onPlay,
     required this.onShuffle,
     this.queueTrackIds = const [],
+    this.onEnrich,
+    this.alignment = WrapAlignment.center,
+    this.trailing = const [],
   });
 
   final VoidCallback? onPlay;
@@ -270,6 +280,14 @@ class PlayShuffleButtons extends StatelessWidget {
 
   /// 非空时多一个"更多"按钮：整组下一首播放 / 加入播放队列。
   final List<int> queueTrackIds;
+
+  /// 非空时"更多"菜单里多一项"补全封面和歌词"。
+  final VoidCallback? onEnrich;
+
+  final WrapAlignment alignment;
+
+  /// 放在同一行末尾的其他按钮（比如下载）。
+  final List<Widget> trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -280,7 +298,8 @@ class PlayShuffleButtons extends StatelessWidget {
     return Wrap(
       spacing: LekisSpacing.md,
       runSpacing: LekisSpacing.sm,
-      alignment: WrapAlignment.center,
+      alignment: alignment,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         FilledButton.icon(
           style: FilledButton.styleFrom(minimumSize: minSize),
@@ -295,15 +314,26 @@ class PlayShuffleButtons extends StatelessWidget {
           label: const Text('随机播放'),
         ),
         if (queueTrackIds.isNotEmpty)
-          PopupMenuButton<QueuePlacement>(
+          PopupMenuButton<String>(
             key: const ValueKey('play-shuffle.queue-menu'),
-            tooltip: '更多播放方式',
+            tooltip: '更多操作',
             icon: const Icon(Icons.more_horiz_rounded),
-            onSelected: (where) =>
-                queueTracks(context, queueTrackIds, where: where),
-            itemBuilder: (_) => const [
-              PopupMenuItem(
-                value: QueuePlacement.next,
+            onSelected: (value) => switch (value) {
+              'next' => queueTracks(
+                context,
+                queueTrackIds,
+                where: QueuePlacement.next,
+              ),
+              'end' => queueTracks(
+                context,
+                queueTrackIds,
+                where: QueuePlacement.end,
+              ),
+              _ => onEnrich?.call(),
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'next',
                 child: ListTile(
                   dense: true,
                   contentPadding: EdgeInsets.zero,
@@ -311,8 +341,8 @@ class PlayShuffleButtons extends StatelessWidget {
                   title: Text(QueueStrings.playNext),
                 ),
               ),
-              PopupMenuItem(
-                value: QueuePlacement.end,
+              const PopupMenuItem(
+                value: 'end',
                 child: ListTile(
                   dense: true,
                   contentPadding: EdgeInsets.zero,
@@ -320,8 +350,21 @@ class PlayShuffleButtons extends StatelessWidget {
                   title: Text(QueueStrings.addToQueue),
                 ),
               ),
+              if (onEnrich != null) ...[
+                const PopupMenuDivider(),
+                const PopupMenuItem(
+                  value: 'enrich',
+                  child: ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.auto_fix_high_rounded),
+                    title: Text(EnrichActionStrings.action),
+                  ),
+                ),
+              ],
             ],
           ),
+        ...trailing,
       ],
     );
   }

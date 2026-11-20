@@ -68,6 +68,9 @@ class _TagEditorDialogState extends ConsumerState<TagEditorDialog> {
 
   bool _loading = true;
   bool _busy = false;
+
+  /// 这首歌在资料库里有覆盖过的标签（"还原为文件标签"才有意义）。
+  bool _hasOverrides = false;
   String? _loadError;
   String? _formError;
 
@@ -110,6 +113,7 @@ class _TagEditorDialogState extends ConsumerState<TagEditorDialog> {
     try {
       final track = await core.getTrack(trackId: _singleId);
       final overrides = await core.trackTagOverrides(trackId: _singleId);
+      _hasOverrides = overrides != null && _anyOverride(overrides);
       TrackTagOverridesDto? fileTags;
       try {
         fileTags = await core.readTrackFileTags(trackId: _singleId);
@@ -226,6 +230,42 @@ class _TagEditorDialogState extends ConsumerState<TagEditorDialog> {
     return failures;
   }
 
+  static bool _anyOverride(TrackTagOverridesDto o) => [
+    o.title,
+    o.artist,
+    o.album,
+    o.albumArtist,
+    o.trackNo,
+    o.discNo,
+    o.year,
+    o.genre,
+    o.comment,
+    o.composer,
+    o.lyricist,
+    o.musicbrainzTrackId,
+    o.musicbrainzAlbumId,
+  ].any((v) => v != null);
+
+  /// 丢掉资料库里的修改，回到文件本身的标签（不动文件）。
+  Future<void> _clearOverrides() async {
+    setState(() {
+      _busy = true;
+      _formError = null;
+    });
+    try {
+      await core.clearTrackTagOverrides(trackId: _singleId);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('已还原为文件里的标签')));
+    } catch (error) {
+      if (mounted) setState(() => _formError = describeCoreError(error));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _writeFile() async {
     final draft = _readDraft();
     final error = draft.validate();
@@ -329,6 +369,13 @@ class _TagEditorDialogState extends ConsumerState<TagEditorDialog> {
       error: _formError,
       actions: [
         TextButton(onPressed: close, child: const Text('取消')),
+        if (!_batch && _hasOverrides)
+          TextButton.icon(
+            key: const ValueKey('tag-editor.clear-overrides'),
+            onPressed: _busy || !ready ? null : _clearOverrides,
+            icon: const Icon(Icons.restore_rounded),
+            label: const Text('还原为文件标签'),
+          ),
         OutlinedButton.icon(
           key: const ValueKey('tag-editor.save-library'),
           onPressed: _busy || !ready ? null : _saveOnly,

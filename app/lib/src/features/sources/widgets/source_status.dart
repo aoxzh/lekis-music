@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../rust/api/dto.dart';
 import '../../../theme/tokens.dart';
+import '../common.dart';
 import '../sources_providers.dart';
 import '../strings.dart';
 
@@ -19,7 +20,8 @@ String relativeTime(DateTime at) {
   final diff = DateTime.now().difference(at);
   if (diff.inMinutes < 1) return SourcesStrings.justNow;
   if (diff.inHours < 1) return SourcesStrings.minutesAgo(diff.inMinutes);
-  return SourcesStrings.hoursAgo(diff.inHours);
+  if (diff.inDays < 1) return SourcesStrings.hoursAgo(diff.inHours);
+  return SourcesStrings.daysAgo(diff.inDays);
 }
 
 String reachabilityLabel(SourceConfigDto source, SourceRuntime runtime) {
@@ -31,9 +33,19 @@ String reachabilityLabel(SourceConfigDto source, SourceRuntime runtime) {
   };
 }
 
-String lastScanLabel(SourceRuntime runtime) {
+/// 最近一次扫描：本次启动里看到的扫描结果优先（带增删统计），否则用核心
+/// 持久化的记录（[history]，重启后也在）。
+String lastScanLabel(SourceRuntime runtime, [SourceInfoDto? history]) {
   final last = runtime.lastScan;
-  if (last == null) return SourcesStrings.neverScanned;
+  if (last == null) {
+    final at = history?.lastScanAt;
+    if (at == null) return SourcesStrings.neverScanned;
+    final when = relativeTime(DateTime.fromMillisecondsSinceEpoch(at));
+    final kind = history?.lastScanErrorKind;
+    return kind == null
+        ? SourcesStrings.lastScanOk(when)
+        : SourcesStrings.lastScanFailed(when, describeErrorKind(kind));
+  }
   return SourcesStrings.lastScan(
     relativeTime(last.finishedAt),
     last.added,

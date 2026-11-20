@@ -36,7 +36,31 @@ class SourcesNotifier extends AsyncNotifier<List<SourceConfigDto>> {
   }
 }
 
-/// 最近一次扫描的结果（只记录本次启动期间看到的；核心暂时不提供持久化的扫描时间）。
+/// 核心持久化的扫描记录（上次扫描时间、失败原因），按音源 ID 索引。
+/// 扫描结束、音源变化时重新读取。
+final sourceScanHistoryProvider = FutureProvider<Map<int, SourceInfoDto>>((
+  ref,
+) async {
+  ref.listen(coreEventsProvider, (_, next) {
+    final event = next.value;
+    final refresh = switch (event) {
+      CoreEventDto_ScanFinished() => true,
+      CoreEventDto_SourceReachability(:final reachable) => !reachable,
+      CoreEventDto_LibraryChanged(:final scope) =>
+        scope == LibraryScopeDto.sources,
+      _ => false,
+    };
+    if (refresh) ref.invalidateSelf();
+  });
+  final infos = await core.listSourceInfos();
+  return {
+    for (final i in infos)
+      if (i.config.id case final id?) id.toInt(): i,
+  };
+});
+
+/// 本次启动里看到的最近一次扫描结果（带增删统计）。重启前的记录见
+/// [sourceScanHistoryProvider]。
 @immutable
 class ScanSummary {
   const ScanSummary({

@@ -15,12 +15,15 @@ abstract final class SourcesStrings {
   static const unreachable = '无法连接';
   static const reachabilityUnknown = '未检测';
   static const disabled = '已停用';
-  static const neverScanned = '本次启动后尚未扫描';
+  static const neverScanned = '尚未扫描';
+  static String lastScanOk(String when) => '$when 扫描完成';
+  static String lastScanFailed(String when, String why) => '$when 扫描失败：$why';
   static String lastScan(String when, int added, int updated, int removed) =>
       '$when 扫描完成：新增 $added，更新 $updated，移除 $removed';
   static const justNow = '刚刚';
   static String minutesAgo(int m) => '$m 分钟前';
   static String hoursAgo(int h) => '$h 小时前';
+  static String daysAgo(int d) => '$d 天前';
   static const scanStarting = '准备扫描…';
   static String scanCount(int done, int? total) =>
       total == null ? '已处理 $done' : '$done / $total';
@@ -148,8 +151,7 @@ abstract final class SourcesStrings {
   static const authPassword = '密码';
   static const authKey = '私钥';
   static const fieldPrivateKey = '私钥';
-  static const fieldPrivateKeyHint =
-      '粘贴 OpenSSH 私钥（-----BEGIN OPENSSH PRIVATE KEY-----…），支持 Ed25519 / ECDSA';
+  static const fieldPrivateKeyHint = '粘贴 OpenSSH 格式的私钥全文，支持 Ed25519 / ECDSA';
   static const fieldKeyPassphrase = '私钥密码（可选）';
   static const newPrivateKey = '新私钥';
   static const keySavedNotice = '私钥已保存，不需要重新粘贴。需要修改时点“替换私钥”。';

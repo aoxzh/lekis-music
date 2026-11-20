@@ -46,6 +46,9 @@ class _SourceDetailState extends ConsumerState<SourceDetail> {
     final runtime =
         ref.watch(sourceRuntimeProvider.select((m) => m[widget.sourceId])) ??
         const SourceRuntime();
+    final history = ref.watch(
+      sourceScanHistoryProvider.select((h) => h.value?[widget.sourceId]),
+    );
     final theme = Theme.of(context);
     final colors = context.lekisColors;
     final error = runtime.lastError;
@@ -114,7 +117,7 @@ class _SourceDetailState extends ConsumerState<SourceDetail> {
             ),
             _InfoRow(
               label: SourcesStrings.detailLastScan,
-              value: lastScanLabel(runtime),
+              value: lastScanLabel(runtime, history),
             ),
             if (runtime.scanning) ...[
               const SizedBox(height: LekisSpacing.lg),

@@ -15,6 +15,11 @@ ErrorKind? coreErrorKind(Object error) =>
 String describeCoreError(Object error) {
   final kind = coreErrorKind(error);
   if (kind == null) return SourcesStrings.errUnknown;
+  return describeErrorKind(kind);
+}
+
+/// 错误类别对应的说明文字。
+String describeErrorKind(ErrorKind kind) {
   return switch (kind) {
     ErrorKind.notFound => SourcesStrings.errNotFound,
     ErrorKind.invalidArgument => SourcesStrings.errInvalidArgument,

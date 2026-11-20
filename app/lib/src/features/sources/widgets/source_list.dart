@@ -98,6 +98,9 @@ class SourceTile extends ConsumerWidget {
         ? const SourceRuntime()
         : ref.watch(sourceRuntimeProvider.select((m) => m[id])) ??
               const SourceRuntime();
+    final history = id == null
+        ? null
+        : ref.watch(sourceScanHistoryProvider.select((h) => h.value?[id]));
     final colors = context.lekisColors;
     final theme = Theme.of(context);
 
@@ -114,7 +117,7 @@ class SourceTile extends ConsumerWidget {
               const SizedBox(width: LekisSpacing.xs),
               Flexible(
                 child: Text(
-                  '${reachabilityLabel(source, runtime)} · ${lastScanLabel(runtime)}',
+                  '${reachabilityLabel(source, runtime)} · ${lastScanLabel(runtime, history)}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
