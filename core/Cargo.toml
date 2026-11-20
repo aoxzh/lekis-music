@@ -106,6 +106,15 @@ dbg_macro = "warn"
 todo = "warn"
 
 # 日常真机测试用 release：并行编译、不做 LTO，改一行核心代码几十秒就能出包。
+# 开发构建（cargo test / flutter debug 的 Rust 部分）只保留行号表：
+# 完整 DWARF 让 target/debug 涨到 40G+、Android debug .so 400MB+，
+# 而回溯 / panic 定位只需要行号。依赖库不带调试信息。
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 [profile.release]
 codegen-units = 16
 strip = "debuginfo"
