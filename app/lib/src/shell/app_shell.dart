@@ -1,7 +1,7 @@
 // Adaptive navigation shell.
 //
-//  * compact width            → floating translucent tab bar + MiniPlayer above it
-//  * medium width             → NavigationRail + MiniPlayer under the content
+//  * compact / medium width   → floating glass tab bar + MiniPlayer above it
+//    (phones, unfolded foldables, small tablets)
 //  * expanded width and up    → sidebar + desktop PlayerBar along the bottom
 //  * compact height (any width, e.g. phone landscape) → NavigationRail
 //
@@ -15,6 +15,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/features/player/mini_player.dart';
 import 'package:lekis/src/features/player/player_bar.dart';
 import 'package:lekis/src/layout/window_size.dart';
+import 'package:lekis/src/theme/tokens.dart';
 
 import 'destinations.dart';
 import 'now_playing_context.dart';
@@ -38,8 +39,10 @@ ShellChromeMode _chromeModeOf(BuildContext context) {
     return ShellChromeMode.rail;
   }
   return switch (context.widthClass) {
-    WindowWidthClass.compact => ShellChromeMode.bottomBar,
-    WindowWidthClass.medium => ShellChromeMode.rail,
+    // Phones and unfolded foldables / small tablets (< 840 dp) share the
+    // floating glass tab bar; the rail is only for short windows.
+    WindowWidthClass.compact ||
+    WindowWidthClass.medium => ShellChromeMode.bottomBar,
     _ => ShellChromeMode.sidebar,
   };
 }
@@ -240,7 +243,16 @@ class _BottomBarLayout extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _OpensNowPlaying(child: MiniPlayer()),
+          // On unfolded / tablet widths the card stays a comfortable reading
+          // width above the capsule instead of spanning the whole window.
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: LekisSizes.floatingMiniPlayerMaxWidth,
+              ),
+              child: const _OpensNowPlaying(child: MiniPlayer()),
+            ),
+          ),
           LekisTabBar(selected: current, onSelected: onSelected, style: style),
         ],
       ),

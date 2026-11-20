@@ -54,6 +54,9 @@ abstract final class LekisSizes {
 
   /// Gap between the floating mini player and the window edges / nav bar.
   static const double miniPlayerMargin = 8;
+
+  /// Widest the floating mini player gets above the glass tab bar.
+  static const double floatingMiniPlayerMaxWidth = 560;
   static const double desktopPlayerBarHeight = 92;
   static const double desktopSidebarWidth = 248;
 
