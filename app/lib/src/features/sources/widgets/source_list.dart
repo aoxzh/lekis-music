@@ -253,7 +253,6 @@ class _Message extends StatelessWidget {
   Widget build(BuildContext context) {
     return LekisEmptyState(
       eyebrow: '音源',
-      icon: icon,
       title: title,
       message: body,
       maxWidth: featureMaxContentWidth / 2,

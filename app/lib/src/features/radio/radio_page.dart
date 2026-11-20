@@ -586,7 +586,6 @@ class _ErrorState extends StatelessWidget {
   Widget build(BuildContext context) {
     return LekisEmptyState(
       eyebrow: RadioStrings.eyebrow,
-      icon: Icons.cloud_off_rounded,
       title: RadioStrings.loadFailed,
       message: '${describeCoreError(error)}\n${RadioStrings.networkHint}',
       maxWidth: 460,
@@ -616,7 +615,6 @@ class _EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return LekisEmptyState(
       eyebrow: RadioStrings.eyebrow,
-      icon: icon,
       title: title,
       message: message,
       maxWidth: 460,

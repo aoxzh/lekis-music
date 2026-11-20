@@ -325,7 +325,6 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
               skipLoadingOnReload: true,
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (error, _) => LekisEmptyState(
-                icon: Icons.error_outline,
                 title: PluginStrings.loadFailed,
                 message: describeCoreError(error),
                 action: FilledButton.tonalIcon(
@@ -337,7 +336,6 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
               ),
               data: (list) => list.isEmpty
                   ? LekisEmptyState(
-                      icon: Icons.extension_outlined,
                       title: PluginStrings.emptyTitle,
                       message: PluginStrings.emptyHint,
                       action: Wrap(

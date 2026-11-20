@@ -78,7 +78,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     Widget body;
     if (query.trim().isEmpty) {
       body = const _Hint(
-        icon: Icons.search_rounded,
         text: '搜索你的资料库',
         message: '输入歌名、专辑、艺人，或直接输入拼音。',
       );
@@ -95,7 +94,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           data.albums.isEmpty &&
           data.artists.isEmpty) {
         body = _Hint(
-          icon: Icons.search_off_rounded,
           text: '没有找到“${query.trim()}”',
           message: '换一个关键词，或检查一下拼写。',
         );
@@ -206,12 +204,11 @@ class _Results extends ConsumerWidget {
 }
 
 class _Hint extends StatelessWidget {
-  const _Hint({required this.icon, required this.text, this.message = ''});
-  final IconData icon;
+  const _Hint({required this.text, this.message = ''});
   final String text;
   final String message;
 
   @override
   Widget build(BuildContext context) =>
-      LekisEmptyState(icon: icon, title: text, message: message);
+      LekisEmptyState(title: text, message: message);
 }

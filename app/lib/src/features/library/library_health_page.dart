@@ -354,7 +354,6 @@ class _EmptyDuplicates extends StatelessWidget {
       height: 380,
       child: LekisEmptyState(
         eyebrow: '重复歌曲',
-        icon: Icons.content_copy_rounded,
         title: '没有发现重复歌曲',
         message: '标签越完整，检测越准确。修改标签后回到这里按刷新重新统计；不会读取或修改音频文件。',
       ),
@@ -629,7 +628,6 @@ class _EmptyHealth extends StatelessWidget {
         height: 380,
         child: LekisEmptyState(
           eyebrow: '库健康',
-          icon: Icons.hourglass_empty_rounded,
           title: '正在读取资料库…',
           message: '统计完曲目和重复组后，这里会显示缺封面、缺歌词、空标签等问题。',
         ),
@@ -640,7 +638,6 @@ class _EmptyHealth extends StatelessWidget {
         height: 380,
         child: LekisEmptyState(
           eyebrow: '库健康',
-          icon: Icons.library_music_outlined,
           title: '资料库还是空的',
           message: '先在“音源”里添加本地文件夹或 NAS，扫描完成后就能检查封面、歌词、标签和重复歌曲。',
         ),
@@ -657,7 +654,6 @@ class _EmptyHealth extends StatelessWidget {
       height: 380,
       child: LekisEmptyState(
         eyebrow: tab.label,
-        icon: _healthIcon(tab.kind),
         title: tab == HealthTabKind.unreadable ? '没有不可读文件' : '这一类没有问题',
         message: message,
         action: tab == HealthTabKind.unreadable

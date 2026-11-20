@@ -11,7 +11,6 @@ class LekisEmptyState extends StatelessWidget {
     super.key,
     required this.title,
     this.message = '',
-    this.icon = Icons.library_music_outlined,
     this.eyebrow,
     this.action,
     this.maxWidth = 420,
@@ -19,7 +18,6 @@ class LekisEmptyState extends StatelessWidget {
 
   final String title;
   final String message;
-  final IconData icon;
   final String? eyebrow;
   final Widget? action;
   final double maxWidth;
@@ -36,7 +34,7 @@ class LekisEmptyState extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _Moonrise(icon: icon),
+              const _Moonrise(),
               if (eyebrow != null) ...[
                 const SizedBox(height: LekisSpacing.xl),
                 Text(
@@ -78,12 +76,10 @@ class LekisEmptyState extends StatelessWidget {
   }
 }
 
-/// A soft moon disc with a wide halo; static, so it costs nothing to keep on
+/// The brand mark over a soft halo; static, so it costs nothing to keep on
 /// screen and degrades gracefully with reduced motion.
 class _Moonrise extends StatelessWidget {
-  const _Moonrise({required this.icon});
-
-  final IconData icon;
+  const _Moonrise();
 
   @override
   Widget build(BuildContext context) {
@@ -109,43 +105,7 @@ class _Moonrise extends StatelessWidget {
               ),
             ),
           ),
-          Container(
-            width: 96,
-            height: 96,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                center: const Alignment(-0.3, -0.4),
-                colors: [
-                  colors.moon.withValues(alpha: 0.26),
-                  colors.accentSoft.withValues(alpha: 0.30),
-                ],
-              ),
-              border: Border.all(color: colors.moon.withValues(alpha: 0.35)),
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                const LekisBrandMark(size: 78, ring: false),
-                Positioned(
-                  right: 3,
-                  bottom: 3,
-                  child: Container(
-                    width: 26,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: colors.surfaceElevated,
-                      border: Border.all(
-                        color: colors.moon.withValues(alpha: 0.35),
-                      ),
-                    ),
-                    child: Icon(icon, size: 15, color: colors.moon),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          const LekisBrandMark(size: 104, ring: false),
           Positioned(
             right: 24,
             top: 22,
@@ -199,7 +159,6 @@ class LibraryEmptyState extends StatelessWidget {
       eyebrow: '开始使用',
       title: title,
       message: message,
-      icon: Icons.library_music_outlined,
       action: FilledButton.icon(
         onPressed: () => AppShell.select(context, LekisDestination.sources),
         icon: const Icon(Icons.add_rounded),

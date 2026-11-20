@@ -143,7 +143,6 @@ class _DownloadsBody extends ConsumerWidget {
               height: 420,
               child: LekisEmptyState(
                 eyebrow: '离线',
-                icon: Icons.download_for_offline_outlined,
                 title: '还没有下载',
                 message: '在歌曲、专辑或正在播放里点下载，音乐就会保存到本机，断网也能听。',
               ),
