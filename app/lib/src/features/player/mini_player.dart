@@ -3,6 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/physics.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/connect/connect_active.dart';
+import 'package:lekis/src/features/connect/device_picker.dart';
+import 'package:lekis/src/features/connect/remote_now_playing_bar.dart';
 import 'package:lekis/src/features/now_playing/now_playing_route.dart';
 import 'package:lekis/src/features/now_playing/now_playing_tint.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
@@ -173,16 +176,28 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer>
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
+    final remote = ref.watch(activeRemoteProvider);
     final mq = MediaQuery.of(context);
     // Keep clear of the home indicator / gesture handle even where the
     // system reports no padding for it (hidden gesture hint).
     final edgeInset = widget.atBottomEdge
         ? math.max(mq.padding.bottom, mq.systemGestureInsets.bottom)
         : 0.0;
+    // Controlling another device (Connect): same capsule, its track.
+    if (remote != null) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(
+          LekisSizes.miniPlayerMargin,
+          0,
+          LekisSizes.miniPlayerMargin,
+          LekisSizes.miniPlayerMargin + edgeInset,
+        ),
+        child: const ConnectRemoteMiniPlayer(),
+      );
+    }
     if (!hasTrack) return SizedBox(height: edgeInset);
 
     return Padding(
@@ -325,6 +340,9 @@ class MiniPlayerFace extends ConsumerWidget {
           ),
           const SizedBox(width: LekisSpacing.md),
           const Expanded(child: CurrentTrackText()),
+          // Only when another Lekis is around (Connect); otherwise no room
+          // is taken.
+          const ConnectDeviceButton(),
           const PlayPauseButton(),
           const NextButton(),
         ],

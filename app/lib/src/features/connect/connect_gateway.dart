@@ -145,33 +145,35 @@ class QueueReportInfo {
 sealed class ConnectEventInfo {
   const ConnectEventInfo();
 
-  factory ConnectEventInfo.fromDto(dto.ConnectEventDto event) => switch (event) {
-    dto.ConnectEventDto_DevicesChanged(:final devices) => ConnectDevicesChanged([
-      for (final d in devices) ConnectDeviceInfo.fromDto(d),
-    ]),
-    dto.ConnectEventDto_PairingCode(
-      :final peerId,
-      :final peerName,
-      :final code,
-    ) =>
-      ConnectPairingCode(peerId: peerId, peerName: peerName, code: code),
-    dto.ConnectEventDto_PairingFinished(
-      :final peerId,
-      :final peerName,
-      :final success,
-    ) =>
-      ConnectPairingFinished(
-        peerId: peerId,
-        peerName: peerName,
-        success: success,
-      ),
-    dto.ConnectEventDto_RemoteState(:final deviceId, :final state) =>
-      ConnectRemoteStateChanged(deviceId: deviceId, state: state),
-    dto.ConnectEventDto_SessionClosed(:final deviceId, :final reason) =>
-      ConnectSessionClosed(deviceId: deviceId, reason: reason),
-    dto.ConnectEventDto_ControllersChanged(:final names) =>
-      ConnectControllersChanged(names),
-  };
+  factory ConnectEventInfo.fromDto(dto.ConnectEventDto event) =>
+      switch (event) {
+        dto.ConnectEventDto_DevicesChanged(:final devices) =>
+          ConnectDevicesChanged([
+            for (final d in devices) ConnectDeviceInfo.fromDto(d),
+          ]),
+        dto.ConnectEventDto_PairingCode(
+          :final peerId,
+          :final peerName,
+          :final code,
+        ) =>
+          ConnectPairingCode(peerId: peerId, peerName: peerName, code: code),
+        dto.ConnectEventDto_PairingFinished(
+          :final peerId,
+          :final peerName,
+          :final success,
+        ) =>
+          ConnectPairingFinished(
+            peerId: peerId,
+            peerName: peerName,
+            success: success,
+          ),
+        dto.ConnectEventDto_RemoteState(:final deviceId, :final state) =>
+          ConnectRemoteStateChanged(deviceId: deviceId, state: state),
+        dto.ConnectEventDto_SessionClosed(:final deviceId, :final reason) =>
+          ConnectSessionClosed(deviceId: deviceId, reason: reason),
+        dto.ConnectEventDto_ControllersChanged(:final names) =>
+          ConnectControllersChanged(names),
+      };
 }
 
 /// 设备列表变了。
@@ -270,7 +272,10 @@ abstract interface class ConnectGateway {
   List<PairedPeerInfo> pairedDevices();
 
   /// 手动按地址添加一台设备（组播不通时）。
-  Future<ConnectDeviceInfo> addDevice({required String host, required int port});
+  Future<ConnectDeviceInfo> addDevice({
+    required String host,
+    required int port,
+  });
 
   /// 连接一台设备。返回 `true` 表示对方屏幕上出现了配对码，
   /// 用户输入后要接着调 [pairConfirm]。
@@ -308,10 +313,7 @@ abstract interface class ConnectGateway {
   });
 
   /// 转移播放：把本机当前队列和进度交给另一台设备，成功后本机暂停。
-  Future<QueueReportInfo> transfer(
-    String deviceId, {
-    required bool pauseLocal,
-  });
+  Future<QueueReportInfo> transfer(String deviceId, {required bool pauseLocal});
 
   /// 让另一台设备播放一组本机曲目（「在 xx 上播放」）。
   Future<QueueReportInfo> playOn(
@@ -383,7 +385,8 @@ class CoreConnectGateway implements ConnectGateway {
       core.connectPairConfirm(deviceId: deviceId, code: code);
 
   @override
-  void pairCancel(String deviceId) => core.connectPairCancel(deviceId: deviceId);
+  void pairCancel(String deviceId) =>
+      core.connectPairCancel(deviceId: deviceId);
 
   @override
   Future<void> forget(String deviceId) =>
@@ -406,22 +409,16 @@ class CoreConnectGateway implements ConnectGateway {
     String deviceId, {
     required int offset,
     required int limit,
-  }) => core.connectRemoteQueue(
-    deviceId: deviceId,
-    offset: offset,
-    limit: limit,
-  );
+  }) =>
+      core.connectRemoteQueue(deviceId: deviceId, offset: offset, limit: limit);
 
   @override
   Future<Uint8List?> remoteArtwork(
     String deviceId, {
     required int trackId,
     String? uid,
-  }) => core.connectRemoteArtwork(
-    deviceId: deviceId,
-    trackId: trackId,
-    uid: uid,
-  );
+  }) =>
+      core.connectRemoteArtwork(deviceId: deviceId, trackId: trackId, uid: uid);
 
   @override
   Future<QueueReportInfo> transfer(

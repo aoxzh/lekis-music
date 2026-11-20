@@ -179,9 +179,7 @@ fn unprotect(data: &[u8]) -> Result<Vec<u8>> {
 #[cfg(target_os = "android")]
 mod android_keystore {
     use super::{LekisError, Result};
-    use jni_sys::{
-        jclass, jvalue, JNIEnv, JavaVM, JNI_EDETACHED, JNI_OK, JNI_VERSION_1_6,
-    };
+    use jni_sys::{jclass, jvalue, JNIEnv, JavaVM, JNI_EDETACHED, JNI_OK, JNI_VERSION_1_6};
     use std::ffi::c_void;
     use std::ptr;
 
@@ -219,17 +217,19 @@ mod android_keystore {
             let attach = fns
                 .AttachCurrentThread
                 .ok_or_else(|| internal("JNI AttachCurrentThread is unavailable"))?;
-            let mut env: JNIEnv = ptr::null();
+            // GetEnv / AttachCurrentThread 写出的是 `JNIEnv*`（指向函数表指针的
+            // 指针），不是函数表指针本身。
+            let mut env: *mut JNIEnv = ptr::null_mut();
             let mut attached = false;
             let mut status = get_env(
                 vm,
-                (&mut env as *mut JNIEnv).cast::<*mut c_void>(),
+                (&mut env as *mut *mut JNIEnv).cast::<*mut c_void>(),
                 JNI_VERSION_1_6,
             );
             if status == JNI_EDETACHED {
                 status = attach(
                     vm,
-                    (&mut env as *mut JNIEnv).cast::<*mut c_void>(),
+                    (&mut env as *mut *mut JNIEnv).cast::<*mut c_void>(),
                     ptr::null_mut(),
                 );
                 if status != JNI_OK {
@@ -238,6 +238,9 @@ mod android_keystore {
                 attached = true;
             } else if status != JNI_OK {
                 return Err(internal("cannot get the JNI environment"));
+            }
+            if env.is_null() {
+                return Err(internal("the JVM returned no JNI environment"));
             }
 
             let result = call_with_env(env, class, data, encrypt);
@@ -250,15 +253,13 @@ mod android_keystore {
         }
     }
 
-    /// SAFETY: `env` 必须是已附加到当前线程的 JNIEnv，`class` 是全局类引用。
+    /// SAFETY: `env` 必须是已附加到当前线程的 `JNIEnv*`，`class` 是全局类引用。
     unsafe fn call_with_env(
-        env: JNIEnv,
+        env: *mut JNIEnv,
         class: jclass,
         data: &[u8],
         encrypt: bool,
     ) -> Result<Vec<u8>> {
-        let mut env = env;
-        let env = &mut env as *mut JNIEnv;
         // SAFETY: env 由调用方保证有效。
         let fns = unsafe { &**env };
         let (
@@ -464,7 +465,8 @@ mod tests {
     use lekis_core::CredentialStore;
 
     fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("lekis-bridge-creds-{name}-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("lekis-bridge-creds-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
@@ -487,9 +489,15 @@ mod tests {
         assert!(on_disk.contains("smb.nas"));
         #[cfg(windows)]
         {
-            assert!(!on_disk.contains("hunter2"), "secret must not be stored in clear text");
+            assert!(
+                !on_disk.contains("hunter2"),
+                "secret must not be stored in clear text"
+            );
             let b64 = base64::engine::general_purpose::STANDARD.encode("hunter2-秘密");
-            assert!(!on_disk.contains(&b64), "secret must be encrypted, not just encoded");
+            assert!(
+                !on_disk.contains(&b64),
+                "secret must be encrypted, not just encoded"
+            );
         }
 
         reopened.delete("smb.nas").unwrap();

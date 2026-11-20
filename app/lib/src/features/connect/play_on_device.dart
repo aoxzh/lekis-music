@@ -58,9 +58,8 @@ Future<void> showPlayOnDeviceSheet(BuildContext context, WidgetRef ref) async {
                 const SizedBox(height: LekisSpacing.xxs),
                 Text(
                   ConnectStrings.transferBody,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: context.lekisColors.onSurfaceVariant,
-                  ),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: context.lekisColors.onSurfaceVariant),
                 ),
               ],
             ),

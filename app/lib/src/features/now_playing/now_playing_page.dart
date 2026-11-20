@@ -1,3 +1,5 @@
+import 'package:lekis/src/features/connect/device_picker.dart';
+
 import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
@@ -667,6 +669,8 @@ class NowPlayingActions extends ConsumerWidget {
                 }
               : null,
         ),
+        // Spotify-style: pick another Lekis to play on / control.
+        const ConnectDeviceButton(alwaysShow: true),
       ],
     );
   }

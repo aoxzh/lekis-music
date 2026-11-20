@@ -26,6 +26,12 @@ pub fn init_app() {
             android_logger::init_once(
                 android_logger::Config::default()
                     .with_max_level(log::LevelFilter::Debug)
+                    // mdns-sd 在 debug 级别每个包都打一行，会把 logcat 刷满。
+                    .with_filter(
+                        android_logger::FilterBuilder::new()
+                            .parse("debug,mdns_sd=warn")
+                            .build(),
+                    )
                     .with_tag("lekis"),
             );
             std::panic::set_hook(Box::new(|info| {

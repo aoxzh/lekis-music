@@ -90,11 +90,12 @@ class ConnectState {
 
   /// 局域网里其他设备按"先在线、再已配对、再名字"排。
   List<ConnectDeviceInfo> get sortedDevices {
-    final list = [...devices]..sort((a, b) {
-      if (a.connected != b.connected) return a.connected ? -1 : 1;
-      if (a.paired != b.paired) return a.paired ? -1 : 1;
-      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-    });
+    final list = [...devices]
+      ..sort((a, b) {
+        if (a.connected != b.connected) return a.connected ? -1 : 1;
+        if (a.paired != b.paired) return a.paired ? -1 : 1;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
     return list;
   }
 
@@ -245,10 +246,7 @@ class ConnectNotifier extends AsyncNotifier<ConnectState> {
     String deviceId, {
     bool pauseLocal = true,
   }) async {
-    final report = await _gateway.transfer(
-      deviceId,
-      pauseLocal: pauseLocal,
-    );
+    final report = await _gateway.transfer(deviceId, pauseLocal: pauseLocal);
     await refresh();
     return report;
   }

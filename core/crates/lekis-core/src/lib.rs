@@ -41,6 +41,7 @@ pub use events::EventListener;
 pub use folders::{FolderEntry, FolderListing, FolderRoot};
 pub use health::HealthScanReport;
 pub use lekis_playback::PlaybackSnapshot;
+pub use lekis_vfs::ShareInfo;
 pub use platform::{CredentialStore, MemoryCredentialStore, PlatformServices};
 pub use plugins::{PluginInfo, PluginPermissions, PluginSettingView};
 pub use podcast::{
@@ -51,7 +52,6 @@ pub use radio::{
 };
 pub use scrobble::{ScrobbleSettings, ScrobbleSettingsInput, ScrobbleStatus};
 pub use selection::{NetworkContext, Reachability, SourceHealth};
-pub use lekis_vfs::ShareInfo;
 pub use source_browse::SourceListing;
 pub use sync_engine::SyncReport;
 
@@ -982,6 +982,12 @@ impl LekisCore {
                 let episode = s.library.podcast_episode(episode_id).await?;
                 return Ok(podcast::episode_track(&episode));
             }
+            if let Some(media) = connect::media::remote_media(&s, id) {
+                return Ok(media.as_track(id));
+            }
+            if ConnectMediaId::from_track_id(id).is_some() {
+                return Err(LekisError::not_found("远端曲目已失效"));
+            }
             s.library.get_track(id).await
         })
         .await
@@ -1010,6 +1016,18 @@ impl LekisCore {
                     updated_hlc: None,
                 };
                 return Ok((podcast::episode_track(&episode), state));
+            }
+            if let Some(media) = connect::media::remote_media(&s, id) {
+                let state = TrackUserState {
+                    loved: false,
+                    rating: None,
+                    play_count: 0,
+                    updated_hlc: None,
+                };
+                return Ok((media.as_track(id), state));
+            }
+            if ConnectMediaId::from_track_id(id).is_some() {
+                return Err(LekisError::not_found("远端曲目已失效"));
             }
             let track = s.library.get_track(id).await?;
             let state = s.library.user_state(track.uid.clone()).await?;
@@ -1241,8 +1259,10 @@ impl LekisCore {
             self.radio_set_favorite(station_id, loved).await?;
             return Ok(());
         }
-        // 播客单集没有收藏（订阅在节目级别）。
-        if PodcastEpisodeId::from_track_id(id).is_some() {
+        // 播客单集没有收藏（订阅在节目级别）；远端曲目不在本机资料库里。
+        if PodcastEpisodeId::from_track_id(id).is_some()
+            || ConnectMediaId::from_track_id(id).is_some()
+        {
             return Ok(());
         }
         let s = self.services.clone();
@@ -1648,6 +1668,11 @@ impl LekisCore {
                         Err(e) if e.code == ErrorCode::NotFound => {}
                         Err(e) => return Err(e),
                     }
+                } else if ConnectMediaId::from_track_id(id).is_some() {
+                    if let Some(media) = connect::media::remote_media(&s, id) {
+                        rows.push(media.as_row(id));
+                        continue;
+                    }
                 } else {
                     match s.library.track_row(id).await {
                         Ok(row) => {
@@ -2028,6 +2053,12 @@ impl LekisCore {
 
     /// 曲目的生效封面（曲目级优先，回落专辑级）。电台没有本地封面。
     pub async fn artwork(&self, id: TrackId) -> Result<Option<lekis_library::ArtworkRow>> {
+        if ConnectMediaId::from_track_id(id).is_some() {
+            let s = self.services.clone();
+            return self
+                .run(async move { connect::media::remote_artwork(&s, id).await })
+                .await;
+        }
         if id.0 < 0 {
             return Ok(None);
         }
@@ -2363,8 +2394,11 @@ impl LekisCore {
     ///
     /// 电台只更新最近播放时间，不写曲目播放统计，也不产生 scrobble。
     pub async fn record_play(&self, id: TrackId, ms_played: u64) -> Result<()> {
-        // 播客单集的进度由 save_playback_state 写回，不进曲目播放统计。
-        if PodcastEpisodeId::from_track_id(id).is_some() {
+        // 播客单集的进度由 save_playback_state 写回，不进曲目播放统计；
+        // 远端曲目的播放记在控制端。
+        if PodcastEpisodeId::from_track_id(id).is_some()
+            || ConnectMediaId::from_track_id(id).is_some()
+        {
             return Ok(());
         }
         if let Some(station_id) = RadioStationId::from_track_id(id) {

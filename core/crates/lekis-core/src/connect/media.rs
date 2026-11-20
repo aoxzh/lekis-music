@@ -43,6 +43,8 @@ pub(crate) struct RemoteMediaRegistry {
     media: Mutex<HashMap<ConnectMediaId, RemoteMedia>>,
     /// 资料库里的真实曲目是怎么匹配上的（显示"从哪里播"用）。
     vias: Mutex<HashMap<TrackId, MediaVia>>,
+    /// 已经从控制端取回的封面。
+    artwork: Mutex<HashMap<ConnectMediaId, lekis_types::ArtworkId>>,
 }
 
 impl RemoteMediaRegistry {
@@ -72,6 +74,19 @@ impl RemoteMediaRegistry {
         }
         if let Ok(mut map) = self.vias.lock() {
             map.clear();
+        }
+        if let Ok(mut map) = self.artwork.lock() {
+            map.clear();
+        }
+    }
+
+    pub(crate) fn cached_artwork(&self, id: ConnectMediaId) -> Option<lekis_types::ArtworkId> {
+        self.artwork.lock().ok()?.get(&id).copied()
+    }
+
+    pub(crate) fn remember_artwork(&self, id: ConnectMediaId, artwork: lekis_types::ArtworkId) {
+        if let Ok(mut map) = self.artwork.lock() {
+            map.insert(id, artwork);
         }
     }
 
@@ -175,7 +190,8 @@ pub(crate) async fn describe_track(
     id: TrackId,
     stream_url: Option<String>,
 ) -> Result<TrackRef> {
-    if let Some(media) = ConnectMediaId::from_track_id(id).and_then(|m| s.resolver.connect().get(m)) {
+    if let Some(media) = ConnectMediaId::from_track_id(id).and_then(|m| s.resolver.connect().get(m))
+    {
         // 本机正在播别人推来的歌：原样转交（流地址还指向最初的那台设备）。
         return Ok(media.track);
     }
@@ -208,7 +224,11 @@ pub(crate) async fn describe_track(
             let source = sources.get(&f.source_id)?;
             Some(FileRef {
                 kind: f.source_kind,
-                addresses: source.addresses.iter().map(|a| strip_credentials(a)).collect(),
+                addresses: source
+                    .addresses
+                    .iter()
+                    .map(|a| strip_credentials(a))
+                    .collect(),
                 path: f.path,
                 external_id: f.external_id,
             })
@@ -248,7 +268,11 @@ pub(crate) async fn resolve_ref(
             continue;
         };
         let found = if file.kind.is_filesystem() {
-            s.library.find_track_by_file(source_id, &path).await.ok().flatten()
+            s.library
+                .find_track_by_file(source_id, &path)
+                .await
+                .ok()
+                .flatten()
         } else {
             match &file.external_id {
                 Some(ext) => s
@@ -344,6 +368,105 @@ pub(crate) async fn resolve_queue(
     Ok((ids, start, report))
 }
 
+impl RemoteMedia {
+    /// 资料库以外的远端曲目，按普通曲目的样子给「正在播放」和队列用。
+    pub(crate) fn as_track(&self, id: TrackId) -> lekis_types::Track {
+        use lekis_types::{ArtistCredit, ArtistRole, Track, TrackUid};
+        Track {
+            id,
+            uid: TrackUid(self.track.uid.clone()),
+            title: self.track.title.clone(),
+            sort_title: None,
+            artists: self
+                .track
+                .artist
+                .split(" / ")
+                .filter(|a| !a.is_empty())
+                .map(|name| ArtistCredit {
+                    artist_id: None,
+                    name: name.to_string(),
+                    role: ArtistRole::Main,
+                })
+                .collect(),
+            album_id: None,
+            album_title: self.track.album.clone(),
+            track_no: None,
+            disc_no: None,
+            year: None,
+            duration_ms: self.track.duration_ms,
+            genres: Vec::new(),
+            mbid_recording: self.track.mbid.clone(),
+            audio: None,
+            replaygain: Default::default(),
+            artwork_id: None,
+            overlay: None,
+        }
+    }
+
+    /// 播放队列里的一行。
+    pub(crate) fn as_row(&self, id: TrackId) -> lekis_types::TrackRow {
+        lekis_types::TrackRow {
+            id,
+            title: self.track.title.clone(),
+            artist_line: self.track.artist.clone(),
+            album_title: self.track.album.clone(),
+            duration_ms: self.track.duration_ms,
+            artwork_id: None,
+            quality_badge: None,
+            loved: false,
+        }
+    }
+}
+
+/// 远端曲目的封面：第一次从控制端的 `/artwork/<令牌>` 取回并放进本机封面缓存
+/// （不挂到任何曲目上），之后直接用缓存。
+pub(crate) async fn remote_artwork(
+    s: &Services,
+    id: TrackId,
+) -> Result<Option<lekis_library::ArtworkRow>> {
+    let Some(media_id) = ConnectMediaId::from_track_id(id) else {
+        return Ok(None);
+    };
+    let registry = s.resolver.connect();
+    if let Some(artwork) = registry.cached_artwork(media_id) {
+        return s.library.get_artwork(artwork).await.map(Some);
+    }
+    let Some(url) = registry
+        .get(media_id)
+        .and_then(|m| m.track.stream_url)
+        .and_then(|u| super::stream::artwork_url_for(&u))
+    else {
+        return Ok(None);
+    };
+    let target = crate::enrich::ArtworkTarget {
+        track_id: None,
+        album_id: None,
+        replace_album: false,
+    };
+    let artwork = match crate::enrich::store_artwork(
+        &s.config.cache_dir,
+        &s.library,
+        target,
+        &url,
+        "connect",
+    )
+    .await
+    {
+        Ok(a) => a,
+        Err(e) => {
+            tracing::debug!(target: "connect", %id, error = %e, "remote artwork unavailable");
+            return Ok(None);
+        }
+    };
+    registry.remember_artwork(media_id, artwork);
+    s.library.get_artwork(artwork).await.map(Some)
+}
+
+/// 合成 ID 对应的远端曲目（不是远端曲目、或者已经过期时返回 `None`）。
+pub(crate) fn remote_media(s: &Services, id: TrackId) -> Option<RemoteMedia> {
+    ConnectMediaId::from_track_id(id).and_then(|m| s.resolver.connect().get(m))
+}
+
 /// 被控端上一首歌的显示信息。
 pub(crate) async fn remote_track(s: &Services, id: TrackId) -> RemoteTrack {
     let via = s.resolver.connect().via(id);
@@ -427,7 +550,11 @@ mod tests {
     #[test]
     fn same_share_matches_with_case_and_credentials_ignored() {
         let mine = [source(3, SourceKind::Smb, "smb://NAS.local/Music/")];
-        let f = file(SourceKind::Smb, "smb://user:pw@nas.local/Music", "周杰伦/晴天.flac");
+        let f = file(
+            SourceKind::Smb,
+            "smb://user:pw@nas.local/Music",
+            "周杰伦/晴天.flac",
+        );
         assert_eq!(
             match_file(&f, &mine),
             Some((SourceId(3), "周杰伦/晴天.flac".into()))

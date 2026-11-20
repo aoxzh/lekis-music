@@ -1,3 +1,5 @@
+import 'package:lekis/src/features/connect/device_picker.dart';
+import 'package:lekis/src/features/connect/remote_now_playing_bar.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_providers.dart'
@@ -127,6 +129,7 @@ class PlayerBar extends ConsumerWidget {
                   ? () => toggleSide(DesktopSidePane.queue)
                   : () => showQueueSheet(context),
             ),
+            const ConnectDeviceButton(alwaysShow: true),
             const _OutputDeviceButton(key: devicesKey),
             Flexible(
               child: _WheelVolume(child: VolumeControl(showSlider: roomy)),
@@ -137,32 +140,40 @@ class PlayerBar extends ConsumerWidget {
     );
 
     return PlayerShortcuts(
-      child: Material(
-        color: colors.surfaceElevated,
-        child: DecoratedBox(
-          // One hairline on top separates the bar from the content.
-          decoration: BoxDecoration(
-            border: Border(top: BorderSide(color: colors.outline)),
-          ),
-          child: SizedBox(
-            height: LekisSizes.desktopPlayerBarHeight,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: LekisSpacing.lg,
-                vertical: LekisSpacing.xs,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // "正在 xx 上播放" while controlling another device (Connect).
+          const ConnectRemoteStrip(),
+          Material(
+            color: colors.surfaceElevated,
+            child: DecoratedBox(
+              // One hairline on top separates the bar from the content.
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: colors.outline)),
               ),
-              child: Row(
-                children: [
-                  Expanded(flex: 3, child: left),
-                  const SizedBox(width: LekisSpacing.lg),
-                  Expanded(flex: 4, child: Center(child: center)),
-                  const SizedBox(width: LekisSpacing.lg),
-                  Expanded(flex: 3, child: right),
-                ],
+              child: SizedBox(
+                height: LekisSizes.desktopPlayerBarHeight,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: LekisSpacing.lg,
+                    vertical: LekisSpacing.xs,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(flex: 3, child: left),
+                      const SizedBox(width: LekisSpacing.lg),
+                      Expanded(flex: 4, child: Center(child: center)),
+                      const SizedBox(width: LekisSpacing.lg),
+                      Expanded(flex: 3, child: right),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

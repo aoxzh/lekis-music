@@ -152,6 +152,11 @@ pub(crate) async fn serve(mut stream: TcpStream, s: Arc<Services>) {
         respond_status(&mut stream, "405 Method Not Allowed").await;
         return;
     }
+    if let Some(rest) = req.path.strip_prefix("/artwork/") {
+        let token = rest.split(['.', '?']).next().unwrap_or_default();
+        serve_artwork(&mut stream, &s, token, req.method == "HEAD").await;
+        return;
+    }
     let token = req
         .path
         .strip_prefix("/stream/")
@@ -190,6 +195,33 @@ pub(crate) async fn serve(mut stream: TcpStream, s: Arc<Services>) {
     if let Err(e) = result {
         tracing::debug!(target: "connect", %track_id, error = %e, "stream ended with error");
     }
+}
+
+/// `GET /artwork/<令牌>`：同一个流令牌对应曲目的封面（被控端显示用）。
+async fn serve_artwork(stream: &mut TcpStream, s: &Services, token: &str, head_only: bool) {
+    let Some(track_id) = s.connect.tokens.lookup(token) else {
+        respond_status(stream, "404 Not Found").await;
+        return;
+    };
+    let Some(bytes) = super::server::artwork_bytes(s, track_id).await else {
+        respond_status(stream, "404 Not Found").await;
+        return;
+    };
+    let head = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: image/webp\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        bytes.len()
+    );
+    if stream.write_all(head.as_bytes()).await.is_err() || head_only {
+        return;
+    }
+    let _ = stream.write_all(&bytes).await;
+}
+
+/// 流地址对应的封面地址（`/stream/<令牌>.<扩展名>` → `/artwork/<令牌>`）。
+pub(crate) fn artwork_url_for(stream_url: &str) -> Option<String> {
+    let (base, rest) = stream_url.split_once("/stream/")?;
+    let token = rest.split(['.', '?']).next().filter(|t| !t.is_empty())?;
+    Some(format!("{base}/artwork/{token}"))
 }
 
 /// 写响应头，返回要发的字节区间。
@@ -335,6 +367,15 @@ async fn serve_proxy(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn artwork_url_follows_the_stream_token() {
+        assert_eq!(
+            artwork_url_for("http://10.0.0.2:47655/stream/abcd.flac").as_deref(),
+            Some("http://10.0.0.2:47655/artwork/abcd")
+        );
+        assert_eq!(artwork_url_for("http://x/other"), None);
+    }
 
     #[test]
     fn ranges_parse_and_clamp() {

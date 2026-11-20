@@ -31,6 +31,5 @@ class _ConnectRuntimeHostState extends ConsumerState<ConnectRuntimeHost> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      ConnectPairingHost(child: widget.child);
+  Widget build(BuildContext context) => ConnectPairingHost(child: widget.child);
 }

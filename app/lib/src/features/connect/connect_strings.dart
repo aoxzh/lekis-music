@@ -1,5 +1,7 @@
 // 「在其他设备上播放」（Lekis Connect）的界面文案。
 
+import '../../rust/api/dto.dart' show MediaViaDto;
+
 abstract final class ConnectStrings {
   static const title = '在其他设备上播放';
 
@@ -59,4 +61,27 @@ abstract final class ConnectStrings {
   static const noDevicesToPlay = '还没有配对好的设备';
 
   static const devices = '设备';
+
+  // 设备选择 / 遥控
+  static const pickerTooltip = '在其他设备上播放';
+  static const pickerTitle = '在哪台设备上播放';
+  static const pickerHint = '点一台设备，把现在的播放交给它；点右边的遥控按钮只控制它，不转移。';
+  static const pickerEmpty =
+      '局域网里还没发现别的 Lekis。在另一台设备上打开 Lekis（同一个网络），它就会出现在这里。';
+  static const thisDeviceNow = '正在这台设备上播放';
+  static const backToThisDevice = '回到这台设备';
+  static const controlOnly = '遥控';
+  static const notPaired = '未配对';
+  static const playingOn = '正在播放于';
+  static const nothingOnRemote = '那台设备现在没有在播放';
+  static const upNext = '接下来';
+  static const volume = '音量';
+  static const stopControlling = '停止遥控';
+  static const remoteOffline = '和那台设备的连接断开了';
+  static String playingOnDevice(String name) => '正在 $name 上播放';
+  static String viaLabel(MediaViaDto via) => switch (via) {
+    MediaViaDto.library_ => '来自它自己的资料库',
+    MediaViaDto.sameSource => '来自同一个音源',
+    MediaViaDto.stream => '由本机局域网串流',
+  };
 }
