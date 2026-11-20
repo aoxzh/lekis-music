@@ -5,6 +5,7 @@ import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/player/queue_actions.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
@@ -67,6 +68,13 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
     if (ids.isEmpty) return;
     await showBatchTagEditor(context, trackIds: ids);
     if (mounted) _clearSelection();
+  }
+
+  void _queueSelected(QueuePlacement where) {
+    final ids = _selected.toList(growable: false);
+    if (ids.isEmpty) return;
+    queueTracks(context, ids, where: where);
+    _clearSelection();
   }
 
   void _play(int index) {
@@ -177,6 +185,17 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
                           TextButton(
                             onPressed: _clearSelection,
                             child: const Text('取消选择'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () =>
+                                _queueSelected(QueuePlacement.next),
+                            icon: const Icon(Icons.queue_play_next_rounded),
+                            label: const Text(QueueStrings.playNext),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => _queueSelected(QueuePlacement.end),
+                            icon: const Icon(Icons.add_to_queue_rounded),
+                            label: const Text(QueueStrings.addToQueue),
                           ),
                           FilledButton.icon(
                             onPressed: _editSelectedTags,

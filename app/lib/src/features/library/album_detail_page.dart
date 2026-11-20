@@ -7,6 +7,7 @@ import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/player/queue_actions.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
@@ -218,7 +219,11 @@ class _AlbumHeader extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: LekisSpacing.lg),
-            PlayShuffleButtons(onPlay: onPlay, onShuffle: onShuffle),
+            PlayShuffleButtons(
+              onPlay: onPlay,
+              onShuffle: onShuffle,
+              queueTrackIds: trackIds,
+            ),
             if (trackIds.isNotEmpty)
               BatchDownloadButton(trackIds: trackIds, tooltip: '下载整张专辑'),
           ],
@@ -257,10 +262,14 @@ class PlayShuffleButtons extends StatelessWidget {
     super.key,
     required this.onPlay,
     required this.onShuffle,
+    this.queueTrackIds = const [],
   });
 
   final VoidCallback? onPlay;
   final VoidCallback? onShuffle;
+
+  /// 非空时多一个"更多"按钮：整组下一首播放 / 加入播放队列。
+  final List<int> queueTrackIds;
 
   @override
   Widget build(BuildContext context) {
@@ -285,6 +294,34 @@ class PlayShuffleButtons extends StatelessWidget {
           icon: const Icon(Icons.shuffle_rounded),
           label: const Text('随机播放'),
         ),
+        if (queueTrackIds.isNotEmpty)
+          PopupMenuButton<QueuePlacement>(
+            key: const ValueKey('play-shuffle.queue-menu'),
+            tooltip: '更多播放方式',
+            icon: const Icon(Icons.more_horiz_rounded),
+            onSelected: (where) =>
+                queueTracks(context, queueTrackIds, where: where),
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: QueuePlacement.next,
+                child: ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.queue_play_next_rounded),
+                  title: Text(QueueStrings.playNext),
+                ),
+              ),
+              PopupMenuItem(
+                value: QueuePlacement.end,
+                child: ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.add_to_queue_rounded),
+                  title: Text(QueueStrings.addToQueue),
+                ),
+              ),
+            ],
+          ),
       ],
     );
   }

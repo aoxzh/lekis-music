@@ -14,6 +14,7 @@ import 'package:lekis/src/features/playlists/smart_playlist_editor_page.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/features/player/queue_actions.dart';
 import 'package:material_ui/material_ui.dart';
 
 class PlaylistDetailPage extends StatelessWidget {
@@ -174,6 +175,7 @@ class _StaticPlaylistBody extends ConsumerWidget {
                   ? null
                   : () => startDownloads(context, ref, downloadIds),
               onExport: () => exportPlaylistM3uFlow(context, playlist),
+              queueTrackIds: downloadIds,
             ),
           ),
         ),
@@ -255,6 +257,7 @@ class _SmartPlaylistBody extends ConsumerWidget {
               onEditRules: () => Navigator.of(context).push(
                 SmartPlaylistEditorPage.route(playlist.id, name: playlist.name),
               ),
+              queueTrackIds: [for (final r in rows) r.id],
             ),
           ),
         ),
@@ -303,6 +306,7 @@ class _PlaylistHeader extends ConsumerWidget {
     this.onEditRules,
     this.onDownload,
     this.onExport,
+    this.queueTrackIds = const [],
   });
 
   final PlaylistDto playlist;
@@ -311,6 +315,9 @@ class _PlaylistHeader extends ConsumerWidget {
   final VoidCallback? onEditRules;
   final VoidCallback? onDownload;
   final VoidCallback? onExport;
+
+  /// 歌单里能播放的曲目，给"下一首播放 / 加入播放队列"用。
+  final List<int> queueTrackIds;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -411,15 +418,38 @@ class _PlaylistHeader extends ConsumerWidget {
                   tooltip: '歌单操作',
                   onSelected: (value) {
                     switch (value) {
+                      case 'next':
+                        queueTracks(
+                          context,
+                          queueTrackIds,
+                          where: QueuePlacement.next,
+                        );
+                      case 'queue':
+                        queueTracks(
+                          context,
+                          queueTrackIds,
+                          where: QueuePlacement.end,
+                        );
                       case 'rename':
                         rename();
                       case 'delete':
                         delete();
                     }
                   },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'rename', child: Text('重命名')),
-                    PopupMenuItem(value: 'delete', child: Text('删除歌单')),
+                  itemBuilder: (_) => [
+                    if (queueTrackIds.isNotEmpty) ...const [
+                      PopupMenuItem(
+                        value: 'next',
+                        child: Text(QueueStrings.playNext),
+                      ),
+                      PopupMenuItem(
+                        value: 'queue',
+                        child: Text(QueueStrings.addToQueue),
+                      ),
+                      PopupMenuDivider(),
+                    ],
+                    const PopupMenuItem(value: 'rename', child: Text('重命名')),
+                    const PopupMenuItem(value: 'delete', child: Text('删除歌单')),
                   ],
                 ),
               ],

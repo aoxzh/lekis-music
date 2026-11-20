@@ -6,6 +6,7 @@ import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/player/queue_actions.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:lekis/src/features/library/widgets/press_feedback.dart';
@@ -20,7 +21,14 @@ String formatDuration(int ms) {
   return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$s' : '$m:$s';
 }
 
-enum _TrackMenuAction { addToPlaylist, rate, editTags, download }
+enum _TrackMenuAction {
+  playNext,
+  addToQueue,
+  addToPlaylist,
+  rate,
+  editTags,
+  download,
+}
 
 /// Fixed-height song row (so long lists can use `itemExtent`).
 class TrackTile extends ConsumerWidget {
@@ -117,6 +125,10 @@ class TrackTile extends ConsumerWidget {
 
     void onMenu(_TrackMenuAction action) {
       switch (action) {
+        case _TrackMenuAction.playNext:
+          queueTracks(context, [track.id], where: QueuePlacement.next);
+        case _TrackMenuAction.addToQueue:
+          queueTracks(context, [track.id], where: QueuePlacement.end);
         case _TrackMenuAction.addToPlaylist:
           showAddToPlaylistSheet(
             context,
@@ -137,6 +149,25 @@ class TrackTile extends ConsumerWidget {
     }
 
     List<PopupMenuEntry<_TrackMenuAction>> menuItems() => [
+      const PopupMenuItem(
+        value: _TrackMenuAction.playNext,
+        child: ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.queue_play_next_rounded),
+          title: Text(QueueStrings.playNext),
+        ),
+      ),
+      const PopupMenuItem(
+        value: _TrackMenuAction.addToQueue,
+        child: ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.add_to_queue_rounded),
+          title: Text(QueueStrings.addToQueue),
+        ),
+      ),
+      const PopupMenuDivider(),
       const PopupMenuItem(
         value: _TrackMenuAction.addToPlaylist,
         child: ListTile(
