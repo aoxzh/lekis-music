@@ -28,4 +28,3 @@ impl lekis_core::connect::ConnectListener for SinkConnectListener {
         let _ = self.0.add(event.into());
     }
 }
-

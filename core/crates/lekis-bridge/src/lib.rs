@@ -2,9 +2,9 @@
 //!
 //! 规则：这里只做类型转换，不写业务逻辑。
 
-pub mod api;
 #[cfg(target_os = "android")]
 mod android_context;
+pub mod api;
 mod credentials;
 mod internal;
 mod media_controls;

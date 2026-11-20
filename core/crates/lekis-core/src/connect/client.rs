@@ -161,10 +161,16 @@ pub(crate) async fn probe(s: &Services, host: &str, port: u16) -> Result<Discove
 }
 
 /// 连接并认证；`allow_pairing` 时对没配对过的设备发起配对。
-pub(crate) async fn open(s: &Arc<Services>, target: &Discovered, allow_pairing: bool) -> Result<Opened> {
+pub(crate) async fn open(
+    s: &Arc<Services>,
+    target: &Discovered,
+    allow_pairing: bool,
+) -> Result<Opened> {
     let mut g = greet(s, &target.host, target.port).await?;
     if g.peer.device_id != target.device_id {
-        return Err(LekisError::invalid("a different device answered at that address"));
+        return Err(LekisError::invalid(
+            "a different device answered at that address",
+        ));
     }
     let key = s.connect.peers().key(&g.peer.device_id);
     match key {
@@ -175,9 +181,14 @@ pub(crate) async fn open(s: &Arc<Services>, target: &Discovered, allow_pairing: 
                 return Err(LekisError::invalid("expected auth ok"));
             };
             if !crypto::mac_eq(&crypto::auth_mac(&key, "s", &g.transcript), &mac) {
-                return Err(LekisError::new(ErrorCode::Auth, "device failed authentication"));
+                return Err(LekisError::new(
+                    ErrorCode::Auth,
+                    "device failed authentication",
+                ));
             }
-            Ok(Opened::Session(Session::start(s, g.peer, g.reader, g.writer, g.local_ip)))
+            Ok(Opened::Session(Session::start(
+                s, g.peer, g.reader, g.writer, g.local_ip,
+            )))
         }
         _ => {
             if key.is_some() {
@@ -212,7 +223,11 @@ pub(crate) async fn open(s: &Arc<Services>, target: &Discovered, allow_pairing: 
 }
 
 /// 用用户输入的配对码完成配对。
-pub(crate) async fn finish_pair(s: &Arc<Services>, p: PendingPair, code: &str) -> Result<Arc<Session>> {
+pub(crate) async fn finish_pair(
+    s: &Arc<Services>,
+    p: PendingPair,
+    code: &str,
+) -> Result<Arc<Session>> {
     let PendingPair {
         mut reader,
         mut writer,
@@ -236,7 +251,10 @@ pub(crate) async fn finish_pair(s: &Arc<Services>, p: PendingPair, code: &str) -
         return Err(LekisError::invalid("expected pair ok"));
     };
     if !crypto::mac_eq(&crypto::pair_confirm(&pair_key, "s"), &mac) {
-        return Err(LekisError::new(ErrorCode::Auth, "device failed pairing confirmation"));
+        return Err(LekisError::new(
+            ErrorCode::Auth,
+            "device failed pairing confirmation",
+        ));
     }
     s.connect.peers().save(
         PairedPeer {
@@ -340,7 +358,10 @@ impl Session {
     fn fail_pending(&self) {
         if let Ok(mut p) = self.pending.lock() {
             for (_, tx) in p.drain() {
-                let _ = tx.send(Err(LekisError::new(ErrorCode::Network, "connection closed")));
+                let _ = tx.send(Err(LekisError::new(
+                    ErrorCode::Network,
+                    "connection closed",
+                )));
             }
         }
     }
@@ -376,6 +397,7 @@ async fn read_loop(s: std::sync::Weak<Services>, session: Arc<Session>, mut read
     session.alive.store(false, Ordering::Relaxed);
     session.fail_pending();
     if let Some(s) = s.upgrade() {
-        s.connect.session_closed(&session.device_id, &session, &reason);
+        s.connect
+            .session_closed(&session.device_id, &session, &reason);
     }
 }

@@ -186,9 +186,8 @@ class _RemoteFolderBrowserState extends State<RemoteFolderBrowser> {
             Text(
               '${SourcesStrings.browseFailed}：${describeCoreError(error)}',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: context.lekisColors.danger,
-              ),
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: context.lekisColors.danger),
             ),
             const SizedBox(height: LekisSpacing.md),
             Wrap(

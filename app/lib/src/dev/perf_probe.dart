@@ -27,7 +27,6 @@ import '../features/player/player_providers.dart';
 
 const String _probeOut = String.fromEnvironment('LEKIS_PERF_PROBE');
 
-
 /// Wraps [child]; runs the probe only when built with LEKIS_PERF_PROBE.
 class PerfProbe extends ConsumerStatefulWidget {
   const PerfProbe({super.key, required this.child});
@@ -52,7 +51,8 @@ class _PerfProbeState extends ConsumerState<PerfProbe> {
     unawaited(_run());
   }
 
-  Future<void> _wait(int ms) => Future<void>.delayed(Duration(milliseconds: ms));
+  Future<void> _wait(int ms) =>
+      Future<void>.delayed(Duration(milliseconds: ms));
 
   Future<void> _measure(String name, Future<void> Function() body) async {
     await _wait(500);

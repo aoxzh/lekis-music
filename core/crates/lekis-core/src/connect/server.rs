@@ -729,7 +729,8 @@ mod tests {
             mdns: false,
         };
         let port = rt.block_on(server.connect_start(opts())).expect("listen");
-        rt.block_on(client.connect_start(opts())).expect("client listen");
+        rt.block_on(client.connect_start(opts()))
+            .expect("client listen");
         let device_id = rt
             .block_on(client.connect_add_device("127.0.0.1".into(), port))
             .expect("probe")

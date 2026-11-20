@@ -56,9 +56,7 @@ void main() {
         _download(trackId: 4, state: OfflineStateDto.queued),
       ],
       tracks: const {},
-      liveProgress: {
-        1: (downloaded: 300, total: 500),
-      },
+      liveProgress: {1: (downloaded: 300, total: 500)},
     );
 
     expect(rows, hasLength(4));

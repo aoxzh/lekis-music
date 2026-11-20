@@ -97,8 +97,8 @@ impl Ephemeral {
 
     /// 和对方公钥协商出共享秘密。
     pub(crate) fn agree(self, peer_public_hex: &str) -> Result<Vec<u8>> {
-        let peer = hex::decode(peer_public_hex)
-            .map_err(|_| LekisError::invalid("bad peer public key"))?;
+        let peer =
+            hex::decode(peer_public_hex).map_err(|_| LekisError::invalid("bad peer public key"))?;
         let peer = agreement::UnparsedPublicKey::new(&agreement::X25519, peer);
         agreement::agree_ephemeral(self.private, &peer, |secret| secret.to_vec())
             .map_err(|_| LekisError::invalid("x25519 agreement failed"))

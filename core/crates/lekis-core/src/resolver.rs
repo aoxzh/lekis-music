@@ -124,9 +124,10 @@ impl Resolver {
     pub(crate) async fn resolve(&self, track_id: TrackId) -> Result<MediaSource> {
         // CST-03：别的设备推过来的曲目（同一音源上的路径，或者对方的局域网流）。
         if let Some(media_id) = lekis_types::ConnectMediaId::from_track_id(track_id) {
-            let media = self.connect.get(media_id).ok_or_else(|| {
-                LekisError::not_found(format!("remote media {track_id} expired"))
-            })?;
+            let media = self
+                .connect
+                .get(media_id)
+                .ok_or_else(|| LekisError::not_found(format!("remote media {track_id} expired")))?;
             let location = match media.location {
                 crate::connect::media::RemoteLocation::Vfs { source_id, path } => {
                     MediaLocation::Vfs { source_id, path }

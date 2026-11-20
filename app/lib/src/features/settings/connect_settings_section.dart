@@ -205,9 +205,7 @@ class ConnectSettingsSection extends ConsumerWidget {
                 ),
                 trailing: _DeviceAction(
                   label: ConnectStrings.forget,
-                  onPressed: () => guard(
-                    () => notifier.forget(peer.deviceId),
-                  ),
+                  onPressed: () => guard(() => notifier.forget(peer.deviceId)),
                 ),
               ),
             ),
@@ -327,9 +325,8 @@ Future<String?> showPairingCodeDialog(
             keyboardType: TextInputType.number,
             maxLength: 6,
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              letterSpacing: 8,
-            ),
+            style: Theme.of(context).textTheme.headlineSmall
+                ?.copyWith(letterSpacing: 8),
             decoration: const InputDecoration(
               labelText: ConnectStrings.pairCodeLabel,
               counterText: '',
@@ -443,15 +440,15 @@ class _ConnectPairingHostState extends ConsumerState<ConnectPairingHost> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${pairing.peerName}\n\n${ConnectStrings.incomingPairingBody}'),
+            Text(
+              '${pairing.peerName}\n\n${ConnectStrings.incomingPairingBody}',
+            ),
             const SizedBox(height: LekisSpacing.lg),
             Center(
               child: Text(
                 pairing.code,
-                style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                  letterSpacing: 10,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: Theme.of(context).textTheme.displaySmall
+                    ?.copyWith(letterSpacing: 10, fontWeight: FontWeight.w600),
               ),
             ),
           ],

@@ -148,7 +148,8 @@ abstract final class SourcesStrings {
   static const authPassword = '密码';
   static const authKey = '私钥';
   static const fieldPrivateKey = '私钥';
-  static const fieldPrivateKeyHint = '粘贴 OpenSSH 私钥（-----BEGIN OPENSSH PRIVATE KEY-----…），支持 Ed25519 / ECDSA';
+  static const fieldPrivateKeyHint =
+      '粘贴 OpenSSH 私钥（-----BEGIN OPENSSH PRIVATE KEY-----…），支持 Ed25519 / ECDSA';
   static const fieldKeyPassphrase = '私钥密码（可选）';
   static const newPrivateKey = '新私钥';
   static const keySavedNotice = '私钥已保存，不需要重新粘贴。需要修改时点“替换私钥”。';
@@ -170,7 +171,8 @@ abstract final class SourcesStrings {
   static const browseEmpty = '这里没有子文件夹';
   static const browseFailed = '读取文件夹失败';
   static const browseUseThis = '选这个文件夹';
-  static String browseAudioCount(int n) => n == 0 ? '这一层没有音乐文件' : '这一层有 $n 个音乐文件';
+  static String browseAudioCount(int n) =>
+      n == 0 ? '这一层没有音乐文件' : '这一层有 $n 个音乐文件';
   static const browseNeedsHost = '先填好主机地址';
   static const browseNeedsShare = '先选好共享';
   static const browseNeedsExport = '先填好导出路径';

@@ -11,21 +11,23 @@ import 'package:lekis/src/features/player/mini_player.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
-Widget _host({EdgeInsets padding = EdgeInsets.zero, EdgeInsets gesture = EdgeInsets.zero}) =>
-    MediaQuery(
-      data: MediaQueryData(
-        size: const Size(829, 690),
-        devicePixelRatio: 2.625,
-        padding: padding,
-        systemGestureInsets: gesture,
-      ),
-      child: Builder(
-        builder: (context) => Text(
-          '${MiniPlayer.bottomBandHeight(context)}',
-          textDirection: TextDirection.ltr,
-        ),
-      ),
-    );
+Widget _host({
+  EdgeInsets padding = EdgeInsets.zero,
+  EdgeInsets gesture = EdgeInsets.zero,
+}) => MediaQuery(
+  data: MediaQueryData(
+    size: const Size(829, 690),
+    devicePixelRatio: 2.625,
+    padding: padding,
+    systemGestureInsets: gesture,
+  ),
+  child: Builder(
+    builder: (context) => Text(
+      '${MiniPlayer.bottomBandHeight(context)}',
+      textDirection: TextDirection.ltr,
+    ),
+  ),
+);
 
 void main() {
   testWidgets('band = card + margin + gesture inset', (tester) async {

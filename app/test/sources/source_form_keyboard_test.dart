@@ -24,10 +24,7 @@ Widget _page({required double keyboard}) => ProviderScope(
       devicePixelRatio: 2.625,
       viewInsets: EdgeInsets.only(bottom: keyboard),
     ),
-    child: MaterialApp(
-      theme: lekisDarkTheme(),
-      home: const AddSourcePage(),
-    ),
+    child: MaterialApp(theme: lekisDarkTheme(), home: const AddSourcePage()),
   ),
 );
 

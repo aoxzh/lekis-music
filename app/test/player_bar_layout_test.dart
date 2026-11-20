@@ -27,32 +27,41 @@ class _FakePosition extends PositionController {
 }
 
 void main() {
-  for (final size in const [Size(1280, 820), Size(900, 600), Size(1920, 1080)]) {
-    testWidgets('PlayerBar fits at ${size.width.toInt()}x${size.height.toInt()}',
-        (tester) async {
-      tester.view.physicalSize = size;
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
+  for (final size in const [
+    Size(1280, 820),
+    Size(900, 600),
+    Size(1920, 1080),
+  ]) {
+    testWidgets(
+      'PlayerBar fits at ${size.width.toInt()}x${size.height.toInt()}',
+      (tester) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            coreEventsProvider.overrideWith((ref) => const Stream.empty()),
-            playbackProvider.overrideWith(_FakePlayback.new),
-            positionProvider.overrideWith(_FakePosition.new),
-            currentTrackProvider.overrideWith((ref) async => null),
-            currentArtworkProvider.overrideWith((ref) async => null),
-          ],
-          child: MaterialApp(
-            theme: lekisDarkTheme(),
-            home: const Scaffold(
-              body: Align(alignment: Alignment.bottomCenter, child: PlayerBar()),
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              coreEventsProvider.overrideWith((ref) => const Stream.empty()),
+              playbackProvider.overrideWith(_FakePlayback.new),
+              positionProvider.overrideWith(_FakePosition.new),
+              currentTrackProvider.overrideWith((ref) async => null),
+              currentArtworkProvider.overrideWith((ref) async => null),
+            ],
+            child: MaterialApp(
+              theme: lekisDarkTheme(),
+              home: const Scaffold(
+                body: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: PlayerBar(),
+                ),
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 500));
-      expect(tester.takeException(), isNull);
-    });
+        );
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 }

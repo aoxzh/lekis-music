@@ -352,9 +352,7 @@ class SourceDraft {
     final h = host.trim();
     final export = _encodedPath(share);
     final sub = _segments(path).join('/');
-    final query = sub.isEmpty
-        ? ''
-        : '?subdir=${Uri.encodeQueryComponent(sub)}';
+    final query = sub.isEmpty ? '' : '?subdir=${Uri.encodeQueryComponent(sub)}';
     return 'nfs://$h/$export$query';
   }
 
@@ -424,13 +422,17 @@ abstract final class SourceValidators {
     final value = v?.trim() ?? '';
     if (value.isEmpty) return null;
     final n = int.tryParse(value);
-    return n == null || n < 1 || n > 65535 ? SourcesStrings.errPortInvalid : null;
+    return n == null || n < 1 || n > 65535
+        ? SourcesStrings.errPortInvalid
+        : null;
   }
 
   static String? privateKey(String? v) {
     final value = v?.trim() ?? '';
     if (value.isEmpty) return SourcesStrings.errPrivateKeyRequired;
-    return value.contains('PRIVATE KEY') ? null : SourcesStrings.errPrivateKeyInvalid;
+    return value.contains('PRIVATE KEY')
+        ? null
+        : SourcesStrings.errPrivateKeyInvalid;
   }
 
   static String? subPath(String? v) {

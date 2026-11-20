@@ -53,7 +53,11 @@ pub async fn connect_set_settings(
 /// 局域网里的其他 Lekis（含手动添加的）。
 #[frb(sync)]
 pub fn connect_devices() -> Vec<ConnectDeviceDto> {
-    core().connect_devices().into_iter().map(Into::into).collect()
+    core()
+        .connect_devices()
+        .into_iter()
+        .map(Into::into)
+        .collect()
 }
 
 /// 已配对的设备（包括当前不在线的）。
@@ -108,10 +112,7 @@ pub async fn connect_remote_state(device_id: String) -> Result<RemoteStateDto, C
 }
 
 /// 遥控：播放 / 暂停 / 切歌 / 跳转 / 音量……
-pub async fn connect_control(
-    device_id: String,
-    action: ControlActionDto,
-) -> Result<(), CoreError> {
+pub async fn connect_control(device_id: String, action: ControlActionDto) -> Result<(), CoreError> {
     Ok(core().connect_control(device_id, action.into()).await?)
 }
 
@@ -145,7 +146,10 @@ pub async fn connect_transfer(
     device_id: String,
     pause_local: bool,
 ) -> Result<QueueReportDto, CoreError> {
-    Ok(core().connect_transfer(device_id, pause_local).await?.into())
+    Ok(core()
+        .connect_transfer(device_id, pause_local)
+        .await?
+        .into())
 }
 
 /// 让另一台设备播放一组本机曲目（"在 xx 上播放"）。

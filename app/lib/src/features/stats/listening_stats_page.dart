@@ -43,7 +43,9 @@ class _ListeningStatsPageState extends ConsumerState<ListeningStatsPage> {
           ),
           children: [
             ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: featureMaxContentWidth),
+              constraints: const BoxConstraints(
+                maxWidth: featureMaxContentWidth,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -132,9 +134,8 @@ class _EmptyStats extends StatelessWidget {
             Text(
               '播放几首歌后，这里会显示听得最多的艺人、专辑和时段。',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: context.lekisColors.onSurfaceVariant,
-              ),
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: context.lekisColors.onSurfaceVariant),
             ),
           ],
         ),
@@ -217,7 +218,9 @@ class _StatsBody extends ConsumerWidget {
                   ListTile(
                     leading: _Rank(index: i + 1),
                     title: Text(a.artist),
-                    subtitle: Text('${a.plays} 次 · ${_formatHours(a.playedMs.toDouble() / 3600000)}'),
+                    subtitle: Text(
+                      '${a.plays} 次 · ${_formatHours(a.playedMs.toDouble() / 3600000)}',
+                    ),
                     trailing: const Icon(Icons.chevron_right),
                   ),
               ],
@@ -276,7 +279,11 @@ class _StatsBody extends ConsumerWidget {
 }
 
 class _BigStat extends StatelessWidget {
-  const _BigStat({required this.value, required this.label, required this.icon});
+  const _BigStat({
+    required this.value,
+    required this.label,
+    required this.icon,
+  });
 
   final String value;
   final String label;
@@ -297,9 +304,8 @@ class _BigStat extends StatelessWidget {
                 Text(value, style: Theme.of(context).textTheme.titleLarge),
                 Text(
                   label,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: context.lekisColors.onSurfaceVariant,
-                  ),
+                  style: Theme.of(context).textTheme.labelSmall
+                      ?.copyWith(color: context.lekisColors.onSurfaceVariant),
                 ),
               ],
             ),
@@ -371,12 +377,16 @@ class _BucketBars extends StatelessWidget {
                               child: FractionallySizedBox(
                                 heightFactor: maxMs <= 0
                                     ? 0.02
-                                    : (b.playedMs.toDouble() / maxMs)
-                                          .clamp(0.02, 1.0),
+                                    : (b.playedMs.toDouble() / maxMs).clamp(
+                                        0.02,
+                                        1.0,
+                                      ),
                                 child: Container(
                                   decoration: BoxDecoration(
                                     color: color.withValues(
-                                      alpha: b.playedMs == BigInt.zero ? 0.18 : 0.8,
+                                      alpha: b.playedMs == BigInt.zero
+                                          ? 0.18
+                                          : 0.8,
                                     ),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
@@ -390,10 +400,13 @@ class _BucketBars extends StatelessWidget {
                             child: i % everyLabel == 0
                                 ? Text(
                                     labelFor(i),
-                                    style: Theme.of(context).textTheme.labelSmall
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
                                         ?.copyWith(
-                                          color:
-                                              context.lekisColors.onSurfaceVariant,
+                                          color: context
+                                              .lekisColors
+                                              .onSurfaceVariant,
                                           fontSize: 9,
                                         ),
                                   )

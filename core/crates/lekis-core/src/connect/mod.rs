@@ -11,10 +11,10 @@
 
 mod client;
 pub(crate) mod crypto;
-pub(crate) mod media;
 mod mdns;
-pub mod protocol;
+pub(crate) mod media;
 mod peers;
+pub mod protocol;
 mod server;
 pub(crate) mod stream;
 
@@ -289,7 +289,12 @@ impl ConnectHub {
         }
     }
 
-    pub(crate) fn session_closed(&self, device_id: &str, session: &Arc<client::Session>, reason: &str) {
+    pub(crate) fn session_closed(
+        &self,
+        device_id: &str,
+        session: &Arc<client::Session>,
+        reason: &str,
+    ) {
         let removed = self
             .with_state(|s| match s.sessions.get(device_id) {
                 Some(cur) if Arc::ptr_eq(cur, session) => s.sessions.remove(device_id).is_some(),
@@ -497,7 +502,11 @@ impl LekisCore {
             s.library
                 .set_setting(
                     SETTING_ALLOW_CONTROL,
-                    if settings.allow_control { "true" } else { "false" },
+                    if settings.allow_control {
+                        "true"
+                    } else {
+                        "false"
+                    },
                 )
                 .await?;
             let settings = ConnectSettings {
@@ -564,7 +573,8 @@ impl LekisCore {
                     Ok(PairStart::AlreadyPaired)
                 }
                 client::Opened::NeedsCode(pending) => {
-                    s.connect.with_state(|st| st.pending.insert(device_id, pending));
+                    s.connect
+                        .with_state(|st| st.pending.insert(device_id, pending));
                     Ok(PairStart::NeedsCode)
                 }
             }
@@ -709,7 +719,11 @@ impl LekisCore {
     }
 
     /// 转移播放：把本机当前队列和进度交给另一台设备，成功后本机暂停（`pause_local`）。
-    pub async fn connect_transfer(&self, device_id: String, pause_local: bool) -> Result<QueueReport> {
+    pub async fn connect_transfer(
+        &self,
+        device_id: String,
+        pause_local: bool,
+    ) -> Result<QueueReport> {
         let snap = self.services.engine.snapshot();
         if snap.queue.is_empty() {
             return Err(LekisError::invalid("nothing is playing"));
@@ -809,7 +823,9 @@ async fn session_for(s: &Arc<Services>, device_id: &str) -> Result<Arc<client::S
             install_session(s, device_id, session.clone());
             Ok(session)
         }
-        client::Opened::NeedsCode(_) => Err(LekisError::new(ErrorCode::Auth, "device is not paired")),
+        client::Opened::NeedsCode(_) => {
+            Err(LekisError::new(ErrorCode::Auth, "device is not paired"))
+        }
     }
 }
 
@@ -837,12 +853,10 @@ async fn describe_for(
         let streamable = id.0 > 0;
         let stream_url = if streamable && port != 0 {
             let token = s.connect.tokens.issue(id)?;
-            let ext = s
-                .library
-                .track_files(id)
-                .await
-                .ok()
-                .and_then(|f| f.first().and_then(|f| stream::extension_of(&f.path).map(str::to_string)));
+            let ext = s.library.track_files(id).await.ok().and_then(|f| {
+                f.first()
+                    .and_then(|f| stream::extension_of(&f.path).map(str::to_string))
+            });
             Some(match ext {
                 Some(ext) => format!("http://{host}:{port}/stream/{token}.{ext}"),
                 None => format!("http://{host}:{port}/stream/{token}"),

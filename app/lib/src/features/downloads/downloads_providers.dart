@@ -129,12 +129,10 @@ final downloadsProvider =
     );
 
 /// 某首歌的下载状态（列表行 / 正在播放用）。只随状态变化重建。
-final downloadStateProvider = Provider.autoDispose.family<OfflineStateDto?, int>((
-  ref,
-  id,
-) {
-  return ref.watch(downloadsProvider).value?.entryFor(id)?.state;
-});
+final downloadStateProvider = Provider.autoDispose
+    .family<OfflineStateDto?, int>((ref, id) {
+      return ref.watch(downloadsProvider).value?.entryFor(id)?.state;
+    });
 
 /// 正在下载曲目的 0..1 进度；其他状态返回 `null`。
 final downloadProgressProvider = Provider.autoDispose.family<double?, int>((

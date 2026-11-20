@@ -101,10 +101,8 @@ class _NowPlayingBackdropState extends State<NowPlayingBackdrop> {
       duration: widget.crossfade,
       switchInCurve: Curves.easeInOut,
       switchOutCurve: Curves.easeInOut,
-      layoutBuilder: (current, previous) => Stack(
-        fit: StackFit.expand,
-        children: [...previous, ?current],
-      ),
+      layoutBuilder: (current, previous) =>
+          Stack(fit: StackFit.expand, children: [...previous, ?current]),
       child: _BakedScene(
         key: ValueKey(signature),
         hash: widget.hash,
@@ -207,12 +205,15 @@ class _BakedSceneState extends State<_BakedScene> {
   }
 
   void _load(Future<ui.Image> future, void Function(ui.Image) assign) {
-    future.then((image) {
-      if (!mounted) return;
-      setState(() => assign(image));
-    }, onError: (Object _) {
-      // A missing artwork file just leaves the flat palette colour.
-    });
+    future.then(
+      (image) {
+        if (!mounted) return;
+        setState(() => assign(image));
+      },
+      onError: (Object _) {
+        // A missing artwork file just leaves the flat palette colour.
+      },
+    );
   }
 
   @override
@@ -318,9 +319,8 @@ class _BackdropPainter extends CustomPainter {
         Offset.zero & size,
         Paint()
           ..filterQuality = FilterQuality.none
-          ..color = const Color(0xFFFFFFFF).withValues(
-            alpha: LekisNowPlaying.noiseOpacity,
-          ),
+          ..color = const Color(0xFFFFFFFF)
+              .withValues(alpha: LekisNowPlaying.noiseOpacity),
       );
     }
   }
@@ -353,19 +353,23 @@ abstract final class _Bakery {
     Size px,
     double opacity,
   ) {
-    final key = 'gradient:${colors.map((c) => c.toARGB32()).join(',')}'
+    final key =
+        'gradient:${colors.map((c) => c.toARGB32()).join(',')}'
         '@${px.width.round()}x${px.height.round()}:$opacity';
     return _remember(key, () => _bakeGradient(colors, px, opacity));
   }
 
   static Future<ui.Image> scrim(Color color, Size px, double heightFactor) {
-    final key = 'scrim:${color.toARGB32()}'
+    final key =
+        'scrim:${color.toARGB32()}'
         '@${px.width.round()}x${px.height.round()}:$heightFactor';
     return _remember(key, () => _bakeScrim(color, px, heightFactor));
   }
 
-  static Future<ui.Image> grain(Size px) =>
-      _remember('grain:${px.width.round()}x${px.height.round()}', () => _bakeGrain(px));
+  static Future<ui.Image> grain(Size px) => _remember(
+    'grain:${px.width.round()}x${px.height.round()}',
+    () => _bakeGrain(px),
+  );
 
   static Future<ui.Image> _remember(
     String key,
@@ -460,14 +464,19 @@ abstract final class _Bakery {
     Canvas(recorder).drawRect(
       Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
       Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            color.withValues(alpha: LekisNowPlaying.topBarProtectionOpacity),
-            color.withValues(alpha: 0),
-          ],
-        ).createShader(Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble())),
+        ..shader =
+            LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                color.withValues(
+                  alpha: LekisNowPlaying.topBarProtectionOpacity,
+                ),
+                color.withValues(alpha: 0),
+              ],
+            ).createShader(
+              Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+            ),
     );
     return recorder.endRecording().toImage(width, height);
   }

@@ -116,9 +116,7 @@ class _NowPlayingBackgroundState extends ConsumerState<NowPlayingBackground>
             colors: colors,
             opacity: gradientOpacity,
             scrim: tint.scene,
-            cycle: widget.lowPower
-                ? const AlwaysStoppedAnimation(0)
-                : _cycle,
+            cycle: widget.lowPower ? const AlwaysStoppedAnimation(0) : _cycle,
             grain: _settled,
             crossfade: widget.lowPower
                 ? Duration.zero

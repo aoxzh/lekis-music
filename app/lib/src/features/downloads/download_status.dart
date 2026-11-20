@@ -200,11 +200,7 @@ class TrackDownloadButton extends ConsumerWidget {
           constraints: constraints,
           padding: EdgeInsets.zero,
           onPressed: () => startDownload(context, ref, trackId),
-          icon: Icon(
-            Icons.refresh_rounded,
-            size: 22,
-            color: colors.danger,
-          ),
+          icon: Icon(Icons.refresh_rounded, size: 22, color: colors.danger),
         );
     }
   }
@@ -226,14 +222,10 @@ class BatchDownloadButton extends ConsumerWidget {
     final downloads = ref.watch(downloadsProvider).value;
     final allReady =
         trackIds.isNotEmpty &&
-        trackIds.every(
-          (id) => downloads?.entryFor(id)?.isReady ?? false,
-        );
+        trackIds.every((id) => downloads?.entryFor(id)?.isReady ?? false);
     return IconButton(
       tooltip: allReady ? '已全部下载' : tooltip,
-      onPressed: allReady
-          ? null
-          : () => startDownloads(context, ref, trackIds),
+      onPressed: allReady ? null : () => startDownloads(context, ref, trackIds),
       icon: Icon(
         allReady
             ? Icons.download_done_rounded

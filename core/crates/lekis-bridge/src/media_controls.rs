@@ -9,7 +9,10 @@
 //! `frb_expand`：codegen 解析 `cargo expand` 的输出时解析不了这里展开后的代码，
 //! 而这里本来也没有要导出的东西，所以 codegen 时只留下空实现。
 
-#[cfg(all(not(frb_expand), any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+#[cfg(all(
+    not(frb_expand),
+    any(target_os = "windows", target_os = "macos", target_os = "linux")
+))]
 mod desktop {
     use std::future::Future;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -232,7 +235,11 @@ mod desktop {
             }
             None => (None, None, None, 0),
         };
-        let ms = if duration_ms > 0 { duration_ms } else { track_ms };
+        let ms = if duration_ms > 0 {
+            duration_ms
+        } else {
+            track_ms
+        };
         let metadata = MediaMetadata {
             title: title.as_deref(),
             artist: artist.as_deref().filter(|s| !s.is_empty()),
@@ -369,10 +376,7 @@ mod desktop {
         fn enumerate() -> Option<*mut c_void> {
             let mut found: HWND = HWND::default();
             unsafe {
-                let _ = EnumWindows(
-                    Some(enum_proc),
-                    LPARAM(&mut found as *mut HWND as isize),
-                );
+                let _ = EnumWindows(Some(enum_proc), LPARAM(&mut found as *mut HWND as isize));
             }
             (!found.0.is_null()).then_some(found.0)
         }
@@ -395,11 +399,17 @@ mod desktop {
     }
 }
 
-#[cfg(all(not(frb_expand), any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+#[cfg(all(
+    not(frb_expand),
+    any(target_os = "windows", target_os = "macos", target_os = "linux")
+))]
 pub(crate) use desktop::enable;
 
 /// 移动端由 Dart 侧（audio_service）负责，这里什么都不做。
-#[cfg(any(frb_expand, not(any(target_os = "windows", target_os = "macos", target_os = "linux"))))]
+#[cfg(any(
+    frb_expand,
+    not(any(target_os = "windows", target_os = "macos", target_os = "linux"))
+))]
 pub(crate) fn enable() -> bool {
     false
 }

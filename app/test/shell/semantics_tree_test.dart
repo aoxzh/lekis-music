@@ -47,9 +47,7 @@ class _MirrorTree {
     for (final e in update.entries) {
       for (final c in e.value) {
         final oldParent = parentOf[c];
-        if (oldParent != null &&
-            oldParent != e.key &&
-            !update.containsKey(c)) {
+        if (oldParent != null && oldParent != e.key && !update.containsKey(c)) {
           errors.add(
             '$c moved from $oldParent to ${e.key} without an update of its '
             'own (Nodes left pending by the update)',

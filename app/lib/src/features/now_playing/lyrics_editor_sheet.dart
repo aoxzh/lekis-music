@@ -92,10 +92,7 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
           confidence: 1,
         ),
       );
-      await core.setLyricsOffset(
-        trackId: widget.trackId,
-        offsetMs: _offset,
-      );
+      await core.setLyricsOffset(trackId: widget.trackId, offsetMs: _offset);
       if (!mounted) return;
       Navigator.of(context).pop();
     } catch (e) {

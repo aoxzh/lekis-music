@@ -49,9 +49,10 @@ class DownloadEntry {
   String get statusText {
     return switch (state) {
       OfflineStateDto.queued => '等待下载',
-      OfflineStateDto.downloading => totalBytes > 0
-          ? '正在下载 ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}'
-          : '正在下载 ${formatBytes(downloadedBytes)}',
+      OfflineStateDto.downloading =>
+        totalBytes > 0
+            ? '正在下载 ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}'
+            : '正在下载 ${formatBytes(downloadedBytes)}',
       OfflineStateDto.ready => '${formatBytes(downloadedBytes)} · 可离线播放',
       OfflineStateDto.failed => '下载失败，可重试',
     };

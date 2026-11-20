@@ -157,10 +157,7 @@ void main() {
         reason: '临时凭据只写一次（以前每次 browse 都写一遍）',
       );
       expect(gateway.calls.where((c) => c.startsWith('delete:')).length, 1);
-      expect(
-        gateway.calls.where((c) => c.startsWith('browse:')).length,
-        3,
-      );
+      expect(gateway.calls.where((c) => c.startsWith('browse:')).length, 3);
       // 临时凭据已经从凭据库里删掉（草稿自己的 secret 由调用方 forgetSecret）。
       expect(gateway.credentials, isEmpty);
     },

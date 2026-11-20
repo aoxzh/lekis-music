@@ -139,11 +139,7 @@ void main() {
     );
     expect(
       controllers,
-      isA<ConnectControllersChanged>().having(
-        (e) => e.names,
-        'names',
-        ['手机'],
-      ),
+      isA<ConnectControllersChanged>().having((e) => e.names, 'names', ['手机']),
     );
   });
 }

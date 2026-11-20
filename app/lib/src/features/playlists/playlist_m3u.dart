@@ -127,8 +127,7 @@ Future<void> exportPlaylistM3uFlow(
       title: const Text('导出歌单'),
       children: [
         SimpleDialogOption(
-          onPressed: () =>
-              Navigator.of(context).pop(_PlaylistExportFormat.m3u),
+          onPressed: () => Navigator.of(context).pop(_PlaylistExportFormat.m3u),
           child: const ListTile(
             leading: Icon(Icons.playlist_play_rounded),
             title: Text('M3U8'),

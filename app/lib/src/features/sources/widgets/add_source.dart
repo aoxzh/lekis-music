@@ -649,7 +649,10 @@ class _SourceFormState extends ConsumerState<SourceForm> {
       setState(() {
         if (webDav) {
           if (picked.isNotEmpty) {
-            final encoded = picked.split('/').map(Uri.encodeComponent).join('/');
+            final encoded = picked
+                .split('/')
+                .map(Uri.encodeComponent)
+                .join('/');
             _url.text = '${normalizeHttpUrl(_url.text)}/$encoded';
           }
         } else {
@@ -1159,9 +1162,8 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     _gap,
     Text(
       SourcesStrings.nfsNotice,
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-        color: context.lekisColors.onSurfaceVariant,
-      ),
+      style: Theme.of(context).textTheme.bodySmall
+          ?.copyWith(color: context.lekisColors.onSurfaceVariant),
     ),
   ];
 
@@ -1374,7 +1376,9 @@ class _SourceFormState extends ConsumerState<SourceForm> {
   );
 
   Widget _obscureToggle() => IconButton(
-    tooltip: _obscure ? SourcesStrings.showPassword : SourcesStrings.hidePassword,
+    tooltip: _obscure
+        ? SourcesStrings.showPassword
+        : SourcesStrings.hidePassword,
     onPressed: () => setState(() => _obscure = !_obscure),
     icon: Icon(
       _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,

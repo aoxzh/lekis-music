@@ -62,26 +62,25 @@ pub unsafe extern "system" fn Java_dev_lekis_lekis_MainActivity_initRustAndroidC
 ///
 /// # Safety
 /// `env` 必须是当前 Java 线程的合法 JNIEnv，`fns` 必须来自同一个 JNIEnv。
-unsafe fn cache_credential_cipher_class(
-    env: *mut JNIEnv,
-    fns: &jni_sys::JNINativeInterface_,
-) {
-    let (Some(find_class), Some(new_global), Some(delete_local_ref), Some(exception_check), Some(exception_clear)) = (
+unsafe fn cache_credential_cipher_class(env: *mut JNIEnv, fns: &jni_sys::JNINativeInterface_) {
+    let (
+        Some(find_class),
+        Some(new_global),
+        Some(delete_local_ref),
+        Some(exception_check),
+        Some(exception_clear),
+    ) = (
         fns.FindClass,
         fns.NewGlobalRef,
         fns.DeleteLocalRef,
         fns.ExceptionCheck,
         fns.ExceptionClear,
-    ) else {
+    )
+    else {
         return;
     };
     // SAFETY: 类名字面量以 NUL 结尾；env 在本次 JNI 调用期间有效。
-    let local = unsafe {
-        find_class(
-            env,
-            b"dev/lekis/lekis/CredentialCipher\0".as_ptr().cast(),
-        )
-    };
+    let local = unsafe { find_class(env, b"dev/lekis/lekis/CredentialCipher\0".as_ptr().cast()) };
     if local.is_null() {
         // 查找失败会挂起一个 NoClassDefFoundError，必须清掉再返回。
         if unsafe { exception_check(env) } != 0 {

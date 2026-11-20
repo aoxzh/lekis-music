@@ -154,25 +154,25 @@ class _AppShellState extends State<AppShell> {
       // pairing code when another device asks to pair with this one.
       child: ConnectRuntimeHost(
         child: switch (mode) {
-        ShellChromeMode.bottomBar => _BottomBarLayout(
-          current: _current,
-          onSelected: _select,
-          content: content,
-        ),
-        ShellChromeMode.sideTabs => _SideTabsLayout(
-          current: _current,
-          onSelected: _select,
-          content: content,
-        ),
-        ShellChromeMode.rail => _RailLayout(
-          current: _current,
-          onSelected: _select,
-          content: content,
-        ),
-        ShellChromeMode.sidebar => _SidebarLayout(
-          current: _current,
-          onSelected: _select,
-          content: content,
+          ShellChromeMode.bottomBar => _BottomBarLayout(
+            current: _current,
+            onSelected: _select,
+            content: content,
+          ),
+          ShellChromeMode.sideTabs => _SideTabsLayout(
+            current: _current,
+            onSelected: _select,
+            content: content,
+          ),
+          ShellChromeMode.rail => _RailLayout(
+            current: _current,
+            onSelected: _select,
+            content: content,
+          ),
+          ShellChromeMode.sidebar => _SidebarLayout(
+            current: _current,
+            onSelected: _select,
+            content: content,
           ),
         },
       ),
