@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/now_playing/lyrics_classic.dart';
 import 'package:lekis/src/features/now_playing/lyrics_editor_sheet.dart';
 import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
 import 'package:lekis/src/features/now_playing/lyrics_stage.dart';
@@ -9,7 +10,8 @@ import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Lyrics for [trackId]: a word-by-word stage, plain text, or an empty state.
+/// Lyrics for [trackId]: the Apple Music-style classic view (default), the
+/// opt-in word-by-word stage, plain text, or an empty state.
 ///
 /// The searching / empty / error states are centred in the pane (a lyrics
 /// pane never shows up as a big blank area).
@@ -42,8 +44,7 @@ class LyricsView extends ConsumerWidget {
       );
     }
     final lyrics = ref.watch(lyricsProvider(trackId));
-    final stageStyle = ref.watch(lyricsStageStyleProvider);
-    final sparks = ref.watch(lyricsSparksProvider);
+    final lyricsStyle = ref.watch(lyricsStyleProvider);
     final theme = Theme.of(context);
     final Widget body = lyrics.when(
       // An online lookup can take a few seconds; local ones are instant, so
@@ -80,11 +81,22 @@ class LyricsView extends ConsumerWidget {
             style: style.copyWith(fontWeight: FontWeight.w600),
           );
         }
+        // 经典视图是默认；只有用户显式选了舞台样式才走逐字舞台。
+        final stageStyle = lyricsStyle.stage;
+        if (stageStyle == null) {
+          return ClassicLyrics(
+            key: ValueKey('classic-$trackId'),
+            lyrics: parsed,
+            style: style,
+            compact: compact,
+            lowPower: lowPower,
+          );
+        }
         return LyricsStage(
           key: ValueKey('stage-$trackId'),
           lyrics: parsed,
           style: stageStyle,
-          sparks: sparks,
+          sparks: ref.watch(lyricsSparksProvider),
           baseStyle: style,
           compact: compact,
           lowPower: lowPower,

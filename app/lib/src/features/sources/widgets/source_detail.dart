@@ -55,6 +55,8 @@ class _SourceDetailState extends ConsumerState<SourceDetail> {
         credentialRef.isNotEmpty &&
         core.hasCredential(credentialRef: credentialRef);
     final busy = _testing || _deleting;
+    // 测试连接、凭据、备用地址只属于网络音源（NAS、媒体服务器）。
+    final network = source.kind.isNetwork;
 
     return Align(
       alignment: Alignment.topCenter,
@@ -80,16 +82,18 @@ class _SourceDetailState extends ConsumerState<SourceDetail> {
               label: SourcesStrings.detailKind,
               value: source.kind.label,
             ),
-            for (final a in source.addresses)
+            for (final (i, a) in source.addresses.indexed)
               _InfoRow(
-                label: source.kind == SourceKindDto.local
+                label: !network
                     ? SourcesStrings.detailPath
-                    : SourcesStrings.detailAddress,
+                    : i == 0
+                    ? SourcesStrings.detailAddress
+                    : SourcesStrings.detailAlternate,
                 value: displayAddress(a),
               ),
-            if (username.isNotEmpty)
+            if (network && username.isNotEmpty)
               _InfoRow(label: SourcesStrings.detailUsername, value: username),
-            if (source.kind != SourceKindDto.local)
+            if (network)
               _InfoRow(
                 label: SourcesStrings.detailCredential,
                 value: _credentialLabel(source, credentialSaved, username),
@@ -130,25 +134,27 @@ class _SourceDetailState extends ConsumerState<SourceDetail> {
               spacing: LekisSpacing.sm,
               runSpacing: LekisSpacing.sm,
               children: [
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, LekisSizes.touchTargetMin),
+                if (network)
+                  OutlinedButton.icon(
+                    key: const ValueKey('source-test-connection'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, LekisSizes.touchTargetMin),
+                    ),
+                    onPressed: busy ? null : () => _test(context, source),
+                    icon: _testing
+                        ? const SizedBox.square(
+                            dimension: LekisSpacing.lg,
+                            child: CircularProgressIndicator(
+                              strokeWidth: LekisSpacing.xxs,
+                            ),
+                          )
+                        : const Icon(Icons.wifi_tethering),
+                    label: Text(
+                      _testing
+                          ? SourcesStrings.testing
+                          : SourcesStrings.testConnection,
+                    ),
                   ),
-                  onPressed: busy ? null : () => _test(context, source),
-                  icon: _testing
-                      ? const SizedBox.square(
-                          dimension: LekisSpacing.lg,
-                          child: CircularProgressIndicator(
-                            strokeWidth: LekisSpacing.xxs,
-                          ),
-                        )
-                      : const Icon(Icons.wifi_tethering),
-                  label: Text(
-                    _testing
-                        ? SourcesStrings.testing
-                        : SourcesStrings.testConnection,
-                  ),
-                ),
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(0, LekisSizes.touchTargetMin),

@@ -42,6 +42,20 @@ extension SourceKindInfo on SourceKindDto {
     SourceKindDto.plugin => Icons.extension_outlined,
   };
 
+  /// 通过网络访问的音源（NAS 共享、媒体服务器）。只有它们才有“测试连接”、
+  /// 账号凭据和备用地址；本地文件夹、电台和插件都没有这些。
+  bool get isNetwork => switch (this) {
+    SourceKindDto.smb ||
+    SourceKindDto.webDav ||
+    SourceKindDto.nfs ||
+    SourceKindDto.sftp ||
+    SourceKindDto.openSubsonic ||
+    SourceKindDto.jellyfin ||
+    SourceKindDto.emby ||
+    SourceKindDto.plex => true,
+    SourceKindDto.local || SourceKindDto.radio || SourceKindDto.plugin => false,
+  };
+
   /// 文件系统类音源（可以同步、走 VFS 扫描）。
   bool get isFilesystem => switch (this) {
     SourceKindDto.local ||

@@ -1,8 +1,11 @@
-// Persistent right-hand context for wide windows: what is playing, with
-// lyrics or the queue right next to it.
+// Right-hand context panel for wide desktop windows (Spotify style): the
+// lyrics / queue buttons in the player bar open it next to the content and
+// close it again. Nothing is shown until the user asks for it, so the
+// default desktop layout is just sidebar | content | player bar.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/now_playing/lyrics_view.dart';
+import 'package:lekis/src/features/player/player_bar.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_panel.dart';
 import 'package:lekis/src/features/player/widgets/current_track.dart';
@@ -10,163 +13,129 @@ import 'package:lekis/src/shell/routes.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
 
-class NowPlayingContextPanel extends ConsumerStatefulWidget {
+class NowPlayingContextPanel extends ConsumerWidget {
   const NowPlayingContextPanel({super.key});
 
-  static const double width = 320;
+  static const double width = LekisSizes.desktopQueuePanelWidth;
 
   @override
-  ConsumerState<NowPlayingContextPanel> createState() =>
-      _NowPlayingContextPanelState();
-}
-
-class _NowPlayingContextPanelState
-    extends ConsumerState<NowPlayingContextPanel> {
-  int _tab = 0; // 0 = lyrics, 1 = queue
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pane = ref.watch(desktopSidePaneProvider);
     final trackId = ref.watch(playbackProvider.select((s) => s.trackId));
     final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
-    if (!hasTrack || trackId == null) return const SizedBox.shrink();
+    if (pane == null || !hasTrack || trackId == null) {
+      return const SizedBox.shrink();
+    }
+    void close() => ref.read(desktopSidePaneProvider.notifier).set(null);
 
-    final colors = context.lekisColors;
-    final theme = Theme.of(context);
-    return Container(
-      width: NowPlayingContextPanel.width,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border(left: BorderSide(color: colors.outline)),
-      ),
+    return SizedBox(
+      key: const ValueKey('context-panel'),
+      width: width,
       child: SafeArea(
         left: false,
         bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                LekisSpacing.xl,
-                LekisSpacing.lg,
-                LekisSpacing.md,
-                LekisSpacing.sm,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '正在播放',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: colors.moon,
-                        letterSpacing: 1.4,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: '打开播放页',
-                    onPressed: () => openNowPlaying(context),
-                    icon: const Icon(Icons.open_in_full_rounded),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.xl),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AspectRatio(
-                    aspectRatio: 1,
-                    child: CurrentArtwork(
-                      radius: LekisRadius.artworkNowPlaying,
-                    ),
-                  ),
-                  const SizedBox(height: LekisSpacing.lg),
-                  CurrentTrackText(
-                    titleStyle: theme.textTheme.titleLarge,
-                    subtitleStyle: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: LekisSpacing.md),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.xl),
-              child: Row(
-                children: [
-                  _ContextTab(
-                    label: '歌词',
-                    selected: _tab == 0,
-                    onTap: () => setState(() => _tab = 0),
-                  ),
-                  const SizedBox(width: LekisSpacing.sm),
-                  _ContextTab(
-                    label: '队列',
-                    selected: _tab == 1,
-                    onTap: () => setState(() => _tab = 1),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: LekisSpacing.sm),
-            Divider(color: colors.outline, height: 1),
-            Expanded(
-              child: _tab == 0
-                  ? LyricsView(trackId: trackId, compact: true)
-                  : const QueuePanel(embedded: false, showHeader: false),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(LekisSpacing.lg),
-              child: FilledButton.tonalIcon(
-                onPressed: () => openNowPlaying(context),
-                icon: const Icon(Icons.play_arrow_rounded),
-                label: const Text('打开播放页'),
-              ),
-            ),
-          ],
-        ),
+        child: switch (pane) {
+          DesktopSidePane.queue => QueuePanel(onClose: close),
+          DesktopSidePane.lyrics => _LyricsPane(
+            trackId: trackId,
+            onClose: close,
+          ),
+        },
       ),
     );
   }
 }
 
-class _ContextTab extends StatelessWidget {
-  const _ContextTab({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
+/// Same frame as [QueuePanel]: header with a close button, then the current
+/// track and its lyrics.
+class _LyricsPane extends StatelessWidget {
+  const _LyricsPane({required this.trackId, required this.onClose});
 
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
+  final int trackId;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.lekisColors;
-    return InkWell(
-      borderRadius: BorderRadius.circular(LekisRadius.pill),
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: LekisMotion.fast,
-        padding: const EdgeInsets.symmetric(
-          horizontal: LekisSpacing.md,
-          vertical: LekisSpacing.xs,
-        ),
+    final theme = Theme.of(context);
+    final panelColor = Color.alphaBlend(
+      colors.surfaceElevated.withValues(alpha: 0.92),
+      theme.colorScheme.surface,
+    );
+    return Material(
+      key: const ValueKey('context-panel.lyrics'),
+      color: panelColor,
+      child: DecoratedBox(
         decoration: BoxDecoration(
-          color: selected ? colors.accentSoft : Colors.transparent,
-          borderRadius: BorderRadius.circular(LekisRadius.pill),
-          border: Border.all(
-            color: selected ? colors.accentSoft : colors.outline,
-          ),
+          border: Border(left: BorderSide(color: colors.outline)),
         ),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: selected ? colors.accent : colors.onSurfaceVariant,
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                LekisSpacing.lg,
+                0,
+                LekisSpacing.sm,
+                LekisSpacing.xs,
+              ),
+              child: SizedBox(
+                height: LekisSizes.touchTargetMin,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.lyrics_outlined,
+                      size: LekisSpacing.xl,
+                      color: colors.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: LekisSpacing.sm),
+                    Expanded(
+                      child: Text('歌词', style: theme.textTheme.titleMedium),
+                    ),
+                    IconButton(
+                      tooltip: '打开播放页',
+                      onPressed: () => openNowPlaying(context),
+                      icon: const Icon(Icons.open_in_full_rounded, size: 18),
+                    ),
+                    IconButton(
+                      tooltip: '关闭歌词',
+                      constraints: const BoxConstraints(
+                        minWidth: LekisSizes.touchTargetMin,
+                        minHeight: LekisSizes.touchTargetMin,
+                      ),
+                      onPressed: onClose,
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Divider(height: 1, color: colors.outline),
+            Padding(
+              padding: const EdgeInsets.all(LekisSpacing.lg),
+              child: Row(
+                children: [
+                  const SizedBox.square(
+                    dimension: LekisSizes.listArtwork,
+                    child: CurrentArtwork(radius: LekisRadius.artworkList),
+                  ),
+                  const SizedBox(width: LekisSpacing.md),
+                  Expanded(
+                    child: CurrentTrackText(
+                      titleStyle: theme.textTheme.titleSmall,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: LyricsView(
+                key: ValueKey('context-lyrics-$trackId'),
+                trackId: trackId,
+                compact: true,
+              ),
+            ),
+          ],
         ),
       ),
     );

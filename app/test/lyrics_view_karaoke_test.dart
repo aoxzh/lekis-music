@@ -49,7 +49,7 @@ void main() {
           playbackProvider.overrideWith(_FakePlayback.new),
           positionProvider.overrideWith(_FakePosition.new),
           lyricsProvider.overrideWith((ref, trackId) async => lyrics),
-          lyricsStageStyleProvider.overrideWithValue(LyricsStageStyle.flow),
+          lyricsStyleProvider.overrideWithValue(LyricsStyle.flow),
           lyricsSparksProvider.overrideWithValue(true),
         ],
         child: MaterialApp(

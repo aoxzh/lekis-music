@@ -330,6 +330,7 @@ class SettingsTile extends StatelessWidget {
     this.trailing,
     this.onTap,
     this.chevron = false,
+    this.selected = false,
   });
 
   final IconData icon;
@@ -343,10 +344,26 @@ class SettingsTile extends StatelessWidget {
   /// 是否在末尾显示进入下一级的箭头。
   final bool chevron;
 
+  /// 双栏布局里右栏正在显示这一行对应的子页面。
+  final bool selected;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
+    if (selected) {
+      return Semantics(
+        selected: true,
+        child: DecoratedBox(
+          decoration: settingsPanelDecoration(context),
+          child: _build(context, theme, colors),
+        ),
+      );
+    }
+    return _build(context, theme, colors);
+  }
+
+  Widget _build(BuildContext context, ThemeData theme, LekisColors colors) {
     final end = chevron
         ? Row(
             mainAxisSize: MainAxisSize.min,

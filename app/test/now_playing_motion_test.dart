@@ -19,6 +19,7 @@ import 'package:lekis/src/features/player/mini_player.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/liquid_glass.dart';
 import 'package:material_ui/material_ui.dart';
 
 class _FakePlayback extends PlaybackController {
@@ -323,7 +324,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('mini player floats with 12 dp corners and 8 dp margins', (
+  testWidgets('mini player floats as a glass capsule with 8 dp margins', (
     tester,
   ) async {
     final (container, actions) = _container();
@@ -344,13 +345,14 @@ void main() {
     expect(rect.bottom, 600 - LekisSizes.miniPlayerMargin);
     expect(rect.height, LekisSizes.miniPlayerHeight);
 
-    final decoration =
-        (tester.widget<DecoratedBox>(card).decoration as BoxDecoration);
+    // Same capsule material as the tab bar (liquid glass by default).
+    final capsule = tester.widget<LekisGlassCapsule>(card);
+    expect(capsule.radius, LekisRadius.miniPlayer);
+    expect(capsule.flat, isFalse);
     expect(
-      decoration.borderRadius,
-      BorderRadius.circular(LekisRadius.miniPlayer),
+      find.descendant(of: card, matching: find.byType(LiquidGlass)),
+      findsOneWidget,
     );
-    expect(decoration.boxShadow, isNull);
 
     final node = tester.getSemantics(
       find.byKey(const ValueKey('mini-player.semantics')),

@@ -1,5 +1,6 @@
 // Now Playing layout guards (Fold5 inner screen, ~829×690 dp landscape):
-// * lyrics / queue toggles exist once (top bar), never also under transport;
+// * lyrics / queue toggles exist once, in the row under the transport
+//   (Apple Music style), not in the top bar;
 // * the library actions stay on the title line (no five inline stars);
 // * the title has an “artist · album” line;
 // * the grabber is centred on the full width;
@@ -16,6 +17,7 @@ import 'package:lekis/src/features/now_playing/now_playing_page.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/features/now_playing/now_playing_tint.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/player/widgets/player_controls.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
@@ -94,9 +96,25 @@ void main() {
     addTearDown(container.dispose);
     await _pump(tester, container);
 
-    // Lyrics / queue only in the top bar.
+    // Lyrics / queue exist once, in the bottom row under the transport.
     expect(find.byIcon(Icons.lyrics_outlined), findsOneWidget);
     expect(find.byIcon(Icons.queue_music_rounded), findsOneWidget);
+    final transport = tester.getRect(find.byType(TransportControls));
+    for (final key in const [
+      NowPlayingActions.lyricsKey,
+      NowPlayingActions.wallKey,
+      NowPlayingActions.queueKey,
+    ]) {
+      final rect = tester.getRect(find.byKey(key));
+      expect(rect.top, greaterThanOrEqualTo(transport.bottom));
+      expect(
+        find.descendant(
+          of: find.byType(NowPlayingControls),
+          matching: find.byKey(key),
+        ),
+        findsOneWidget,
+      );
+    }
 
     // At most one rating star, not five; on this narrow column rating lives
     // in the “more” menu next to download / add to playlist.

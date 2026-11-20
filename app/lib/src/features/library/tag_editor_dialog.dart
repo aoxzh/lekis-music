@@ -12,6 +12,7 @@ import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/rust/api/error.dart';
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// 打开单曲标签编辑。
@@ -20,9 +21,9 @@ Future<void> showTrackTagEditor(
   required int trackId,
   String? trackTitle,
 }) {
-  return showDialog<void>(
-    context: context,
-    barrierDismissible: false,
+  return showLekisPanel<void>(
+    context,
+    dismissible: false,
     builder: (_) => TagEditorDialog(trackIds: [trackId], title: trackTitle),
   );
 }
@@ -32,14 +33,14 @@ Future<void> showBatchTagEditor(
   BuildContext context, {
   required List<int> trackIds,
 }) {
-  return showDialog<void>(
-    context: context,
-    barrierDismissible: false,
+  return showLekisPanel<void>(
+    context,
+    dismissible: false,
     builder: (_) => TagEditorDialog(trackIds: trackIds),
   );
 }
 
-/// 单曲 / 批量共用的标签编辑对话框。
+/// 单曲 / 批量共用的标签编辑面板：宽窗口是居中对话框，手机是底部面板。
 class TagEditorDialog extends ConsumerStatefulWidget {
   const TagEditorDialog({super.key, required this.trackIds, this.title});
 
@@ -317,188 +318,115 @@ class _TagEditorDialogState extends ConsumerState<TagEditorDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
-    final media = MediaQuery.sizeOf(context);
-    return Dialog(
-      insetPadding: const EdgeInsets.symmetric(
-        horizontal: LekisSpacing.lg,
-        vertical: LekisSpacing.lg,
-      ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 620,
-          maxHeight: media.height * 0.88,
+    final close = _busy ? null : () => Navigator.of(context).pop();
+    final ready = !_loading && _loadError == null;
+    return LekisPanel(
+      title: _batch ? '批量编辑标签' : '编辑标签',
+      subtitle: _batch
+          ? '已选 ${widget.trackIds.length} 首歌曲 · 留空的字段表示不修改'
+          : widget.title,
+      onClose: close,
+      error: _formError,
+      actions: [
+        TextButton(onPressed: close, child: const Text('取消')),
+        OutlinedButton.icon(
+          key: const ValueKey('tag-editor.save-library'),
+          onPressed: _busy || !ready ? null : _saveOnly,
+          icon: const Icon(Icons.library_add_outlined),
+          label: const Text('仅保存到资料库'),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                LekisSpacing.xl,
-                LekisSpacing.xl,
-                LekisSpacing.xl,
-                LekisSpacing.sm,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _batch ? '批量编辑标签' : '编辑标签',
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  if (widget.title != null && !_batch)
-                    Padding(
-                      padding: const EdgeInsets.only(top: LekisSpacing.xxs),
-                      child: Text(
-                        widget.title!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  if (_batch)
-                    Padding(
-                      padding: const EdgeInsets.only(top: LekisSpacing.xxs),
-                      child: Text(
-                        '已选 ${widget.trackIds.length} 首歌曲 · 留空的字段表示不修改',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Flexible(child: _buildBody(theme, colors)),
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.all(LekisSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_formError != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: LekisSpacing.sm),
-                      child: Text(
-                        _formError!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.error,
-                        ),
-                      ),
-                    ),
-                  Wrap(
-                    alignment: WrapAlignment.end,
-                    spacing: LekisSpacing.sm,
-                    runSpacing: LekisSpacing.sm,
-                    children: [
-                      TextButton(
-                        onPressed: _busy
-                            ? null
-                            : () => Navigator.of(context).pop(),
-                        child: const Text('取消'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _busy ? null : _saveOnly,
-                        icon: const Icon(Icons.library_add_outlined),
-                        label: const Text('仅保存到资料库'),
-                      ),
-                      FilledButton.icon(
-                        onPressed: _busy ? null : _writeFile,
-                        icon: _busy
-                            ? const SizedBox.square(
-                                dimension: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.save_rounded),
-                        label: const Text('写入文件'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
+        FilledButton.icon(
+          key: const ValueKey('tag-editor.write-file'),
+          onPressed: _busy || !ready ? null : _writeFile,
+          icon: _busy
+              ? const LekisPanelProgress()
+              : const Icon(Icons.save_rounded),
+          label: const Text('写入文件'),
         ),
-      ),
+      ],
+      body: _buildBody(theme, colors),
     );
   }
 
   Widget _buildBody(ThemeData theme, LekisColors colors) {
     if (_loading) {
-      return const Padding(
-        padding: EdgeInsets.all(LekisSpacing.xxl),
+      return const SizedBox(
+        height: LekisSizes.gridArtworkMin,
         child: Center(child: CircularProgressIndicator()),
       );
     }
     if (_loadError != null) {
-      return Padding(
-        padding: const EdgeInsets.all(LekisSpacing.xl),
-        child: Text(
-          '加载失败：$_loadError',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.error,
-          ),
-        ),
+      return Text(
+        '加载失败：$_loadError',
+        style: theme.textTheme.bodyMedium?.copyWith(color: colors.danger),
       );
     }
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(
-        LekisSpacing.xl,
-        LekisSpacing.lg,
-        LekisSpacing.xl,
-        LekisSpacing.lg,
+    Widget section(String label) => Padding(
+      padding: const EdgeInsets.only(
+        top: LekisSpacing.sm,
+        bottom: LekisSpacing.sm,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            _batch
-                ? '填写要统一修改的字段。留空的字段保持每首歌原来的值。'
-                : '“仅保存到资料库”只改显示，不修改文件；留空的字段不会覆盖文件原值。',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colors.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: LekisSpacing.lg),
-          _field(_title, '标题'),
-          _field(_artist, '艺人', hint: '多个艺人用 “ / ” 分隔'),
-          _field(_album, '专辑'),
-          _field(_albumArtist, '专辑艺人'),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: _field(_trackNo, '曲目号', number: true)),
-              const SizedBox(width: LekisSpacing.md),
-              Expanded(child: _field(_discNo, '碟片号', number: true)),
-              const SizedBox(width: LekisSpacing.md),
-              Expanded(child: _field(_year, '年份', number: true)),
-            ],
-          ),
-          _field(_genre, '流派', hint: '多个流派用 “;” 分隔'),
-          _field(_comment, '评论', maxLines: 3),
-          _field(_composer, '作曲'),
-          _field(_lyricist, '作词'),
-          _field(_musicbrainzTrackId, 'MusicBrainz 录音 ID'),
-          _field(_musicbrainzAlbumId, 'MusicBrainz 专辑 ID'),
-          Padding(
-            padding: const EdgeInsets.only(top: LekisSpacing.sm),
-            child: Text(
-              '支持 MP3、FLAC、M4A/AAC、OGG/Opus。远程音源与 WAV/APE 等格式不能写回文件。',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ],
+      child: Text(
+        label,
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: colors.onSurfaceVariant,
+        ),
       ),
+    );
+    const gap = SizedBox(width: LekisSpacing.md);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          _batch
+              ? '填写要统一修改的字段。留空的字段保持每首歌原来的值。'
+              : '“仅保存到资料库”只改显示，不修改文件；留空的字段不会覆盖文件原值。',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: colors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: LekisSpacing.md),
+        section('基本信息'),
+        _field(_title, '标题'),
+        _field(_artist, '艺人', hint: '多个艺人用 “ / ” 分隔'),
+        _field(_album, '专辑'),
+        _field(_albumArtist, '专辑艺人'),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: _field(_trackNo, '曲目号', number: true)),
+            gap,
+            Expanded(child: _field(_discNo, '碟片号', number: true)),
+            gap,
+            Expanded(child: _field(_year, '年份', number: true)),
+          ],
+        ),
+        _field(_genre, '流派', hint: '多个流派用 “;” 分隔'),
+        section('创作'),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: _field(_composer, '作曲')),
+            gap,
+            Expanded(child: _field(_lyricist, '作词')),
+          ],
+        ),
+        _field(_comment, '评论', maxLines: 3),
+        section('MusicBrainz'),
+        _field(_musicbrainzTrackId, '录音 ID'),
+        _field(_musicbrainzAlbumId, '专辑 ID'),
+        Text(
+          '支持 MP3、FLAC、M4A/AAC、OGG/Opus。远程音源与 WAV/APE 等格式不能写回文件。',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: colors.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 
+  /// Fields use the theme's filled style (same as every other form).
   Widget _field(
     TextEditingController controller,
     String label, {
@@ -507,18 +435,13 @@ class _TagEditorDialogState extends ConsumerState<TagEditorDialog> {
     int maxLines = 1,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: LekisSpacing.md),
+      padding: const EdgeInsets.only(bottom: LekisPanel.fieldGap),
       child: TextField(
         controller: controller,
         enabled: !_busy,
         maxLines: maxLines,
         keyboardType: number ? TextInputType.number : TextInputType.text,
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-          border: const OutlineInputBorder(),
-          isDense: true,
-        ),
+        decoration: InputDecoration(labelText: label, hintText: hint),
       ),
     );
   }

@@ -4,18 +4,19 @@ import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
+/// Opens the lyrics editor: a dialog on wide windows, a bottom sheet on
+/// phones (see [showLekisPanel]).
 Future<void> showLyricsEditor(
   BuildContext context,
   WidgetRef ref,
   int trackId,
 ) async {
-  await showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    showDragHandle: true,
+  await showLekisPanel<void>(
+    context,
+    dismissible: false,
     builder: (_) => _LyricsEditorSheet(trackId: trackId),
   );
   ref.invalidate(lyricsProvider(trackId));
@@ -111,159 +112,158 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
     super.dispose();
   }
 
+  String get _offsetLabel => '${_offset >= 0 ? '+' : ''}${_offset}ms';
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
-    final bottom = MediaQuery.viewInsetsOf(context).bottom;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        LekisSpacing.lg,
-        0,
-        LekisSpacing.lg,
-        LekisSpacing.lg + bottom,
-      ),
-      child: _loading
+    final close = _saving ? null : () => Navigator.of(context).pop();
+    return LekisPanel(
+      title: '编辑歌词',
+      subtitle: '粘贴 LRC / 增强 LRC / TTML，或直接写纯文本。保存后作为“手动”版本立即生效。',
+      onClose: close,
+      error: _error,
+      actions: [
+        TextButton(onPressed: close, child: const Text('取消')),
+        FilledButton.icon(
+          key: const ValueKey('lyrics-editor.save'),
+          onPressed: _saving || _loading ? null : _save,
+          icon: _saving
+              ? const LekisPanelProgress()
+              : const Icon(Icons.check_rounded),
+          label: const Text('保存'),
+        ),
+      ],
+      body: _loading
           ? const SizedBox(
-              height: 180,
+              height: LekisSizes.gridArtworkMin,
               child: Center(child: CircularProgressIndicator()),
             )
-          : SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.edit_note, color: colors.moon),
-                      const SizedBox(width: LekisSpacing.sm),
-                      Text('编辑歌词', style: theme.textTheme.titleLarge),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: _saving
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _Label('格式', theme: theme, colors: colors),
+                SegmentedButton<LyricsFormatDto>(
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(
+                      value: LyricsFormatDto.lrc,
+                      label: Text('LRC'),
+                    ),
+                    ButtonSegment(
+                      value: LyricsFormatDto.enhancedLrc,
+                      label: Text('逐字'),
+                    ),
+                    ButtonSegment(
+                      value: LyricsFormatDto.ttml,
+                      label: Text('TTML'),
+                    ),
+                    ButtonSegment(
+                      value: LyricsFormatDto.plain,
+                      label: Text('纯文本'),
+                    ),
+                  ],
+                  selected: {_format},
+                  onSelectionChanged: _saving
+                      ? null
+                      : (s) => setState(() => _format = s.first),
+                ),
+                const SizedBox(height: LekisSpacing.lg),
+                TextField(
+                  key: const ValueKey('lyrics-editor.content'),
+                  controller: _content,
+                  enabled: !_saving,
+                  minLines: 8,
+                  maxLines: 16,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontFamily: 'monospace',
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: '歌词内容',
+                    hintText: '[00:01.00]第一句\n[00:05.00]第二句',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                const SizedBox(height: LekisSpacing.lg),
+                _Label('整体偏移', theme: theme, colors: colors),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Slider(
+                        value: _offset.toDouble(),
+                        min: -5000,
+                        max: 5000,
+                        divisions: 100,
+                        label: _offsetLabel,
+                        onChanged: _saving
                             ? null
-                            : () => Navigator.of(context).pop(),
-                        child: const Text('取消'),
+                            : (v) => setState(() => _offset = v.round()),
                       ),
-                      FilledButton(
-                        onPressed: _saving ? null : _save,
-                        child: _saving
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Text('保存'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: LekisSpacing.sm),
-                  Text(
-                    '粘贴 LRC / 增强 LRC / TTML，或直接写纯文本。保存后会作为“manual”版本并立即生效。',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
                     ),
-                  ),
-                  const SizedBox(height: LekisSpacing.lg),
-                  SegmentedButton<LyricsFormatDto>(
-                    showSelectedIcon: false,
-                    segments: const [
-                      ButtonSegment(
-                        value: LyricsFormatDto.lrc,
-                        label: Text('LRC'),
-                      ),
-                      ButtonSegment(
-                        value: LyricsFormatDto.enhancedLrc,
-                        label: Text('逐字'),
-                      ),
-                      ButtonSegment(
-                        value: LyricsFormatDto.ttml,
-                        label: Text('TTML'),
-                      ),
-                      ButtonSegment(
-                        value: LyricsFormatDto.plain,
-                        label: Text('纯文本'),
-                      ),
-                    ],
-                    selected: {_format},
-                    onSelectionChanged: (s) =>
-                        setState(() => _format = s.first),
-                  ),
-                  const SizedBox(height: LekisSpacing.lg),
-                  TextField(
-                    controller: _content,
-                    minLines: 8,
-                    maxLines: 16,
-                    style: const TextStyle(fontFamily: 'monospace'),
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      labelText: '歌词内容',
-                      hintText: '[00:01.00]第一句\n[00:05.00]第二句',
-                      alignLabelWithHint: true,
-                    ),
-                  ),
-                  const SizedBox(height: LekisSpacing.lg),
-                  Row(
-                    children: [
-                      const Text('整体偏移'),
-                      const SizedBox(width: LekisSpacing.sm),
-                      Expanded(
-                        child: Slider(
-                          value: _offset.toDouble(),
-                          min: -5000,
-                          max: 5000,
-                          divisions: 100,
-                          label: '${_offset >= 0 ? '+' : ''}${_offset}ms',
-                          onChanged: (v) =>
-                              setState(() => _offset = v.round()),
+                    SizedBox(
+                      width: LekisSpacing.xxxl + LekisSpacing.xl,
+                      child: Text(
+                        _offsetLabel,
+                        textAlign: TextAlign.end,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
-                      SizedBox(
-                        width: 76,
-                        child: Text(
-                          '${_offset >= 0 ? '+' : ''}${_offset}ms',
-                          textAlign: TextAlign.end,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    '正值让歌词提前出现，和 LRC 的 [offset:] 一致。',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                  if (_versions.isNotEmpty) ...[
-                    const SizedBox(height: LekisSpacing.lg),
-                    Text('已有版本', style: theme.textTheme.titleSmall),
-                    const SizedBox(height: LekisSpacing.xs),
-                    for (final v in _versions.take(6))
-                      ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(
-                          v.isActive
-                              ? Icons.check_circle
-                              : Icons.description_outlined,
-                          size: 20,
-                          color: v.isActive ? colors.moon : null,
-                        ),
-                        title: Text(
-                          '${v.lyrics.source} · ${v.lyrics.format.name}',
-                        ),
-                        subtitle: Text('${v.lyrics.content.length} 字符'),
-                      ),
-                  ],
-                  if (_error != null) ...[
-                    const SizedBox(height: LekisSpacing.sm),
-                    Text(
-                      _error!,
-                      style: TextStyle(color: theme.colorScheme.error),
                     ),
                   ],
+                ),
+                Text(
+                  '正值让歌词提前出现，和 LRC 的 [offset:] 一致。',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+                if (_versions.isNotEmpty) ...[
+                  const SizedBox(height: LekisSpacing.xl),
+                  _Label('已有版本', theme: theme, colors: colors),
+                  for (final v in _versions.take(6))
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        v.isActive
+                            ? Icons.check_circle_rounded
+                            : Icons.description_outlined,
+                        size: LekisSpacing.xl - LekisSpacing.xs,
+                        color: v.isActive
+                            ? colors.accent
+                            : colors.onSurfaceVariant,
+                      ),
+                      title: Text(
+                        '${v.lyrics.source} · ${v.lyrics.format.name}',
+                      ),
+                      subtitle: Text('${v.lyrics.content.length} 字符'),
+                    ),
                 ],
-              ),
+              ],
             ),
     );
   }
+}
+
+/// Small section label above a control (same as the tag editor's).
+class _Label extends StatelessWidget {
+  const _Label(this.text, {required this.theme, required this.colors});
+
+  final String text;
+  final ThemeData theme;
+  final LekisColors colors;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: LekisSpacing.sm),
+    child: Text(
+      text,
+      style: theme.textTheme.labelMedium?.copyWith(
+        color: colors.onSurfaceVariant,
+      ),
+    ),
+  );
 }

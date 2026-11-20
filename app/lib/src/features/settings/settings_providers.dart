@@ -21,10 +21,10 @@ abstract final class SettingKeys {
   /// `shared` / `exclusive`。
   static const outputMode = 'playback.output_mode';
 
-  /// 歌词舞台样式：`flow`（默认）/ `steps` / `tilt`。
+  /// 歌词视图样式：`classic`（默认）/ `flow` / `steps` / `tilt`。
   static const lyricsStage = 'ui.lyrics_stage';
 
-  /// 歌词舞台火花：`true`（默认）/ `false`。
+  /// 歌词舞台火花：`true`（默认）/ `false`。只对舞台样式有效。
   static const lyricsSparks = 'ui.lyrics_sparks';
 }
 

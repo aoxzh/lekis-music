@@ -1,47 +1,84 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/library/library_providers.dart'
+    show SimpleValue;
+import 'package:lekis/src/features/library/widgets/track_actions.dart'
+    show LovedButton;
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_view.dart';
 import 'package:lekis/src/features/player/widgets/current_track.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
+import 'package:lekis/src/features/settings/settings_providers.dart'
+    show playbackOutputProvider;
 import 'package:lekis/src/shell/routes.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Desktop player bar along the bottom of the window:
-/// `[artwork  title/artist] [transport + seek] [lyrics queue volume]`.
+/// What the desktop right-hand context panel shows (Spotify's "lyrics" /
+/// "queue" buttons in the player bar toggle it). `null` = closed.
+enum DesktopSidePane { lyrics, queue }
+
+/// Open desktop side pane, toggled from the player bar.
+final desktopSidePaneProvider =
+    NotifierProvider<SimpleValue<DesktopSidePane?>, DesktopSidePane?>(
+      () => SimpleValue<DesktopSidePane?>(null),
+    );
+
+/// Desktop player bar along the bottom of the window, Spotify / Apple Music
+/// style:
+/// `[artwork  title/artist  ♡] [transport + seek] [lyrics queue device volume]`.
 ///
 /// Only the artwork / title block opens Now Playing; the rest of the bar is
 /// controls, so a stray click between buttons does nothing.
 class PlayerBar extends ConsumerWidget {
-  const PlayerBar({super.key});
+  const PlayerBar({super.key, this.sidePanel = false});
+
+  /// Whether the window has the right-hand context panel. Then lyrics /
+  /// queue toggle that panel in place; otherwise lyrics open Now Playing and
+  /// the queue opens as a sheet.
+  final bool sidePanel;
+
+  static const Key lyricsKey = ValueKey('player-bar.lyrics');
+  static const Key queueKey = ValueKey('player-bar.queue');
+  static const Key devicesKey = ValueKey('player-bar.devices');
 
   /// Below this width the right-hand block drops the volume slider and keeps
   /// only the mute button (the mouse wheel still changes volume over it).
   static const double _volumeSliderMinWidth =
-      LekisSizes.touchTargetMin * 3 + LekisSizes.gridArtworkMin * 0.75;
+      LekisSizes.touchTargetMin * 4 + LekisSizes.gridArtworkMin * 0.75;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
+    final sidePane = sidePanel ? ref.watch(desktopSidePaneProvider) : null;
     final colors = context.lekisColors;
-    // The bar's own vertical padding is [LekisSpacing.sm]; the artwork keeps
-    // a little more air than that so it never touches the divider.
     const artSize = LekisSizes.desktopPlayerBarHeight - LekisSpacing.lg * 2;
 
-    final left = _NowPlayingLink(
-      enabled: hasTrack,
-      child: const Row(
-        children: [
-          SizedBox.square(
-            dimension: artSize,
-            child: CurrentArtwork(radius: LekisRadius.artworkList),
+    void toggleSide(DesktopSidePane pane) => ref
+        .read(desktopSidePaneProvider.notifier)
+        .set(sidePane == pane ? null : pane);
+
+    final left = Row(
+      children: [
+        Flexible(
+          child: _NowPlayingLink(
+            enabled: hasTrack,
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox.square(
+                  dimension: artSize,
+                  child: CurrentArtwork(radius: LekisRadius.artworkList),
+                ),
+                SizedBox(width: LekisSpacing.md),
+                Flexible(child: CurrentTrackText()),
+              ],
+            ),
           ),
-          SizedBox(width: LekisSpacing.md),
-          Expanded(child: CurrentTrackText()),
-        ],
-      ),
+        ),
+        const _CurrentLovedButton(),
+      ],
     );
 
     final center = ConstrainedBox(
@@ -61,31 +98,36 @@ class PlayerBar extends ConsumerWidget {
         return Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            IconButton(
-              tooltip: '歌词',
-              constraints: const BoxConstraints(
-                minWidth: LekisSizes.touchTargetMin,
-                minHeight: LekisSizes.touchTargetMin,
-              ),
-              onPressed: hasTrack
-                  ? () {
+            _BarToggle(
+              key: lyricsKey,
+              tooltip: sidePane == DesktopSidePane.lyrics ? '隐藏歌词' : '歌词',
+              icon: Icons.lyrics_outlined,
+              selectedIcon: Icons.lyrics_rounded,
+              selected: sidePane == DesktopSidePane.lyrics,
+              onPressed: !hasTrack
+                  ? null
+                  : sidePanel
+                  ? () => toggleSide(DesktopSidePane.lyrics)
+                  : () {
                       ref
                           .read(nowPlayingPaneProvider.notifier)
                           .set(NowPlayingPane.lyrics);
                       openNowPlaying(context);
-                    }
-                  : null,
-              icon: const Icon(Icons.lyrics_outlined),
+                    },
             ),
-            IconButton(
-              tooltip: '播放队列',
-              constraints: const BoxConstraints(
-                minWidth: LekisSizes.touchTargetMin,
-                minHeight: LekisSizes.touchTargetMin,
-              ),
-              onPressed: hasTrack ? () => showQueueSheet(context) : null,
-              icon: const Icon(Icons.queue_music_rounded),
+            _BarToggle(
+              key: queueKey,
+              tooltip: sidePane == DesktopSidePane.queue ? '隐藏播放队列' : '播放队列',
+              icon: Icons.queue_music_rounded,
+              selectedIcon: Icons.queue_music_rounded,
+              selected: sidePane == DesktopSidePane.queue,
+              onPressed: !hasTrack
+                  ? null
+                  : sidePanel
+                  ? () => toggleSide(DesktopSidePane.queue)
+                  : () => showQueueSheet(context),
             ),
+            const _OutputDeviceButton(key: devicesKey),
             Flexible(
               child: _WheelVolume(child: VolumeControl(showSlider: roomy)),
             ),
@@ -97,25 +139,155 @@ class PlayerBar extends ConsumerWidget {
     return PlayerShortcuts(
       child: Material(
         color: colors.surfaceElevated,
-        child: SizedBox(
-          height: LekisSizes.desktopPlayerBarHeight,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: LekisSpacing.lg,
-              vertical: LekisSpacing.xs,
-            ),
-            child: Row(
-              children: [
-                Expanded(flex: 3, child: left),
-                const SizedBox(width: LekisSpacing.lg),
-                Expanded(flex: 4, child: Center(child: center)),
-                const SizedBox(width: LekisSpacing.lg),
-                Expanded(flex: 3, child: right),
-              ],
+        child: DecoratedBox(
+          // One hairline on top separates the bar from the content.
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: colors.outline)),
+          ),
+          child: SizedBox(
+            height: LekisSizes.desktopPlayerBarHeight,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: LekisSpacing.lg,
+                vertical: LekisSpacing.xs,
+              ),
+              child: Row(
+                children: [
+                  Expanded(flex: 3, child: left),
+                  const SizedBox(width: LekisSpacing.lg),
+                  Expanded(flex: 4, child: Center(child: center)),
+                  const SizedBox(width: LekisSpacing.lg),
+                  Expanded(flex: 3, child: right),
+                ],
+              ),
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Icon toggle in the right cluster: accent icon + soft disc when active.
+class _BarToggle extends StatelessWidget {
+  const _BarToggle({
+    super.key,
+    required this.tooltip,
+    required this.icon,
+    required this.selectedIcon,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final IconData selectedIcon;
+  final bool selected;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.lekisColors;
+    return IconButton(
+      tooltip: tooltip,
+      isSelected: selected,
+      constraints: const BoxConstraints(
+        minWidth: LekisSizes.touchTargetMin,
+        minHeight: LekisSizes.touchTargetMin,
+      ),
+      style: IconButton.styleFrom(
+        backgroundColor: selected ? colors.accentSoft : null,
+        foregroundColor: selected ? colors.accent : null,
+      ),
+      onPressed: onPressed,
+      icon: Icon(icon),
+      selectedIcon: Icon(selectedIcon, color: colors.accent),
+    );
+  }
+}
+
+/// Heart for the playing track, right after its title (Spotify).
+class _CurrentLovedButton extends ConsumerWidget {
+  const _CurrentLovedButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final track = ref.watch(currentTrackProvider).value;
+    if (track == null) return const SizedBox.shrink();
+    return LovedButton(
+      key: const ValueKey('player-bar.loved'),
+      trackId: track.id,
+      initialLoved: track.loved,
+      compact: false,
+    );
+  }
+}
+
+/// Output device picker (Spotify's "connect to a device" slot). Devices are
+/// listed when the menu opens, never while building the bar.
+class _OutputDeviceButton extends ConsumerWidget {
+  const _OutputDeviceButton({super.key});
+
+  /// Menu value for "follow the system default".
+  static const String _systemDefault = '';
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.lekisColors;
+    return PopupMenuButton<String>(
+      tooltip: '输出设备',
+      icon: const Icon(Icons.speaker_group_outlined),
+      constraints: const BoxConstraints(
+        minWidth: LekisSizes.desktopSidebarWidth,
+      ),
+      itemBuilder: (context) {
+        ref.read(playbackOutputProvider.notifier).refresh();
+        final state = ref.read(playbackOutputProvider);
+        final selected = state.selectedDeviceId;
+        PopupMenuItem<String> item(String value, String label, bool on) =>
+            PopupMenuItem<String>(
+              value: value,
+              child: Row(
+                children: [
+                  SizedBox.square(
+                    dimension: LekisSpacing.xl,
+                    child: on
+                        ? Icon(
+                            Icons.check_rounded,
+                            size: LekisSpacing.lg + LekisSpacing.xxs,
+                            color: colors.accent,
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: LekisSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            );
+        return [
+          item(_systemDefault, '跟随系统默认', selected == null),
+          if (state.devices.isNotEmpty) const PopupMenuDivider(),
+          for (final d in state.devices) item(d.id, d.name, selected == d.id),
+        ];
+      },
+      onSelected: (id) async {
+        try {
+          await ref
+              .read(playbackOutputProvider.notifier)
+              .selectDevice(id == _systemDefault ? null : id);
+        } catch (_) {
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(const SnackBar(content: Text('切换输出设备失败')));
+        }
+      },
     );
   }
 }
@@ -139,15 +311,11 @@ class _NowPlayingLink extends StatelessWidget {
         child: child,
       ),
     );
-    return Align(
-      alignment: AlignmentDirectional.centerStart,
-      child: enabled
-          ? Tooltip(
-              message: '打开播放页',
-              waitDuration: LekisMotion.slow,
-              child: link,
-            )
-          : link,
+    if (!enabled) return link;
+    return Tooltip(
+      message: '打开播放页',
+      waitDuration: LekisMotion.slow,
+      child: link,
     );
   }
 }

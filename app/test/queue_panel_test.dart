@@ -120,7 +120,7 @@ void main() {
 
     // Opening the pane from the cover exercises the three-pane transition.
     await tester.tap(
-      find.byKey(const ValueKey('now-playing.top-bar.queue')),
+      find.byKey(const ValueKey('now-playing.actions.queue')),
     );
     await tester.pumpAndSettle();
 
@@ -170,7 +170,7 @@ void main() {
 
     expect(find.byType(QueuePanel), findsNothing);
 
-    await tester.tap(find.byKey(const ValueKey('now-playing.top-bar.queue')));
+    await tester.tap(find.byKey(const ValueKey('now-playing.actions.queue')));
     await tester.pumpAndSettle();
 
     expect(find.byType(QueueList), findsOneWidget);

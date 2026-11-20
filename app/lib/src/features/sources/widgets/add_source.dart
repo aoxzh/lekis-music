@@ -119,6 +119,9 @@ class SourceKindChooser extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final muted = theme.textTheme.bodyMedium?.copyWith(
+      color: context.lekisColors.onSurfaceVariant,
+    );
     Widget group(String title, List<SourceKindDto> kinds) => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -149,7 +152,18 @@ class SourceKindChooser extends StatelessWidget {
               SourcesStrings.chooseKind,
               style: theme.textTheme.headlineSmall,
             ),
-            group(SourcesStrings.groupThisDevice, const [SourceKindDto.local]),
+            const SizedBox(height: LekisSpacing.sm),
+            Text(SourcesStrings.chooseKindBody, style: muted),
+            const SizedBox(height: LekisSpacing.xl),
+            // 本地文件夹是绝大多数人的第一步：单独放大、放在最前面。
+            _FeaturedLocalOption(onTap: () => onChoose(SourceKindDto.local)),
+            const SizedBox(height: LekisSpacing.xxl),
+            Text(
+              SourcesStrings.groupNetwork,
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: LekisSpacing.xs),
+            Text(SourcesStrings.groupNetworkBody, style: muted),
             group(SourcesStrings.groupNetworkShare, const [
               SourceKindDto.smb,
               SourceKindDto.webDav,
@@ -162,6 +176,86 @@ class SourceKindChooser extends StatelessWidget {
             const SizedBox(height: LekisSpacing.xl),
             LanDiscoverySection(onPick: onDiscovered),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// “本地文件夹”的大号入口：强调色底 + “推荐”标签。
+class _FeaturedLocalOption extends StatelessWidget {
+  const _FeaturedLocalOption({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.lekisColors;
+    final theme = Theme.of(context);
+    return Card(
+      key: const ValueKey('add-source-local'),
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      color: colors.accentSoft,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(LekisRadius.md),
+        side: BorderSide(color: colors.accent.withValues(alpha: 0.5)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(LekisSpacing.lg),
+          child: Row(
+            children: [
+              SourceKindBadge(icon: SourceKindDto.local.icon),
+              const SizedBox(width: LekisSpacing.lg),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: LekisSpacing.sm,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          SourcesStrings.kindLocal,
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: colors.accent,
+                            borderRadius: BorderRadius.circular(LekisRadius.sm),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: LekisSpacing.sm,
+                              vertical: LekisSpacing.xxs,
+                            ),
+                            child: Text(
+                              SourcesStrings.recommended,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: colors.onAccent,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: LekisSpacing.xs),
+                    Text(
+                      SourcesStrings.kindLocalFeaturedHint,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: LekisSpacing.sm),
+              Icon(Icons.chevron_right, color: colors.onSurfaceVariant),
+            ],
+          ),
         ),
       ),
     );
@@ -231,6 +325,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
   final _url = TextEditingController();
   final _username = TextEditingController();
   final _secret = TextEditingController();
+  final _alternates = TextEditingController();
 
   bool _guest = false;
   bool _obscure = true;
@@ -264,6 +359,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     _url.text = initial.url;
     _username.text = initial.username;
     _guest = initial.guest;
+    _alternates.text = initial.alternateAddresses.join('\n');
     _localPath = initial.kind == SourceKindDto.local && initial.path.isNotEmpty
         ? initial.path
         : null;
@@ -272,7 +368,16 @@ class _SourceFormState extends ConsumerState<SourceForm> {
   @override
   void dispose() {
     _secret.clear();
-    for (final c in [_name, _host, _share, _path, _url, _username, _secret]) {
+    for (final c in [
+      _name,
+      _host,
+      _share,
+      _path,
+      _url,
+      _username,
+      _secret,
+      _alternates,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -331,7 +436,18 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     username: _guest ? '' : _username.text,
     secret: _useTypedSecret ? _secret.text : '',
     guest: _guest,
+    // 备用地址只对网络音源有意义；本地文件夹永远只有一个路径。
+    alternateAddresses: _isNetwork
+        ? _alternates.text
+              .split('\n')
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+              .toList(growable: false)
+        : const [],
   );
+
+  /// 只有网络音源才有“测试连接”、凭据和备用地址。
+  bool get _isNetwork => _kind.isNetwork;
 
   Future<void> _submit() async {
     if (!_canSubmit) return;
@@ -370,7 +486,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
   }
 
   Future<void> _test() async {
-    if (!_canSubmit) return;
+    if (!_isNetwork || !_canSubmit) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final draft = _draft();
     setState(() {
@@ -434,6 +550,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
                   hint: SourcesStrings.fieldNameHint,
                   action: TextInputAction.done,
                 ),
+                if (_isNetwork) ...[_gap, _moreOptions(context)],
                 if (_usesSecret && _useTypedSecret) ...[
                   const SizedBox(height: LekisSpacing.md),
                   Row(
@@ -480,25 +597,28 @@ class _SourceFormState extends ConsumerState<SourceForm> {
                       onPressed: _busy || _testing ? null : widget.onBack,
                       child: const Text(SourcesStrings.cancel),
                     ),
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(0, LekisSizes.touchTargetMin),
+                    // 本地文件夹没有“连接”可测，选好文件夹直接添加即可。
+                    if (_isNetwork)
+                      OutlinedButton.icon(
+                        key: const ValueKey('source-form-test'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, LekisSizes.touchTargetMin),
+                        ),
+                        onPressed: _canSubmit ? _test : null,
+                        icon: _testing
+                            ? const SizedBox.square(
+                                dimension: LekisSpacing.lg,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: LekisSpacing.xxs,
+                                ),
+                              )
+                            : const Icon(Icons.wifi_tethering),
+                        label: Text(
+                          _testing
+                              ? SourcesStrings.testing
+                              : SourcesStrings.testConnection,
+                        ),
                       ),
-                      onPressed: _canSubmit ? _test : null,
-                      icon: _testing
-                          ? const SizedBox.square(
-                              dimension: LekisSpacing.lg,
-                              child: CircularProgressIndicator(
-                                strokeWidth: LekisSpacing.xxs,
-                              ),
-                            )
-                          : const Icon(Icons.wifi_tethering),
-                      label: Text(
-                        _testing
-                            ? SourcesStrings.testing
-                            : SourcesStrings.testConnection,
-                      ),
-                    ),
                     FilledButton.icon(
                       style: FilledButton.styleFrom(
                         minimumSize: const Size(0, LekisSizes.touchTargetMin),
@@ -512,15 +632,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
                               ),
                             )
                           : const Icon(Icons.check),
-                      label: Text(
-                        _busy
-                            ? (_isEdit
-                                  ? SourcesStrings.savingChanges
-                                  : SourcesStrings.saving)
-                            : (_isEdit
-                                  ? SourcesStrings.saveChanges
-                                  : SourcesStrings.testAndSave),
-                      ),
+                      label: Text(_submitLabel),
                     ),
                   ],
                 ),
@@ -533,6 +645,52 @@ class _SourceFormState extends ConsumerState<SourceForm> {
   }
 
   static const _gap = SizedBox(height: LekisSpacing.md);
+
+  String get _submitLabel {
+    if (_isEdit) {
+      return _busy ? SourcesStrings.savingChanges : SourcesStrings.saveChanges;
+    }
+    if (!_isNetwork) {
+      return _busy ? SourcesStrings.adding : SourcesStrings.addAndScan;
+    }
+    return _busy ? SourcesStrings.saving : SourcesStrings.testAndSave;
+  }
+
+  /// 网络音源的进阶字段（备用地址）。默认收起，已有备用地址时展开。
+  Widget _moreOptions(BuildContext context) {
+    final smb = _kind == SourceKindDto.smb;
+    return Theme(
+      // 去掉 ExpansionTile 展开时上下出现的分隔线。
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        key: const ValueKey('source-more-options'),
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: const EdgeInsets.only(bottom: LekisSpacing.sm),
+        initiallyExpanded: _alternates.text.trim().isNotEmpty,
+        title: const Text(SourcesStrings.moreOptions),
+        subtitle: const Text(SourcesStrings.moreOptionsHint),
+        children: [
+          TextFormField(
+            controller: _alternates,
+            enabled: !_busy && !_testing,
+            keyboardType: TextInputType.multiline,
+            minLines: 2,
+            maxLines: 5,
+            autocorrect: false,
+            enableSuggestions: false,
+            decoration: InputDecoration(
+              labelText: SourcesStrings.fieldAlternates,
+              hintText: smb
+                  ? '${SourcesStrings.fieldAlternatesHint}\n100.64.0.2/music'
+                  : '${SourcesStrings.fieldAlternatesHint}\nhttps://music.example.com',
+              helperText: SourcesStrings.fieldAlternatesHelper,
+              border: const OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   List<Widget> _fields(BuildContext context) => switch (_kind) {
     SourceKindDto.local => _localFields(context),
@@ -689,6 +847,13 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     final colors = context.lekisColors;
     final path = _localPath;
     return [
+      Text(
+        SourcesStrings.localFormBody,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: colors.onSurfaceVariant,
+        ),
+      ),
+      _gap,
       if (path != null) ...[
         Container(
           padding: const EdgeInsets.all(LekisSpacing.md),

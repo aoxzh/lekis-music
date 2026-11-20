@@ -3,6 +3,31 @@
 abstract final class SettingsStrings {
   static const title = '设置';
 
+  // 顶层结构：分组 + 进入下一级的行。
+  static const groupMusic = '音乐';
+  static const groupGeneral = '通用';
+  static const groupMore = '更多';
+  static const playbackHint = '输出设备、无缝播放、均衡器、睡眠定时';
+  static const appearanceHint = '主题和标签栏';
+  static const lyrics = '歌词';
+  static const lyricsHint = '歌词样式和舞台效果';
+  static const organize = '整理资料库';
+  static const organizeHint = '资料库检查和待确认的补全';
+  static const advanced = '高级';
+  static const advancedHint = '独占输出、ReplayGain、听歌记录、插件、备份、日志';
+  static const aboutHint = '版本和设备信息';
+  static String sourcesCount(int n) => '$n 个音源';
+  static const sourcesNone = '还没有音源，从这里添加音乐文件夹';
+  static const setupTitle = '先把音乐加进来';
+  static const setupBody = '添加这台设备上的音乐文件夹，或者连接 NAS / 媒体服务器。Lekis 会自动扫描并整理。';
+  static const setupAction = '添加音乐';
+  static const normalize = '音量平衡';
+  static const normalizeHint = '让不同歌曲的响度更接近（ReplayGain）';
+  static const audioOutput = '音频输出';
+  static const servicesGroup = '服务与扩展';
+  static const scrobbleHint = '把听过的歌上报到 Last.fm / ListenBrainz';
+  static const dataGroup = '数据';
+
   static const playback = '播放';
   static const outputDevice = '输出设备';
   static const systemDefault = '跟随系统默认';
@@ -18,8 +43,8 @@ abstract final class SettingsStrings {
   static const exclusiveUnsupported = '当前设备不支持独占模式';
   static const gapless = '无缝播放';
   static const gaplessHint = '去掉曲目之间的静音间隙，现场专辑和古典乐更连贯';
-  static const replayGain = '音量平衡（ReplayGain）';
-  static const replayGainHint = '按文件里的 ReplayGain 信息统一响度';
+  static const replayGain = 'ReplayGain 模式';
+  static const replayGainHint = '按文件里的 ReplayGain 信息统一响度：按曲目让每首一样响，按专辑保留专辑内的起伏';
   static const rgTrack = '按曲目';
   static const rgAlbum = '按专辑';
   static const rgOff = '关闭';
@@ -39,13 +64,15 @@ abstract final class SettingsStrings {
   static const tabBarLiquidHint = '模糊 · 流动 · 弹簧';
   static const tabBarFlat = '扁平';
   static const tabBarFlatHint = '纯色 · 快速 · 低开销';
-  static const lyricsStage = '歌词舞台';
-  static const lyricsStageHint = '逐字跟唱时的排版和进场方式';
+  static const lyricsStage = '歌词样式';
+  static const lyricsStageHint =
+      '经典是 Apple Music 那样的逐行滚动歌词（默认）；流动 / 阶梯 / 倾斜是逐字跟唱的舞台。';
+  static const styleClassic = '经典';
   static const styleFlow = '流动';
   static const styleSteps = '阶梯';
   static const styleTilt = '倾斜';
   static const lyricsSparks = '火花';
-  static const lyricsSparksHint = '唱到每个字时飞出细小的光点，最后一句更明显';
+  static const lyricsSparksHint = '舞台样式下，唱到每个字时飞出细小的光点，最后一句更明显';
 
   static const system = '系统';
   static const desktopTrayEnabled = '显示托盘图标';

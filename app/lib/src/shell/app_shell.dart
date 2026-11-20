@@ -408,6 +408,8 @@ class _RailLayout extends StatelessWidget {
   }
 }
 
+/// Desktop (Spotify / Apple Music): sidebar | content | optional context
+/// panel, with the persistent player bar along the whole bottom edge.
 class _SidebarLayout extends StatelessWidget {
   const _SidebarLayout({
     required this.current,
@@ -421,7 +423,8 @@ class _SidebarLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final showContext = context.widthClass >= WindowWidthClass.large;
+    // Room for content plus the 320 dp lyrics / queue panel.
+    final sidePanel = context.widthClass >= WindowWidthClass.large;
     return Scaffold(
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -435,18 +438,16 @@ class _SidebarLayout extends StatelessWidget {
               child: content,
             ),
           ),
-          if (showContext) const NowPlayingContextPanel(),
+          if (sidePanel) const NowPlayingContextPanel(),
         ],
       ),
       // As the bottom bar, snack bars float above the player instead of
-      // covering it. The bar opens Now Playing from its artwork / title only.
-      bottomNavigationBar: const SafeArea(
+      // covering it. The bar opens Now Playing from its artwork / title only;
+      // its lyrics / queue buttons toggle the context panel when there is
+      // room for it.
+      bottomNavigationBar: SafeArea(
         top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [Divider(), PlayerBar()],
-        ),
+        child: PlayerBar(sidePanel: sidePanel),
       ),
     );
   }

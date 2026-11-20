@@ -349,10 +349,7 @@ class _NowPlayingLayoutState extends ConsumerState<_NowPlayingLayout>
       ),
     );
 
-    final topBar = _TopBar(
-      onClose: widget.onClose,
-      desktopPanels: desktopPanels,
-    );
+    final topBar = _TopBar(onClose: widget.onClose);
 
     // Tabletop: top half = artwork / wall / lyrics, bottom half = controls.
     if (fold.isTabletop) {
@@ -562,39 +559,20 @@ class _Split extends StatelessWidget {
   }
 }
 
-class _TopBar extends ConsumerWidget {
-  const _TopBar({required this.onClose, required this.desktopPanels});
+/// Close button and swipe-down grabber. The pane toggles (lyrics, cover
+/// wall, queue) are not up here: like Apple Music they sit in a row under
+/// the transport, where the thumb / pointer already is.
+class _TopBar extends StatelessWidget {
+  const _TopBar({required this.onClose});
 
   final VoidCallback onClose;
 
-  /// When true, lyrics / queue open in the third pane; otherwise the queue
-  /// uses the bottom sheet and lyrics / wall replace the cover.
-  final bool desktopPanels;
-
-  void _toggle(WidgetRef ref, NowPlayingPane pane) {
-    final current = ref.read(nowPlayingPaneProvider);
-    ref
-        .read(nowPlayingPaneProvider.notifier)
-        .set(current == pane ? NowPlayingPane.cover : pane);
-  }
-
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final fg = Theme.of(context).colorScheme.onSurface;
-    final colors = context.lekisColors;
-    final pane = ref.watch(nowPlayingPaneProvider);
-    final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
-    final queueLength = ref.watch(
-      playbackProvider.select((s) => s.queueLength),
-    );
-    final showQueueSelected = desktopPanels && pane == NowPlayingPane.queue;
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: LekisSpacing.xs,
-        vertical: LekisSpacing.xs,
-      ),
-      // The grabber is centred on the full bar width, not on the gap
-      // between the close button and the (wider) action group.
+      padding: const EdgeInsets.all(LekisSpacing.xs),
+      // The grabber is centred on the full bar width.
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -610,74 +588,127 @@ class _TopBar extends ConsumerWidget {
               ),
             ),
           ),
-          Row(
-            children: [
-              IconButton(
-                tooltip: '关闭',
-                constraints: const BoxConstraints(
-                  minWidth: LekisSizes.touchTargetMin,
-                  minHeight: LekisSizes.touchTargetMin,
-                ),
-                onPressed: onClose,
-                icon: const Icon(Icons.keyboard_arrow_down_rounded),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: IconButton(
+              tooltip: '关闭',
+              constraints: const BoxConstraints(
+                minWidth: LekisSizes.touchTargetMin,
+                minHeight: LekisSizes.touchTargetMin,
               ),
-              const Spacer(),
-              IconButton(
-                key: const ValueKey('now-playing.top-bar.wall'),
-                tooltip: pane == NowPlayingPane.wall ? '隐藏封面墙' : '封面墙',
-                isSelected: pane == NowPlayingPane.wall,
-                constraints: const BoxConstraints(
-                  minWidth: LekisSizes.touchTargetMin,
-                  minHeight: LekisSizes.touchTargetMin,
-                ),
-                onPressed: () => _toggle(ref, NowPlayingPane.wall),
-                icon: const Icon(Icons.grid_view_outlined),
-                selectedIcon: const Icon(Icons.grid_view_rounded),
-              ),
-              IconButton(
-                key: const ValueKey('now-playing.top-bar.lyrics'),
-                tooltip: pane == NowPlayingPane.lyrics ? '显示封面' : '显示歌词',
-                isSelected: pane == NowPlayingPane.lyrics,
-                constraints: const BoxConstraints(
-                  minWidth: LekisSizes.touchTargetMin,
-                  minHeight: LekisSizes.touchTargetMin,
-                ),
-                onPressed: hasTrack
-                    ? () => _toggle(ref, NowPlayingPane.lyrics)
-                    : null,
-                icon: const Icon(Icons.lyrics_outlined),
-                selectedIcon: const Icon(Icons.lyrics_rounded),
-              ),
-              IconButton(
-                key: const ValueKey('now-playing.top-bar.queue'),
-                tooltip: queueLength == 0 ? '播放队列' : '播放队列（$queueLength 首）',
-                isSelected: showQueueSelected,
-                constraints: const BoxConstraints(
-                  minWidth: LekisSizes.touchTargetMin,
-                  minHeight: LekisSizes.touchTargetMin,
-                ),
-                onPressed: hasTrack
-                    ? () {
-                        if (desktopPanels) {
-                          _toggle(ref, NowPlayingPane.queue);
-                        } else {
-                          showQueueSheet(context);
-                        }
-                      }
-                    : null,
-                icon: Badge.count(
-                  key: const ValueKey('now-playing.top-bar.queue-badge'),
-                  count: queueLength,
-                  isLabelVisible: queueLength > 0,
-                  backgroundColor: colors.accent,
-                  textColor: colors.onAccent,
-                  child: const Icon(Icons.queue_music_rounded),
-                ),
-              ),
-            ],
+              onPressed: onClose,
+              icon: const Icon(Icons.keyboard_arrow_down_rounded),
+            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Apple Music style row under the transport: lyrics, cover wall, queue.
+///
+/// On wide windows lyrics / queue open the third pane; otherwise lyrics
+/// replace the cover and the queue opens as a bottom sheet.
+class NowPlayingActions extends ConsumerWidget {
+  const NowPlayingActions({super.key});
+
+  static const Key lyricsKey = ValueKey('now-playing.actions.lyrics');
+  static const Key wallKey = ValueKey('now-playing.actions.wall');
+  static const Key queueKey = ValueKey('now-playing.actions.queue');
+
+  void _toggle(WidgetRef ref, NowPlayingPane pane) {
+    final current = ref.read(nowPlayingPaneProvider);
+    ref
+        .read(nowPlayingPaneProvider.notifier)
+        .set(current == pane ? NowPlayingPane.cover : pane);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.lekisColors;
+    final fg = Theme.of(context).colorScheme.onSurface;
+    final desktopPanels = usesNowPlayingSidePanels(context);
+    final pane = ref.watch(nowPlayingPaneProvider);
+    final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
+    final queueLength = ref.watch(
+      playbackProvider.select((s) => s.queueLength),
+    );
+
+    Widget action({
+      required Key key,
+      required String tooltip,
+      required bool selected,
+      required IconData icon,
+      required IconData selectedIcon,
+      required VoidCallback? onPressed,
+      Widget Function(Widget icon)? decorate,
+    }) {
+      Widget wrap(IconData data) => decorate?.call(Icon(data)) ?? Icon(data);
+      return IconButton(
+        key: key,
+        tooltip: tooltip,
+        isSelected: selected,
+        constraints: const BoxConstraints(
+          minWidth: LekisSizes.touchTargetMin,
+          minHeight: LekisSizes.touchTargetMin,
+        ),
+        // Selected: a soft filled disc, like Apple Music's lyrics button.
+        style: IconButton.styleFrom(
+          backgroundColor: selected ? fg.withValues(alpha: 0.16) : null,
+        ),
+        onPressed: onPressed,
+        icon: wrap(icon),
+        selectedIcon: wrap(selectedIcon),
+      );
+    }
+
+    return Row(
+      key: const ValueKey('now-playing.actions'),
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        action(
+          key: lyricsKey,
+          tooltip: pane == NowPlayingPane.lyrics ? '隐藏歌词' : '歌词',
+          selected: pane == NowPlayingPane.lyrics,
+          icon: Icons.lyrics_outlined,
+          selectedIcon: Icons.lyrics_rounded,
+          onPressed: hasTrack
+              ? () => _toggle(ref, NowPlayingPane.lyrics)
+              : null,
+        ),
+        action(
+          key: wallKey,
+          tooltip: pane == NowPlayingPane.wall ? '隐藏封面墙' : '封面墙',
+          selected: pane == NowPlayingPane.wall,
+          icon: Icons.grid_view_outlined,
+          selectedIcon: Icons.grid_view_rounded,
+          onPressed: () => _toggle(ref, NowPlayingPane.wall),
+        ),
+        action(
+          key: queueKey,
+          tooltip: queueLength == 0 ? '播放队列' : '播放队列（$queueLength 首）',
+          selected: desktopPanels && pane == NowPlayingPane.queue,
+          icon: Icons.queue_music_rounded,
+          selectedIcon: Icons.queue_music_rounded,
+          onPressed: hasTrack
+              ? () {
+                  if (desktopPanels) {
+                    _toggle(ref, NowPlayingPane.queue);
+                  } else {
+                    showQueueSheet(context);
+                  }
+                }
+              : null,
+          decorate: (icon) => Badge.count(
+            count: queueLength,
+            isLabelVisible: queueLength > 0,
+            backgroundColor: colors.accent,
+            textColor: colors.onAccent,
+            child: icon,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -700,8 +731,8 @@ const double _seekTrackInset = LekisSizes.touchTargetMin / 2;
 /// One alignment for the whole column, Apple Music style: the title /
 /// artist block is left-aligned on the seek track's start edge with the
 /// library actions trailing it on the same line; the seek bar spans the
-/// column and the transport sits centred under it. Lyrics and queue
-/// toggles live only in the top bar.
+/// column and the transport sits centred under it, then (desktop) volume,
+/// then the lyrics / wall / queue row at the very bottom.
 class NowPlayingControls extends StatelessWidget {
   const NowPlayingControls({super.key});
 
@@ -749,6 +780,14 @@ class NowPlayingControls extends StatelessWidget {
                 child: VolumeControl(width: LekisSizes.desktopSidebarWidth),
               ),
             ],
+            const SizedBox(height: LekisSpacing.md),
+            const Padding(
+              // Outer icons line up with the ends of the seek track.
+              padding: EdgeInsets.symmetric(
+                horizontal: _seekTrackInset - LekisSpacing.md,
+              ),
+              child: NowPlayingActions(),
+            ),
           ],
         ),
       ),

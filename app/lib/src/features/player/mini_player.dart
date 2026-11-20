@@ -9,8 +9,9 @@ import 'package:lekis/src/features/now_playing/now_playing_tint.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/widgets/current_track.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
+import 'package:lekis/src/shell/tab_bar_style.dart';
 import 'package:lekis/src/theme/theme.dart';
-import 'package:lekis/src/widgets/glass.dart';
+import 'package:lekis/src/widgets/liquid_glass.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Share of the card width a horizontal swipe must cover to skip.
@@ -22,10 +23,9 @@ const double _skipVelocity = 600;
 /// Floating compact player shown above the bottom navigation (phones) or
 /// under the content (medium windows).
 ///
-/// Visual parameters follow the reference `compactConfiguration`:
-/// 12 dp corners, 8 dp side margins (top 0, bottom 8), a subtle
-/// protection/tint over the elevated surface, no drop shadow, and a thin
-/// adaptive progress line (progress style 2).
+/// It is a slimmer twin of the floating tab bar: the same capsule material
+/// ([LekisGlassCapsule], liquid or flat per [tabBarStyleProvider]), fully
+/// rounded ends, 8 dp margins and a hairline adaptive progress line.
 ///
 /// * tap → opens Now Playing, growing out of this card;
 /// * drag up → pulls Now Playing open under the finger;
@@ -269,56 +269,41 @@ class _SwipeContent extends ConsumerWidget {
   }
 }
 
-/// What the mini player looks like: artwork-tinted card with title, play /
-/// next and a hairline progress bar. Also used as the starting frame of the
-/// Now Playing container transform.
+/// What the mini player looks like: the tab bar's own capsule (liquid glass
+/// or flat, following the tab bar style setting) holding artwork, title,
+/// play / next and a hairline progress line. Also used as the starting frame
+/// of the Now Playing container transform.
 class MiniPlayerFace extends ConsumerWidget {
   const MiniPlayerFace({super.key, this.contentBuilder});
 
   /// Wraps the row (not the card) — used for the swipe offset.
   final Widget Function(Widget content)? contentBuilder;
 
+  /// The capsule surface. Exposed for widget tests.
+  static const Key cardKey = ValueKey('mini-player.card');
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.lekisColors;
-    final palette = ref.watch(
-      nowPlayingPaletteProvider(Theme.of(context).brightness),
+    final flat = ref.watch(tabBarStyleProvider) == TabBarStyle.flat;
+    final tint = NowPlayingTint.resolve(
+      ref.watch(nowPlayingPaletteProvider(Theme.of(context).brightness)),
+      Theme.of(context).colorScheme,
     );
-    final tint = NowPlayingTint.resolve(palette, Theme.of(context).colorScheme);
-    // floatingProtection: a low-opacity adaptive wash over the elevated
-    // surface keeps the row readable without a shadow.
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Same glass as the tab bar: a light tint over a saturated, blurred
-    // backdrop, so the card floats over scrolling content instead of
-    // covering it with a slab.
-    final glassAlpha = isDark
-        ? LekisTabBarTokens.glassTintDark + 0.12
-        : LekisTabBarTokens.glassTintLight + 0.12;
-    final opaque = palette == null
-        ? colors.surfaceElevated
-        : Color.alphaBlend(
-            tint.primary.withValues(alpha: 0.14),
-            colors.surfaceElevated,
-          );
-    final surface = opaque.withValues(alpha: glassAlpha);
-    final rim = isDark
-        ? Colors.white.withValues(alpha: 0.14)
-        : Colors.white.withValues(alpha: 0.75);
-    final progressColor = readableAccent(tint.primary, opaque);
-    final artSize = LekisSizes.miniPlayerHeight - LekisSpacing.sm * 2;
-    final reducedMotion = MediaQuery.disableAnimationsOf(context);
+    // Only the hairline progress picks up the cover colour; the surface is
+    // the same neutral glass as the tab bar.
+    final progressColor = readableAccent(tint.primary, colors.surfaceElevated);
+    const artSize = LekisSizes.miniPlayerHeight - LekisSpacing.sm * 2;
 
     final Widget row = Padding(
       // Capsule ends: keep the artwork and the last button inside the curve.
-      padding: const EdgeInsets.only(
-        left: LekisSpacing.sm,
-        right: LekisSpacing.sm,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.sm),
       child: Row(
         children: [
-          SizedBox.square(
+          const SizedBox.square(
             dimension: artSize,
-            child: const CurrentArtwork(
+            // Concentric with the capsule: an inner circle-ish cover.
+            child: CurrentArtwork(
               radius: LekisRadius.miniPlayer - LekisSpacing.sm,
             ),
           ),
@@ -330,48 +315,28 @@ class MiniPlayerFace extends ConsumerWidget {
       ),
     );
 
-    return TweenAnimationBuilder<Color?>(
-      tween: ColorTween(end: surface),
-      duration: reducedMotion ? Duration.zero : LekisMotion.backgroundCrossfade,
-      builder: (context, color, child) {
-        final base = color ?? surface;
-        final card = DecoratedBox(
-          key: const ValueKey('mini-player.card'),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(LekisRadius.miniPlayer),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                base,
-                Color.alphaBlend(
-                  tint.secondary.withValues(alpha: palette == null ? 0 : 0.06),
-                  base,
-                ),
-              ],
-            ),
-            border: Border.all(color: rim),
+    return LekisGlassCapsule(
+      key: cardKey,
+      radius: LekisRadius.miniPlayer,
+      flat: flat,
+      enableLens: !MediaQuery.disableAnimationsOf(context),
+      child: Material(
+        type: MaterialType.transparency,
+        child: SizedBox(
+          height: LekisSizes.miniPlayerHeight,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              contentBuilder?.call(row) ?? row,
+              // Along the straight bottom edge only, clear of the round ends.
+              Positioned(
+                left: LekisRadius.miniPlayer,
+                right: LekisRadius.miniPlayer,
+                bottom: 0,
+                child: _MiniProgressBar(color: progressColor),
+              ),
+            ],
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(LekisRadius.miniPlayer),
-            child: Material(type: MaterialType.transparency, child: child),
-          ),
-        );
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(LekisRadius.miniPlayer),
-          child: BackdropFilter(
-            filter: lekisGlassFilter(LekisTabBarTokens.blurSigma),
-            child: card,
-          ),
-        );
-      },
-      child: SizedBox(
-        height: LekisSizes.miniPlayerHeight,
-        child: Column(
-          children: [
-            Expanded(child: contentBuilder?.call(row) ?? row),
-            _MiniProgressBar(color: progressColor),
-          ],
         ),
       ),
     );
@@ -399,6 +364,7 @@ class _MiniProgressBar extends ConsumerWidget {
           minHeight: LekisSpacing.xxs,
           color: color,
           backgroundColor: colors.outline.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(LekisRadius.pill),
         ),
       ),
     );

@@ -82,9 +82,24 @@ abstract final class SourcesStrings {
 
   // 添加流程
   static const chooseKind = '你的音乐放在哪里？';
+  static const chooseKindBody = '大多数人从这台设备上的音乐文件夹开始。以后随时可以再添加 NAS 或媒体服务器。';
+  static const recommended = '推荐';
+  static const kindLocalFeaturedHint = '选一个放音乐的文件夹，Lekis 会扫描里面所有的子文件夹';
   static const groupThisDevice = '这台设备';
+  static const groupNetwork = '网络上的音乐库';
+  static const groupNetworkBody =
+      '家里的 NAS、电脑共享或 Navidrome / Jellyfin / Plex 服务器，需要地址和账号。';
   static const groupNetworkShare = '网络共享';
   static const groupMediaServer = '媒体服务器';
+  static const localFormBody = '选一个放音乐的文件夹，Lekis 会扫描里面所有的子文件夹并自动整理。';
+  static const addAndScan = '添加并扫描';
+  static const adding = '正在添加…';
+  static const moreOptions = '更多选项';
+  static const moreOptionsHint = '备用地址等，不改也能正常使用';
+  static const fieldAlternates = '备用地址（可选）';
+  static const fieldAlternatesHint = '每行一个，例如 Tailscale 或外网地址';
+  static const fieldAlternatesHelper = '主地址连不上时按顺序尝试';
+  static const detailAlternate = '备用地址';
   static const discoveryTitle = '局域网里的设备';
   static const discoveryBody = '在同一网络里搜索 SMB、WebDAV 和 DLNA 设备。点一下结果就能预填表单。';
   static const scanLan = '扫描局域网';

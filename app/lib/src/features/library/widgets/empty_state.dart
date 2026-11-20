@@ -76,70 +76,19 @@ class LekisEmptyState extends StatelessWidget {
   }
 }
 
-/// The brand mark over a soft halo; static, so it costs nothing to keep on
-/// screen and degrades gracefully with reduced motion.
+/// Just the brand mark: no halo, frame or badges around it. Static, so it
+/// costs nothing to keep on screen.
 class _Moonrise extends StatelessWidget {
   const _Moonrise();
 
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.lekisColors;
-    return SizedBox(
-      width: 190,
-      height: 158,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    colors.moon.withValues(alpha: 0.18),
-                    colors.accentSoft.withValues(alpha: 0.22),
-                    colors.accentSoft.withValues(alpha: 0),
-                  ],
-                  stops: const [0, 0.45, 1],
-                ),
-              ),
-            ),
-          ),
-          const LekisBrandMark(size: 104, ring: false),
-          Positioned(
-            right: 24,
-            top: 22,
-            child: _Star(size: 6, color: colors.moon.withValues(alpha: 0.6)),
-          ),
-          Positioned(
-            left: 28,
-            bottom: 24,
-            child: _Star(size: 4, color: colors.aurora.withValues(alpha: 0.65)),
-          ),
-          Positioned(
-            left: 16,
-            top: 36,
-            child: _Star(
-              size: 3,
-              color: colors.onSurfaceVariant.withValues(alpha: 0.45),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Star extends StatelessWidget {
-  const _Star({required this.size, required this.color});
-
-  final double size;
-  final Color color;
+  /// Side of the mark in empty states.
+  static const double size = 104;
 
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-    child: SizedBox.square(dimension: size),
+  Widget build(BuildContext context) => const LekisBrandMark(
+    key: ValueKey('empty-state.mark'),
+    size: size,
+    ring: false,
   );
 }
 
