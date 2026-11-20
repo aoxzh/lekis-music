@@ -18,6 +18,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
   flutter::DartProject project(L"data");
+  // Skia, not Impeller, on Windows. Impeller keeps device-sized GPU surfaces
+  // alive for every live gradient, blur and shader: a full-window blurred
+  // cover plus the palette gradient cost over a gigabyte of private bytes on
+  // Now Playing (flutter#196198), and it also crashed intermittently inside
+  // the Intel driver on the reference machine. Revisit when those gradient
+  // fixes reach a stable release.
+  project.set_impeller_switch(flutter::ImpellerSwitch::Disabled);
 
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
