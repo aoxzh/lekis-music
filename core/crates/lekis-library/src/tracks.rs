@@ -3,8 +3,8 @@
 use crate::db::DbResultExt;
 use crate::Library;
 use lekis_types::{
-    now_ms, ArtworkId, LekisError, ReplayGain, Result, Track, TrackId, TrackQuery, TrackRow,
-    TrackSort, TrackUid,
+    now_ms, ArtworkId, LekisError, ReplayGain, Result, Track, TrackId, TrackOverlay, TrackQuery,
+    TrackRow, TrackSort, TrackTagOverrides, TrackUid,
 };
 use rusqlite::{params, OptionalExtension, Row};
 
@@ -51,22 +51,77 @@ pub enum TrackContext {
     },
 }
 
-pub(crate) const TRACK_ROW_COLUMNS: &str =
-    "t.id, t.title, t.artist_line, a.title, t.duration_ms,
+pub(crate) const TRACK_ROW_COLUMNS: &str = "t.id, t.title, t.artist_line, a.title, t.duration_ms,
      COALESCE(t.artwork_id, a.artwork_id),
-     t.quality_badge, COALESCE(u.loved, 0)";
+     t.quality_badge, COALESCE(u.loved, 0), t.overlay_json, t.tag_overrides_json";
 
 pub(crate) fn map_track_row(r: &Row<'_>) -> rusqlite::Result<TrackRow> {
+    let overlay = r
+        .get::<_, Option<String>>(8)?
+        .as_deref()
+        .and_then(|s| serde_json::from_str::<TrackOverlay>(s).ok());
+    let tag_overrides = r
+        .get::<_, Option<String>>(9)?
+        .as_deref()
+        .and_then(|s| serde_json::from_str::<TrackTagOverrides>(s).ok());
+    let (title, artist_line, album_title) = merged_display_values(
+        r.get(1)?,
+        r.get(2)?,
+        r.get(3)?,
+        overlay.as_ref(),
+        tag_overrides.as_ref(),
+    );
     Ok(TrackRow {
         id: TrackId(r.get(0)?),
-        title: r.get(1)?,
-        artist_line: r.get(2)?,
-        album_title: r.get(3)?,
+        title,
+        artist_line,
+        album_title,
         duration_ms: r.get::<_, i64>(4)?.max(0) as u64,
         artwork_id: r.get::<_, Option<i64>>(5)?.map(ArtworkId),
         quality_badge: r.get(6)?,
         loved: r.get::<_, i64>(7)? != 0,
     })
+}
+
+/// 展示时合并三层数据：文件标签（数据库里的原值）→ 补全覆盖层 → 手工标签覆盖层。
+///
+/// 手工标签（LIB-13）永远最后生效；远程曲目没有手工覆盖层，所以结果不变。
+pub(crate) fn merged_display_values(
+    base_title: String,
+    base_artist_line: String,
+    base_album_title: Option<String>,
+    overlay: Option<&TrackOverlay>,
+    tag_overrides: Option<&TrackTagOverrides>,
+) -> (String, String, Option<String>) {
+    let mut title = base_title;
+    let mut artist_line = base_artist_line;
+    let mut album_title = base_album_title;
+
+    if let Some(overlay) = overlay {
+        if let Some(value) = &overlay.title {
+            title = value.clone();
+        }
+        if let Some(names) = &overlay.artists {
+            artist_line = names.join(" / ");
+        }
+        if let Some(value) = &overlay.album_title {
+            album_title = Some(value.clone());
+        }
+    }
+
+    if let Some(tags) = tag_overrides {
+        if let Some(value) = &tags.title {
+            title = value.clone();
+        }
+        if let Some(value) = &tags.artist {
+            artist_line = value.clone();
+        }
+        if let Some(value) = &tags.album {
+            album_title = Some(value.clone());
+        }
+    }
+
+    (title, artist_line, album_title)
 }
 
 impl Library {
@@ -114,41 +169,45 @@ impl Library {
                 .query_row(
                     "SELECT t.id, t.uid, t.title, t.sort_title, t.album_id, a.title, t.track_no,
                             t.disc_no, t.year, t.duration_ms, t.mbid_recording, t.replaygain_json,
-                            t.artwork_id, t.overlay_json
+                            t.artwork_id, t.overlay_json, t.tag_overrides_json
                      FROM track t LEFT JOIN album a ON a.id = t.album_id
                      WHERE t.id = ?1",
                     params![id.0],
                     |r| {
                         let rg: Option<String> = r.get(11)?;
-                        Ok(Track {
-                            id: TrackId(r.get(0)?),
-                            uid: TrackUid(r.get(1)?),
-                            title: r.get(2)?,
-                            sort_title: r.get(3)?,
-                            artists: Vec::new(),
-                            album_id: r.get::<_, Option<i64>>(4)?.map(lekis_types::AlbumId),
-                            album_title: r.get(5)?,
-                            track_no: r.get(6)?,
-                            disc_no: r.get(7)?,
-                            year: r.get(8)?,
-                            duration_ms: r.get::<_, i64>(9)?.max(0) as u64,
-                            genres: Vec::new(),
-                            mbid_recording: r.get(10)?,
-                            audio: None,
-                            replaygain: rg
-                                .and_then(|s| serde_json::from_str::<ReplayGain>(&s).ok())
-                                .unwrap_or_default(),
-                            artwork_id: r.get::<_, Option<i64>>(12)?.map(ArtworkId),
-                            overlay: r.get::<_, Option<String>>(13)?.and_then(|s| {
-                                serde_json::from_str::<lekis_types::TrackOverlay>(&s).ok()
-                            }),
-                        })
+                        Ok((
+                            Track {
+                                id: TrackId(r.get(0)?),
+                                uid: TrackUid(r.get(1)?),
+                                title: r.get(2)?,
+                                sort_title: r.get(3)?,
+                                artists: Vec::new(),
+                                album_id: r.get::<_, Option<i64>>(4)?.map(lekis_types::AlbumId),
+                                album_title: r.get(5)?,
+                                track_no: r.get(6)?,
+                                disc_no: r.get(7)?,
+                                year: r.get(8)?,
+                                duration_ms: r.get::<_, i64>(9)?.max(0) as u64,
+                                genres: Vec::new(),
+                                mbid_recording: r.get(10)?,
+                                audio: None,
+                                replaygain: rg
+                                    .and_then(|s| serde_json::from_str::<ReplayGain>(&s).ok())
+                                    .unwrap_or_default(),
+                                artwork_id: r.get::<_, Option<i64>>(12)?.map(ArtworkId),
+                                overlay: r
+                                    .get::<_, Option<String>>(13)?
+                                    .and_then(|s| serde_json::from_str::<TrackOverlay>(&s).ok()),
+                            },
+                            r.get::<_, Option<String>>(14)?
+                                .and_then(|s| serde_json::from_str::<TrackTagOverrides>(&s).ok()),
+                        ))
                     },
                 )
                 .optional()
                 .db()?;
 
-            let Some(mut track) = track else {
+            let Some((mut track, tag_overrides)) = track else {
                 return Err(LekisError::not_found(format!("track {id}")));
             };
 
@@ -232,6 +291,55 @@ impl Library {
                             role: lekis_types::ArtistRole::Main,
                         })
                         .collect();
+                }
+                if let Some(year) = overlay.year {
+                    track.year = Some(year);
+                }
+                if let Some(track_no) = overlay.track_no {
+                    track.track_no = Some(track_no);
+                }
+                if let Some(disc_no) = overlay.disc_no {
+                    track.disc_no = Some(disc_no);
+                }
+                if let Some(genres) = &overlay.genres {
+                    track.genres = genres.clone();
+                }
+            }
+
+            // 手工标签覆盖层（LIB-13）最后生效，优先级高于补全结果。
+            if let Some(tags) = tag_overrides {
+                if let Some(title) = tags.title {
+                    track.title = title;
+                }
+                if let Some(artist) = tags.artist {
+                    track.artists = vec![lekis_types::ArtistCredit {
+                        artist_id: None,
+                        name: artist,
+                        role: lekis_types::ArtistRole::Main,
+                    }];
+                }
+                if let Some(album) = tags.album {
+                    track.album_title = Some(album);
+                }
+                if let Some(year) = tags.year {
+                    track.year = Some(year);
+                }
+                if let Some(track_no) = tags.track_no {
+                    track.track_no = Some(track_no);
+                }
+                if let Some(disc_no) = tags.disc_no {
+                    track.disc_no = Some(disc_no);
+                }
+                if let Some(genre) = tags.genre {
+                    track.genres = genre
+                        .split(';')
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .map(str::to_owned)
+                        .collect();
+                }
+                if let Some(mbid) = tags.musicbrainz_track_id {
+                    track.mbid_recording = Some(mbid);
                 }
             }
 

@@ -50,9 +50,8 @@ pub fn init() -> bool {
         }
     }
 
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        "info,lekis_library=info,lekis_playback=info,lekis_core=debug".into()
-    });
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "info,lekis_library=info,lekis_playback=info,lekis_core=debug".into());
     let subscriber = tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_writer(Writer(buffer().clone()))

@@ -7,8 +7,10 @@ import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/app.dart';
 import 'package:lekis/src/bridge/core_init.dart';
 import 'package:lekis/src/features/player/playback_session.dart';
+import 'package:lekis/src/features/settings/desktop_tray_settings.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/features/settings/theme_preference.dart';
+import 'package:lekis/src/platform/desktop_tray/desktop_tray_controller.dart';
 import 'package:lekis/src/platform/media_session.dart';
 import 'package:lekis/src/rust/frb_generated.dart';
 import 'package:lekis/src/shell/tab_bar_style.dart';
@@ -34,13 +36,19 @@ Future<void> main() async {
     return;
   }
 
-  // 主题和 TabBar 样式要在首帧前恢复，避免闪一下默认值；
+  // 主题、TabBar 样式和桌面托盘开关要在首帧前恢复，避免闪一下默认值；
   // 播放输出和媒体会话不阻塞首帧，runApp 之后再初始化。
   final container = ProviderContainer();
   await Future.wait([
     restoreThemePreference(container),
     restoreTabBarStyle(container),
+    restoreDesktopTraySettings(container),
   ]);
+
+  // 先把窗口关闭钩子挂上（同步），保证第一下关闭按钮就遵守“最小化到托盘”；
+  // 真正的托盘图标在首帧后创建，失败只记日志。
+  final desktopTray = container.read(desktopTrayControllerProvider);
+  desktopTray.installCloseHandler();
 
   runApp(
     UncontrolledProviderScope(container: container, child: const LekisApp()),
@@ -48,12 +56,19 @@ Future<void> main() async {
 
   // 播放输出和锁屏 / 通知栏 / 系统媒体控制可以晚于首帧初始化。
   // 失败只记日志，不影响界面；这样冷启动只等核心和主题。
-  unawaited(_startBackgroundServices(container));
+  unawaited(_startBackgroundServices(container, desktopTray));
 }
 
-Future<void> _startBackgroundServices(ProviderContainer container) async {
+Future<void> _startBackgroundServices(
+  ProviderContainer container,
+  DesktopTrayController desktopTray,
+) async {
   try {
-    await Future.wait([restorePlaybackOutput(), initSystemMediaSession()]);
+    await Future.wait([
+      restorePlaybackOutput(),
+      initSystemMediaSession(),
+      desktopTray.initialize(),
+    ]);
   } catch (error, stack) {
     FlutterError.reportError(
       FlutterErrorDetails(

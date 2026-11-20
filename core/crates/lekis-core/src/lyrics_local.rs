@@ -14,7 +14,10 @@ const HEAD_WINDOW: u64 = 2 * 1024 * 1024;
 const TAIL_WINDOW: u64 = 1024 * 1024;
 
 /// 找一首歌的本地歌词并入库。找到返回 `Some`。
-pub(crate) async fn find_and_store(services: &Arc<Services>, id: TrackId) -> Result<Option<Lyrics>> {
+pub(crate) async fn find_and_store(
+    services: &Arc<Services>,
+    id: TrackId,
+) -> Result<Option<Lyrics>> {
     let files = services.library.track_files(id).await?;
     for file in files {
         if !file.source_kind.is_filesystem() || file.path.is_empty() {
@@ -48,7 +51,9 @@ async fn load(vfs: &dyn Vfs, path: &VfsPath) -> Option<Lyrics> {
     if let Some(text) = read_sidecar(vfs, path).await {
         return Some(make(text, "sidecar"));
     }
-    read_embedded(vfs, path).await.map(|text| make(text, "embedded"))
+    read_embedded(vfs, path)
+        .await
+        .map(|text| make(text, "embedded"))
 }
 
 fn make(content: String, source: &str) -> Lyrics {
@@ -77,7 +82,10 @@ pub(crate) fn detect_format(content: &str) -> LyricsFormat {
         if let Some(rest) = line.strip_prefix('[') {
             if is_stamp(rest) {
                 timed = true;
-                if line.match_indices('<').any(|(i, _)| is_stamp(&line[i + 1..])) {
+                if line
+                    .match_indices('<')
+                    .any(|(i, _)| is_stamp(&line[i + 1..]))
+                {
                     return LyricsFormat::EnhancedLrc;
                 }
             }
@@ -99,7 +107,8 @@ async fn read_sidecar(vfs: &dyn Vfs, audio: &VfsPath) -> Option<String> {
         let Ok(meta) = vfs.stat(&path).await else {
             continue;
         };
-        if !matches!(meta.kind, EntryKind::File) || meta.size == 0 || meta.size > MAX_SIDECAR_BYTES {
+        if !matches!(meta.kind, EntryKind::File) || meta.size == 0 || meta.size > MAX_SIDECAR_BYTES
+        {
             continue;
         }
         if let Ok(bytes) = vfs.read_range(&path, 0..meta.size).await {
@@ -120,7 +129,13 @@ fn decode_text(bytes: &[u8]) -> String {
     let utf16 = |le: bool, rest: &[u8]| {
         let units: Vec<u16> = rest
             .chunks_exact(2)
-            .map(|c| if le { u16::from_le_bytes([c[0], c[1]]) } else { u16::from_be_bytes([c[0], c[1]]) })
+            .map(|c| {
+                if le {
+                    u16::from_le_bytes([c[0], c[1]])
+                } else {
+                    u16::from_be_bytes([c[0], c[1]])
+                }
+            })
             .collect();
         String::from_utf16_lossy(&units)
     };
@@ -156,13 +171,22 @@ mod tests {
 
     #[test]
     fn detects_formats() {
-        assert_eq!(detect_format("[00:01.00]hello\n[00:02.00]world"), LyricsFormat::Lrc);
+        assert_eq!(
+            detect_format("[00:01.00]hello\n[00:02.00]world"),
+            LyricsFormat::Lrc
+        );
         assert_eq!(
             detect_format("[00:01.00]<00:01.00>he<00:01.50>llo"),
             LyricsFormat::EnhancedLrc
         );
-        assert_eq!(detect_format("[ar:someone]\njust text"), LyricsFormat::Plain);
-        assert_eq!(detect_format("<?xml version=\"1.0\"?><tt>"), LyricsFormat::Ttml);
+        assert_eq!(
+            detect_format("[ar:someone]\njust text"),
+            LyricsFormat::Plain
+        );
+        assert_eq!(
+            detect_format("<?xml version=\"1.0\"?><tt>"),
+            LyricsFormat::Ttml
+        );
     }
 
     #[test]

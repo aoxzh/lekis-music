@@ -16,6 +16,7 @@
 //! 队列游标在「可听边界」到达时才推进（解码线程领先输出约 300 ms），UI 不会提前跳歌，
 //! 重复 / 随机 / 列表循环的语义完全复用 [`Queue::advance`]。
 
+use crate::eq::EqControl;
 use crate::gapless::AudibleTrack;
 use crate::output::{AudioOutput, CpalOutput, OutputDevice, OutputMode};
 use crate::queue::Queue;
@@ -171,17 +172,29 @@ impl PlaybackEngine {
     ///
     /// `resolver`：引擎需要播放某首歌时，把请求发到这个通道，由 core 回复 [`MediaSource`]。
     pub fn spawn(resolver: mpsc::Sender<ResolveRequest>) -> Self {
-        Self::spawn_with_output(resolver, Arc::new(CpalOutputFactory))
+        Self::spawn_with_output(
+            resolver,
+            Arc::new(EqControl::default()),
+            Arc::new(CpalOutputFactory),
+        )
+    }
+
+    /// 和 [`Self::spawn`] 一样，但把共享的均衡器控制句柄接进每条新会话。
+    ///
+    /// lekis-core 保存设置后直接改 [`EqControl`]，正在播放的音频在下一个解码块生效。
+    pub fn spawn_with_eq(resolver: mpsc::Sender<ResolveRequest>, eq: Arc<EqControl>) -> Self {
+        Self::spawn_with_output(resolver, eq, Arc::new(CpalOutputFactory))
     }
 
     /// 和 [`Self::spawn`] 一样，但使用指定的输出后端工厂（测试注入空输出）。
     fn spawn_with_output(
         resolver: mpsc::Sender<ResolveRequest>,
+        eq: Arc<EqControl>,
         output_factory: Arc<dyn OutputFactory>,
     ) -> Self {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let (snap_tx, snap_rx) = watch::channel(PlaybackSnapshot::default());
-        tokio::spawn(run(cmd_rx, snap_tx, resolver, output_factory));
+        tokio::spawn(run(cmd_rx, snap_tx, resolver, eq, output_factory));
         Self {
             commands: cmd_tx,
             snapshot: snap_rx,
@@ -194,7 +207,7 @@ impl PlaybackEngine {
         resolver: mpsc::Sender<ResolveRequest>,
         output_factory: Arc<dyn OutputFactory>,
     ) -> Self {
-        Self::spawn_with_output(resolver, output_factory)
+        Self::spawn_with_output(resolver, Arc::new(EqControl::default()), output_factory)
     }
 
     /// 发送命令。
@@ -245,6 +258,8 @@ struct State {
     last_decoded_splice_count: u64,
     /// 会话输出后端工厂（生产 = cpal，测试可注入空输出）。
     output_factory: Arc<dyn OutputFactory>,
+    /// 10 段均衡器参数（所有会话共享，运行中修改立即生效）。
+    eq: Arc<EqControl>,
     /// 用户选定的输出设备（PLY-05），`None` = 跟随系统默认。
     device_id: Option<String>,
     /// 输出模式（PLY-12）。
@@ -263,6 +278,7 @@ impl State {
         resolver: mpsc::Sender<ResolveRequest>,
         handle: Handle,
         snap: PlaybackSnapshot,
+        eq: Arc<EqControl>,
         output_factory: Arc<dyn OutputFactory>,
     ) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
@@ -282,6 +298,7 @@ impl State {
             last_audible_splice_count: 0,
             last_decoded_splice_count: 0,
             output_factory,
+            eq,
             device_id: None,
             mode: OutputMode::Shared,
             gapless: true,
@@ -722,12 +739,13 @@ impl State {
 
         // 时长先按解析结果填，解码器打开后会用真实值覆盖。
         self.snap.duration_ms = media.duration_hint_ms;
-        match Session::start_with_factory(
+        match Session::start_with_factory_and_eq(
             &media,
             self.device_id.as_deref(),
             self.mode,
             self.snap.volume,
             self.handle.clone(),
+            self.eq.clone(),
             self.output_factory.clone(),
         )
         .await
@@ -977,12 +995,14 @@ async fn run(
     mut commands: mpsc::UnboundedReceiver<EngineCommand>,
     snapshot: watch::Sender<PlaybackSnapshot>,
     resolver: mpsc::Sender<ResolveRequest>,
+    eq: Arc<EqControl>,
     output_factory: Arc<dyn OutputFactory>,
 ) {
     let mut state = State::new(
         resolver,
         Handle::current(),
         PlaybackSnapshot::default(),
+        eq,
         output_factory,
     );
     let mut ticker = tokio::time::interval(Duration::from_millis(TICK_MS));

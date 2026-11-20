@@ -2510,8 +2510,10 @@ version = "0.1.0"
 dependencies = [
  "ferrous-opencc",
  "lekis-types",
+ "lofty",
  "percent-encoding",
  "pinyin",
+ "quick-xml",
  "rusqlite",
  "serde",
  "serde_json",

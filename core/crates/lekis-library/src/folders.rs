@@ -325,7 +325,10 @@ mod tests {
 
         let roots = lib.folder_roots().await?;
         assert_eq!(
-            roots.iter().map(|r| (r.name.as_str(), r.track_count)).collect::<Vec<_>>(),
+            roots
+                .iter()
+                .map(|r| (r.name.as_str(), r.track_count))
+                .collect::<Vec<_>>(),
             [("music", 6), ("other", 1)]
         );
 
@@ -341,7 +344,11 @@ mod tests {
 
         let artist = lib.list_folder(src, "/Artist/").await?;
         assert_eq!(
-            artist.folders.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(),
+            artist
+                .folders
+                .iter()
+                .map(|f| f.path.as_str())
+                .collect::<Vec<_>>(),
             ["Artist/Album 2", "Artist/Album 10"]
         );
         assert_eq!(artist.track_count, 1);

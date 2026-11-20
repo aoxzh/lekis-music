@@ -76,6 +76,73 @@ bool hasCredential({required String credentialRef}) => RustLib.instance.api
 Future<void> startScan({required PlatformInt64 sourceId}) =>
     RustLib.instance.api.crateApiCoreStartScan(sourceId: sourceId);
 
+/// 浏览 / 搜索 Radio Browser。`country_code` 用 ISO 3166-1（`CN`），
+/// `language` / `tag` 用 Radio Browser 的原始值。结果会缓存到本地，返回带本机 ID。
+Future<RadioPageDto> radioBrowse({
+  required String search,
+  String? countryCode,
+  String? language,
+  String? tag,
+  required RadioSortDto sort,
+  required int offset,
+  required int limit,
+}) => RustLib.instance.api.crateApiCoreRadioBrowse(
+  search: search,
+  countryCode: countryCode,
+  language: language,
+  tag: tag,
+  sort: sort,
+  offset: offset,
+  limit: limit,
+);
+
+/// 国家 / 语言 / 标签筛选选项。
+Future<RadioFilterOptionsDto> radioFilterOptions() =>
+    RustLib.instance.api.crateApiCoreRadioFilterOptions();
+
+/// 收藏的电台。
+Future<List<RadioStationDto>> radioFavorites({required int limit}) =>
+    RustLib.instance.api.crateApiCoreRadioFavorites(limit: limit);
+
+/// 最近播放过的电台。
+Future<List<RadioStationDto>> radioRecent({required int limit}) =>
+    RustLib.instance.api.crateApiCoreRadioRecent(limit: limit);
+
+/// 用户自定义的电台。
+Future<List<RadioStationDto>> radioCustom({required int limit}) =>
+    RustLib.instance.api.crateApiCoreRadioCustom(limit: limit);
+
+/// 添加自定义电台。`address` 可以是流地址，也可以是粘贴的 M3U / PLS 文本。
+Future<RadioStationDto> radioAddCustom({
+  required String name,
+  required String address,
+  String? homepage,
+}) => RustLib.instance.api.crateApiCoreRadioAddCustom(
+  name: name,
+  address: address,
+  homepage: homepage,
+);
+
+/// 删除自定义电台。
+Future<void> radioDeleteCustom({required PlatformInt64 stationId}) =>
+    RustLib.instance.api.crateApiCoreRadioDeleteCustom(stationId: stationId);
+
+/// 收藏 / 取消收藏电台。
+Future<void> radioSetFavorite({
+  required PlatformInt64 stationId,
+  required bool favorite,
+}) => RustLib.instance.api.crateApiCoreRadioSetFavorite(
+  stationId: stationId,
+  favorite: favorite,
+);
+
+/// 用一组电台替换播放队列并从 `start` 开始播放。
+Future<int> radioPlay({required Int64List stationIds, required int start}) =>
+    RustLib.instance.api.crateApiCoreRadioPlay(
+      stationIds: stationIds,
+      start: start,
+    );
+
 Future<List<TrackRowDto>> listTracks({
   required TrackSortDto sort,
   required int offset,
@@ -108,6 +175,42 @@ Future<List<TrackRowDto>> recentlyPlayed({required int limit}) =>
 
 Future<SearchResultsDto> search({required String text, required int limit}) =>
     RustLib.instance.api.crateApiCoreSearch(text: text, limit: limit);
+
+/// 分页列出重复组；每组的保留版本由核心挑选。
+Future<List<DuplicateGroupDto>> duplicateGroups({
+  required int offset,
+  required int limit,
+}) => RustLib.instance.api.crateApiCoreDuplicateGroups(
+  offset: offset,
+  limit: limit,
+);
+
+/// 重复组总数。
+Future<BigInt> duplicateGroupCount() =>
+    RustLib.instance.api.crateApiCoreDuplicateGroupCount();
+
+/// 库健康汇总。
+Future<LibraryHealthSummaryDto> libraryHealthSummary() =>
+    RustLib.instance.api.crateApiCoreLibraryHealthSummary();
+
+/// 某一类健康问题的条目数。
+Future<BigInt> libraryHealthCount({required HealthIssueKindDto kind}) =>
+    RustLib.instance.api.crateApiCoreLibraryHealthCount(kind: kind);
+
+/// 某一类健康问题的一页条目。
+Future<List<LibraryHealthEntryDto>> libraryHealthPage({
+  required HealthIssueKindDto kind,
+  required int offset,
+  required int limit,
+}) => RustLib.instance.api.crateApiCoreLibraryHealthPage(
+  kind: kind,
+  offset: offset,
+  limit: limit,
+);
+
+/// 扫描所有文件系统音源的可读性；一次性返回扫描结果。
+Future<LibraryHealthScanReportDto> scanLibraryHealth() =>
+    RustLib.instance.api.crateApiCoreScanLibraryHealth();
 
 Future<List<AlbumDto>> listAlbums({
   required TrackSortDto sort,
@@ -207,6 +310,18 @@ Future<String?> getSetting({required String key}) =>
 /// 写一个设置项。`sync.` 前缀的设置项会跨设备同步。
 Future<void> setSetting({required String key, required String value}) =>
     RustLib.instance.api.crateApiCoreSetSetting(key: key, value: value);
+
+/// 读取 10 段均衡器设置；缺省为关闭、平直曲线。
+Future<EqualizerDto> equalizer() =>
+    RustLib.instance.api.crateApiCoreEqualizer();
+
+/// 保存并立即应用均衡器设置。输入会被钳制到合法范围。
+Future<void> setEqualizer({required EqualizerDto settings}) =>
+    RustLib.instance.api.crateApiCoreSetEqualizer(settings: settings);
+
+/// 内置的 AutoEQ 风格预设（近似曲线，不是官方测量数据）。
+List<EqualizerPresetDto> equalizerPresets() =>
+    RustLib.instance.api.crateApiCoreEqualizerPresets();
 
 /// 已安装插件列表。清单损坏的插件也会返回，错误放在 `error` 字段。
 Future<List<PluginInfoDto>> plugins() =>
@@ -654,6 +769,42 @@ Future<void> setTrackOverlay({
   trackId: trackId,
   overlay: overlay,
 );
+
+/// 读手工标签覆盖层；没有时返回 `None`。
+Future<TrackTagOverridesDto?> trackTagOverrides({
+  required PlatformInt64 trackId,
+}) => RustLib.instance.api.crateApiCoreTrackTagOverrides(trackId: trackId);
+
+/// 读本地音频文件里的实际标签（编辑对话框预填用）。
+Future<TrackTagOverridesDto> readTrackFileTags({
+  required PlatformInt64 trackId,
+}) => RustLib.instance.api.crateApiCoreReadTrackFileTags(trackId: trackId);
+
+/// 保存标签覆盖层：只改资料库，不碰文件。
+Future<void> setTrackTagOverrides({
+  required PlatformInt64 trackId,
+  required TrackTagOverridesDto fields,
+}) => RustLib.instance.api.crateApiCoreSetTrackTagOverrides(
+  trackId: trackId,
+  fields: fields,
+);
+
+/// 清除标签覆盖层。
+Future<void> clearTrackTagOverrides({required PlatformInt64 trackId}) =>
+    RustLib.instance.api.crateApiCoreClearTrackTagOverrides(trackId: trackId);
+
+/// 把覆盖层写回文件；返回备份路径和实际写入的字段。
+Future<TagWriteResultDto> writeTrackTags({required PlatformInt64 trackId}) =>
+    RustLib.instance.api.crateApiCoreWriteTrackTags(trackId: trackId);
+
+/// 从 `<文件>.lekis-tags-backup.json` 恢复上一份原标签。
+Future<TagWriteResultDto> restoreTrackTags({required PlatformInt64 trackId}) =>
+    RustLib.instance.api.crateApiCoreRestoreTrackTags(trackId: trackId);
+
+/// 批量写回。返回逐项结果，一首失败不会中断其余曲目。
+Future<List<BatchTagWriteItemDto>> batchWriteTrackTags({
+  required Int64List trackIds,
+}) => RustLib.instance.api.crateApiCoreBatchWriteTrackTags(trackIds: trackIds);
 
 /// 有曲目的音源（文件夹视图的根）。
 Future<List<FolderRootDto>> folderRoots() =>

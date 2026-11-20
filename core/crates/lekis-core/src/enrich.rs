@@ -94,7 +94,8 @@ impl EnrichPipeline {
         let track = library.get_track(track_id).await?;
         let hint = hint_for(&track, library).await?;
         let candidates = provider.find_lyrics(&hint).await?;
-        self.apply_lyrics(library, track_id, &hint, candidates).await?;
+        self.apply_lyrics(library, track_id, &hint, candidates)
+            .await?;
         Ok(())
     }
 
@@ -326,11 +327,10 @@ pub(crate) async fn store_artwork_bytes(
     raw: Vec<u8>,
     source: &str,
 ) -> Result<ArtworkId> {
-    let tiers = tokio::task::spawn_blocking(move || {
-        artwork_ingest::process_tiers(&raw, &ARTWORK_TIERS)
-    })
-    .await
-    .map_err(|e| LekisError::internal(format!("封面处理任务失败：{e}")))??;
+    let tiers =
+        tokio::task::spawn_blocking(move || artwork_ingest::process_tiers(&raw, &ARTWORK_TIERS))
+            .await
+            .map_err(|e| LekisError::internal(format!("封面处理任务失败：{e}")))??;
 
     // 同哈希的文件已经在就不重写（同一张封面从不同提供方拿到时去重）。
     for (width, bytes) in &tiers.files {
@@ -355,7 +355,9 @@ pub(crate) async fn store_artwork_bytes(
 
     // 曲目级优先；同时给专辑打上，让别的曲目也能用（ENR-01）。
     if let Some(track_id) = target.track_id {
-        library.set_track_artwork(track_id, Some(artwork_id)).await?;
+        library
+            .set_track_artwork(track_id, Some(artwork_id))
+            .await?;
     }
     if let Some(album_id) = target.album_id {
         if target.replace_album || library.get_album(album_id).await?.artwork_id.is_none() {
@@ -597,9 +599,13 @@ mod tests {
 
     fn png(w: u32, h: u32) -> Vec<u8> {
         let mut buf = std::io::Cursor::new(Vec::new());
-        image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(w, h, image::Rgb([180, 40, 60])))
-            .write_to(&mut buf, image::ImageFormat::Png)
-            .expect("encode png");
+        image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+            w,
+            h,
+            image::Rgb([180, 40, 60]),
+        ))
+        .write_to(&mut buf, image::ImageFormat::Png)
+        .expect("encode png");
         buf.into_inner()
     }
 

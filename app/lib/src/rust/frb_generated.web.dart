@@ -56,6 +56,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ArtworkDto dco_decode_artwork_dto(dynamic raw);
 
   @protected
+  BatchTagWriteItemDto dco_decode_batch_tag_write_item_dto(dynamic raw);
+
+  @protected
   bool dco_decode_bool(dynamic raw);
 
   @protected
@@ -63,6 +66,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CoreConfigDto dco_decode_box_autoadd_core_config_dto(dynamic raw);
+
+  @protected
+  EqualizerDto dco_decode_box_autoadd_equalizer_dto(dynamic raw);
 
   @protected
   ErrorKind dco_decode_box_autoadd_error_kind(dynamic raw);
@@ -103,6 +109,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SourceConfigDto dco_decode_box_autoadd_source_config_dto(dynamic raw);
 
   @protected
+  TagWriteResultDto dco_decode_box_autoadd_tag_write_result_dto(dynamic raw);
+
+  @protected
   TrackOverlayDto dco_decode_box_autoadd_track_overlay_dto(dynamic raw);
 
   @protected
@@ -112,10 +121,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TrackSortDto dco_decode_box_autoadd_track_sort_dto(dynamic raw);
 
   @protected
+  TrackTagOverridesDto dco_decode_box_autoadd_track_tag_overrides_dto(
+    dynamic raw,
+  );
+
+  @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
 
   @protected
   BigInt dco_decode_box_autoadd_u_64(dynamic raw);
+
+  @protected
+  int dco_decode_box_autoadd_u_8(dynamic raw);
 
   @protected
   CoreConfigDto dco_decode_core_config_dto(dynamic raw);
@@ -136,10 +153,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DiscoveryProtocolDto dco_decode_discovery_protocol_dto(dynamic raw);
 
   @protected
+  DuplicateGroupDto dco_decode_duplicate_group_dto(dynamic raw);
+
+  @protected
+  DuplicateTrackDto dco_decode_duplicate_track_dto(dynamic raw);
+
+  @protected
   EnrichCandidateDto dco_decode_enrich_candidate_dto(dynamic raw);
 
   @protected
   EnrichReportDto dco_decode_enrich_report_dto(dynamic raw);
+
+  @protected
+  EqualizerDto dco_decode_equalizer_dto(dynamic raw);
+
+  @protected
+  EqualizerPresetDto dco_decode_equalizer_preset_dto(dynamic raw);
 
   @protected
   ErrorKind dco_decode_error_kind(dynamic raw);
@@ -163,10 +192,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GenreCountDto dco_decode_genre_count_dto(dynamic raw);
 
   @protected
+  HealthIssueKindDto dco_decode_health_issue_kind_dto(dynamic raw);
+
+  @protected
   int dco_decode_i_32(dynamic raw);
 
   @protected
   PlatformInt64 dco_decode_i_64(dynamic raw);
+
+  @protected
+  LibraryHealthEntryDto dco_decode_library_health_entry_dto(dynamic raw);
+
+  @protected
+  LibraryHealthScanReportDto dco_decode_library_health_scan_report_dto(
+    dynamic raw,
+  );
+
+  @protected
+  LibraryHealthSummaryDto dco_decode_library_health_summary_dto(dynamic raw);
 
   @protected
   LibraryScopeDto dco_decode_library_scope_dto(dynamic raw);
@@ -187,12 +230,26 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ArtistListeningDto> dco_decode_list_artist_listening_dto(dynamic raw);
 
   @protected
+  List<BatchTagWriteItemDto> dco_decode_list_batch_tag_write_item_dto(
+    dynamic raw,
+  );
+
+  @protected
   List<DiscoveredServiceDto> dco_decode_list_discovered_service_dto(
     dynamic raw,
   );
 
   @protected
+  List<DuplicateGroupDto> dco_decode_list_duplicate_group_dto(dynamic raw);
+
+  @protected
+  List<DuplicateTrackDto> dco_decode_list_duplicate_track_dto(dynamic raw);
+
+  @protected
   List<EnrichCandidateDto> dco_decode_list_enrich_candidate_dto(dynamic raw);
+
+  @protected
+  List<EqualizerPresetDto> dco_decode_list_equalizer_preset_dto(dynamic raw);
 
   @protected
   List<FolderEntryDto> dco_decode_list_folder_entry_dto(dynamic raw);
@@ -202,6 +259,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<GenreCountDto> dco_decode_list_genre_count_dto(dynamic raw);
+
+  @protected
+  List<LibraryHealthEntryDto> dco_decode_list_library_health_entry_dto(
+    dynamic raw,
+  );
 
   @protected
   List<ListeningBucketDto> dco_decode_list_listening_bucket_dto(dynamic raw);
@@ -228,6 +290,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<PluginSettingDto> dco_decode_list_plugin_setting_dto(dynamic raw);
 
   @protected
+  Float32List dco_decode_list_prim_f_32_strict(dynamic raw);
+
+  @protected
   Int32List dco_decode_list_prim_i_32_strict(dynamic raw);
 
   @protected
@@ -238,6 +303,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  List<RadioFilterOptionDto> dco_decode_list_radio_filter_option_dto(
+    dynamic raw,
+  );
+
+  @protected
+  List<RadioStationDto> dco_decode_list_radio_station_dto(dynamic raw);
 
   @protected
   List<(String, String)> dco_decode_list_record_string_string(dynamic raw);
@@ -319,6 +392,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SmartRulesDto? dco_decode_opt_box_autoadd_smart_rules_dto(dynamic raw);
 
   @protected
+  TagWriteResultDto? dco_decode_opt_box_autoadd_tag_write_result_dto(
+    dynamic raw,
+  );
+
+  @protected
   TrackOverlayDto? dco_decode_opt_box_autoadd_track_overlay_dto(dynamic raw);
 
   @protected
@@ -328,10 +406,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TrackSortDto? dco_decode_opt_box_autoadd_track_sort_dto(dynamic raw);
 
   @protected
+  TrackTagOverridesDto? dco_decode_opt_box_autoadd_track_tag_overrides_dto(
+    dynamic raw,
+  );
+
+  @protected
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
 
   @protected
   BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
+
+  @protected
+  int? dco_decode_opt_box_autoadd_u_8(dynamic raw);
 
   @protected
   List<String>? dco_decode_opt_list_String(dynamic raw);
@@ -380,6 +466,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PluginSettingDto dco_decode_plugin_setting_dto(dynamic raw);
+
+  @protected
+  RadioFilterOptionDto dco_decode_radio_filter_option_dto(dynamic raw);
+
+  @protected
+  RadioFilterOptionsDto dco_decode_radio_filter_options_dto(dynamic raw);
+
+  @protected
+  RadioPageDto dco_decode_radio_page_dto(dynamic raw);
+
+  @protected
+  RadioSortDto dco_decode_radio_sort_dto(dynamic raw);
+
+  @protected
+  RadioStationDto dco_decode_radio_station_dto(dynamic raw);
 
   @protected
   (String, String) dco_decode_record_string_string(dynamic raw);
@@ -442,6 +543,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SyncStateDto dco_decode_sync_state_dto(dynamic raw);
 
   @protected
+  TagWriteResultDto dco_decode_tag_write_result_dto(dynamic raw);
+
+  @protected
   TrackDto dco_decode_track_dto(dynamic raw);
 
   @protected
@@ -455,6 +559,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TrackSortDto dco_decode_track_sort_dto(dynamic raw);
+
+  @protected
+  TrackTagOverridesDto dco_decode_track_tag_overrides_dto(dynamic raw);
 
   @protected
   int dco_decode_u_16(dynamic raw);
@@ -507,6 +614,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ArtworkDto sse_decode_artwork_dto(SseDeserializer deserializer);
 
   @protected
+  BatchTagWriteItemDto sse_decode_batch_tag_write_item_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
@@ -514,6 +626,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CoreConfigDto sse_decode_box_autoadd_core_config_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  EqualizerDto sse_decode_box_autoadd_equalizer_dto(
     SseDeserializer deserializer,
   );
 
@@ -566,6 +683,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  TagWriteResultDto sse_decode_box_autoadd_tag_write_result_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TrackOverlayDto sse_decode_box_autoadd_track_overlay_dto(
     SseDeserializer deserializer,
   );
@@ -581,10 +703,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  TrackTagOverridesDto sse_decode_box_autoadd_track_tag_overrides_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
   BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_box_autoadd_u_8(SseDeserializer deserializer);
 
   @protected
   CoreConfigDto sse_decode_core_config_dto(SseDeserializer deserializer);
@@ -611,12 +741,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DuplicateGroupDto sse_decode_duplicate_group_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DuplicateTrackDto sse_decode_duplicate_track_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   EnrichCandidateDto sse_decode_enrich_candidate_dto(
     SseDeserializer deserializer,
   );
 
   @protected
   EnrichReportDto sse_decode_enrich_report_dto(SseDeserializer deserializer);
+
+  @protected
+  EqualizerDto sse_decode_equalizer_dto(SseDeserializer deserializer);
+
+  @protected
+  EqualizerPresetDto sse_decode_equalizer_preset_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ErrorKind sse_decode_error_kind(SseDeserializer deserializer);
@@ -640,10 +788,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GenreCountDto sse_decode_genre_count_dto(SseDeserializer deserializer);
 
   @protected
+  HealthIssueKindDto sse_decode_health_issue_kind_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+
+  @protected
+  LibraryHealthEntryDto sse_decode_library_health_entry_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LibraryHealthScanReportDto sse_decode_library_health_scan_report_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LibraryHealthSummaryDto sse_decode_library_health_summary_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   LibraryScopeDto sse_decode_library_scope_dto(SseDeserializer deserializer);
@@ -668,12 +836,32 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<BatchTagWriteItemDto> sse_decode_list_batch_tag_write_item_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<DiscoveredServiceDto> sse_decode_list_discovered_service_dto(
     SseDeserializer deserializer,
   );
 
   @protected
+  List<DuplicateGroupDto> sse_decode_list_duplicate_group_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<DuplicateTrackDto> sse_decode_list_duplicate_track_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<EnrichCandidateDto> sse_decode_list_enrich_candidate_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<EqualizerPresetDto> sse_decode_list_equalizer_preset_dto(
     SseDeserializer deserializer,
   );
 
@@ -689,6 +877,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<GenreCountDto> sse_decode_list_genre_count_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<LibraryHealthEntryDto> sse_decode_list_library_health_entry_dto(
     SseDeserializer deserializer,
   );
 
@@ -731,6 +924,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  Float32List sse_decode_list_prim_f_32_strict(SseDeserializer deserializer);
+
+  @protected
   Int32List sse_decode_list_prim_i_32_strict(SseDeserializer deserializer);
 
   @protected
@@ -741,6 +937,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  List<RadioFilterOptionDto> sse_decode_list_radio_filter_option_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<RadioStationDto> sse_decode_list_radio_station_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<(String, String)> sse_decode_list_record_string_string(
@@ -848,6 +1054,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  TagWriteResultDto? sse_decode_opt_box_autoadd_tag_write_result_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TrackOverlayDto? sse_decode_opt_box_autoadd_track_overlay_dto(
     SseDeserializer deserializer,
   );
@@ -863,10 +1074,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  TrackTagOverridesDto? sse_decode_opt_box_autoadd_track_tag_overrides_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
   BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  int? sse_decode_opt_box_autoadd_u_8(SseDeserializer deserializer);
 
   @protected
   List<String>? sse_decode_opt_list_String(SseDeserializer deserializer);
@@ -923,6 +1142,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PluginSettingDto sse_decode_plugin_setting_dto(SseDeserializer deserializer);
+
+  @protected
+  RadioFilterOptionDto sse_decode_radio_filter_option_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RadioFilterOptionsDto sse_decode_radio_filter_options_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RadioPageDto sse_decode_radio_page_dto(SseDeserializer deserializer);
+
+  @protected
+  RadioSortDto sse_decode_radio_sort_dto(SseDeserializer deserializer);
+
+  @protected
+  RadioStationDto sse_decode_radio_station_dto(SseDeserializer deserializer);
 
   @protected
   (String, String) sse_decode_record_string_string(
@@ -993,6 +1231,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SyncStateDto sse_decode_sync_state_dto(SseDeserializer deserializer);
 
   @protected
+  TagWriteResultDto sse_decode_tag_write_result_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TrackDto sse_decode_track_dto(SseDeserializer deserializer);
 
   @protected
@@ -1008,6 +1251,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TrackSortDto sse_decode_track_sort_dto(SseDeserializer deserializer);
+
+  @protected
+  TrackTagOverridesDto sse_decode_track_tag_overrides_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   int sse_decode_u_16(SseDeserializer deserializer);
@@ -1067,6 +1315,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_artwork_dto(ArtworkDto self, SseSerializer serializer);
 
   @protected
+  void sse_encode_batch_tag_write_item_dto(
+    BatchTagWriteItemDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
@@ -1078,6 +1332,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_core_config_dto(
     CoreConfigDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_equalizer_dto(
+    EqualizerDto self,
     SseSerializer serializer,
   );
 
@@ -1148,6 +1408,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_tag_write_result_dto(
+    TagWriteResultDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_track_overlay_dto(
     TrackOverlayDto self,
     SseSerializer serializer,
@@ -1166,10 +1432,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_track_tag_overrides_dto(
+    TrackTagOverridesDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_u_8(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_core_config_dto(CoreConfigDto self, SseSerializer serializer);
@@ -1199,6 +1474,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_duplicate_group_dto(
+    DuplicateGroupDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_duplicate_track_dto(
+    DuplicateTrackDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_enrich_candidate_dto(
     EnrichCandidateDto self,
     SseSerializer serializer,
@@ -1207,6 +1494,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_enrich_report_dto(
     EnrichReportDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_equalizer_dto(EqualizerDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_equalizer_preset_dto(
+    EqualizerPresetDto self,
     SseSerializer serializer,
   );
 
@@ -1238,10 +1534,34 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_genre_count_dto(GenreCountDto self, SseSerializer serializer);
 
   @protected
+  void sse_encode_health_issue_kind_dto(
+    HealthIssueKindDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_library_health_entry_dto(
+    LibraryHealthEntryDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_library_health_scan_report_dto(
+    LibraryHealthScanReportDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_library_health_summary_dto(
+    LibraryHealthSummaryDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_library_scope_dto(
@@ -1274,14 +1594,38 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_batch_tag_write_item_dto(
+    List<BatchTagWriteItemDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_discovered_service_dto(
     List<DiscoveredServiceDto> self,
     SseSerializer serializer,
   );
 
   @protected
+  void sse_encode_list_duplicate_group_dto(
+    List<DuplicateGroupDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_duplicate_track_dto(
+    List<DuplicateTrackDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_enrich_candidate_dto(
     List<EnrichCandidateDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_equalizer_preset_dto(
+    List<EqualizerPresetDto> self,
     SseSerializer serializer,
   );
 
@@ -1300,6 +1644,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_genre_count_dto(
     List<GenreCountDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_library_health_entry_dto(
+    List<LibraryHealthEntryDto> self,
     SseSerializer serializer,
   );
 
@@ -1352,6 +1702,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_prim_f_32_strict(
+    Float32List self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_prim_i_32_strict(
     Int32List self,
     SseSerializer serializer,
@@ -1372,6 +1728,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_prim_u_8_strict(
     Uint8List self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_radio_filter_option_dto(
+    List<RadioFilterOptionDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_radio_station_dto(
+    List<RadioStationDto> self,
     SseSerializer serializer,
   );
 
@@ -1514,6 +1882,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_tag_write_result_dto(
+    TagWriteResultDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_track_overlay_dto(
     TrackOverlayDto? self,
     SseSerializer serializer,
@@ -1532,10 +1906,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_track_tag_overrides_dto(
+    TrackTagOverridesDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_8(int? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_list_String(List<String>? self, SseSerializer serializer);
@@ -1612,6 +1995,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_plugin_setting_dto(
     PluginSettingDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_radio_filter_option_dto(
+    RadioFilterOptionDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_radio_filter_options_dto(
+    RadioFilterOptionsDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_radio_page_dto(RadioPageDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_radio_sort_dto(RadioSortDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_radio_station_dto(
+    RadioStationDto self,
     SseSerializer serializer,
   );
 
@@ -1700,6 +2107,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_sync_state_dto(SyncStateDto self, SseSerializer serializer);
 
   @protected
+  void sse_encode_tag_write_result_dto(
+    TagWriteResultDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_track_dto(TrackDto self, SseSerializer serializer);
 
   @protected
@@ -1719,6 +2132,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_track_sort_dto(TrackSortDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_track_tag_overrides_dto(
+    TrackTagOverridesDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_u_16(int self, SseSerializer serializer);

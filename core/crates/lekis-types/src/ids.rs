@@ -36,6 +36,23 @@ local_id! {
     PlaylistId,
     /// 封面 / 图片。
     ArtworkId,
+    /// 网络电台（本地收藏 / 自定义）。
+    RadioStationId,
+}
+
+impl RadioStationId {
+    /// 电台在播放队列里使用的合成曲目 ID。
+    ///
+    /// 用负数避开资料库自增的 `track.id`（永远为正），这样播放引擎、队列和
+    /// 「正在播放」界面都不用为电台单独开一条路径。
+    pub fn track_id(self) -> TrackId {
+        TrackId(-self.0)
+    }
+
+    /// 从合成曲目 ID 还原电台 ID；普通曲目返回 `None`。
+    pub fn from_track_id(track_id: TrackId) -> Option<Self> {
+        (track_id.0 < 0).then_some(Self(-track_id.0))
+    }
 }
 
 /// 跨设备、跨源稳定的曲目身份。
@@ -93,6 +110,14 @@ impl TrackUid {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn radio_track_id_is_negative_and_roundtrips() {
+        let station = RadioStationId(7);
+        assert_eq!(station.track_id(), TrackId(-7));
+        assert_eq!(RadioStationId::from_track_id(TrackId(-7)), Some(station));
+        assert_eq!(RadioStationId::from_track_id(TrackId(7)), None);
+    }
 
     #[test]
     fn metadata_uid_is_stable_and_normalized() {

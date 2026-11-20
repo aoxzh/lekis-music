@@ -58,7 +58,7 @@ url = "2"
 uuid = { version = "1", features = ["v4", "v7", "serde"] }
 
 # ---- 存储 ----
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.32", features = ["bundled", "functions"] }
 ciborium = "0.2"
 zstd = "0.14"
 # 本地插件安装（.zip）。

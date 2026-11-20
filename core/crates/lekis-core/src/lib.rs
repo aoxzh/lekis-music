@@ -14,14 +14,17 @@ mod artwork_local;
 pub mod config;
 pub mod discovery;
 mod enrich;
+pub mod equalizer;
 pub mod events;
 mod folders;
+mod health;
 /// In-memory diagnostic log ring for the Settings screen (SET-03).
 pub mod logs;
 mod lyrics_local;
 mod offline;
 pub mod platform;
 pub mod plugins;
+pub mod radio;
 mod remote_scan;
 mod resolver;
 pub mod scrobble;
@@ -30,22 +33,29 @@ mod sync_engine;
 
 pub use config::{CoreConfig, PlatformKind};
 pub use enrich::EnrichReport;
+pub use equalizer::EqualizerSettings;
 pub use events::EventListener;
 pub use folders::{FolderEntry, FolderListing, FolderRoot};
+pub use health::HealthScanReport;
 pub use lekis_playback::PlaybackSnapshot;
 pub use platform::{CredentialStore, MemoryCredentialStore, PlatformServices};
 pub use plugins::{PluginInfo, PluginPermissions, PluginSettingView};
+pub use radio::{
+    RadioFilterOption, RadioFilterOptions, RadioPage, RadioQuery, RadioSort, RADIO_PAGE_MAX,
+};
 pub use scrobble::{ScrobbleSettings, ScrobbleSettingsInput, ScrobbleStatus};
 pub use selection::{NetworkContext, Reachability, SourceHealth};
 pub use sync_engine::SyncReport;
 
 use events::EventBus;
-use lekis_library::{EnrichCandidateRow, Library, LyricsRow, PlaylistEntry};
 pub use lekis_library::{
-    OfflineDownload, OfflineStats, PlaybackStateRow, SourceInfo, TrackContext, TrackUserState,
+    BatchTagWriteItem, DuplicateGroup, DuplicateTrack, HealthIssueKind, LibraryHealthEntry,
+    LibraryHealthSummary, OfflineDownload, OfflineStats, PlaybackStateRow, SourceInfo,
+    TagWriteResult, TrackContext, TrackUserState,
 };
 pub use lekis_library::ListeningSummary;
-use lekis_playback::{EngineCommand, OutputDevice, OutputMode, PlaybackEngine};
+use lekis_library::{EnrichCandidateRow, Library, LyricsRow, PlaylistEntry};
+use lekis_playback::{EngineCommand, EqControl, OutputDevice, OutputMode, PlaybackEngine};
 use lekis_scanner::{tags::LoftyTagReader, Scanner};
 use lekis_types::*;
 use std::future::Future;
@@ -88,11 +98,15 @@ struct Services {
     resolver: Arc<resolver::Resolver>,
     /// 第三方听歌记录上报（DIS-07）。
     scrobble: Arc<scrobble::Scrobbler>,
+    /// 网络电台（SRC-11）：Radio Browser 客户端和筛选缓存。
+    radio: radio::RadioBrowser,
     /// 正在进行的离线下载（曲目 → 取消标记）。
     downloads:
         std::sync::Mutex<std::collections::HashMap<TrackId, Arc<std::sync::atomic::AtomicBool>>>,
     /// 本地插件管理（PLG-01~07）。
     plugins: Arc<plugins::PluginManager>,
+    /// 10 段均衡器参数（PLY-04）；和播放引擎共享，设置后立即生效。
+    eq: Arc<EqControl>,
 }
 
 impl Services {
@@ -151,6 +165,32 @@ impl Services {
             settings::REPLAYGAIN => self
                 .resolver
                 .set_replaygain_mode(resolver::ReplayGainMode::from_setting(value)),
+            settings::EQ_ENABLED => {
+                let mut current = self.eq.settings();
+                current.enabled = value
+                    .map(|value| value.trim() != "false" && value.trim() != "0")
+                    .unwrap_or(false);
+                self.eq.set(current);
+            }
+            settings::EQ_PREAMP => {
+                let mut current = self.eq.settings();
+                current.preamp_db = value
+                    .and_then(|value| value.trim().parse::<f32>().ok())
+                    .unwrap_or(0.0);
+                self.eq.set(current);
+            }
+            settings::EQ_BANDS => {
+                let mut current = self.eq.settings();
+                if let Some(bands) = value.and_then(|value| {
+                    serde_json::from_str::<Vec<f32>>(value)
+                        .ok()
+                        .map(|bands| lekis_playback::EqSettings::new(true, 0.0, &bands))
+                }) {
+                    current.bands_db = bands.bands_db;
+                }
+                self.eq.set(current);
+            }
+            settings::EQ_PRESET => {}
             _ => {}
         }
     }
@@ -178,6 +218,14 @@ pub mod settings {
     pub const GAPLESS: &str = "playback.gapless";
     /// ReplayGain：`track`（默认）/ `album` / `off`。
     pub const REPLAYGAIN: &str = "playback.replaygain";
+    /// 均衡器开关：`true` / `false`（默认关，PLY-04）。
+    pub const EQ_ENABLED: &str = "playback.eq.enabled";
+    /// 均衡器 preamp（dB，-12..=+12）。
+    pub const EQ_PREAMP: &str = "playback.eq.preamp";
+    /// 均衡器 10 段增益（dB）的 JSON 数组。
+    pub const EQ_BANDS: &str = "playback.eq.bands";
+    /// 均衡器当前预设 ID（可选）。
+    pub const EQ_PRESET: &str = "playback.eq.preset";
 }
 
 /// `test_source` 的整体超时。
@@ -235,7 +283,8 @@ impl LekisCore {
         // 播放引擎和后台任务都要在运行时上下文里创建。
         let _guard = handle.enter();
         let (resolve_tx, resolve_rx) = tokio::sync::mpsc::channel(16);
-        let engine = PlaybackEngine::spawn(resolve_tx);
+        let eq = Arc::new(EqControl::default());
+        let engine = PlaybackEngine::spawn_with_eq(resolve_tx, eq.clone());
         let resolver = Arc::new(resolver::Resolver::new(
             library.clone(),
             health.clone(),
@@ -248,6 +297,7 @@ impl LekisCore {
             platform.credentials.clone(),
             &config.data_dir,
         ));
+        let radio = radio::RadioBrowser::new()?;
         let plugins = Arc::new(plugins::PluginManager::new(
             &config.data_dir,
             library.clone(),
@@ -268,15 +318,23 @@ impl LekisCore {
             vfs: std::sync::Mutex::new(std::collections::HashMap::new()),
             resolver,
             scrobble: scrobbler,
+            radio,
             downloads: std::sync::Mutex::new(std::collections::HashMap::new()),
             plugins,
+            eq,
         });
 
         // 启动时：让播放相关设置生效，并给文件系统源预先登记 VFS（不发网络请求）。
         {
             let s = services.clone();
             handle.spawn(async move {
-                for key in [settings::GAPLESS, settings::REPLAYGAIN] {
+                for key in [
+                    settings::GAPLESS,
+                    settings::REPLAYGAIN,
+                    settings::EQ_BANDS,
+                    settings::EQ_PREAMP,
+                    settings::EQ_ENABLED,
+                ] {
                     let value = s.library.get_setting(key).await.ok().flatten();
                     s.apply_setting(key, value.as_deref());
                 }
@@ -703,6 +761,139 @@ impl LekisCore {
     }
 
     // -----------------------------------------------------------------------
+    // 网络电台（SRC-11）
+    // -----------------------------------------------------------------------
+
+    /// 浏览 / 搜索 Radio Browser，并把结果缓存到本地（返回带本机 ID 的电台）。
+    pub async fn radio_browse(&self, query: RadioQuery) -> Result<RadioPage> {
+        let s = self.services.clone();
+        self.run(async move {
+            let page = s.radio.browse(&query).await?;
+            let stations = s.library.radio_upsert_many(page.stations).await?;
+            Ok(RadioPage {
+                stations,
+                has_more: page.has_more,
+            })
+        })
+        .await
+    }
+
+    /// 国家 / 语言 / 标签筛选选项（失败时 UI 可以用本地兜底列表）。
+    pub async fn radio_filter_options(&self) -> Result<RadioFilterOptions> {
+        let s = self.services.clone();
+        self.run(async move { s.radio.filter_options().await })
+            .await
+    }
+
+    /// 收藏的电台，最近播放的排前面。
+    pub async fn radio_favorites(&self, limit: u32) -> Result<Vec<RadioStation>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.radio_favorites(limit).await })
+            .await
+    }
+
+    /// 最近播放过的电台。
+    pub async fn radio_recent(&self, limit: u32) -> Result<Vec<RadioStation>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.radio_recent(limit).await })
+            .await
+    }
+
+    /// 用户自定义的电台。
+    pub async fn radio_custom(&self, limit: u32) -> Result<Vec<RadioStation>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.radio_custom(limit).await })
+            .await
+    }
+
+    /// 添加自定义电台；`address` 可以是流地址，也可以是粘贴的 M3U / PLS 文本。
+    ///
+    /// 只接受 http/https。名称留空时用主机名。同一个流地址重复添加会更新名称和主页。
+    pub async fn radio_add_custom(
+        &self,
+        name: String,
+        address: String,
+        homepage: Option<String>,
+    ) -> Result<RadioStation> {
+        let url = radio::parse_stream_address(&address)?;
+        let homepage = radio::validate_homepage(homepage.as_deref())?;
+        let mut name = name.trim().to_string();
+        if name.is_empty() {
+            name = url::Url::parse(&url)
+                .ok()
+                .and_then(|u| u.host_str().map(str::to_string))
+                .unwrap_or_else(|| "自定义电台".to_string());
+        }
+        let s = self.services.clone();
+        self.run(async move {
+            let station = s
+                .library
+                .radio_add_custom(&name, &url, homepage.as_deref())
+                .await?;
+            s.events.emit(CoreEvent::LibraryChanged {
+                scope: LibraryScope::UserState,
+            });
+            Ok(station)
+        })
+        .await
+    }
+
+    /// 删除自定义电台（浏览缓存不能通过这个入口删除）。
+    pub async fn radio_delete_custom(&self, id: RadioStationId) -> Result<()> {
+        let s = self.services.clone();
+        self.run(async move { s.library.radio_delete_custom(id).await })
+            .await?;
+        self.services.events.emit(CoreEvent::LibraryChanged {
+            scope: LibraryScope::UserState,
+        });
+        Ok(())
+    }
+
+    /// 收藏 / 取消收藏电台。
+    pub async fn radio_set_favorite(&self, id: RadioStationId, favorite: bool) -> Result<()> {
+        let s = self.services.clone();
+        self.run(async move { s.library.radio_set_favorite(id, favorite).await })
+            .await?;
+        self.services.events.emit(radio::favorite_event());
+        Ok(())
+    }
+
+    /// 用一组电台替换播放队列并开始播放，返回队列长度。
+    ///
+    /// 电台映射成负数合成 `TrackId`，播放器把它当成时长未知的网络流：
+    /// 不扫描、不 seek，进度条只显示已播放时间。
+    pub async fn radio_play(&self, stations: Vec<RadioStationId>, start: u32) -> Result<u32> {
+        if stations.is_empty() {
+            return Err(LekisError::invalid("radio queue must not be empty"));
+        }
+        let s = self.services.clone();
+        let (tracks, start, first) = self
+            .run(async move {
+                let mut tracks = Vec::with_capacity(stations.len());
+                for id in &stations {
+                    let station = s.library.radio_station(*id).await?;
+                    tracks.push(station.id.track_id());
+                }
+                let start = (start as usize).min(tracks.len() - 1);
+                let first = stations[start];
+                s.library
+                    .radio_mark_played(first, radio::played_at_now())
+                    .await?;
+                Ok((tracks, start, first))
+            })
+            .await?;
+        let len = tracks.len() as u32;
+        self.services
+            .engine
+            .send(EngineCommand::SetQueue { tracks, start })?;
+        self.services.events.emit(CoreEvent::LibraryChanged {
+            scope: LibraryScope::UserState,
+        });
+        tracing::info!(target: "core::radio", station = %first, queue = len, "radio queue started");
+        Ok(len)
+    }
+
+    // -----------------------------------------------------------------------
     // 资料库查询
     // -----------------------------------------------------------------------
 
@@ -714,15 +905,35 @@ impl LekisCore {
     }
 
     /// 曲目详情。
+    ///
+    /// 负数的合成 `TrackId` 表示网络电台（SRC-11），返回一个时长 0 的虚拟曲目，
+    /// 让「正在播放」和播放队列不需要为电台单独做 UI。
     pub async fn get_track(&self, id: TrackId) -> Result<Track> {
         let s = self.services.clone();
-        self.run(async move { s.library.get_track(id).await }).await
+        self.run(async move {
+            if let Some(station_id) = RadioStationId::from_track_id(id) {
+                let station = s.library.radio_station(station_id).await?;
+                return Ok(radio::station_track(&station));
+            }
+            s.library.get_track(id).await
+        })
+        .await
     }
 
     /// 曲目详情 + 用户状态（收藏、评分、播放次数）。
     pub async fn get_track_with_state(&self, id: TrackId) -> Result<(Track, TrackUserState)> {
         let s = self.services.clone();
         self.run(async move {
+            if let Some(station_id) = RadioStationId::from_track_id(id) {
+                let station = s.library.radio_station(station_id).await?;
+                let state = TrackUserState {
+                    loved: station.favorite,
+                    rating: None,
+                    play_count: 0,
+                    updated_hlc: None,
+                };
+                return Ok((radio::station_track(&station), state));
+            }
             let track = s.library.get_track(id).await?;
             let state = s.library.user_state(track.uid.clone()).await?;
             Ok((track, state))
@@ -774,6 +985,57 @@ impl LekisCore {
         let s = self.services.clone();
         self.run(async move { s.library.search(&text, limit.min(100)).await })
             .await
+    }
+
+    // ---- 重复检测与库健康（LIB-10 / LIB-11）----
+
+    /// 分页列出重复组。每组的保留版本按无损 / 音质 / 文件大小挑选。
+    pub async fn duplicate_groups(&self, offset: u32, limit: u32) -> Result<Vec<DuplicateGroup>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.duplicate_groups(offset, limit).await })
+            .await
+    }
+
+    /// 重复组总数。
+    pub async fn duplicate_group_count(&self) -> Result<u64> {
+        let s = self.services.clone();
+        self.run(async move { s.library.duplicate_group_count().await })
+            .await
+    }
+
+    /// 库健康汇总。
+    pub async fn library_health_summary(&self) -> Result<LibraryHealthSummary> {
+        let s = self.services.clone();
+        self.run(async move { s.library.library_health_summary().await })
+            .await
+    }
+
+    /// 某一类健康问题的条目数。
+    pub async fn library_health_count(&self, kind: HealthIssueKind) -> Result<u64> {
+        let s = self.services.clone();
+        self.run(async move { s.library.library_health_count(kind).await })
+            .await
+    }
+
+    /// 某一类健康问题的一页条目。
+    pub async fn library_health_page(
+        &self,
+        kind: HealthIssueKind,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<LibraryHealthEntry>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.library_health_page(kind, offset, limit).await })
+            .await
+    }
+
+    /// 扫描所有文件系统音源的可读性，写入"损坏 / 不可读"状态。
+    ///
+    /// 一次性返回；每个文件只读 1 个字节，不解析标签，也不做频谱分析。
+    /// 某个音源整体打不开时只记录音源级错误，不会把它的所有文件都标成损坏。
+    pub async fn scan_library_health(&self) -> Result<HealthScanReport> {
+        let s = self.services.clone();
+        self.run(async move { health::scan(&s).await }).await
     }
 
     // ---- 浏览维度（LIB-06）----
@@ -895,7 +1157,13 @@ impl LekisCore {
     }
 
     /// 收藏 / 取消收藏。
+    ///
+    /// 电台的负合成 ID 映射到电台收藏；普通曲目走原有 `user_state` 和同步日志。
     pub async fn set_loved(&self, id: TrackId, loved: bool) -> Result<()> {
+        if let Some(station_id) = RadioStationId::from_track_id(id) {
+            self.radio_set_favorite(station_id, loved).await?;
+            return Ok(());
+        }
         let s = self.services.clone();
         self.run(async move {
             let track = s.library.get_track(id).await?;
@@ -961,6 +1229,54 @@ impl LekisCore {
                     .enqueue_sync_op(op.hlc.to_string(), op_json(&op)?)
                     .await?;
             }
+            Ok(())
+        })
+        .await
+    }
+
+    /// 读取 10 段均衡器设置（PLY-04）。缺省值是关闭、平直曲线。
+    pub async fn equalizer(&self) -> Result<EqualizerSettings> {
+        let s = self.services.clone();
+        self.run(async move {
+            let enabled = s.library.get_setting(settings::EQ_ENABLED).await?;
+            let preamp = s.library.get_setting(settings::EQ_PREAMP).await?;
+            let bands = s.library.get_setting(settings::EQ_BANDS).await?;
+            let preset = s.library.get_setting(settings::EQ_PRESET).await?;
+            Ok(equalizer::from_values(
+                enabled.as_deref(),
+                preamp.as_deref(),
+                bands.as_deref(),
+                preset.as_deref(),
+            ))
+        })
+        .await
+    }
+
+    /// 保存并立即应用 10 段均衡器设置。
+    ///
+    /// 输入会先钳制到合法范围；正在播放的共享输出会话会在下一个解码块使用新参数。
+    /// 比特完美独占输出不经过 DSP，因此不受影响（UI 会提示）。
+    pub async fn set_equalizer(&self, settings: EqualizerSettings) -> Result<()> {
+        let settings = settings.sanitized();
+        let s = self.services.clone();
+        self.run(async move {
+            let bands = serde_json::to_string(&settings.bands_db)
+                .map_err(|e| LekisError::internal(format!("serialize eq bands: {e}")))?;
+            s.library
+                .set_setting(settings::EQ_ENABLED, if settings.enabled { "true" } else { "false" })
+                .await?;
+            s.library
+                .set_setting(settings::EQ_PREAMP, &settings.preamp_db.to_string())
+                .await?;
+            s.library.set_setting(settings::EQ_BANDS, &bands).await?;
+            s.library
+                .set_setting(
+                    settings::EQ_PRESET,
+                    settings.preset.as_deref().unwrap_or(""),
+                )
+                .await?;
+            // 全部写完后一次性更新共享参数，避免解码线程看到半套设置。
+            s.eq.set(settings.to_playback());
             Ok(())
         })
         .await
@@ -1230,21 +1546,36 @@ impl LekisCore {
         self.run(async move {
             let mut rows = Vec::with_capacity(ids.len());
             for id in ids {
-                match s.library.track_row(id).await {
-                    Ok(row) => rows.push(row),
-                    // 曲目在队列里但已经被删（源被移除）：给一行占位，保持下标对齐。
-                    Err(e) if e.code == ErrorCode::NotFound => rows.push(TrackRow {
-                        id,
-                        title: String::new(),
-                        artist_line: String::new(),
-                        album_title: None,
-                        duration_ms: 0,
-                        artwork_id: None,
-                        quality_badge: None,
-                        loved: false,
-                    }),
-                    Err(e) => return Err(e),
+                if let Some(station_id) = RadioStationId::from_track_id(id) {
+                    match s.library.radio_station(station_id).await {
+                        Ok(station) => {
+                            rows.push(radio::station_track_row(&station));
+                            continue;
+                        }
+                        Err(e) if e.code == ErrorCode::NotFound => {}
+                        Err(e) => return Err(e),
+                    }
+                } else {
+                    match s.library.track_row(id).await {
+                        Ok(row) => {
+                            rows.push(row);
+                            continue;
+                        }
+                        // 曲目在队列里但已经被删（源被移除）：给一行占位，保持下标对齐。
+                        Err(e) if e.code != ErrorCode::NotFound => return Err(e),
+                        Err(_) => {}
+                    }
                 }
+                rows.push(TrackRow {
+                    id,
+                    title: String::new(),
+                    artist_line: String::new(),
+                    album_title: None,
+                    duration_ms: 0,
+                    artwork_id: None,
+                    quality_badge: None,
+                    loved: false,
+                });
             }
             Ok(rows)
         })
@@ -1533,7 +1864,12 @@ impl LekisCore {
     // -----------------------------------------------------------------------
 
     /// 当前生效的歌词（ENR-03）。
+    ///
+    /// 电台没有歌词：直接返回 `None`，不查库、不发网络请求。
     pub async fn lyrics(&self, id: TrackId) -> Result<Option<Lyrics>> {
+        if RadioStationId::from_track_id(id).is_some() {
+            return Ok(None);
+        }
         let s = self.services.clone();
         self.run(async move {
             if let Some(found) = s.library.active_lyrics(id).await? {
@@ -1566,6 +1902,9 @@ impl LekisCore {
 
     /// 这首歌所有可用歌词（按来源优先级排序，供用户切换）。
     pub async fn lyrics_versions(&self, id: TrackId) -> Result<Vec<LyricsRow>> {
+        if RadioStationId::from_track_id(id).is_some() {
+            return Ok(Vec::new());
+        }
         let s = self.services.clone();
         self.run(async move { s.library.list_lyrics(id).await })
             .await
@@ -1590,8 +1929,11 @@ impl LekisCore {
             .await
     }
 
-    /// 曲目的生效封面（曲目级优先，回落专辑级）。
+    /// 曲目的生效封面（曲目级优先，回落专辑级）。电台没有本地封面。
     pub async fn artwork(&self, id: TrackId) -> Result<Option<lekis_library::ArtworkRow>> {
+        if RadioStationId::from_track_id(id).is_some() {
+            return Ok(None);
+        }
         let s = self.services.clone();
         self.run(async move { s.library.effective_artwork(id).await })
             .await
@@ -1921,7 +2263,22 @@ impl LekisCore {
     }
 
     /// 记一次播放（DIS-06；scrobble 判定也用这条记录）。
+    ///
+    /// 电台只更新最近播放时间，不写曲目播放统计，也不产生 scrobble。
     pub async fn record_play(&self, id: TrackId, ms_played: u64) -> Result<()> {
+        if let Some(station_id) = RadioStationId::from_track_id(id) {
+            let s = self.services.clone();
+            self.run(async move {
+                s.library
+                    .radio_mark_played(station_id, radio::played_at_now())
+                    .await
+            })
+            .await?;
+            self.services.events.emit(CoreEvent::LibraryChanged {
+                scope: LibraryScope::UserState,
+            });
+            return Ok(());
+        }
         let s = self.services.clone();
         self.run(async move {
             let track = s.library.get_track(id).await?;
@@ -1971,10 +2328,85 @@ impl LekisCore {
         let s = self.services.clone();
         self.run(async move { s.library.set_track_overlay(id, overlay).await })
             .await?;
+        self.emit_library_changed();
+        Ok(())
+    }
+
+    /// 读手工标签覆盖层（LIB-13）。没有覆盖层返回 `None`。
+    pub async fn track_tag_overrides(&self, id: TrackId) -> Result<Option<TrackTagOverrides>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.track_tag_overrides(id).await })
+            .await
+    }
+
+    /// 读本地文件里的现有标签（编辑对话框预填用，不读覆盖层）。
+    pub async fn read_track_file_tags(&self, id: TrackId) -> Result<TrackTagOverrides> {
+        let s = self.services.clone();
+        self.run(async move { s.library.read_track_file_tags(id).await })
+            .await
+    }
+
+    /// 保存手工标签覆盖层（只改资料库，不碰文件）。
+    pub async fn set_track_tag_overrides(
+        &self,
+        id: TrackId,
+        fields: TrackTagOverrides,
+    ) -> Result<()> {
+        let s = self.services.clone();
+        self.run(async move { s.library.set_track_tag_overrides(id, fields).await })
+            .await?;
+        self.emit_library_changed();
+        Ok(())
+    }
+
+    /// 清除手工标签覆盖层。
+    pub async fn clear_track_tag_overrides(&self, id: TrackId) -> Result<()> {
+        let s = self.services.clone();
+        self.run(async move { s.library.clear_track_tag_overrides(id).await })
+            .await?;
+        self.emit_library_changed();
+        Ok(())
+    }
+
+    /// 把当前覆盖层写回音频文件（先备份，失败时尝试自动恢复）。
+    pub async fn write_track_tags(&self, id: TrackId) -> Result<TagWriteResult> {
+        let s = self.services.clone();
+        let result = self
+            .run(async move { s.library.write_track_tags(id).await })
+            .await?;
+        self.emit_library_changed();
+        Ok(result)
+    }
+
+    /// 从备份恢复上一份原标签；成功后清除覆盖层。
+    pub async fn restore_track_tags(&self, id: TrackId) -> Result<TagWriteResult> {
+        let s = self.services.clone();
+        let result = self
+            .run(async move { s.library.restore_track_tags(id).await })
+            .await?;
+        self.emit_library_changed();
+        Ok(result)
+    }
+
+    /// 批量写回，逐项返回；单首失败不影响其余曲目。
+    pub async fn batch_write_track_tags(
+        &self,
+        ids: Vec<TrackId>,
+    ) -> Result<Vec<BatchTagWriteItem>> {
+        let s = self.services.clone();
+        let results = self
+            .run(async move { s.library.batch_write_track_tags(ids).await })
+            .await?;
+        if results.iter().any(|item| item.result.is_some()) {
+            self.emit_library_changed();
+        }
+        Ok(results)
+    }
+
+    fn emit_library_changed(&self) {
         self.services.events.emit(CoreEvent::LibraryChanged {
             scope: LibraryScope::Catalog,
         });
-        Ok(())
     }
 }
 
@@ -2327,10 +2759,8 @@ mod tests {
 
     #[test]
     fn embedded_source_credentials_are_migrated_out_of_the_database() -> Result<()> {
-        let root = std::env::temp_dir().join(format!(
-            "lekis-core-cred-migrate-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("lekis-core-cred-migrate-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let platform = PlatformServices::in_memory();
         let credentials = platform.credentials.clone();
@@ -2575,6 +3005,61 @@ mod tests {
         Ok(())
     }
 
+    /// PLY-04：设置写入资料库、立即进入播放控制句柄，重启后还能读回来。
+    #[test]
+    fn equalizer_settings_persist_and_apply_immediately() -> Result<()> {
+        let root =
+            std::env::temp_dir().join(format!("lekis-core-eq-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let saved = EqualizerSettings {
+            enabled: true,
+            preamp_db: 99.0,
+            bands_db: vec![-99.0, 99.0, 3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            preset: Some("sennheiser-hd-600".into()),
+        };
+        {
+            let core = LekisCore::new(CoreConfig::for_tests(&root), PlatformServices::in_memory())?;
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?;
+            rt.block_on(async {
+                // 等启动任务读完全部设置，避免和测试写入互相覆盖。
+                tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                core.set_equalizer(saved.clone()).await?;
+                let loaded = core.equalizer().await?;
+                assert!(loaded.enabled);
+                assert_eq!(loaded.preamp_db, 12.0);
+                assert_eq!(loaded.bands_db.len(), 10);
+                assert_eq!(loaded.bands_db[0], -12.0);
+                assert_eq!(loaded.bands_db[1], 12.0);
+                assert_eq!(loaded.bands_db[2], 3.0);
+                assert_eq!(loaded.bands_db[9], 0.0);
+                assert_eq!(loaded.preset.as_deref(), Some("sennheiser-hd-600"));
+
+                // 共享控制句柄必须已经收到新参数（不需要重启播放会话）。
+                let live = core.services.eq.settings();
+                assert!(live.enabled);
+                assert_eq!(live.preamp_db, 12.0);
+                assert_eq!(live.bands_db, loaded.to_playback().bands_db);
+                Ok::<_, LekisError>(())
+            })?;
+        }
+        let core = LekisCore::new(CoreConfig::for_tests(&root), PlatformServices::in_memory())?;
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        let loaded = rt.block_on(async {
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+            core.equalizer().await
+        })?;
+        assert!(loaded.enabled);
+        assert_eq!(loaded.bands_db[2], 3.0);
+        assert_eq!(core.services.eq.settings().bands_db[2], 3.0);
+        drop(core);
+        let _ = std::fs::remove_dir_all(&root);
+        Ok(())
+    }
+
     /// 起一个只会回一张 PNG 的本地 HTTP 服务。
     async fn serve_png(png: Vec<u8>) -> Result<String> {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -2725,6 +3210,39 @@ mod tests {
             std::fs::read(root.join("music/01. Cover Me.flac"))?,
             b"not really audio"
         );
+        drop(core);
+        let _ = std::fs::remove_dir_all(&root);
+        Ok(())
+    }
+
+    #[test]
+    fn health_scan_marks_and_clears_unreadable_files() -> Result<()> {
+        let (core, root, _source, _events, rt) =
+            core_with_local_tracks("healthscan", &["01. Alpha.flac", "02. Beta.flac"])?;
+        let missing = root.join("music/01. Alpha.flac");
+        std::fs::remove_file(&missing)?;
+        rt.block_on(async {
+            let report = core.scan_library_health().await?;
+            assert_eq!(report.sources, 1);
+            assert_eq!(report.files_checked, 2);
+            assert_eq!(report.unreadable, 1);
+            assert_eq!(report.failed_sources, 0);
+            assert_eq!(core.library_health_summary().await?.unreadable_files, 1);
+            let page = core
+                .library_health_page(HealthIssueKind::Unreadable, 0, 10)
+                .await?;
+            assert_eq!(page.len(), 1);
+            assert_eq!(page[0].path, "01. Alpha.flac");
+            assert!(page[0].detail.is_some());
+
+            // 文件回来后重新扫描，错误状态要被清掉。
+            std::fs::write(&missing, b"x")?;
+            let report = core.scan_library_health().await?;
+            assert_eq!(report.unreadable, 0);
+            assert_eq!(report.cleared, 1);
+            assert_eq!(core.library_health_summary().await?.unreadable_files, 0);
+            Ok::<_, LekisError>(())
+        })?;
         drop(core);
         let _ = std::fs::remove_dir_all(&root);
         Ok(())

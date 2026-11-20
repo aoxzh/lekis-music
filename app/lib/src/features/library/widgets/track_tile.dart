@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/downloads/downloads_providers.dart';
+import 'package:lekis/src/features/library/tag_editor_dialog.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
@@ -19,7 +20,7 @@ String formatDuration(int ms) {
   return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$s' : '$m:$s';
 }
 
-enum _TrackMenuAction { addToPlaylist, rate, download }
+enum _TrackMenuAction { addToPlaylist, rate, editTags, download }
 
 /// Fixed-height song row (so long lists can use `itemExtent`).
 class TrackTile extends ConsumerWidget {
@@ -27,8 +28,10 @@ class TrackTile extends ConsumerWidget {
     super.key,
     required this.track,
     required this.onTap,
+    this.onLongPress,
     this.leadingNumber,
     this.showArtwork = true,
+    this.selected = false,
   });
 
   /// Height of every row – use as `ListView.itemExtent`. 56 dp: the 48 dp
@@ -39,9 +42,15 @@ class TrackTile extends ConsumerWidget {
   final TrackRowDto track;
   final VoidCallback onTap;
 
+  /// 批量选择：长按进入选择模式。
+  final VoidCallback? onLongPress;
+
   /// Shown instead of artwork (album track lists).
   final int? leadingNumber;
   final bool showArtwork;
+
+  /// 批量选择时高亮。
+  final bool selected;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -84,134 +93,177 @@ class TrackTile extends ConsumerWidget {
     } else {
       leading = const SizedBox.shrink();
     }
+    if (selected) {
+      leading = Stack(
+        alignment: Alignment.center,
+        children: [
+          leading,
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.accent.withValues(alpha: 0.82),
+                borderRadius: BorderRadius.circular(LekisRadius.artworkList),
+              ),
+              child: Icon(
+                Icons.check_rounded,
+                color: colors.onAccent,
+                size: 24,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
 
     return Semantics(
       button: true,
+      selected: selected,
       label: '${track.title}, ${track.artistLine}',
       child: PressFeedback(
         child: InkWell(
           onTap: onTap,
+          onLongPress: onLongPress,
           borderRadius: BorderRadius.circular(LekisRadius.sm),
-          child: SizedBox(
-            height: extent,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.sm),
-              child: Row(
-                children: [
-                  leading,
-                  const SizedBox(width: LekisSpacing.md),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          track.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            color: isCurrent ? colors.accent : null,
-                            fontWeight: isCurrent ? FontWeight.w600 : null,
-                          ),
-                        ),
-                        if (subtitle.isNotEmpty)
+          child: ColoredBox(
+            color: selected ? colors.accentSoft : Colors.transparent,
+            child: SizedBox(
+              height: extent,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: LekisSpacing.sm,
+                ),
+                child: Row(
+                  children: [
+                    leading,
+                    const SizedBox(width: LekisSpacing.md),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Text(
-                            subtitle,
+                            track.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.onSurfaceVariant,
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              color: isCurrent ? colors.accent : null,
+                              fontWeight: isCurrent ? FontWeight.w600 : null,
                             ),
                           ),
+                          if (subtitle.isNotEmpty)
+                            Text(
+                              subtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (track.qualityBadge != null) ...[
+                      const SizedBox(width: LekisSpacing.sm),
+                      _QualityBadge(label: track.qualityBadge!),
+                    ],
+                    const SizedBox(width: LekisSpacing.xs),
+                    CompactDownloadProgress(trackId: track.id),
+                    LovedButton(
+                      trackId: track.id,
+                      initialLoved: track.loved,
+                      size: LekisSpacing.lg,
+                    ),
+                    PopupMenuButton<_TrackMenuAction>(
+                      tooltip: '更多操作',
+                      icon: const Icon(Icons.more_horiz_rounded, size: 20),
+                      iconSize: 20,
+                      padding: EdgeInsets.zero,
+                      onSelected: (action) {
+                        switch (action) {
+                          case _TrackMenuAction.addToPlaylist:
+                            showAddToPlaylistSheet(
+                              context,
+                              trackId: track.id,
+                              trackTitle: track.title,
+                            );
+                          case _TrackMenuAction.rate:
+                            showTrackRatingSheet(
+                              context,
+                              trackId: track.id,
+                              title: track.title,
+                            );
+                          case _TrackMenuAction.editTags:
+                            showTrackTagEditor(
+                              context,
+                              trackId: track.id,
+                              trackTitle: track.title,
+                            );
+                          case _TrackMenuAction.download:
+                            runDownloadMenuAction(
+                              context,
+                              ref,
+                              track.id,
+                              downloadState,
+                            );
+                        }
+                      },
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: _TrackMenuAction.addToPlaylist,
+                          child: ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.playlist_add_rounded),
+                            title: Text('添加到歌单'),
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: _TrackMenuAction.rate,
+                          child: ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.star_outline_rounded),
+                            title: Text('评分'),
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: _TrackMenuAction.editTags,
+                          child: ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.edit_note_rounded),
+                            title: Text('编辑标签'),
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: _TrackMenuAction.download,
+                          child: ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(
+                              downloadState == null
+                                  ? Icons.download_for_offline_outlined
+                                  : downloadState == OfflineStateDto.ready
+                                  ? Icons.delete_outline_rounded
+                                  : downloadState == OfflineStateDto.failed
+                                  ? Icons.refresh_rounded
+                                  : Icons.download_done_rounded,
+                            ),
+                            title: Text(downloadMenuLabel(downloadState)),
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                  if (track.qualityBadge != null) ...[
-                    const SizedBox(width: LekisSpacing.sm),
-                    _QualityBadge(label: track.qualityBadge!),
-                  ],
-                  const SizedBox(width: LekisSpacing.xs),
-                  CompactDownloadProgress(trackId: track.id),
-                  LovedButton(
-                    trackId: track.id,
-                    initialLoved: track.loved,
-                    size: LekisSpacing.lg,
-                  ),
-                  PopupMenuButton<_TrackMenuAction>(
-                    tooltip: '更多操作',
-                    icon: const Icon(Icons.more_horiz_rounded, size: 20),
-                    iconSize: 20,
-                    padding: EdgeInsets.zero,
-                    onSelected: (action) {
-                      switch (action) {
-                        case _TrackMenuAction.addToPlaylist:
-                          showAddToPlaylistSheet(
-                            context,
-                            trackId: track.id,
-                            trackTitle: track.title,
-                          );
-                        case _TrackMenuAction.rate:
-                          showTrackRatingSheet(
-                            context,
-                            trackId: track.id,
-                            title: track.title,
-                          );
-                        case _TrackMenuAction.download:
-                          runDownloadMenuAction(
-                            context,
-                            ref,
-                            track.id,
-                            downloadState,
-                          );
-                      }
-                    },
-                    itemBuilder: (_) => [
-                      const PopupMenuItem(
-                        value: _TrackMenuAction.addToPlaylist,
-                        child: ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(Icons.playlist_add_rounded),
-                          title: Text('添加到歌单'),
-                        ),
+                    const SizedBox(width: LekisSpacing.xs),
+                    Text(
+                      formatDuration(track.durationMs.toInt()),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
-                      const PopupMenuItem(
-                        value: _TrackMenuAction.rate,
-                        child: ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(Icons.star_outline_rounded),
-                          title: Text('评分'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: _TrackMenuAction.download,
-                        child: ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            downloadState == null
-                                ? Icons.download_for_offline_outlined
-                                : downloadState == OfflineStateDto.ready
-                                ? Icons.delete_outline_rounded
-                                : downloadState == OfflineStateDto.failed
-                                ? Icons.refresh_rounded
-                                : Icons.download_done_rounded,
-                          ),
-                          title: Text(downloadMenuLabel(downloadState)),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: LekisSpacing.xs),
-                  Text(
-                    formatDuration(track.durationMs.toInt()),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                      fontFeatures: const [FontFeature.tabularFigures()],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

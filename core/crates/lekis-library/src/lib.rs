@@ -11,6 +11,7 @@ mod browse;
 mod db;
 mod enrich_queue;
 mod folders;
+mod library_health;
 mod listening;
 mod lyrics;
 mod migrations;
@@ -20,6 +21,7 @@ mod playback_state;
 mod playlist_io;
 mod playlists;
 mod position;
+mod radio;
 mod remote;
 mod scanned;
 mod search;
@@ -27,12 +29,17 @@ mod settings;
 mod smart;
 mod sources;
 mod sync;
+mod tag_edit;
 mod tracks;
 
 pub use artwork::{cache_relative_path, ArtworkCandidate, ArtworkRow};
 pub use db::{DbResultExt, Library};
 pub use enrich_queue::{EnrichCandidateRow, NewEnrichCandidate};
 pub use folders::{normalize_folder_path, FolderEntry, FolderListing, FolderRoot};
+pub use library_health::{
+    DuplicateGroup, DuplicateTrack, FileHealthUpdate, HealthIssueKind, HealthScanFile,
+    LibraryHealthEntry, LibraryHealthSummary, DUPLICATE_DURATION_TOLERANCE_MS,
+};
 pub use listening::{
     AlbumListening, ArtistListening, ListeningBucket, ListeningSummary, TrackListening,
 };
@@ -46,4 +53,8 @@ pub use scanned::{quality_score, ScannedFile, ScannedTags, UpsertStats};
 pub use smart::{AllowedColumns, Rule, RuleField, RuleGroup, RuleOp, RuleValue, SmartRules};
 pub use sources::SourceInfo;
 pub use sync::OutboxEntry;
+pub use tag_edit::{
+    backup_path_for, BatchTagWriteItem, TagBackup, TagWriteResult, TAG_BACKUP_SUFFIX,
+    TAG_BACKUP_VERSION,
+};
 pub use tracks::{TrackContext, TrackFile, TrackUserState};

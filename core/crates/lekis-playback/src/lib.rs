@@ -15,6 +15,7 @@
 pub mod decode;
 pub mod dsp;
 pub mod engine;
+pub mod eq;
 pub mod gapless;
 pub mod output;
 pub mod queue;
@@ -30,6 +31,10 @@ pub use decode::{
     VfsMediaSource,
 };
 pub use engine::{list_output_devices, EngineCommand, PlaybackEngine, PlaybackSnapshot};
+pub use eq::{
+    preset as eq_preset, EqControl, EqPreset, EqSettings, ParametricEq, BAND_COUNT,
+    BAND_FREQUENCIES_HZ, DEFAULT_Q, MAX_GAIN_DB, MIN_GAIN_DB, PRESETS as EQ_PRESETS,
+};
 pub use gapless::{AudibleTrack, TrackTimeline};
 pub use output::{
     AudioOutput, CpalOutput, NativePacking, NativePlan, NativeSampleSource, OutputDevice,

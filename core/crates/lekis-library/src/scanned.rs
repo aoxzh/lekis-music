@@ -4,7 +4,7 @@
 //! 写 `file` 表 → 按规范化名称合并艺人和专辑 → 生成或复用曲目 → 关联 `track_file` → 更新搜索索引。
 
 use crate::db::DbResultExt;
-use crate::normalize::{norm_key, search_keys, sort_key};
+use crate::normalize::{norm_key, sort_key};
 use crate::Library;
 use lekis_types::{now_ms, AudioProps, ReplayGain, Result, SourceId, TrackUid};
 use rusqlite::{params, OptionalExtension, Transaction};
@@ -426,12 +426,6 @@ fn upsert_one(tx: &Transaction<'_>, f: &ScannedFile) -> Result<bool> {
     };
     let replaygain_json = serde_json::to_string(&t.replaygain).map_err(json_err)?;
     let quality_badge = t.audio.as_ref().map(AudioProps::quality_badge);
-    // 曲目是不是第一次出现（同一首歌可能已经从别的文件 / 源入过库）：新曲目不用删旧索引行。
-    let track_existed: bool = tx
-        .query_row("SELECT 1 FROM track WHERE uid = ?1", params![uid.0], |_| Ok(()))
-        .optional()
-        .db()?
-        .is_some();
 
     let track_id: i64 = tx
         .query_row(
@@ -519,16 +513,9 @@ fn upsert_one(tx: &Transaction<'_>, f: &ScannedFile) -> Result<bool> {
         .db()?;
     }
 
-    let keys = search_keys(&[&t.title, &artist_line, t.album.as_deref().unwrap_or("")]);
-    crate::browse::write_index_row(
-        tx,
-        crate::browse::INDEX_TRACK,
-        track_id,
-        &t.title,
-        &artist_line,
-        &keys,
-        track_existed,
-    )?;
+    // 重新扫描会覆盖原始标签，但用户的手工覆盖层仍然优先：统一走
+    // `refresh_track_index`，它会读取 overlay / tag_overrides。
+    crate::browse::refresh_track_index(tx, track_id)?;
 
     Ok(is_new)
 }

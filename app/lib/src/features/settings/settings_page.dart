@@ -10,6 +10,9 @@ import '../../shell/tab_bar_style.dart';
 import '../../theme/tokens.dart';
 import '../downloads/downloads_models.dart';
 import '../downloads/downloads_providers.dart';
+import 'desktop_tray_settings_section.dart';
+import 'equalizer_page.dart';
+import '../library/library_health_page.dart';
 import 'logs_page.dart';
 import '../enrich/enrich_providers.dart';
 import '../now_playing/lyrics_stage_settings.dart';
@@ -28,16 +31,18 @@ class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
   @override
-  Widget build(BuildContext context) => const SettingsScaffold(
+  Widget build(BuildContext context) => SettingsScaffold(
     title: SettingsStrings.title,
     body: SettingsListView(
       children: [
-        _PlaybackSection(),
-        _AppearanceSection(),
-        _LibrarySection(),
-        _ScrobbleSection(),
-        SettingsBackupSection(),
-        _AboutSection(),
+        const _PlaybackSection(),
+        const _AppearanceSection(),
+        if (DesktopTraySettingsSection.isSupported)
+          const DesktopTraySettingsSection(),
+        const _LibrarySection(),
+        const _ScrobbleSection(),
+        const SettingsBackupSection(),
+        const _AboutSection(),
       ],
     ),
   );
@@ -147,6 +152,15 @@ class _PlaybackSection extends ConsumerWidget {
             selected: {output.mode},
             onSelectionChanged: (s) =>
                 _guard(context, () => notifier.setMode(s.first)),
+          ),
+        ),
+        SettingsTile(
+          icon: Icons.graphic_eq_rounded,
+          title: EqualizerStrings.title,
+          subtitle: const Text(EqualizerStrings.entryHint),
+          chevron: true,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const EqualizerPage()),
           ),
         ),
         SettingsSwitchTile(
@@ -348,6 +362,13 @@ class _LibrarySection extends ConsumerWidget {
               : null,
           chevron: true,
           onTap: () => openDownloads(context),
+        ),
+        SettingsTile(
+          icon: Icons.health_and_safety_outlined,
+          title: SettingsStrings.libraryHealth,
+          subtitle: const Text(SettingsStrings.libraryHealthHint),
+          chevron: true,
+          onTap: () => Navigator.of(context).push(LibraryHealthPage.route()),
         ),
         SettingsTile(
           icon: Icons.auto_fix_high_outlined,

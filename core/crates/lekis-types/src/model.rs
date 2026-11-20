@@ -69,6 +69,48 @@ pub struct SourceConfig {
 }
 
 // ---------------------------------------------------------------------------
+// 网络电台（SRC-11）
+// ---------------------------------------------------------------------------
+
+/// 一个网络电台。
+///
+/// Radio Browser 返回的电台会在浏览时缓存到本地；用户收藏和自定义电台永久保存。
+/// 播放时用 [`RadioStationId::track_id`] 映射成合成 `TrackId`，不要求完整的曲目扫描。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RadioStation {
+    /// 本机 ID。
+    pub id: RadioStationId,
+    /// Radio Browser 的稳定 UUID；自定义电台为 `None`。
+    pub station_uuid: Option<String>,
+    /// 显示名称。
+    pub name: String,
+    /// 可直接播放的流地址（已解析 `url_resolved`，仅 http/https）。
+    pub url: String,
+    /// 图标地址。
+    pub favicon: Option<String>,
+    /// 国家 / 地区显示名。
+    pub country: Option<String>,
+    /// ISO 3166-1 国家代码（筛选用）。
+    pub country_code: Option<String>,
+    /// 语言。
+    pub language: Option<String>,
+    /// 标签 / 流派。
+    pub tags: Vec<String>,
+    /// 编码（MP3 / AAC / OGG……）。
+    pub codec: Option<String>,
+    /// 码率（kbps）。
+    pub bitrate: Option<u32>,
+    /// 主页。
+    pub homepage: Option<String>,
+    /// 用户手动添加的电台。
+    pub is_custom: bool,
+    /// 是否收藏。
+    pub favorite: bool,
+    /// 最近播放时间（Unix 毫秒）。
+    pub last_played_at: Option<i64>,
+}
+
+// ---------------------------------------------------------------------------
 // 音频属性
 // ---------------------------------------------------------------------------
 
@@ -243,6 +285,62 @@ pub struct ArtistCredit {
     pub name: String,
     /// 角色。
     pub role: ArtistRole,
+}
+
+/// 用户手工编辑的标签字段（LIB-13）。
+///
+/// 这是资料库里的**覆盖层**，只影响扫描 / 展示，不直接改文件；字段为 `None`
+/// 表示"沿用文件标签"。用户确认"写入文件"后，核心再把这里的字段写回本地音频。
+///
+/// 和 [`TrackOverlay`] 分开存：补全结果（ENR）可以整体替换，而手工标签编辑需要
+/// 保留评论、作曲、MusicBrainz ID 等补全不关心的字段。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrackTagOverrides {
+    /// 标题。
+    pub title: Option<String>,
+    /// 艺人（多个艺人用 ` / ` 连接）。
+    pub artist: Option<String>,
+    /// 专辑名。
+    pub album: Option<String>,
+    /// 专辑艺人。
+    pub album_artist: Option<String>,
+    /// 曲目号。
+    pub track_no: Option<u32>,
+    /// 碟片号。
+    pub disc_no: Option<u32>,
+    /// 年份。
+    pub year: Option<i32>,
+    /// 流派（多个流派用 `;` 连接）。
+    pub genre: Option<String>,
+    /// 评论。
+    pub comment: Option<String>,
+    /// 作曲。
+    pub composer: Option<String>,
+    /// 作词。
+    pub lyricist: Option<String>,
+    /// MusicBrainz 录音 ID。
+    pub musicbrainz_track_id: Option<String>,
+    /// MusicBrainz 专辑（release）ID。
+    pub musicbrainz_album_id: Option<String>,
+}
+
+impl TrackTagOverrides {
+    /// 是否一个字段都没覆盖。
+    pub fn is_empty(&self) -> bool {
+        self.title.is_none()
+            && self.artist.is_none()
+            && self.album.is_none()
+            && self.album_artist.is_none()
+            && self.track_no.is_none()
+            && self.disc_no.is_none()
+            && self.year.is_none()
+            && self.genre.is_none()
+            && self.comment.is_none()
+            && self.composer.is_none()
+            && self.lyricist.is_none()
+            && self.musicbrainz_track_id.is_none()
+            && self.musicbrainz_album_id.is_none()
+    }
 }
 
 /// 用户或补全结果对曲目元数据的覆盖层（LIB-13 / ENR）。

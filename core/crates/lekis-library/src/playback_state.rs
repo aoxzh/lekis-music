@@ -181,6 +181,30 @@ fn existing_track_ids(c: &Connection, ids: &[i64]) -> Result<HashSet<i64>> {
         for id in rows {
             valid.insert(id.db()?);
         }
+
+        // 网络电台用负数合成 TrackId（SRC-11）；只要 radio_station 里还有这一行，
+        // 重启后也允许恢复这条队列。
+        let radio_ids: Vec<i64> = chunk
+            .iter()
+            .copied()
+            .filter(|id| *id < 0)
+            .map(|id| -id)
+            .collect();
+        if !radio_ids.is_empty() {
+            let placeholders = std::iter::repeat_n("?", radio_ids.len())
+                .collect::<Vec<_>>()
+                .join(",");
+            let sql = format!("SELECT -id FROM radio_station WHERE id IN ({placeholders})");
+            let mut stmt = c.prepare_cached(&sql).db()?;
+            let rows = stmt
+                .query_map(rusqlite::params_from_iter(radio_ids.iter()), |r| {
+                    r.get::<_, i64>(0)
+                })
+                .db()?;
+            for id in rows {
+                valid.insert(id.db()?);
+            }
+        }
     }
     Ok(valid)
 }

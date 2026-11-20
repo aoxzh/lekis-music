@@ -47,11 +47,21 @@ abstract final class SettingsStrings {
   static const lyricsSparks = '火花';
   static const lyricsSparksHint = '唱到每个字时飞出细小的光点，最后一句更明显';
 
+  static const system = '系统';
+  static const desktopTrayEnabled = '显示托盘图标';
+  static const desktopTrayEnabledHint =
+      '在 Windows 通知区域显示 Lekis，可右键控制播放，双击恢复窗口。';
+  static const desktopTrayCloseToTray = '关闭窗口时最小化到托盘';
+  static const desktopTrayCloseToTrayHint = '点关闭按钮只隐藏窗口，音乐继续播放；请从托盘菜单退出以结束进程。';
+  static const desktopTrayNeedsIcon = '先启用托盘图标，隐藏窗口后才有入口恢复。';
+
   static const library = '资料库';
   static const sources = '音源';
   static const sourcesHint = '管理本地文件夹、NAS 和媒体服务器';
   static const enrichReview = '待确认的补全';
   static const enrichReviewHint = '检查自动找到的封面、歌词和标签';
+  static const libraryHealth = '资料库检查';
+  static const libraryHealthHint = '查找重复歌曲、缺失标签 / 封面 / 歌词和不可读文件';
   static String pendingCount(int n) => '$n 条待确认';
   static const downloads = '下载';
   static const downloadsHint = '离线缓存、下载队列和失败重试';
