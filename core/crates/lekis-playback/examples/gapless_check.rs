@@ -32,12 +32,19 @@
 //!    - 时间轴：会话报告的拼接样本号（UI 切歌点）必须等于期望的边界。
 //! 4. 反向对照：把第一个边界窗口在边界处人为插入 10 ms 零，用同一套指标重新评估，必须被判失败。
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::print_stdout, clippy::print_stderr)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::print_stdout,
+    clippy::print_stderr
+)]
 
 use lekis_playback::decode::Decoder;
 use lekis_playback::dsp::{fade_frames, DspNode, SoftClipper, DEFAULT_FADE_MS};
 use lekis_playback::output::{AudioOutput, OutputDevice, OutputMode, SampleSource};
-use lekis_playback::{MediaLocation, MediaSource, OutputFactory, PcmFormat, Session, SymphoniaDecoder};
+use lekis_playback::{
+    MediaLocation, MediaSource, OutputFactory, PcmFormat, Session, SymphoniaDecoder,
+};
 use lekis_types::TrackId;
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
@@ -83,7 +90,9 @@ fn parse_args() -> Result<Option<Args>, BoxError> {
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
         match arg.as_str() {
-            "--device-rate" => device_rate = Some(it.next().ok_or("--device-rate needs a value")?.parse()?),
+            "--device-rate" => {
+                device_rate = Some(it.next().ok_or("--device-rate needs a value")?.parse()?)
+            }
             "--window" => window = it.next().ok_or("--window needs a value")?.parse()?,
             "--speed" => speed = it.next().ok_or("--speed needs a value")?.parse()?,
             "-h" | "--help" => {
@@ -112,7 +121,9 @@ fn parse_args() -> Result<Option<Args>, BoxError> {
 }
 
 fn audio_files(dir: &Path) -> Result<Vec<PathBuf>, BoxError> {
-    const EXT: &[&str] = &["flac", "wav", "mp3", "m4a", "aac", "ogg", "opus", "aif", "aiff", "alac"];
+    const EXT: &[&str] = &[
+        "flac", "wav", "mp3", "m4a", "aac", "ogg", "opus", "aif", "aiff", "alac",
+    ];
     let mut files: Vec<PathBuf> = std::fs::read_dir(dir)?
         .filter_map(|e| e.ok().map(|e| e.path()))
         .filter(|p| {
@@ -131,7 +142,10 @@ fn run() -> Result<bool, BoxError> {
     };
     let files = audio_files(&args.dir)?;
     if files.len() < 2 {
-        println!("SKIP: need at least two audio files in {}", args.dir.display());
+        println!(
+            "SKIP: need at least two audio files in {}",
+            args.dir.display()
+        );
         return Ok(true);
     }
 
@@ -146,14 +160,22 @@ fn run() -> Result<bool, BoxError> {
     let exact = device == content;
     let channels = usize::from(content.channels);
 
-    println!("gapless_check: {} tracks in {}", files.len(), args.dir.display());
+    println!(
+        "gapless_check: {} tracks in {}",
+        files.len(),
+        args.dir.display()
+    );
     println!(
         "content {} Hz / {} ch -> device {} Hz / {} ch ({})",
         content.sample_rate,
         content.channels,
         device.sample_rate,
         device.channels,
-        if exact { "bit-exact comparison" } else { "resampled, statistical checks only" }
+        if exact {
+            "bit-exact comparison"
+        } else {
+            "resampled, statistical checks only"
+        }
     );
     let mut streaminfo = Vec::new();
     for (i, f) in files.iter().enumerate() {
@@ -169,7 +191,11 @@ fn run() -> Result<bool, BoxError> {
                 si.total_frames
             );
         } else {
-            println!("  {:02} {}", i + 1, f.file_name().and_then(|n| n.to_str()).unwrap_or("?"));
+            println!(
+                "  {:02} {}",
+                i + 1,
+                f.file_name().and_then(|n| n.to_str()).unwrap_or("?")
+            );
         }
         streaminfo.push(info);
     }
@@ -232,7 +258,12 @@ fn run() -> Result<bool, BoxError> {
             }
             None => String::new(),
         };
-        println!("  track {:02}: decoded {} frames {}", i + 1, frames, si_note);
+        println!(
+            "  track {:02}: decoded {} frames {}",
+            i + 1,
+            frames,
+            si_note
+        );
     }
     if exact {
         println!(
@@ -260,11 +291,17 @@ fn run() -> Result<bool, BoxError> {
             println!("  FAIL: rendered stream is not identical to the concatenated tracks");
         }
     } else {
-        let expected = decoded_total as f64 * f64::from(device.sample_rate) / f64::from(content.sample_rate);
+        let expected =
+            decoded_total as f64 * f64::from(device.sample_rate) / f64::from(content.sample_rate);
         let diff = analysis.rendered_frames as f64 - expected;
         println!(
             "  rendered {} frames, expected {:.1} (sum {} x {}/{}), diff {:+.1} frames",
-            analysis.rendered_frames, expected, decoded_total, device.sample_rate, content.sample_rate, diff
+            analysis.rendered_frames,
+            expected,
+            decoded_total,
+            device.sample_rate,
+            content.sample_rate,
+            diff
         );
         // 只允许重采样器一个块以内的尾差（共享同一个转换级时，整张专辑只会在最后冲一次尾巴）。
         if diff.abs() > 2048.0 {
@@ -327,7 +364,11 @@ fn run() -> Result<bool, BoxError> {
     // 反向对照
     println!();
     println!("negative control: insert {NEGATIVE_GAP_MS} ms of zeros at the first boundary");
-    let control_ok = match analysis.boundaries.first().and_then(|b| b.window.as_ref().map(|w| (b, w))) {
+    let control_ok = match analysis
+        .boundaries
+        .first()
+        .and_then(|b| b.window.as_ref().map(|w| (b, w)))
+    {
         Some((b, window)) => {
             let gap = fade_frames(device.sample_rate, NEGATIVE_GAP_MS);
             let tampered = insert_gap(window, channels, args.window, gap);
@@ -337,15 +378,31 @@ fn run() -> Result<bool, BoxError> {
             println!(
                 "      frame count with gap: {} vs {} expected (diff +{})",
                 rendered_with_gap,
-                if exact { decoded_total } else { analysis.rendered_frames },
+                if exact {
+                    decoded_total
+                } else {
+                    analysis.rendered_frames
+                },
                 gap
             );
             let flagged = !v.pass(b.ref_zero_run);
             println!(
                 "      => {} (jump criterion: {}, zero-run criterion: {}, frame count: +{gap})",
-                if flagged { "FLAGGED (metric works)" } else { "NOT flagged (metric is blind!)" },
-                if v.has_click() { "click" } else { "not triggered" },
-                if v.has_gap(b.ref_zero_run) { "gap" } else { "not triggered" },
+                if flagged {
+                    "FLAGGED (metric works)"
+                } else {
+                    "NOT flagged (metric is blind!)"
+                },
+                if v.has_click() {
+                    "click"
+                } else {
+                    "not triggered"
+                },
+                if v.has_gap(b.ref_zero_run) {
+                    "gap"
+                } else {
+                    "not triggered"
+                },
             );
             flagged
         }
@@ -482,7 +539,11 @@ struct CaptureFactory {
 }
 
 impl OutputFactory for CaptureFactory {
-    fn plan_format(&self, _device_id: Option<&str>, _requested: PcmFormat) -> lekis_types::Result<PcmFormat> {
+    fn plan_format(
+        &self,
+        _device_id: Option<&str>,
+        _requested: PcmFormat,
+    ) -> lekis_types::Result<PcmFormat> {
         Ok(self.device)
     }
 
@@ -520,7 +581,9 @@ impl AudioOutput for CaptureOutput {
     ) -> lekis_types::Result<PcmFormat> {
         let sender = self.sender.lock().ok().and_then(|s| s.clone());
         let Some(sender) = sender else {
-            return Err(lekis_types::LekisError::internal("capture output already used"));
+            return Err(lekis_types::LekisError::internal(
+                "capture output already used",
+            ));
         };
         let stop = self.stop.clone();
         let channels = usize::from(self.device.channels.max(1));
@@ -536,7 +599,8 @@ impl AudioOutput for CaptureOutput {
                     let began = Instant::now();
                     while !stop.load(Ordering::Relaxed) {
                         if speed > 0.0 {
-                            let played_s = pulled.load(Ordering::Relaxed) as f64 / channels as f64 / rate;
+                            let played_s =
+                                pulled.load(Ordering::Relaxed) as f64 / channels as f64 / rate;
                             let due = Duration::from_secs_f64(played_s / speed);
                             let elapsed = began.elapsed();
                             if due > elapsed {
@@ -583,7 +647,10 @@ impl AudioOutput for CaptureOutput {
 
 fn open(path: &Path) -> Result<SymphoniaDecoder, BoxError> {
     let file = std::fs::File::open(path)?; // 只读打开
-    let ext = path.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase());
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase());
     Ok(SymphoniaDecoder::open_file(file, ext.as_deref())?)
 }
 
@@ -641,7 +708,8 @@ impl Reference {
                 None => false,
             };
             if !more {
-                self.track_frames.push(self.current_samples / self.channels as u64);
+                self.track_frames
+                    .push(self.current_samples / self.channels as u64);
                 self.current_samples = 0;
                 self.decoder = None;
                 continue;
@@ -765,9 +833,9 @@ fn analyze(
     let mut ref_tracks_seen = 0usize;
 
     let capture = |reports: &mut Vec<BoundaryReport>,
-                       rendered_hist: &History,
-                       ref_hist: &History,
-                       final_pass: bool| {
+                   rendered_hist: &History,
+                   ref_hist: &History,
+                   final_pass: bool| {
         let marks = marks.lock().map(|m| m.clone()).unwrap_or_default();
         for (track_idx, frame) in marks {
             if track_idx == 0 || track_idx > reports.len() {
@@ -786,7 +854,9 @@ fn analyze(
             if rendered_hist.end_frame() < to && !final_pass {
                 continue; // 还没渲染到
             }
-            if let Some(w) = rendered_hist.slice(b - window as u64, to.min(rendered_hist.end_frame())) {
+            if let Some(w) =
+                rendered_hist.slice(b - window as u64, to.min(rendered_hist.end_frame()))
+            {
                 if w.len() == 2 * window * channels {
                     r.verdict = Some(evaluate(&w, channels, window));
                     r.window = Some(w);
@@ -969,7 +1039,7 @@ fn longest_zero_run(window: &[f32], channels: usize) -> usize {
 fn insert_gap(window: &[f32], channels: usize, b: usize, gap: usize) -> Vec<f32> {
     let mut out = Vec::with_capacity(window.len() + gap * channels);
     out.extend_from_slice(&window[..b * channels]);
-    out.extend(std::iter::repeat(0.0f32).take(gap * channels));
+    out.extend(std::iter::repeat_n(0.0f32, gap * channels));
     out.extend_from_slice(&window[b * channels..]);
     out.truncate(window.len());
     out
