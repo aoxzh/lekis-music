@@ -15,12 +15,15 @@ import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../connect/connect_strings.dart';
+import '../connect/play_on_device.dart';
+
 const BoxConstraints _touchTarget = BoxConstraints(
   minWidth: LekisSizes.touchTargetMin,
   minHeight: LekisSizes.touchTargetMin,
 );
 
-enum _MoreAction { rate, download, addToPlaylist, editLyrics }
+enum _MoreAction { rate, download, addToPlaylist, playOnDevice, editLyrics }
 
 class NowPlayingLibraryActions extends ConsumerWidget {
   const NowPlayingLibraryActions({super.key, this.showRating = true});
@@ -138,6 +141,8 @@ class _MoreButton extends ConsumerWidget {
               trackId: track.id,
               trackTitle: track.title,
             );
+          case _MoreAction.playOnDevice:
+            showPlayOnDeviceSheet(context, ref);
           case _MoreAction.editLyrics:
             showLyricsEditor(context, ref, track.id);
         }
@@ -164,6 +169,10 @@ class _MoreButton extends ConsumerWidget {
         PopupMenuItem(
           value: _MoreAction.addToPlaylist,
           child: item(Icons.playlist_add_rounded, '添加到歌单'),
+        ),
+        PopupMenuItem(
+          value: _MoreAction.playOnDevice,
+          child: item(Icons.cast_rounded, ConnectStrings.playHere),
         ),
         // Editors live in the menu, not as a floating button over the lyrics
         // (iOS 26 puts them with the rest of the lyric controls).

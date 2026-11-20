@@ -12,6 +12,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'package:lekis/src/features/connect/connect_runtime_host.dart';
 import 'package:lekis/src/features/player/mini_player.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/player_bar.dart';
@@ -149,7 +150,10 @@ class _AppShellState extends State<AppShell> {
     return PopScope<Object?>(
       canPop: _current == LekisDestination.home && !tabCanPop,
       onPopInvokedWithResult: _onSystemBack,
-      child: switch (mode) {
+      // Starts Connect once (listen + advertise + browse) and shows the
+      // pairing code when another device asks to pair with this one.
+      child: ConnectRuntimeHost(
+        child: switch (mode) {
         ShellChromeMode.bottomBar => _BottomBarLayout(
           current: _current,
           onSelected: _select,
@@ -169,8 +173,9 @@ class _AppShellState extends State<AppShell> {
           current: _current,
           onSelected: _select,
           content: content,
-        ),
-      },
+          ),
+        },
+      ),
     );
   }
 }

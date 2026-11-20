@@ -25,6 +25,8 @@ import 'scrobble_page.dart';
 import 'settings_backup.dart';
 import 'settings_guard.dart';
 import 'settings_providers.dart';
+import '../connect/connect_strings.dart';
+import 'connect_settings_section.dart';
 import 'strings.dart';
 import 'tab_bar_style_picker.dart';
 import 'theme_preference.dart';
@@ -60,6 +62,19 @@ enum SettingsCategory {
     SettingsCategoryGroup.music,
     _organizeSections,
     keywords: [SettingsStrings.libraryHealth, SettingsStrings.enrichReview],
+  ),
+  connect(
+    ConnectStrings.title,
+    ConnectStrings.nearbyHint,
+    Icons.devices_rounded,
+    SettingsCategoryGroup.general,
+    _connectSections,
+    keywords: [
+      ConnectStrings.nearby,
+      ConnectStrings.allowControl,
+      ConnectStrings.playHere,
+      ConnectStrings.remote,
+    ],
   ),
   playback(
     SettingsStrings.playback,
@@ -162,6 +177,7 @@ enum SettingsCategory {
 }
 
 List<Widget> _organizeSections() => const [_OrganizeSection()];
+List<Widget> _connectSections() => const [ConnectSettingsSection()];
 List<Widget> _playbackSections() => const [_PlaybackSection()];
 List<Widget> _appearanceSections() => const [_AppearanceSection()];
 List<Widget> _lyricsSections() => const [_LyricsSection()];
