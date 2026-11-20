@@ -80,7 +80,11 @@ class _SectionTabs extends StatelessWidget {
 
 /// 分页列表的公共外壳：设置页的边距、平铺行、行间分隔线。
 class _FlatList extends StatelessWidget {
-  const _FlatList({required this.header, required this.itemCount, required this.itemBuilder});
+  const _FlatList({
+    required this.header,
+    required this.itemCount,
+    required this.itemBuilder,
+  });
 
   final Widget header;
   final int itemCount;
@@ -263,9 +267,9 @@ class _DuplicateVersionRow extends ConsumerWidget {
     return InkWell(
       onTap: track.albumId == null
           ? null
-          : () => Navigator.of(
-              context,
-            ).push(AlbumDetailPage.route(track.albumId!.toInt())),
+          : () =>
+                Navigator.of(context)
+                    .push(AlbumDetailPage.route(track.albumId!.toInt())),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
           settingsTextInset,
@@ -279,7 +283,9 @@ class _DuplicateVersionRow extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Icon(
-                keep ? Icons.check_circle_rounded : Icons.delete_outline_rounded,
+                keep
+                    ? Icons.check_circle_rounded
+                    : Icons.delete_outline_rounded,
                 size: 18,
                 color: keep ? colors.accent : colors.onSurfaceVariant,
               ),
@@ -488,10 +494,7 @@ class _HealthHeader extends StatelessWidget {
                       dimension: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : TextButton(
-                      onPressed: onScan,
-                      child: const Text('扫描损坏文件'),
-                    ),
+                  : TextButton(onPressed: onScan, child: const Text('扫描损坏文件')),
             ),
           ],
         ),
@@ -599,9 +602,9 @@ class _HealthEntryRow extends ConsumerWidget {
             ),
       onTap: entry.albumId == null
           ? null
-          : () => Navigator.of(
-              context,
-            ).push(AlbumDetailPage.route(entry.albumId!.toInt())),
+          : () =>
+                Navigator.of(context)
+                    .push(AlbumDetailPage.route(entry.albumId!.toInt())),
     );
   }
 }
@@ -713,7 +716,6 @@ IconData _healthIcon(HealthIssueKindDto kind) => switch (kind) {
   HealthIssueKindDto.fakeLossless => Icons.graphic_eq_rounded,
   HealthIssueKindDto.unreadable => Icons.broken_image_outlined,
 };
-
 
 String _displayPath(String path) => path.trim().isEmpty ? '（没有文件路径）' : path;
 
