@@ -28,5 +28,11 @@ reqwest = { workspace = true, features = ["blocking"] }
 [target.'cfg(windows)'.dependencies]
 wasapi = "0.27"
 
+# 离线无缝检查（PLY-01）：用真实专辑跑 Session 的拼接路径。`test = true` 让
+# `cargo test -p lekis-playback` 也跑它的指标单元测试（含 10 ms 静音负对照），不需要专辑文件。
+[[example]]
+name = "gapless_check"
+test = true
+
 [lints]
 workspace = true
