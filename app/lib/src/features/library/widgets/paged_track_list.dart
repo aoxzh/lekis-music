@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
+import 'package:lekis/src/features/library/tag_editor_dialog.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
@@ -34,11 +35,38 @@ class PagedTrackList extends ConsumerStatefulWidget {
 
 class _PagedTrackListState extends ConsumerState<PagedTrackList> {
   final _controller = ScrollController();
+  final Set<int> _selected = <int>{};
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  void _toggleSelected(int trackId) {
+    setState(() {
+      if (!_selected.add(trackId)) _selected.remove(trackId);
+    });
+  }
+
+  void _clearSelection() {
+    if (_selected.isEmpty) return;
+    setState(_selected.clear);
+  }
+
+  void _onRowTap(int index, int trackId) {
+    if (_selected.isNotEmpty) {
+      _toggleSelected(trackId);
+    } else {
+      _play(index);
+    }
+  }
+
+  Future<void> _editSelectedTags() async {
+    final ids = _selected.toList(growable: false);
+    if (ids.isEmpty) return;
+    await showBatchTagEditor(context, trackIds: ids);
+    if (mounted) _clearSelection();
   }
 
   void _play(int index) {
@@ -84,11 +112,16 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
             itemBuilder: (context, i) {
               final row = list.itemAt(i);
               if (row == null) return const TrackTilePlaceholder();
-              return TrackTile(track: row, onTap: () => _play(i));
+              return TrackTile(
+                track: row,
+                selected: _selected.contains(row.id),
+                onTap: () => _onRowTap(i, row.id),
+                onLongPress: () => _toggleSelected(row.id),
+              );
             },
           ),
         );
-        return Scrollbar(
+        final content = Scrollbar(
           controller: _controller,
           interactive: true,
           child: CustomScrollView(
@@ -98,10 +131,66 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
                 SliverToBoxAdapter(child: widget.header),
               rows,
               SliverPadding(
-                padding: EdgeInsets.only(bottom: scrollEndPadding(context)),
+                // 选择模式下底部浮着操作条，再多留出它的高度。
+                padding: EdgeInsets.only(
+                  bottom:
+                      scrollEndPadding(context) +
+                      (_selected.isEmpty
+                          ? 0
+                          : LekisSizes.touchTargetMin + LekisSpacing.xl),
+                ),
               ),
             ],
           ),
+        );
+        if (_selected.isEmpty) return content;
+        return Stack(
+          children: [
+            Positioned.fill(child: content),
+            Positioned(
+              left: LekisSpacing.lg,
+              right: LekisSpacing.lg,
+              bottom: LekisSpacing.lg,
+              child: SafeArea(
+                top: false,
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Material(
+                    elevation: 8,
+                    color: context.lekisColors.surfaceElevated,
+                    borderRadius: BorderRadius.circular(LekisRadius.lg),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: LekisSpacing.md,
+                        vertical: LekisSpacing.sm,
+                      ),
+                      child: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        alignment: WrapAlignment.center,
+                        spacing: LekisSpacing.sm,
+                        runSpacing: LekisSpacing.xs,
+                        children: [
+                          Text(
+                            '已选 ${_selected.length} 首',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          TextButton(
+                            onPressed: _clearSelection,
+                            child: const Text('取消选择'),
+                          ),
+                          FilledButton.icon(
+                            onPressed: _editSelectedTags,
+                            icon: const Icon(Icons.edit_note_rounded),
+                            label: const Text('批量编辑标签'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         );
       },
     );

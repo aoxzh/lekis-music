@@ -348,7 +348,11 @@ fn index_row_exists(tx: &rusqlite::Transaction<'_>, kind: i64, ref_id: i64) -> R
 }
 
 /// 删掉一个实体的索引行（按 rowid，不扫表）。
-pub(crate) fn delete_index_row(tx: &rusqlite::Transaction<'_>, kind: i64, ref_id: i64) -> Result<()> {
+pub(crate) fn delete_index_row(
+    tx: &rusqlite::Transaction<'_>,
+    kind: i64,
+    ref_id: i64,
+) -> Result<()> {
     tx.execute(
         "DELETE FROM search_index WHERE rowid = ?1",
         params![index_rowid(kind, ref_id)],
@@ -386,43 +390,62 @@ pub(crate) fn write_index_row(
     Ok(())
 }
 
+/// 搜索索引里需要合并的曲目字段。
+type TrackIndexRow = (
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
+
 /// 重建曲目的搜索索引行。
 ///
 /// 用户改了覆盖层（标题 / 艺人）之后要调一次，否则搜索结果还是旧标题。
 pub(crate) fn refresh_track_index(tx: &rusqlite::Transaction<'_>, track_id: i64) -> Result<()> {
     delete_index_row(tx, INDEX_TRACK, track_id)?;
-    let row: Option<(String, String, Option<String>, Option<String>)> = tx
+    let row: Option<TrackIndexRow> = tx
         .query_row(
-            "SELECT t.title, t.artist_line, a.title, t.overlay_json
+            "SELECT t.title, t.artist_line, a.title, t.overlay_json, t.tag_overrides_json
              FROM track t LEFT JOIN album a ON a.id = t.album_id WHERE t.id = ?1",
             params![track_id],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
         )
         .optional()
         .db()?;
-    let Some((mut title, mut artist_line, album_title, overlay_json)) = row else {
+    let Some((title, artist_line, album_title, overlay_json, tag_overrides_json)) = row else {
         return Ok(());
     };
+    let overlay = overlay_json
+        .as_deref()
+        .and_then(|s| serde_json::from_str::<lekis_types::TrackOverlay>(s).ok());
+    let tag_overrides = tag_overrides_json
+        .as_deref()
+        .and_then(|s| serde_json::from_str::<lekis_types::TrackTagOverrides>(s).ok());
 
     // 覆盖层优先：搜索到的应该是用户看到的标题。
-    if let Some(overlay) = overlay_json
-        .as_deref()
-        .and_then(|s| serde_json::from_str::<lekis_types::TrackOverlay>(s).ok())
-    {
-        if let Some(t) = overlay.title {
-            title = t;
-        }
-        if let Some(names) = overlay.artists {
-            artist_line = names.join(" / ");
-        }
-    }
+    let (title, artist_line, album_title) = crate::tracks::merged_display_values(
+        title,
+        artist_line,
+        album_title,
+        overlay.as_ref(),
+        tag_overrides.as_ref(),
+    );
 
     let keys = crate::normalize::search_keys(&[
         &title,
         &artist_line,
         album_title.as_deref().unwrap_or(""),
     ]);
-    write_index_row(tx, INDEX_TRACK, track_id, &title, &artist_line, &keys, false)
+    write_index_row(
+        tx,
+        INDEX_TRACK,
+        track_id,
+        &title,
+        &artist_line,
+        &keys,
+        false,
+    )
 }
 
 /// 重建专辑的搜索索引行（专辑改名 / 合并之后调用）。
@@ -465,7 +488,15 @@ fn write_album_row(tx: &rusqlite::Transaction<'_>, album_id: i64) -> Result<()> 
         return Ok(());
     };
     let keys = crate::normalize::search_keys(&[&title, &artist_line]);
-    write_index_row(tx, INDEX_ALBUM, album_id, &title, &artist_line, &keys, false)
+    write_index_row(
+        tx,
+        INDEX_ALBUM,
+        album_id,
+        &title,
+        &artist_line,
+        &keys,
+        false,
+    )
 }
 
 /// 重建艺人的搜索索引行（改名 / 加别名之后调用）。

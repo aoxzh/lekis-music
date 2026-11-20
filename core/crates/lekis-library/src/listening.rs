@@ -289,8 +289,8 @@ impl Library {
                 .query_map(params![year, limit], |r| {
                     Ok(TrackListening {
                         track: map_track_row(r)?,
-                        plays: r.get::<_, i64>(8)?.max(0) as u64,
-                        played_ms: r.get::<_, i64>(9)?.max(0) as u64,
+                        plays: r.get::<_, i64>(10)?.max(0) as u64,
+                        played_ms: r.get::<_, i64>(11)?.max(0) as u64,
                     })
                 })
                 .db()?

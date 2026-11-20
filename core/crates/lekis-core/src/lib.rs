@@ -44,12 +44,13 @@ pub use selection::{NetworkContext, Reachability, SourceHealth};
 pub use sync_engine::SyncReport;
 
 use events::EventBus;
-use lekis_library::{EnrichCandidateRow, Library, LyricsRow, PlaylistEntry};
 pub use lekis_library::{
-    DuplicateGroup, DuplicateTrack, HealthIssueKind, LibraryHealthEntry, LibraryHealthSummary,
-    OfflineDownload, OfflineStats, PlaybackStateRow, SourceInfo, TrackContext, TrackUserState,
+    BatchTagWriteItem, DuplicateGroup, DuplicateTrack, HealthIssueKind, LibraryHealthEntry,
+    LibraryHealthSummary, OfflineDownload, OfflineStats, PlaybackStateRow, SourceInfo,
+    TagWriteResult, TrackContext, TrackUserState,
 };
 pub use lekis_library::ListeningSummary;
+use lekis_library::{EnrichCandidateRow, Library, LyricsRow, PlaylistEntry};
 use lekis_playback::{EngineCommand, EqControl, OutputDevice, OutputMode, PlaybackEngine};
 use lekis_scanner::{tags::LoftyTagReader, Scanner};
 use lekis_types::*;
@@ -2119,10 +2120,85 @@ impl LekisCore {
         let s = self.services.clone();
         self.run(async move { s.library.set_track_overlay(id, overlay).await })
             .await?;
+        self.emit_library_changed();
+        Ok(())
+    }
+
+    /// 读手工标签覆盖层（LIB-13）。没有覆盖层返回 `None`。
+    pub async fn track_tag_overrides(&self, id: TrackId) -> Result<Option<TrackTagOverrides>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.track_tag_overrides(id).await })
+            .await
+    }
+
+    /// 读本地文件里的现有标签（编辑对话框预填用，不读覆盖层）。
+    pub async fn read_track_file_tags(&self, id: TrackId) -> Result<TrackTagOverrides> {
+        let s = self.services.clone();
+        self.run(async move { s.library.read_track_file_tags(id).await })
+            .await
+    }
+
+    /// 保存手工标签覆盖层（只改资料库，不碰文件）。
+    pub async fn set_track_tag_overrides(
+        &self,
+        id: TrackId,
+        fields: TrackTagOverrides,
+    ) -> Result<()> {
+        let s = self.services.clone();
+        self.run(async move { s.library.set_track_tag_overrides(id, fields).await })
+            .await?;
+        self.emit_library_changed();
+        Ok(())
+    }
+
+    /// 清除手工标签覆盖层。
+    pub async fn clear_track_tag_overrides(&self, id: TrackId) -> Result<()> {
+        let s = self.services.clone();
+        self.run(async move { s.library.clear_track_tag_overrides(id).await })
+            .await?;
+        self.emit_library_changed();
+        Ok(())
+    }
+
+    /// 把当前覆盖层写回音频文件（先备份，失败时尝试自动恢复）。
+    pub async fn write_track_tags(&self, id: TrackId) -> Result<TagWriteResult> {
+        let s = self.services.clone();
+        let result = self
+            .run(async move { s.library.write_track_tags(id).await })
+            .await?;
+        self.emit_library_changed();
+        Ok(result)
+    }
+
+    /// 从备份恢复上一份原标签；成功后清除覆盖层。
+    pub async fn restore_track_tags(&self, id: TrackId) -> Result<TagWriteResult> {
+        let s = self.services.clone();
+        let result = self
+            .run(async move { s.library.restore_track_tags(id).await })
+            .await?;
+        self.emit_library_changed();
+        Ok(result)
+    }
+
+    /// 批量写回，逐项返回；单首失败不影响其余曲目。
+    pub async fn batch_write_track_tags(
+        &self,
+        ids: Vec<TrackId>,
+    ) -> Result<Vec<BatchTagWriteItem>> {
+        let s = self.services.clone();
+        let results = self
+            .run(async move { s.library.batch_write_track_tags(ids).await })
+            .await?;
+        if results.iter().any(|item| item.result.is_some()) {
+            self.emit_library_changed();
+        }
+        Ok(results)
+    }
+
+    fn emit_library_changed(&self) {
         self.services.events.emit(CoreEvent::LibraryChanged {
             scope: LibraryScope::Catalog,
         });
-        Ok(())
     }
 }
 
@@ -2475,10 +2551,8 @@ mod tests {
 
     #[test]
     fn embedded_source_credentials_are_migrated_out_of_the_database() -> Result<()> {
-        let root = std::env::temp_dir().join(format!(
-            "lekis-core-cred-migrate-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("lekis-core-cred-migrate-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let platform = PlatformServices::in_memory();
         let credentials = platform.credentials.clone();

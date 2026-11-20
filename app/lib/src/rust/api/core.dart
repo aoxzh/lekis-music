@@ -703,6 +703,42 @@ Future<void> setTrackOverlay({
   overlay: overlay,
 );
 
+/// 读手工标签覆盖层；没有时返回 `None`。
+Future<TrackTagOverridesDto?> trackTagOverrides({
+  required PlatformInt64 trackId,
+}) => RustLib.instance.api.crateApiCoreTrackTagOverrides(trackId: trackId);
+
+/// 读本地音频文件里的实际标签（编辑对话框预填用）。
+Future<TrackTagOverridesDto> readTrackFileTags({
+  required PlatformInt64 trackId,
+}) => RustLib.instance.api.crateApiCoreReadTrackFileTags(trackId: trackId);
+
+/// 保存标签覆盖层：只改资料库，不碰文件。
+Future<void> setTrackTagOverrides({
+  required PlatformInt64 trackId,
+  required TrackTagOverridesDto fields,
+}) => RustLib.instance.api.crateApiCoreSetTrackTagOverrides(
+  trackId: trackId,
+  fields: fields,
+);
+
+/// 清除标签覆盖层。
+Future<void> clearTrackTagOverrides({required PlatformInt64 trackId}) =>
+    RustLib.instance.api.crateApiCoreClearTrackTagOverrides(trackId: trackId);
+
+/// 把覆盖层写回文件；返回备份路径和实际写入的字段。
+Future<TagWriteResultDto> writeTrackTags({required PlatformInt64 trackId}) =>
+    RustLib.instance.api.crateApiCoreWriteTrackTags(trackId: trackId);
+
+/// 从 `<文件>.lekis-tags-backup.json` 恢复上一份原标签。
+Future<TagWriteResultDto> restoreTrackTags({required PlatformInt64 trackId}) =>
+    RustLib.instance.api.crateApiCoreRestoreTrackTags(trackId: trackId);
+
+/// 批量写回。返回逐项结果，一首失败不会中断其余曲目。
+Future<List<BatchTagWriteItemDto>> batchWriteTrackTags({
+  required Int64List trackIds,
+}) => RustLib.instance.api.crateApiCoreBatchWriteTrackTags(trackIds: trackIds);
+
 /// 有曲目的音源（文件夹视图的根）。
 Future<List<FolderRootDto>> folderRoots() =>
     RustLib.instance.api.crateApiCoreFolderRoots();

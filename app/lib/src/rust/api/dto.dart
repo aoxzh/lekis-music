@@ -11,7 +11,7 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'dto.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `into_rule_group`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `try_from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `try_from`
 
 /// 专辑（LIB-06）。
 class AlbumDto {
@@ -212,6 +212,35 @@ class ArtworkDto {
           width == other.width &&
           height == other.height &&
           palette == other.palette;
+}
+
+/// 批量写回的一项结果。
+class BatchTagWriteItemDto {
+  final PlatformInt64 trackId;
+  final TagWriteResultDto? result;
+  final ErrorKind? errorKind;
+  final String? error;
+
+  const BatchTagWriteItemDto({
+    required this.trackId,
+    this.result,
+    this.errorKind,
+    this.error,
+  });
+
+  @override
+  int get hashCode =>
+      trackId.hashCode ^ result.hashCode ^ errorKind.hashCode ^ error.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BatchTagWriteItemDto &&
+          runtimeType == other.runtimeType &&
+          trackId == other.trackId &&
+          result == other.result &&
+          errorKind == other.errorKind &&
+          error == other.error;
 }
 
 class CoreConfigDto {
@@ -2414,6 +2443,38 @@ class SyncReportDto {
 
 enum SyncStateDto { idle, syncing, unavailable }
 
+/// 一次标签写回 / 恢复的结果。
+class TagWriteResultDto {
+  final PlatformInt64 trackId;
+  final String filePath;
+  final String backupPath;
+  final List<String> fields;
+
+  const TagWriteResultDto({
+    required this.trackId,
+    required this.filePath,
+    required this.backupPath,
+    required this.fields,
+  });
+
+  @override
+  int get hashCode =>
+      trackId.hashCode ^
+      filePath.hashCode ^
+      backupPath.hashCode ^
+      fields.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TagWriteResultDto &&
+          runtimeType == other.runtimeType &&
+          trackId == other.trackId &&
+          filePath == other.filePath &&
+          backupPath == other.backupPath &&
+          fields == other.fields;
+}
+
 class TrackDto {
   final PlatformInt64 id;
   final String uid;
@@ -2631,3 +2692,74 @@ class TrackRowDto {
 }
 
 enum TrackSortDto { title, artist, album, recentlyAdded, mostPlayed }
+
+/// 手工编辑的标签字段（LIB-13）。空字段表示"不覆盖 / 不修改"。
+class TrackTagOverridesDto {
+  final String? title;
+  final String? artist;
+  final String? album;
+  final String? albumArtist;
+  final int? trackNo;
+  final int? discNo;
+  final int? year;
+  final String? genre;
+  final String? comment;
+  final String? composer;
+  final String? lyricist;
+  final String? musicbrainzTrackId;
+  final String? musicbrainzAlbumId;
+
+  const TrackTagOverridesDto({
+    this.title,
+    this.artist,
+    this.album,
+    this.albumArtist,
+    this.trackNo,
+    this.discNo,
+    this.year,
+    this.genre,
+    this.comment,
+    this.composer,
+    this.lyricist,
+    this.musicbrainzTrackId,
+    this.musicbrainzAlbumId,
+  });
+
+  static Future<TrackTagOverridesDto> default_() =>
+      RustLib.instance.api.crateApiDtoTrackTagOverridesDtoDefault();
+
+  @override
+  int get hashCode =>
+      title.hashCode ^
+      artist.hashCode ^
+      album.hashCode ^
+      albumArtist.hashCode ^
+      trackNo.hashCode ^
+      discNo.hashCode ^
+      year.hashCode ^
+      genre.hashCode ^
+      comment.hashCode ^
+      composer.hashCode ^
+      lyricist.hashCode ^
+      musicbrainzTrackId.hashCode ^
+      musicbrainzAlbumId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TrackTagOverridesDto &&
+          runtimeType == other.runtimeType &&
+          title == other.title &&
+          artist == other.artist &&
+          album == other.album &&
+          albumArtist == other.albumArtist &&
+          trackNo == other.trackNo &&
+          discNo == other.discNo &&
+          year == other.year &&
+          genre == other.genre &&
+          comment == other.comment &&
+          composer == other.composer &&
+          lyricist == other.lyricist &&
+          musicbrainzTrackId == other.musicbrainzTrackId &&
+          musicbrainzAlbumId == other.musicbrainzAlbumId;
+}

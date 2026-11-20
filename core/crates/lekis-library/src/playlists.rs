@@ -286,9 +286,9 @@ impl Library {
                     // 第 0 列是 t.id：LEFT JOIN 没命中时是 NULL。
                     let track_id: Option<i64> = r.get(0)?;
                     let item = PlaylistItem {
-                        track_uid: r.get(8)?,
-                        position_key: r.get(9)?,
-                        added_at: r.get(10)?,
+                        track_uid: r.get(10)?,
+                        position_key: r.get(11)?,
+                        added_at: r.get(12)?,
                     };
                     let track = match track_id {
                         Some(_) => Some(map_track_row(r)?),

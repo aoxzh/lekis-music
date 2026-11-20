@@ -42,7 +42,9 @@ pub fn init_core(config: CoreConfigDto) -> Result<(), CoreError> {
     }
     // 凭据按引用存在数据目录的 credentials.json 里（Windows 用 DPAPI 加密，见 credentials.rs）。
     let platform = lekis_core::PlatformServices {
-        credentials: Arc::new(FileCredentials::open(std::path::Path::new(&config.data_dir))),
+        credentials: Arc::new(FileCredentials::open(std::path::Path::new(
+            &config.data_dir,
+        ))),
     };
     let inner = lekis_core::LekisCore::new(config.into(), platform)?;
     let _ = CORE.set(inner);
@@ -140,15 +142,13 @@ pub fn has_credential(credential_ref: String) -> bool {
 }
 
 pub async fn start_scan(source_id: i64) -> Result<(), CoreError> {
-    Ok(core()
-        .start_scan(lekis_types::SourceId(source_id))
-        .await?)
+    Ok(core().start_scan(lekis_types::SourceId(source_id)).await?)
 }
 
 // ---- 资料库 ----
 
 pub async fn list_tracks(
-        sort: TrackSortDto,
+    sort: TrackSortDto,
     offset: u32,
     limit: u32,
 ) -> Result<Vec<TrackRowDto>, CoreError> {
@@ -261,7 +261,7 @@ pub async fn scan_library_health() -> Result<LibraryHealthScanReportDto, CoreErr
 // ---- 浏览维度（LIB-06）----
 
 pub async fn list_albums(
-        sort: TrackSortDto,
+    sort: TrackSortDto,
     offset: u32,
     limit: u32,
 ) -> Result<Vec<AlbumDto>, CoreError> {
@@ -281,7 +281,7 @@ pub async fn get_album(album_id: i64) -> Result<AlbumDto, CoreError> {
 }
 
 pub async fn album_tracks(
-        album_id: i64,
+    album_id: i64,
     offset: u32,
     limit: u32,
 ) -> Result<Vec<TrackRowDto>, CoreError> {
@@ -335,7 +335,7 @@ pub async fn get_artist(artist_id: i64) -> Result<ArtistDto, CoreError> {
 }
 
 pub async fn artist_tracks(
-        artist_id: i64,
+    artist_id: i64,
     offset: u32,
     limit: u32,
 ) -> Result<Vec<TrackRowDto>, CoreError> {
@@ -348,7 +348,7 @@ pub async fn artist_tracks(
 }
 
 pub async fn artist_albums(
-        artist_id: i64,
+    artist_id: i64,
     offset: u32,
     limit: u32,
 ) -> Result<Vec<AlbumDto>, CoreError> {
@@ -370,7 +370,7 @@ pub async fn list_genres(limit: u32) -> Result<Vec<GenreCountDto>, CoreError> {
 }
 
 pub async fn genre_tracks(
-        name: String,
+    name: String,
     offset: u32,
     limit: u32,
 ) -> Result<Vec<TrackRowDto>, CoreError> {
@@ -506,8 +506,7 @@ pub fn set_network_away(away: bool) {
 /// 上报一次音源可达性探测结果，核心据此调整选源顺序（SRC-14）。
 #[frb(sync)]
 pub fn report_source_reachability(source_id: i64, reachable: bool) {
-    core()
-        .report_source_reachability(lekis_types::SourceId(source_id), reachable);
+    core().report_source_reachability(lekis_types::SourceId(source_id), reachable);
 }
 
 /// 用某个文件系统音源指向的共享目录跑一轮同步（SYN-01/02）。
@@ -525,7 +524,9 @@ pub async fn sync_now(source_id: i64) -> Result<SyncReportDto, CoreError> {
 
 /// 把一首歌加入离线下载队列。立即返回，进度通过 `coreEvents` 推送。
 pub async fn download_track(track_id: i64) -> Result<(), CoreError> {
-    Ok(core().download_track(lekis_types::TrackId(track_id)).await?)
+    Ok(core()
+        .download_track(lekis_types::TrackId(track_id))
+        .await?)
 }
 
 /// 批量加入离线下载队列，返回成功入队 / 已在下载的条数。
@@ -724,9 +725,7 @@ pub async fn enrich_tracks(track_ids: Vec<i64>) -> Result<EnrichReportDto, CoreE
 }
 
 /// 待确认队列里的候选（ENR-06）。
-pub async fn pending_candidates(
-        limit: u32,
-) -> Result<Vec<EnrichCandidateDto>, CoreError> {
+pub async fn pending_candidates(limit: u32) -> Result<Vec<EnrichCandidateDto>, CoreError> {
     Ok(core()
         .pending_candidates(limit)
         .await?
@@ -805,10 +804,7 @@ pub fn artwork_path(hash: String, width: u32) -> String {
 }
 
 /// 手动指定曲目封面。
-pub async fn set_track_artwork(
-        track_id: i64,
-    artwork_id: Option<i64>,
-) -> Result<(), CoreError> {
+pub async fn set_track_artwork(track_id: i64, artwork_id: Option<i64>) -> Result<(), CoreError> {
     Ok(core()
         .set_track_artwork(
             lekis_types::TrackId(track_id),
@@ -855,7 +851,7 @@ pub async fn get_playlist(playlist_id: i64) -> Result<PlaylistDto, CoreError> {
 
 /// 歌单内容。`track` 为 `None` 的条目是占位（曲目暂时不可用，PL-05）。
 pub async fn playlist_items(
-        playlist_id: i64,
+    playlist_id: i64,
     offset: u32,
     limit: u32,
 ) -> Result<Vec<PlaylistEntryDto>, CoreError> {
@@ -869,7 +865,7 @@ pub async fn playlist_items(
 
 /// 往歌单里插入一首，返回它的位置键。
 pub async fn add_to_playlist(
-        playlist_id: i64,
+    playlist_id: i64,
     track_uid: String,
     before_key: Option<String>,
     after_key: Option<String>,
@@ -884,17 +880,14 @@ pub async fn add_to_playlist(
         .await?)
 }
 
-pub async fn remove_from_playlist(
-        playlist_id: i64,
-    position_key: String,
-) -> Result<(), CoreError> {
+pub async fn remove_from_playlist(playlist_id: i64, position_key: String) -> Result<(), CoreError> {
     Ok(core()
         .remove_from_playlist(lekis_types::PlaylistId(playlist_id), position_key)
         .await?)
 }
 
 pub async fn move_playlist_item(
-        playlist_id: i64,
+    playlist_id: i64,
     position_key: String,
     before_key: Option<String>,
     after_key: Option<String>,
@@ -910,7 +903,7 @@ pub async fn move_playlist_item(
 }
 
 pub async fn set_playlist_artwork(
-        playlist_id: i64,
+    playlist_id: i64,
     artwork_id: Option<i64>,
 ) -> Result<(), CoreError> {
     Ok(core()
@@ -980,9 +973,7 @@ pub async fn smart_playlist_tracks(
 }
 
 /// 读歌单规则；普通歌单返回 `None`。
-pub async fn get_playlist_rules(
-    playlist_id: i64,
-) -> Result<Option<SmartRulesDto>, CoreError> {
+pub async fn get_playlist_rules(playlist_id: i64) -> Result<Option<SmartRulesDto>, CoreError> {
     Ok(core()
         .playlist_rules(lekis_types::PlaylistId(playlist_id))
         .await?
@@ -1036,10 +1027,7 @@ pub fn scrobble_settings() -> ScrobbleSettingsDto {
 pub async fn set_scrobble_settings(
     settings: ScrobbleSettingsInputDto,
 ) -> Result<ScrobbleSettingsDto, CoreError> {
-    Ok(core()
-        .set_scrobble_settings(settings.into())
-        .await?
-        .into())
+    Ok(core().set_scrobble_settings(settings.into()).await?.into())
 }
 
 /// 上报状态（队列条数、最近错误 / 成功时间）。
@@ -1056,10 +1044,7 @@ pub async fn test_scrobble() -> Result<(), CoreError> {
 // ---- 统计 / 覆盖层（DIS-06、ENR-07）----
 
 /// 喜欢的曲目。
-pub async fn loved_tracks(
-        offset: u32,
-    limit: u32,
-) -> Result<Vec<TrackRowDto>, CoreError> {
+pub async fn loved_tracks(offset: u32, limit: u32) -> Result<Vec<TrackRowDto>, CoreError> {
     Ok(core()
         .loved_tracks(offset, limit)
         .await?
@@ -1100,7 +1085,7 @@ pub async fn record_play(track_id: i64, ms_played: u64) -> Result<(), CoreError>
 
 /// 设置/清除曲目覆盖层（用户手工改的元数据，ENR-07）。
 pub async fn set_track_overlay(
-        track_id: i64,
+    track_id: i64,
     overlay: Option<TrackOverlayDto>,
 ) -> Result<(), CoreError> {
     Ok(core()
@@ -1108,6 +1093,69 @@ pub async fn set_track_overlay(
         .await?)
 }
 
+// ---- 标签编辑与写回（LIB-13 / ENR-08）----
+
+/// 读手工标签覆盖层；没有时返回 `None`。
+pub async fn track_tag_overrides(track_id: i64) -> Result<Option<TrackTagOverridesDto>, CoreError> {
+    Ok(core()
+        .track_tag_overrides(lekis_types::TrackId(track_id))
+        .await?
+        .map(Into::into))
+}
+
+/// 读本地音频文件里的实际标签（编辑对话框预填用）。
+pub async fn read_track_file_tags(track_id: i64) -> Result<TrackTagOverridesDto, CoreError> {
+    Ok(core()
+        .read_track_file_tags(lekis_types::TrackId(track_id))
+        .await?
+        .into())
+}
+
+/// 保存标签覆盖层：只改资料库，不碰文件。
+pub async fn set_track_tag_overrides(
+    track_id: i64,
+    fields: TrackTagOverridesDto,
+) -> Result<(), CoreError> {
+    Ok(core()
+        .set_track_tag_overrides(lekis_types::TrackId(track_id), fields.into())
+        .await?)
+}
+
+/// 清除标签覆盖层。
+pub async fn clear_track_tag_overrides(track_id: i64) -> Result<(), CoreError> {
+    Ok(core()
+        .clear_track_tag_overrides(lekis_types::TrackId(track_id))
+        .await?)
+}
+
+/// 把覆盖层写回文件；返回备份路径和实际写入的字段。
+pub async fn write_track_tags(track_id: i64) -> Result<TagWriteResultDto, CoreError> {
+    Ok(core()
+        .write_track_tags(lekis_types::TrackId(track_id))
+        .await?
+        .into())
+}
+
+/// 从 `<文件>.lekis-tags-backup.json` 恢复上一份原标签。
+pub async fn restore_track_tags(track_id: i64) -> Result<TagWriteResultDto, CoreError> {
+    Ok(core()
+        .restore_track_tags(lekis_types::TrackId(track_id))
+        .await?
+        .into())
+}
+
+/// 批量写回。返回逐项结果，一首失败不会中断其余曲目。
+pub async fn batch_write_track_tags(
+    track_ids: Vec<i64>,
+) -> Result<Vec<BatchTagWriteItemDto>, CoreError> {
+    let ids = track_ids.into_iter().map(lekis_types::TrackId).collect();
+    Ok(core()
+        .batch_write_track_tags(ids)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
 
 // ---- 按文件夹浏览（LIB）----
 

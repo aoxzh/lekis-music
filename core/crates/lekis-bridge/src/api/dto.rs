@@ -450,6 +450,104 @@ impl From<t::TrackOverlay> for TrackOverlayDto {
     }
 }
 
+/// 手工编辑的标签字段（LIB-13）。空字段表示"不覆盖 / 不修改"。
+#[derive(Debug, Clone, Default)]
+pub struct TrackTagOverridesDto {
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub album_artist: Option<String>,
+    pub track_no: Option<u32>,
+    pub disc_no: Option<u32>,
+    pub year: Option<i32>,
+    pub genre: Option<String>,
+    pub comment: Option<String>,
+    pub composer: Option<String>,
+    pub lyricist: Option<String>,
+    pub musicbrainz_track_id: Option<String>,
+    pub musicbrainz_album_id: Option<String>,
+}
+
+impl From<TrackTagOverridesDto> for t::TrackTagOverrides {
+    fn from(o: TrackTagOverridesDto) -> Self {
+        Self {
+            title: o.title,
+            artist: o.artist,
+            album: o.album,
+            album_artist: o.album_artist,
+            track_no: o.track_no,
+            disc_no: o.disc_no,
+            year: o.year,
+            genre: o.genre,
+            comment: o.comment,
+            composer: o.composer,
+            lyricist: o.lyricist,
+            musicbrainz_track_id: o.musicbrainz_track_id,
+            musicbrainz_album_id: o.musicbrainz_album_id,
+        }
+    }
+}
+
+impl From<t::TrackTagOverrides> for TrackTagOverridesDto {
+    fn from(o: t::TrackTagOverrides) -> Self {
+        Self {
+            title: o.title,
+            artist: o.artist,
+            album: o.album,
+            album_artist: o.album_artist,
+            track_no: o.track_no,
+            disc_no: o.disc_no,
+            year: o.year,
+            genre: o.genre,
+            comment: o.comment,
+            composer: o.composer,
+            lyricist: o.lyricist,
+            musicbrainz_track_id: o.musicbrainz_track_id,
+            musicbrainz_album_id: o.musicbrainz_album_id,
+        }
+    }
+}
+
+/// 一次标签写回 / 恢复的结果。
+#[derive(Debug, Clone)]
+pub struct TagWriteResultDto {
+    pub track_id: i64,
+    pub file_path: String,
+    pub backup_path: String,
+    pub fields: Vec<String>,
+}
+
+impl From<lekis_library::TagWriteResult> for TagWriteResultDto {
+    fn from(r: lekis_library::TagWriteResult) -> Self {
+        Self {
+            track_id: r.track_id.0,
+            file_path: r.file_path,
+            backup_path: r.backup_path,
+            fields: r.fields,
+        }
+    }
+}
+
+/// 批量写回的一项结果。
+#[derive(Debug, Clone)]
+pub struct BatchTagWriteItemDto {
+    pub track_id: i64,
+    pub result: Option<TagWriteResultDto>,
+    pub error_kind: Option<crate::api::error::ErrorKind>,
+    pub error: Option<String>,
+}
+
+impl From<lekis_library::BatchTagWriteItem> for BatchTagWriteItemDto {
+    fn from(item: lekis_library::BatchTagWriteItem) -> Self {
+        Self {
+            track_id: item.track_id.0,
+            result: item.result.map(Into::into),
+            error_kind: item.error_code.map(Into::into),
+            error: item.error,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TrackDto {
     pub id: i64,

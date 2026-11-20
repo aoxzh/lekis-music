@@ -28,6 +28,7 @@ mod settings;
 mod smart;
 mod sources;
 mod sync;
+mod tag_edit;
 mod tracks;
 
 pub use artwork::{cache_relative_path, ArtworkCandidate, ArtworkRow};
@@ -51,4 +52,8 @@ pub use scanned::{quality_score, ScannedFile, ScannedTags, UpsertStats};
 pub use smart::{AllowedColumns, Rule, RuleField, RuleGroup, RuleOp, RuleValue, SmartRules};
 pub use sources::SourceInfo;
 pub use sync::OutboxEntry;
+pub use tag_edit::{
+    backup_path_for, BatchTagWriteItem, TagBackup, TagWriteResult, TAG_BACKUP_SUFFIX,
+    TAG_BACKUP_VERSION,
+};
 pub use tracks::{TrackContext, TrackFile, TrackUserState};
