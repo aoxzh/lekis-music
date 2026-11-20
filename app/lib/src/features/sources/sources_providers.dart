@@ -272,6 +272,17 @@ class SourceActions {
     SourceConfigDto? existing,
   }) => _credentials.browse(draft, path, existing: existing);
 
+  /// 用草稿拼一次配置，供文件夹浏览器连续浏览（临时凭据只写一次）。
+  Future<T> withPreparedConfig<T>(
+    SourceDraft draft,
+    Future<T> Function(SourceConfigDto config) body, {
+    SourceConfigDto? existing,
+  }) => _credentials.withPreparedConfig(draft, body, existing: existing);
+
+  /// 用准备好的配置浏览子文件夹（配合 [withPreparedConfig]）。
+  Future<SourceListingDto> browseConfig(SourceConfigDto config, String path) =>
+      _credentials.browseConfig(config, path);
+
   /// 某个凭据引用是否已保存（编辑表单判断要不要重新输入密码）。
   bool hasCredential(String credentialRef) =>
       _credentials.hasCredential(credentialRef);

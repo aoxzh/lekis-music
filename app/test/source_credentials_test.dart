@@ -130,6 +130,42 @@ void main() {
     },
   );
 
+  test(
+    'walks a folder tree with one temporary credential write, not two per tap',
+    () async {
+      final draft = SourceDraft(
+        kind: SourceKindDto.smb,
+        name: 'NAS',
+        host: 'nas.local',
+        share: 'music',
+        username: 'ao',
+        secret: 'hunter2',
+      );
+
+      final listings = await service.withPreparedConfig(draft, (config) async {
+        // 浏览器点进三层目录，每层一次 browse。
+        for (final path in ['', 'Albums', 'Albums/Live']) {
+          await service.browseConfig(config, path);
+        }
+        return 1;
+      });
+
+      expect(listings, 1);
+      expect(
+        gateway.calls.where((c) => c.startsWith('set:')).length,
+        1,
+        reason: '临时凭据只写一次（以前每次 browse 都写一遍）',
+      );
+      expect(gateway.calls.where((c) => c.startsWith('delete:')).length, 1);
+      expect(
+        gateway.calls.where((c) => c.startsWith('browse:')).length,
+        3,
+      );
+      // 临时凭据已经从凭据库里删掉（草稿自己的 secret 由调用方 forgetSecret）。
+      expect(gateway.credentials, isEmpty);
+    },
+  );
+
   test('delete removes the source before its credential', () async {
     final existing = smbConfig();
     gateway.credentials['ref-existing'] = 'old-secret';

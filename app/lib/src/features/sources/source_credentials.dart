@@ -118,6 +118,20 @@ class SourceCredentialService {
     (config) => _gateway.browseSource(config, path),
   );
 
+  /// 用草稿拼一次配置，交给 [body] 反复调用（文件夹浏览器会走很多层）。
+  ///
+  /// 每次 `browse` 都重写一遍凭据库太浪费：临时凭据是 DPAPI / Keystore 密封
+  /// 后整文件重写 + fsync，一层目录两次写。这里一次 set、一次 delete。
+  Future<T> withPreparedConfig<T>(
+    SourceDraft draft,
+    Future<T> Function(SourceConfigDto config) body, {
+    SourceConfigDto? existing,
+  }) => _withDraftConfig(draft, existing, body);
+
+  /// 用 [withPreparedConfig] 给出的配置浏览子目录。
+  Future<SourceListingDto> browseConfig(SourceConfigDto config, String path) =>
+      _gateway.browseSource(config, path);
+
   /// 用草稿拼出配置并执行 `action`。刚输入的密码写进临时引用，用完立刻删掉；
   /// 没输入新密码时沿用已保存音源的引用。
   Future<T> _withDraftConfig<T>(

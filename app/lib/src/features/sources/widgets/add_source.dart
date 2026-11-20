@@ -635,10 +635,15 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     final actions = ref.read(sourceActionsProvider);
     final existing = _existing;
     try {
-      final picked = await showRemoteFolderPicker(
-        context,
-        initialPath: webDav ? '' : _path.text,
-        load: (path) => actions.browse(base, path, existing: existing),
+      // 一次准备好配置，浏览器里点多少层都只用这一份临时凭据。
+      final picked = await actions.withPreparedConfig(
+        base,
+        existing: existing,
+        (config) => showRemoteFolderPicker(
+          context,
+          initialPath: webDav ? '' : _path.text,
+          load: (path) => actions.browseConfig(config, path),
+        ),
       );
       if (picked == null || !mounted) return;
       setState(() {
