@@ -40,6 +40,21 @@ class MiniPlayer extends ConsumerStatefulWidget {
 
   final bool atBottomEdge;
 
+  /// Height of the band [MiniPlayer] occupies on the window's bottom edge
+  /// when it floats over the content: the card, its margin and the gesture
+  /// inset it keeps clear of.
+  ///
+  /// Shells must reserve exactly this much via `MediaQuery.padding.bottom`,
+  /// otherwise pages clear the card by a few dp too little and the last line
+  /// of a page sitting on the bottom edge ends up underneath it (that is how
+  /// the Cover Flow position line was hidden on the Fold5).
+  static double bottomBandHeight(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    return LekisSizes.miniPlayerHeight +
+        LekisSizes.miniPlayerMargin +
+        math.max(mq.padding.bottom, mq.systemGestureInsets.bottom);
+  }
+
   @override
   ConsumerState<MiniPlayer> createState() => _MiniPlayerState();
 }
@@ -157,6 +172,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer>
       ),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {

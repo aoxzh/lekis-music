@@ -307,9 +307,9 @@ class _SideTabsLayout extends ConsumerWidget {
     final style = ref.watch(tabBarStyleProvider);
     final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
     final mq = MediaQuery.of(context);
-    final mini = hasTrack
-        ? LekisSizes.miniPlayerHeight + LekisSizes.miniPlayerMargin
-        : 0.0;
+    // Reserve the band the floating mini player really occupies (card +
+    // margin + gesture inset), not just the card.
+    final mini = hasTrack ? MiniPlayer.bottomBandHeight(context) : 0.0;
     return Scaffold(
       // The content below gets a MediaQuery read from *outside* this
       // Scaffold, i.e. still carrying the keyboard inset. If this Scaffold

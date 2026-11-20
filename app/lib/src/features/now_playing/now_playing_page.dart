@@ -859,9 +859,11 @@ class _NowPlayingTitle extends ConsumerWidget {
 
 /// A single tappable piece of the artist · album line.
 ///
-/// Understated (same muted colour as the rest of the line, a faint underline)
-/// so the subtitle still reads as one sentence, not as two buttons.
-class _SubtitleLink extends StatelessWidget {
+/// Understated, the way Spotify and Apple Music do it: no permanent
+/// underline (the line must still read as one sentence), the same muted
+/// colour as the rest, and the affordance is a pointer plus an underline
+/// only while a mouse actually hovers it. Touch platforms get the ripple.
+class _SubtitleLink extends StatefulWidget {
   const _SubtitleLink({
     required this.label,
     required this.style,
@@ -875,25 +877,39 @@ class _SubtitleLink extends StatelessWidget {
   final String semanticsLabel;
 
   @override
+  State<_SubtitleLink> createState() => _SubtitleLinkState();
+}
+
+class _SubtitleLinkState extends State<_SubtitleLink> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final color =
-        style?.color ?? Theme.of(context).colorScheme.onSurfaceVariant;
+        widget.style?.color ?? Theme.of(context).colorScheme.onSurfaceVariant;
     return Semantics(
       link: true,
-      label: semanticsLabel,
+      label: widget.semanticsLabel,
       excludeSemantics: true,
       button: true,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(LekisRadius.xs),
-        child: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: style?.copyWith(
-            decoration: TextDecoration.underline,
-            decorationColor: color.withValues(alpha: 0.35),
-            decorationStyle: TextDecorationStyle.solid,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(LekisRadius.xs),
+          child: Text(
+            widget.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: widget.style?.copyWith(
+              decoration: _hovered
+                  ? TextDecoration.underline
+                  : TextDecoration.none,
+              decorationColor: color.withValues(alpha: 0.55),
+              decorationStyle: TextDecorationStyle.solid,
+            ),
           ),
         ),
       ),

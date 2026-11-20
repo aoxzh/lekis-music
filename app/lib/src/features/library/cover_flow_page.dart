@@ -206,7 +206,11 @@ class _CoverFlowPageState extends ConsumerState<CoverFlowPage>
     return Scaffold(
       appBar: AppBar(title: const Text('封面流')),
       body: SafeArea(
+        // Bottom stays with the page: the shell reports the floating mini
+        // player / tab bar through MediaQuery.padding, and the info block
+        // below the strip has to clear it (it used to sit underneath).
         top: false,
+        bottom: false,
         child: ListenableBuilder(
           listenable: list,
           builder: (context, _) {
@@ -535,7 +539,7 @@ class _Info extends StatelessWidget {
         gutter,
         LekisSpacing.lg,
         gutter,
-        LekisSpacing.xl,
+        LekisSpacing.xl + MediaQuery.paddingOf(context).bottom,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
