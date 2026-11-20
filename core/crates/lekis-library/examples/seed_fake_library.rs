@@ -11,8 +11,22 @@ use lekis_library::{Library, ScannedFile, ScannedTags};
 use lekis_types::{SourceConfig, SourceKind};
 
 const ARTISTS: &[&str] = &[
-    "周杰伦", "陈奕迅", "林俊杰", "王菲", "孙燕姿", "邓紫棋", "五月天", "李健", "Taylor Swift",
-    "Radiohead", "Daft Punk", "宇多田ヒカル", "米津玄師", "Adele", "Coldplay", "The Beatles",
+    "周杰伦",
+    "陈奕迅",
+    "林俊杰",
+    "王菲",
+    "孙燕姿",
+    "邓紫棋",
+    "五月天",
+    "李健",
+    "Taylor Swift",
+    "Radiohead",
+    "Daft Punk",
+    "宇多田ヒカル",
+    "米津玄師",
+    "Adele",
+    "Coldplay",
+    "The Beatles",
 ];
 const WORDS: &[&str] = &[
     "夜", "光", "海", "风", "城市", "月亮", "Blue", "Dream", "Night", "Light", "Love", "雨", "梦",
@@ -44,7 +58,11 @@ async fn main() -> lekis_types::Result<()> {
     let mut batch = Vec::with_capacity(1000);
     for i in 0..count {
         let artist_ix = (i * 7919) % (ARTISTS.len() * 200);
-        let artist = format!("{} {}", ARTISTS[artist_ix % ARTISTS.len()], artist_ix / ARTISTS.len());
+        let artist = format!(
+            "{} {}",
+            ARTISTS[artist_ix % ARTISTS.len()],
+            artist_ix / ARTISTS.len()
+        );
         let album_ix = i / 12;
         let title = format!(
             "{} {} {}",
@@ -65,7 +83,9 @@ async fn main() -> lekis_types::Result<()> {
                 track_no: Some((i % 12) as u32 + 1),
                 disc_no: Some(1),
                 year: Some(1990 + (album_ix % 35) as i32),
-                genres: vec![["Pop", "Rock", "Jazz", "Classical", "Electronic"][album_ix % 5].into()],
+                genres: vec![
+                    ["Pop", "Rock", "Jazz", "Classical", "Electronic"][album_ix % 5].into(),
+                ],
                 duration_ms: 150_000 + (i as u64 % 180) * 1000,
                 ..Default::default()
             },
@@ -77,6 +97,10 @@ async fn main() -> lekis_types::Result<()> {
     if !batch.is_empty() {
         lib.upsert_scanned(batch).await?;
     }
-    println!("seeded {count} tracks into {} in {:?}", dir.display(), start.elapsed());
+    println!(
+        "seeded {count} tracks into {} in {:?}",
+        dir.display(),
+        start.elapsed()
+    );
     Ok(())
 }

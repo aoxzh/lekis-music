@@ -367,8 +367,7 @@ impl Library {
         name: &str,
         content: &str,
     ) -> Result<PlaylistImportReport> {
-        self.import_playlist_entries(name, parse_m3u(content))
-            .await
+        self.import_playlist_entries(name, parse_m3u(content)).await
     }
 
     /// 从 XSPF 文本新建一个普通歌单（PL-03）。

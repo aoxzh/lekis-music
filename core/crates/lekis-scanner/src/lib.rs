@@ -162,11 +162,33 @@ impl Scanner {
 
         let mut report = ScanReport::default();
         let mut files = outcome.changed;
+        let mut outcome_unchanged = outcome.unchanged;
+
+        // 上次只用文件名兜底的文件（时长 0）不复用，再读一次标签：旧版扫描器
+        // 读不了内嵌大封面的文件，升级后要靠这一步自愈。真读不出来的文件每次
+        // 扫描都会重试一下，数量很少，代价只是一次头尾读取。
+        match self.library.zero_duration_paths(source_id).await {
+            Ok(paths) if !paths.is_empty() => {
+                let suspects: std::collections::HashSet<String> = paths.into_iter().collect();
+                let (retry, keep): (Vec<_>, Vec<_>) = outcome_unchanged
+                    .into_iter()
+                    .partition(|f| suspects.contains(f.path.as_str()));
+                if !retry.is_empty() {
+                    tracing::info!(target: "scanner", %source_id, count = retry.len(), "re-reading files that only had file-name tags");
+                    files.extend(retry);
+                    files.sort_by(|a, b| a.path.cmp(&b.path));
+                }
+                outcome_unchanged = keep;
+            }
+            Ok(_) => {}
+            Err(e) => {
+                tracing::warn!(target: "scanner", %source_id, error = %e, "zero-duration lookup failed");
+            }
+        }
 
         // 复用上一次的标签：只 refresh last_seen_at，不读文件。
-        if !outcome.unchanged.is_empty() {
-            let reuse: Vec<(String, u64, i64)> = outcome
-                .unchanged
+        if !outcome_unchanged.is_empty() {
+            let reuse: Vec<(String, u64, i64)> = outcome_unchanged
                 .iter()
                 .map(|f| (f.path.as_str().to_string(), f.size, f.mtime_ms))
                 .collect();
@@ -189,7 +211,7 @@ impl Scanner {
                     touched,
                     "some unchanged files have no row in the library, reading their tags"
                 );
-                files.extend(outcome.unchanged);
+                files.extend(outcome_unchanged);
                 files.sort_by(|a, b| a.path.cmp(&b.path));
             }
         }
@@ -198,6 +220,12 @@ impl Scanner {
         for (i, found) in files.into_iter().enumerate() {
             let tags = match self.read_tags(vfs.as_ref(), &found).await {
                 Ok(t) => t,
+                // 明确不是音频（AppleDouble 资源分叉之类）：不入库，也不拿文件名兜底，
+                // 否则列表里会多出一首时长 0 的"同名歌"。旧的兜底行扫描结束时按未见清掉。
+                Err(e) if e.code == lekis_types::ErrorCode::Unsupported => {
+                    tracing::debug!(target: "scanner", path = %found.path, error = %e, "not audio, skipped");
+                    continue;
+                }
                 Err(e) => {
                     tracing::debug!(target: "scanner", path = %found.path, error = %e, "tag read failed, using file name");
                     report.fallback += 1;
@@ -255,20 +283,40 @@ impl Scanner {
     }
 
     async fn read_tags(&self, vfs: &dyn Vfs, found: &FoundFile) -> Result<ScannedTags> {
-        let partial = partial::read_head_tail(
-            vfs,
-            &found.path,
-            found.size,
-            partial::DEFAULT_HEAD,
-            partial::DEFAULT_TAIL,
-        )
-        .await?;
-        let reader = self.tag_reader.clone();
-        let path = found.path.clone();
-        // 标签解析是 CPU 密集的同步代码，不能在 async 任务里直接跑。
-        tokio::task::spawn_blocking(move || reader.read(&path, &partial))
+        let mut head = partial::DEFAULT_HEAD;
+        let mut tail = partial::DEFAULT_TAIL;
+        // 第一次只读头尾；元数据比窗口大（内嵌大封面）时按容器结构补读，
+        // 最多再来两轮（块头可能要读到才知道下一块多长）。
+        for attempt in 0..3 {
+            let data = partial::read_head_tail(vfs, &found.path, found.size, head, tail).await?;
+            let reader = self.tag_reader.clone();
+            let path = found.path.clone();
+            // 标签解析是 CPU 密集的同步代码，不能在 async 任务里直接跑。
+            let (result, data) = tokio::task::spawn_blocking(move || {
+                let result = reader.read(&path, &data);
+                (result, data)
+            })
             .await
-            .map_err(|e| lekis_types::LekisError::internal(format!("tag task: {e}")))?
+            .map_err(|e| lekis_types::LekisError::internal(format!("tag task: {e}")))?;
+            match result {
+                Ok(tags) => return Ok(tags),
+                Err(e) => match tags::wanted_window(&data) {
+                    Some(wanted) if attempt < 2 => {
+                        tracing::debug!(
+                            target: "scanner",
+                            path = %found.path,
+                            head = wanted.head,
+                            tail = wanted.tail,
+                            "metadata larger than the read window, reading more"
+                        );
+                        head = wanted.head;
+                        tail = wanted.tail;
+                    }
+                    _ => return Err(e),
+                },
+            }
+        }
+        Err(lekis_types::LekisError::internal("unreachable tag retry"))
     }
 
     async fn flush(&self, batch: &mut Vec<ScannedFile>, report: &mut ScanReport) -> Result<()> {
@@ -411,6 +459,59 @@ mod tests {
         assert_eq!(reader.calls(), 2, "unchanged files must not be re-read");
         // 目录级复用：目录 mtime 没记录时仍会列目录，但文件级复用生效
         assert_eq!(tmp.library.track_count().await.unwrap(), 2);
+    }
+
+    /// 上次只能用文件名兜底的文件（时长 0）：文件没变也要重读，而且重读后
+    /// 不能留下旧的兜底曲目（同一个文件不能挂两首歌）。
+    #[tokio::test]
+    async fn file_name_fallbacks_are_reread_and_replaced() {
+        let tmp = TempLibrary::new("fallback-heal");
+        let source_id = tmp.add_source().await;
+        let vfs = FakeVfs::local_like();
+        vfs.add_file("a/one.mp3", 10, 100);
+        vfs.add_file("a/two.mp3", 20, 200);
+
+        let broken = Scanner::new(tmp.library.clone(), Arc::new(FailingTagReader));
+        let first = broken
+            .scan(source_id, Arc::new(vfs.clone()), noop_progress())
+            .await
+            .unwrap();
+        assert_eq!(first.fallback, 2);
+        assert_eq!(tmp.library.track_count().await.unwrap(), 2);
+
+        let reader = Arc::new(CountingTagReader::new());
+        let fixed = Scanner::new(tmp.library.clone(), reader.clone());
+        let mut previous = PreviousScan::new();
+        previous.insert_file("a/one.mp3", 10, 100);
+        previous.insert_file("a/two.mp3", 20, 200);
+        fixed
+            .scan_incremental(
+                source_id,
+                Arc::new(vfs.clone()),
+                noop_progress(),
+                Some(&previous),
+            )
+            .await
+            .unwrap();
+        assert_eq!(reader.calls(), 2, "fallback files must be re-read");
+        assert_eq!(
+            tmp.library.track_count().await.unwrap(),
+            2,
+            "the old file-name tracks must not linger next to the real ones"
+        );
+        assert!(tmp
+            .library
+            .zero_duration_paths(source_id)
+            .await
+            .unwrap()
+            .is_empty());
+
+        // 读好了之后就回到正常的增量复用。
+        fixed
+            .scan_incremental(source_id, Arc::new(vfs), noop_progress(), Some(&previous))
+            .await
+            .unwrap();
+        assert_eq!(reader.calls(), 2);
     }
 
     /// 只改一个文件的 mtime：只重读那一个，`updated == 1`。

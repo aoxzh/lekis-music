@@ -104,12 +104,19 @@ impl Library {
         self.write(move |conn| {
             let tx = conn.transaction().db()?;
             let mut stats = UpsertStats::default();
+            let mut relinked = false;
             for file in &batch {
-                if upsert_one(&tx, file)? {
+                let outcome = upsert_one(&tx, file)?;
+                relinked |= outcome.relinked;
+                if outcome.is_new {
                     stats.added += 1;
                 } else {
                     stats.updated += 1;
                 }
+            }
+            // 有文件换了曲目（标签改了、或者之前只用文件名兜底），原来的曲目可能成了孤儿。
+            if relinked {
+                sweep_orphans(&tx)?;
             }
             tx.commit().db()?;
             Ok(stats)
@@ -148,6 +155,28 @@ impl Library {
             }
             tx.commit().db()?;
             Ok(touched)
+        })
+        .await
+    }
+
+    /// 这个音源里曲目时长为 0 的文件路径。
+    ///
+    /// 时长 0 基本就是标签没读出来、只用文件名兜底的文件（旧版扫描器读不了
+    /// 内嵌大封面的文件）。扫描器对这些文件不走"没变就复用"，而是重读一次。
+    pub async fn zero_duration_paths(&self, source_id: SourceId) -> Result<Vec<String>> {
+        self.read(move |conn| {
+            let mut stmt = conn
+                .prepare_cached(
+                    "SELECT DISTINCT f.path FROM file f
+                     JOIN track_file tf ON tf.file_id = f.id
+                     JOIN track t ON t.id = tf.track_id
+                     WHERE f.source_id = ?1 AND t.duration_ms <= 0",
+                )
+                .db()?;
+            let rows = stmt
+                .query_map(params![source_id.0], |r| r.get::<_, String>(0))
+                .db()?;
+            rows.collect::<std::result::Result<Vec<_>, _>>().db()
         })
         .await
     }
@@ -368,7 +397,15 @@ pub(crate) fn sweep_orphans(tx: &Transaction<'_>) -> Result<()> {
 }
 
 /// 返回 `true` 表示新增，`false` 表示更新。
-fn upsert_one(tx: &Transaction<'_>, f: &ScannedFile) -> Result<bool> {
+/// [`upsert_one`] 的结果。
+struct UpsertOutcome {
+    /// 这个文件第一次入库。
+    is_new: bool,
+    /// 文件原来挂在另一首曲目上（标签变了，曲目身份跟着变），已经解开旧的关联。
+    relinked: bool,
+}
+
+fn upsert_one(tx: &Transaction<'_>, f: &ScannedFile) -> Result<UpsertOutcome> {
     let now = now_ms();
     let t = &f.tags;
     let audio_json = t
@@ -470,6 +507,15 @@ fn upsert_one(tx: &Transaction<'_>, f: &ScannedFile) -> Result<bool> {
         params![track_id, file_id, f.source_id.0, score],
     )
     .db()?;
+    // 一个文件只对应一首曲目：标签变了（曲目身份跟着变）时解开旧曲目，
+    // 否则旧曲目会和新曲目一起留在列表里。
+    let relinked = tx
+        .execute(
+            "DELETE FROM track_file WHERE file_id = ?1 AND track_id != ?2",
+            params![file_id, track_id],
+        )
+        .db()?
+        > 0;
 
     for (pos, name) in t.artists.iter().enumerate() {
         let artist_id = upsert_artist(tx, name)?;
@@ -517,7 +563,7 @@ fn upsert_one(tx: &Transaction<'_>, f: &ScannedFile) -> Result<bool> {
     // `refresh_track_index`，它会读取 overlay / tag_overrides。
     crate::browse::refresh_track_index(tx, track_id)?;
 
-    Ok(is_new)
+    Ok(UpsertOutcome { is_new, relinked })
 }
 
 fn upsert_artist(tx: &Transaction<'_>, name: &str) -> Result<i64> {

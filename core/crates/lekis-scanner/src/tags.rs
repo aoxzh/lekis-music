@@ -144,6 +144,12 @@ pub struct LoftyTagReader;
 
 impl TagReader for LoftyTagReader {
     fn read(&self, path: &VfsPath, data: &PartialFile) -> Result<ScannedTags> {
+        if is_apple_double(data) {
+            return Err(LekisError::new(
+                ErrorCode::Unsupported,
+                format!("macOS AppleDouble resource fork, not audio: {path}"),
+            ));
+        }
         let tagged = read_tagged_file(path, data, false)?;
 
         let mut tags = ScannedTags::default();
@@ -255,6 +261,204 @@ fn read_tagged_file(
 
     let probe = Probe::with_file_type(SparseReader::new(data), file_type).options(options);
     to_leks_result(probe.read(), path)
+}
+
+/// 头部窗口最多扩到多大。再大的文件（巨型封面的 hi-res 专辑）就放弃，用文件名兜底。
+pub const MAX_HEAD: u64 = 48 * 1024 * 1024;
+
+/// 读完标签之后还要多读的音频数据（MP3 要连上几帧、FLAC 之后就是帧数据）。
+const AUDIO_SLACK: u64 = 64 * 1024;
+
+/// macOS 的 AppleDouble 资源分叉（`._歌名.mp3`，拷贝时点号丢了就成了
+/// `_歌名.mp3`）：魔数 `00 05 16 07`，不是音频。
+pub fn is_apple_double(data: &PartialFile) -> bool {
+    data.head.starts_with(&[0x00, 0x05, 0x16, 0x07])
+}
+
+/// 头尾窗口要扩到多大（[`wanted_window`] 的结果）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WantedWindow {
+    /// 头部至少读这么多字节。
+    pub head: u64,
+    /// 尾部至少读这么多字节。
+    pub tail: u64,
+}
+
+/// 第一次只读了头尾、标签却解析失败时：沿着容器结构（ID3v2、FLAC 元数据块、
+/// RIFF/WAVE、AIFF、MP4 atom）算出头尾窗口至少要多大，才能把音频数据以外的
+/// 部分读全。不认识的格式、或者窗口已经够大时返回 `None`。
+///
+/// 常见原因是内嵌了大封面：ID3v2 的 APIC、FLAC 的 PICTURE 块、WAV 末尾的
+/// `id3 ` 块、MP4 的 `moov` 动辄几 MB，远超默认窗口，lofty 读到缺口就报错。
+pub fn wanted_window(data: &PartialFile) -> Option<WantedWindow> {
+    if data.is_complete() {
+        return None;
+    }
+    let mut want = WantedWindow {
+        head: data.head.len() as u64,
+        tail: data.tail.len() as u64,
+    };
+    let view = View { data };
+    let mut pos = 0u64;
+
+    // ID3v2 前缀（MP3 / AAC，有些 FLAC 也挂一个）：10 字节头 + syncsafe 长度。
+    if let Some(h) = view.bytes(0, 10).filter(|h| &h[..3] == b"ID3") {
+        let size = h[6..10]
+            .iter()
+            .fold(0u64, |acc, b| (acc << 7) | u64::from(b & 0x7F));
+        let footer = if h[5] & 0x10 != 0 { 10 } else { 0 };
+        pos = 10 + size + footer;
+        want.head = want.head.max(pos + AUDIO_SLACK);
+    }
+
+    match view.bytes(pos, 4) {
+        Some(b"fLaC") => walk_flac(&view, pos + 4, &mut want),
+        Some(b"RIFF") if view.bytes(pos + 8, 4) == Some(b"WAVE") => {
+            walk_chunks(&view, pos + 12, Endian::Little, b"data", &mut want);
+        }
+        Some(b"FORM") if matches!(view.bytes(pos + 8, 4), Some(b"AIFF" | b"AIFC")) => {
+            walk_chunks(&view, pos + 12, Endian::Big, b"SSND", &mut want);
+        }
+        _ if view.bytes(pos + 4, 4) == Some(b"ftyp") => walk_mp4(&view, pos, &mut want),
+        _ => {}
+    }
+
+    want.head = want.head.min(data.size).min(MAX_HEAD);
+    want.tail = want.tail.min(data.size).min(MAX_HEAD);
+    let grew = want.head > data.head.len() as u64 || want.tail > data.tail.len() as u64;
+    grew.then_some(want)
+}
+
+/// 只读视图：按文件偏移取头部或尾部里已经读到的字节。
+struct View<'a> {
+    data: &'a PartialFile,
+}
+
+impl View<'_> {
+    fn bytes(&self, at: u64, len: u64) -> Option<&[u8]> {
+        let end = at.checked_add(len)?;
+        if end <= self.data.head.len() as u64 {
+            return self.data.head.get(at as usize..end as usize);
+        }
+        let tail_at = self.data.tail_offset();
+        if !self.data.tail.is_empty() && at >= tail_at && end <= self.data.size {
+            return self
+                .data
+                .tail
+                .get((at - tail_at) as usize..(end - tail_at) as usize);
+        }
+        None
+    }
+
+    /// `[at, end)` 不在已读窗口里时，把窗口扩到能覆盖它。
+    fn need(&self, at: u64, end: u64, want: &mut WantedWindow) {
+        let head = self.data.head.len() as u64;
+        let tail_at = self.data.tail_offset();
+        if end <= head || (!self.data.tail.is_empty() && at >= tail_at) {
+            return;
+        }
+        // 离头近就扩头部，否则扩尾部（WAV / MP4 的元数据常在音频数据之后）。
+        if at < self.data.size / 2 {
+            want.head = want.head.max(end + AUDIO_SLACK);
+        } else {
+            want.tail = want.tail.max(self.data.size - at);
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Endian {
+    Little,
+    Big,
+}
+
+fn read_u32(b: &[u8], endian: Endian) -> u64 {
+    let arr = [b[0], b[1], b[2], b[3]];
+    u64::from(match endian {
+        Endian::Little => u32::from_le_bytes(arr),
+        Endian::Big => u32::from_be_bytes(arr),
+    })
+}
+
+/// FLAC：`fLaC` 之后一串 metadata block，每块 4 字节头（最后一块的标志位 + 24 位长度）。
+fn walk_flac(view: &View<'_>, mut pos: u64, want: &mut WantedWindow) {
+    for _ in 0..128 {
+        let Some(block) = view.bytes(pos, 4) else {
+            // 下一个块头还没读到：先扩到这里，调用方会再来一轮。
+            view.need(pos, pos + 4, want);
+            return;
+        };
+        let last = block[0] & 0x80 != 0;
+        let len = (u64::from(block[1]) << 16) | (u64::from(block[2]) << 8) | u64::from(block[3]);
+        view.need(pos, pos + 4 + len, want);
+        pos += 4 + len;
+        if last {
+            return;
+        }
+    }
+}
+
+/// RIFF / AIFF：`[4 字节 ID][4 字节长度][内容]`，奇数长度补一个字节。
+/// `audio` 块（音频数据）不用读内容。
+fn walk_chunks(
+    view: &View<'_>,
+    mut pos: u64,
+    endian: Endian,
+    audio: &[u8; 4],
+    want: &mut WantedWindow,
+) {
+    let size = view.data.size;
+    for _ in 0..64 {
+        if pos + 8 > size {
+            return;
+        }
+        let Some(header) = view.bytes(pos, 8) else {
+            view.need(pos, pos + 8, want);
+            return;
+        };
+        let len = read_u32(&header[4..8], endian);
+        let end = (pos + 8 + len + (len & 1)).min(size);
+        if &header[..4] != audio {
+            view.need(pos, end, want);
+        }
+        pos = end;
+    }
+}
+
+/// MP4：`[4 字节长度][4 字节类型]`，长度 1 表示后面跟 64 位长度，0 表示到文件末尾。
+/// 只有 `mdat`（音频数据）不用读。
+fn walk_mp4(view: &View<'_>, mut pos: u64, want: &mut WantedWindow) {
+    let size = view.data.size;
+    for _ in 0..64 {
+        if pos + 8 > size {
+            return;
+        }
+        let Some(header) = view.bytes(pos, 8) else {
+            view.need(pos, pos + 8, want);
+            return;
+        };
+        let mut len = read_u32(&header[..4], Endian::Big);
+        let is_mdat = &header[4..8] == b"mdat";
+        if len == 1 {
+            let Some(ext) = view.bytes(pos + 8, 8) else {
+                view.need(pos, pos + 16, want);
+                return;
+            };
+            len = u64::from_be_bytes([
+                ext[0], ext[1], ext[2], ext[3], ext[4], ext[5], ext[6], ext[7],
+            ]);
+        } else if len == 0 {
+            len = size - pos;
+        }
+        if len < 8 {
+            return;
+        }
+        let end = (pos + len).min(size);
+        if !is_mdat {
+            view.need(pos, end, want);
+        }
+        pos = end;
+    }
 }
 
 /// lofty 的错误转成 [`LekisError`]。音频文件损坏 / 不是音频都算 [`ErrorCode::Decode`]。
@@ -725,6 +929,177 @@ mod tests {
         assert_eq!(audio.channels, 2);
         assert_eq!(audio.bit_depth, None);
         assert_eq!(audio.bitrate_kbps, Some(128));
+    }
+
+    /// 把文件切成"头 + 尾"，模拟扫描器的部分读取。
+    fn head_tail(bytes: &[u8], head: usize, tail: usize) -> PartialFile {
+        PartialFile {
+            size: bytes.len() as u64,
+            head: Bytes::copy_from_slice(&bytes[..head]),
+            tail: Bytes::copy_from_slice(&bytes[bytes.len() - tail..]),
+        }
+    }
+
+    #[test]
+    fn big_id3_tag_needs_a_bigger_head_and_then_parses() {
+        let mut tag = Tag::new(TagType::Id3v2);
+        assert!(tag.insert_text(ItemKey::TrackTitle, "白吃白喝".to_owned()));
+        assert!(tag.insert_text(ItemKey::TrackArtist, "陈奕迅".to_owned()));
+        // 600 KB 的注释，相当于一张内嵌大封面。
+        assert!(tag.insert_text(ItemKey::Comment, "x".repeat(600 * 1024)));
+        let mut file = id3v2_bytes(&tag);
+        let tag_len = file.len() as u64;
+        for _ in 0..400 {
+            file.extend_from_slice(&mp3_frame());
+        }
+        let p = path("陈奕迅/1-04 白吃白喝.mp3");
+
+        // 默认窗口：标签都没读全，解析失败（这就是列表里时长 0:00 的原因）。
+        let first = head_tail(&file, 256 * 1024, 128 * 1024);
+        assert!(LoftyTagReader.read(&p, &first).is_err());
+
+        let wanted = wanted_window(&first).expect("should ask for more");
+        assert!(
+            wanted.head > tag_len,
+            "must cover the whole tag: {wanted:?} <= {tag_len}"
+        );
+
+        let second = head_tail(&file, wanted.head as usize, wanted.tail as usize);
+        let tags = LoftyTagReader.read(&p, &second).unwrap();
+        assert_eq!(tags.title, "白吃白喝");
+        assert_eq!(tags.artists, vec!["陈奕迅".to_owned()]);
+        assert!(tags.duration_ms > 0);
+        assert_eq!(wanted_window(&second), None);
+    }
+
+    #[test]
+    fn big_flac_picture_block_is_measured_from_the_block_headers() {
+        // fLaC + STREAMINFO(34) + 一个 1 MB 的 PADDING 块（相当于 PICTURE）。
+        let mut file = b"fLaC".to_vec();
+        file.extend_from_slice(&[0x00, 0x00, 0x00, 34]);
+        file.extend_from_slice(&[0u8; 34]);
+        let big = 1024 * 1024u32;
+        file.extend_from_slice(&[0x81, (big >> 16) as u8, (big >> 8) as u8, big as u8]);
+        file.extend(std::iter::repeat_n(0u8, big as usize));
+        file.extend(std::iter::repeat_n(0u8, 512 * 1024));
+        let data = head_tail(&file, 256 * 1024, 128 * 1024);
+        let wanted = wanted_window(&data).unwrap();
+        assert_eq!(wanted.head, 4 + 4 + 34 + 4 + u64::from(big) + 64 * 1024);
+    }
+
+    #[test]
+    fn unknown_or_complete_files_ask_for_nothing() {
+        assert_eq!(wanted_window(&whole_file(vec![0u8; 100])), None);
+        let junk = vec![7u8; 1024 * 1024];
+        assert_eq!(wanted_window(&head_tail(&junk, 1024, 1024)), None);
+    }
+
+    #[test]
+    fn apple_double_forks_are_rejected_as_not_audio() {
+        let mut fork = vec![0x00, 0x05, 0x16, 0x07, 0x00, 0x02, 0x00, 0x00];
+        fork.extend_from_slice(b"Mac OS X        ");
+        fork.resize(4096, 0);
+        let err = LoftyTagReader
+            .read(&path("安溥/_1-04 白吃白喝.mp3"), &whole_file(fork))
+            .unwrap_err();
+        assert_eq!(err.code, ErrorCode::Unsupported);
+    }
+
+    /// 排查用：`LEKIS_TAG_FILE=<路径> cargo test -p lekis-scanner real_file -- --ignored --nocapture`
+    /// 按扫描器的方式（先默认头尾窗口，失败再扩）读一个真实文件。
+    #[test]
+    #[ignore = "needs LEKIS_TAG_FILE"]
+    fn real_file() {
+        let Ok(file) = std::env::var("LEKIS_TAG_FILE") else {
+            return;
+        };
+        let bytes = std::fs::read(&file).unwrap();
+        let p = path("x/real.bin");
+        let ext_path = path(&format!(
+            "x/real.{}",
+            file.rsplit('.').next().unwrap_or("bin")
+        ));
+        let p = if ext_path.extension().is_some() {
+            ext_path
+        } else {
+            p
+        };
+        let (mut head, mut tail) = (256 * 1024usize, 128 * 1024usize);
+        for round in 0..3 {
+            let data = if head + tail >= bytes.len() {
+                whole_file(bytes.clone())
+            } else {
+                head_tail(&bytes, head, tail)
+            };
+            match LoftyTagReader.read(&p, &data) {
+                Ok(tags) => {
+                    println!("round {round}: ok {tags:?}");
+                    return;
+                }
+                Err(e) => {
+                    println!("round {round}: {e}");
+                    let Some(w) = wanted_window(&data) else {
+                        println!("no bigger window");
+                        break;
+                    };
+                    (head, tail) = (w.head as usize, w.tail as usize);
+                }
+            }
+        }
+        match LoftyTagReader.read(&p, &whole_file(bytes)) {
+            Ok(tags) => println!("whole file: ok {tags:?}"),
+            Err(e) => println!("whole file: {e}"),
+        }
+    }
+
+    /// 最小的 16 位立体声 WAV：fmt + data，末尾挂一个大 `id3 ` 块（封面就在这里）。
+    fn wav_with_trailing_id3(tag: &[u8], audio_bytes: usize) -> Vec<u8> {
+        let mut fmt = Vec::new();
+        fmt.extend_from_slice(&1u16.to_le_bytes()); // PCM
+        fmt.extend_from_slice(&2u16.to_le_bytes());
+        fmt.extend_from_slice(&44_100u32.to_le_bytes());
+        fmt.extend_from_slice(&(44_100u32 * 4).to_le_bytes());
+        fmt.extend_from_slice(&4u16.to_le_bytes());
+        fmt.extend_from_slice(&16u16.to_le_bytes());
+        let chunks: [(&[u8; 4], Vec<u8>); 3] = [
+            (b"fmt ", fmt),
+            (b"data", vec![0u8; audio_bytes]),
+            (b"id3 ", tag.to_vec()),
+        ];
+        let mut body = b"WAVE".to_vec();
+        for (id, content) in chunks {
+            body.extend_from_slice(id);
+            body.extend_from_slice(&(content.len() as u32).to_le_bytes());
+            body.extend_from_slice(&content);
+            if content.len() % 2 == 1 {
+                body.push(0);
+            }
+        }
+        let mut file = b"RIFF".to_vec();
+        file.extend_from_slice(&(body.len() as u32).to_le_bytes());
+        file.extend_from_slice(&body);
+        file
+    }
+
+    #[test]
+    fn wav_with_a_big_trailing_id3_chunk_needs_a_bigger_tail() {
+        let mut tag = Tag::new(TagType::Id3v2);
+        assert!(tag.insert_text(ItemKey::TrackTitle, "I wish".to_owned()));
+        assert!(tag.insert_text(ItemKey::TrackArtist, "AiM".to_owned()));
+        assert!(tag.insert_text(ItemKey::Comment, "x".repeat(400 * 1024)));
+        let file = wav_with_trailing_id3(&id3v2_bytes(&tag), 2 * 1024 * 1024);
+        let p = path("DISC 1/01_I wish.wav");
+
+        let first = head_tail(&file, 256 * 1024, 128 * 1024);
+        assert!(LoftyTagReader.read(&p, &first).is_err());
+
+        let wanted = wanted_window(&first).expect("should ask for a bigger tail");
+        assert!(wanted.tail > 400 * 1024, "{wanted:?}");
+        let second = head_tail(&file, wanted.head as usize, wanted.tail as usize);
+        let tags = LoftyTagReader.read(&p, &second).unwrap();
+        assert_eq!(tags.title, "I wish");
+        assert_eq!(tags.artists, vec!["AiM".to_owned()]);
+        assert!(tags.duration_ms > 10_000, "{}", tags.duration_ms);
     }
 
     // ---- FLAC + Vorbis Comment ----
