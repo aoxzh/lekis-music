@@ -24,6 +24,7 @@ mod lyrics_local;
 mod offline;
 pub mod platform;
 pub mod plugins;
+pub mod radio;
 mod remote_scan;
 mod resolver;
 pub mod scrobble;
@@ -39,6 +40,9 @@ pub use health::HealthScanReport;
 pub use lekis_playback::PlaybackSnapshot;
 pub use platform::{CredentialStore, MemoryCredentialStore, PlatformServices};
 pub use plugins::{PluginInfo, PluginPermissions, PluginSettingView};
+pub use radio::{
+    RadioFilterOption, RadioFilterOptions, RadioPage, RadioQuery, RadioSort, RADIO_PAGE_MAX,
+};
 pub use scrobble::{ScrobbleSettings, ScrobbleSettingsInput, ScrobbleStatus};
 pub use selection::{NetworkContext, Reachability, SourceHealth};
 pub use sync_engine::SyncReport;
@@ -94,6 +98,8 @@ struct Services {
     resolver: Arc<resolver::Resolver>,
     /// 第三方听歌记录上报（DIS-07）。
     scrobble: Arc<scrobble::Scrobbler>,
+    /// 网络电台（SRC-11）：Radio Browser 客户端和筛选缓存。
+    radio: radio::RadioBrowser,
     /// 正在进行的离线下载（曲目 → 取消标记）。
     downloads:
         std::sync::Mutex<std::collections::HashMap<TrackId, Arc<std::sync::atomic::AtomicBool>>>,
@@ -291,6 +297,7 @@ impl LekisCore {
             platform.credentials.clone(),
             &config.data_dir,
         ));
+        let radio = radio::RadioBrowser::new()?;
         let plugins = Arc::new(plugins::PluginManager::new(
             &config.data_dir,
             library.clone(),
@@ -311,6 +318,7 @@ impl LekisCore {
             vfs: std::sync::Mutex::new(std::collections::HashMap::new()),
             resolver,
             scrobble: scrobbler,
+            radio,
             downloads: std::sync::Mutex::new(std::collections::HashMap::new()),
             plugins,
             eq,
@@ -753,6 +761,139 @@ impl LekisCore {
     }
 
     // -----------------------------------------------------------------------
+    // 网络电台（SRC-11）
+    // -----------------------------------------------------------------------
+
+    /// 浏览 / 搜索 Radio Browser，并把结果缓存到本地（返回带本机 ID 的电台）。
+    pub async fn radio_browse(&self, query: RadioQuery) -> Result<RadioPage> {
+        let s = self.services.clone();
+        self.run(async move {
+            let page = s.radio.browse(&query).await?;
+            let stations = s.library.radio_upsert_many(page.stations).await?;
+            Ok(RadioPage {
+                stations,
+                has_more: page.has_more,
+            })
+        })
+        .await
+    }
+
+    /// 国家 / 语言 / 标签筛选选项（失败时 UI 可以用本地兜底列表）。
+    pub async fn radio_filter_options(&self) -> Result<RadioFilterOptions> {
+        let s = self.services.clone();
+        self.run(async move { s.radio.filter_options().await })
+            .await
+    }
+
+    /// 收藏的电台，最近播放的排前面。
+    pub async fn radio_favorites(&self, limit: u32) -> Result<Vec<RadioStation>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.radio_favorites(limit).await })
+            .await
+    }
+
+    /// 最近播放过的电台。
+    pub async fn radio_recent(&self, limit: u32) -> Result<Vec<RadioStation>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.radio_recent(limit).await })
+            .await
+    }
+
+    /// 用户自定义的电台。
+    pub async fn radio_custom(&self, limit: u32) -> Result<Vec<RadioStation>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.radio_custom(limit).await })
+            .await
+    }
+
+    /// 添加自定义电台；`address` 可以是流地址，也可以是粘贴的 M3U / PLS 文本。
+    ///
+    /// 只接受 http/https。名称留空时用主机名。同一个流地址重复添加会更新名称和主页。
+    pub async fn radio_add_custom(
+        &self,
+        name: String,
+        address: String,
+        homepage: Option<String>,
+    ) -> Result<RadioStation> {
+        let url = radio::parse_stream_address(&address)?;
+        let homepage = radio::validate_homepage(homepage.as_deref())?;
+        let mut name = name.trim().to_string();
+        if name.is_empty() {
+            name = url::Url::parse(&url)
+                .ok()
+                .and_then(|u| u.host_str().map(str::to_string))
+                .unwrap_or_else(|| "自定义电台".to_string());
+        }
+        let s = self.services.clone();
+        self.run(async move {
+            let station = s
+                .library
+                .radio_add_custom(&name, &url, homepage.as_deref())
+                .await?;
+            s.events.emit(CoreEvent::LibraryChanged {
+                scope: LibraryScope::UserState,
+            });
+            Ok(station)
+        })
+        .await
+    }
+
+    /// 删除自定义电台（浏览缓存不能通过这个入口删除）。
+    pub async fn radio_delete_custom(&self, id: RadioStationId) -> Result<()> {
+        let s = self.services.clone();
+        self.run(async move { s.library.radio_delete_custom(id).await })
+            .await?;
+        self.services.events.emit(CoreEvent::LibraryChanged {
+            scope: LibraryScope::UserState,
+        });
+        Ok(())
+    }
+
+    /// 收藏 / 取消收藏电台。
+    pub async fn radio_set_favorite(&self, id: RadioStationId, favorite: bool) -> Result<()> {
+        let s = self.services.clone();
+        self.run(async move { s.library.radio_set_favorite(id, favorite).await })
+            .await?;
+        self.services.events.emit(radio::favorite_event());
+        Ok(())
+    }
+
+    /// 用一组电台替换播放队列并开始播放，返回队列长度。
+    ///
+    /// 电台映射成负数合成 `TrackId`，播放器把它当成时长未知的网络流：
+    /// 不扫描、不 seek，进度条只显示已播放时间。
+    pub async fn radio_play(&self, stations: Vec<RadioStationId>, start: u32) -> Result<u32> {
+        if stations.is_empty() {
+            return Err(LekisError::invalid("radio queue must not be empty"));
+        }
+        let s = self.services.clone();
+        let (tracks, start, first) = self
+            .run(async move {
+                let mut tracks = Vec::with_capacity(stations.len());
+                for id in &stations {
+                    let station = s.library.radio_station(*id).await?;
+                    tracks.push(station.id.track_id());
+                }
+                let start = (start as usize).min(tracks.len() - 1);
+                let first = stations[start];
+                s.library
+                    .radio_mark_played(first, radio::played_at_now())
+                    .await?;
+                Ok((tracks, start, first))
+            })
+            .await?;
+        let len = tracks.len() as u32;
+        self.services
+            .engine
+            .send(EngineCommand::SetQueue { tracks, start })?;
+        self.services.events.emit(CoreEvent::LibraryChanged {
+            scope: LibraryScope::UserState,
+        });
+        tracing::info!(target: "core::radio", station = %first, queue = len, "radio queue started");
+        Ok(len)
+    }
+
+    // -----------------------------------------------------------------------
     // 资料库查询
     // -----------------------------------------------------------------------
 
@@ -764,15 +905,35 @@ impl LekisCore {
     }
 
     /// 曲目详情。
+    ///
+    /// 负数的合成 `TrackId` 表示网络电台（SRC-11），返回一个时长 0 的虚拟曲目，
+    /// 让「正在播放」和播放队列不需要为电台单独做 UI。
     pub async fn get_track(&self, id: TrackId) -> Result<Track> {
         let s = self.services.clone();
-        self.run(async move { s.library.get_track(id).await }).await
+        self.run(async move {
+            if let Some(station_id) = RadioStationId::from_track_id(id) {
+                let station = s.library.radio_station(station_id).await?;
+                return Ok(radio::station_track(&station));
+            }
+            s.library.get_track(id).await
+        })
+        .await
     }
 
     /// 曲目详情 + 用户状态（收藏、评分、播放次数）。
     pub async fn get_track_with_state(&self, id: TrackId) -> Result<(Track, TrackUserState)> {
         let s = self.services.clone();
         self.run(async move {
+            if let Some(station_id) = RadioStationId::from_track_id(id) {
+                let station = s.library.radio_station(station_id).await?;
+                let state = TrackUserState {
+                    loved: station.favorite,
+                    rating: None,
+                    play_count: 0,
+                    updated_hlc: None,
+                };
+                return Ok((radio::station_track(&station), state));
+            }
             let track = s.library.get_track(id).await?;
             let state = s.library.user_state(track.uid.clone()).await?;
             Ok((track, state))
@@ -996,7 +1157,13 @@ impl LekisCore {
     }
 
     /// 收藏 / 取消收藏。
+    ///
+    /// 电台的负合成 ID 映射到电台收藏；普通曲目走原有 `user_state` 和同步日志。
     pub async fn set_loved(&self, id: TrackId, loved: bool) -> Result<()> {
+        if let Some(station_id) = RadioStationId::from_track_id(id) {
+            self.radio_set_favorite(station_id, loved).await?;
+            return Ok(());
+        }
         let s = self.services.clone();
         self.run(async move {
             let track = s.library.get_track(id).await?;
@@ -1379,21 +1546,36 @@ impl LekisCore {
         self.run(async move {
             let mut rows = Vec::with_capacity(ids.len());
             for id in ids {
-                match s.library.track_row(id).await {
-                    Ok(row) => rows.push(row),
-                    // 曲目在队列里但已经被删（源被移除）：给一行占位，保持下标对齐。
-                    Err(e) if e.code == ErrorCode::NotFound => rows.push(TrackRow {
-                        id,
-                        title: String::new(),
-                        artist_line: String::new(),
-                        album_title: None,
-                        duration_ms: 0,
-                        artwork_id: None,
-                        quality_badge: None,
-                        loved: false,
-                    }),
-                    Err(e) => return Err(e),
+                if let Some(station_id) = RadioStationId::from_track_id(id) {
+                    match s.library.radio_station(station_id).await {
+                        Ok(station) => {
+                            rows.push(radio::station_track_row(&station));
+                            continue;
+                        }
+                        Err(e) if e.code == ErrorCode::NotFound => {}
+                        Err(e) => return Err(e),
+                    }
+                } else {
+                    match s.library.track_row(id).await {
+                        Ok(row) => {
+                            rows.push(row);
+                            continue;
+                        }
+                        // 曲目在队列里但已经被删（源被移除）：给一行占位，保持下标对齐。
+                        Err(e) if e.code != ErrorCode::NotFound => return Err(e),
+                        Err(_) => {}
+                    }
                 }
+                rows.push(TrackRow {
+                    id,
+                    title: String::new(),
+                    artist_line: String::new(),
+                    album_title: None,
+                    duration_ms: 0,
+                    artwork_id: None,
+                    quality_badge: None,
+                    loved: false,
+                });
             }
             Ok(rows)
         })
@@ -1682,7 +1864,12 @@ impl LekisCore {
     // -----------------------------------------------------------------------
 
     /// 当前生效的歌词（ENR-03）。
+    ///
+    /// 电台没有歌词：直接返回 `None`，不查库、不发网络请求。
     pub async fn lyrics(&self, id: TrackId) -> Result<Option<Lyrics>> {
+        if RadioStationId::from_track_id(id).is_some() {
+            return Ok(None);
+        }
         let s = self.services.clone();
         self.run(async move {
             if let Some(found) = s.library.active_lyrics(id).await? {
@@ -1715,6 +1902,9 @@ impl LekisCore {
 
     /// 这首歌所有可用歌词（按来源优先级排序，供用户切换）。
     pub async fn lyrics_versions(&self, id: TrackId) -> Result<Vec<LyricsRow>> {
+        if RadioStationId::from_track_id(id).is_some() {
+            return Ok(Vec::new());
+        }
         let s = self.services.clone();
         self.run(async move { s.library.list_lyrics(id).await })
             .await
@@ -1739,8 +1929,11 @@ impl LekisCore {
             .await
     }
 
-    /// 曲目的生效封面（曲目级优先，回落专辑级）。
+    /// 曲目的生效封面（曲目级优先，回落专辑级）。电台没有本地封面。
     pub async fn artwork(&self, id: TrackId) -> Result<Option<lekis_library::ArtworkRow>> {
+        if RadioStationId::from_track_id(id).is_some() {
+            return Ok(None);
+        }
         let s = self.services.clone();
         self.run(async move { s.library.effective_artwork(id).await })
             .await
@@ -2070,7 +2263,22 @@ impl LekisCore {
     }
 
     /// 记一次播放（DIS-06；scrobble 判定也用这条记录）。
+    ///
+    /// 电台只更新最近播放时间，不写曲目播放统计，也不产生 scrobble。
     pub async fn record_play(&self, id: TrackId, ms_played: u64) -> Result<()> {
+        if let Some(station_id) = RadioStationId::from_track_id(id) {
+            let s = self.services.clone();
+            self.run(async move {
+                s.library
+                    .radio_mark_played(station_id, radio::played_at_now())
+                    .await
+            })
+            .await?;
+            self.services.events.emit(CoreEvent::LibraryChanged {
+                scope: LibraryScope::UserState,
+            });
+            return Ok(());
+        }
         let s = self.services.clone();
         self.run(async move {
             let track = s.library.get_track(id).await?;

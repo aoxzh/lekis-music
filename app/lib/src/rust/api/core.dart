@@ -76,6 +76,73 @@ bool hasCredential({required String credentialRef}) => RustLib.instance.api
 Future<void> startScan({required PlatformInt64 sourceId}) =>
     RustLib.instance.api.crateApiCoreStartScan(sourceId: sourceId);
 
+/// 浏览 / 搜索 Radio Browser。`country_code` 用 ISO 3166-1（`CN`），
+/// `language` / `tag` 用 Radio Browser 的原始值。结果会缓存到本地，返回带本机 ID。
+Future<RadioPageDto> radioBrowse({
+  required String search,
+  String? countryCode,
+  String? language,
+  String? tag,
+  required RadioSortDto sort,
+  required int offset,
+  required int limit,
+}) => RustLib.instance.api.crateApiCoreRadioBrowse(
+  search: search,
+  countryCode: countryCode,
+  language: language,
+  tag: tag,
+  sort: sort,
+  offset: offset,
+  limit: limit,
+);
+
+/// 国家 / 语言 / 标签筛选选项。
+Future<RadioFilterOptionsDto> radioFilterOptions() =>
+    RustLib.instance.api.crateApiCoreRadioFilterOptions();
+
+/// 收藏的电台。
+Future<List<RadioStationDto>> radioFavorites({required int limit}) =>
+    RustLib.instance.api.crateApiCoreRadioFavorites(limit: limit);
+
+/// 最近播放过的电台。
+Future<List<RadioStationDto>> radioRecent({required int limit}) =>
+    RustLib.instance.api.crateApiCoreRadioRecent(limit: limit);
+
+/// 用户自定义的电台。
+Future<List<RadioStationDto>> radioCustom({required int limit}) =>
+    RustLib.instance.api.crateApiCoreRadioCustom(limit: limit);
+
+/// 添加自定义电台。`address` 可以是流地址，也可以是粘贴的 M3U / PLS 文本。
+Future<RadioStationDto> radioAddCustom({
+  required String name,
+  required String address,
+  String? homepage,
+}) => RustLib.instance.api.crateApiCoreRadioAddCustom(
+  name: name,
+  address: address,
+  homepage: homepage,
+);
+
+/// 删除自定义电台。
+Future<void> radioDeleteCustom({required PlatformInt64 stationId}) =>
+    RustLib.instance.api.crateApiCoreRadioDeleteCustom(stationId: stationId);
+
+/// 收藏 / 取消收藏电台。
+Future<void> radioSetFavorite({
+  required PlatformInt64 stationId,
+  required bool favorite,
+}) => RustLib.instance.api.crateApiCoreRadioSetFavorite(
+  stationId: stationId,
+  favorite: favorite,
+);
+
+/// 用一组电台替换播放队列并从 `start` 开始播放。
+Future<int> radioPlay({required Int64List stationIds, required int start}) =>
+    RustLib.instance.api.crateApiCoreRadioPlay(
+      stationIds: stationIds,
+      start: start,
+    );
+
 Future<List<TrackRowDto>> listTracks({
   required TrackSortDto sort,
   required int offset,

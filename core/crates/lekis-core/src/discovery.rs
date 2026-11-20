@@ -106,7 +106,12 @@ fn merge(items: impl IntoIterator<Item = DiscoveredService>) -> Vec<DiscoveredSe
             }
         }
     }
-    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()).then(a.port.cmp(&b.port)));
+    out.sort_by(|a, b| {
+        a.name
+            .to_lowercase()
+            .cmp(&b.name.to_lowercase())
+            .then(a.port.cmp(&b.port))
+    });
     out
 }
 
@@ -192,7 +197,9 @@ fn pick_address(addrs: impl Iterator<Item = IpAddr>) -> Option<String> {
     let addrs: Vec<IpAddr> = addrs.collect();
     let v4 = |private: bool| {
         addrs.iter().find_map(|a| match a {
-            IpAddr::V4(v) if !v.is_loopback() && !v.is_link_local() && v.is_private() == private => {
+            IpAddr::V4(v)
+                if !v.is_loopback() && !v.is_link_local() && v.is_private() == private =>
+            {
                 Some(v.to_string())
             }
             _ => None,
@@ -266,7 +273,9 @@ async fn ws_discovery(timeout: Duration) -> Vec<DiscoveredService> {
     let mut out = Vec::new();
     let mut seen = std::collections::HashSet::new();
     recv_until(&socket, timeout, |from, body| {
-        let Ok(text) = std::str::from_utf8(body) else { return };
+        let Ok(text) = std::str::from_utf8(body) else {
+            return;
+        };
         if !text.contains("ProbeMatch") {
             return;
         }
@@ -393,11 +402,17 @@ async fn ssdp_search(timeout: Duration) -> Vec<DiscoveredService> {
     }
     // 留出约三分之一的时间去读设备描述拿名字。
     let listen = timeout.mul_f32(0.65);
-    let fetch_budget = timeout.saturating_sub(listen).max(Duration::from_millis(300));
+    let fetch_budget = timeout
+        .saturating_sub(listen)
+        .max(Duration::from_millis(300));
     let mut found: Vec<(String, String)> = Vec::new(); // (host, location)
     recv_until(&socket, listen, |from, body| {
-        let Ok(text) = std::str::from_utf8(body) else { return };
-        let Some(location) = header(text, "location") else { return };
+        let Ok(text) = std::str::from_utf8(body) else {
+            return;
+        };
+        let Some(location) = header(text, "location") else {
+            return;
+        };
         let host = url_host(&location).unwrap_or_else(|| from.ip().to_string());
         if !found.iter().any(|(h, _)| *h == host) {
             found.push((host, location));
@@ -408,7 +423,10 @@ async fn ssdp_search(timeout: Duration) -> Vec<DiscoveredService> {
         return Vec::new();
     }
 
-    let client = reqwest::Client::builder().timeout(fetch_budget).build().ok();
+    let client = reqwest::Client::builder()
+        .timeout(fetch_budget)
+        .build()
+        .ok();
     let fetches = found.into_iter().map(|(host, location)| {
         let client = client.clone();
         async move {
@@ -445,7 +463,9 @@ fn url_port(url: &str) -> Option<u16> {
 fn header(text: &str, name: &str) -> Option<String> {
     text.lines().find_map(|line| {
         let (k, v) = line.split_once(':')?;
-        k.trim().eq_ignore_ascii_case(name).then(|| v.trim().to_string())
+        k.trim()
+            .eq_ignore_ascii_case(name)
+            .then(|| v.trim().to_string())
     })
 }
 
@@ -495,7 +515,14 @@ fn pseudo_uuid() -> String {
     let pid = u128::from(std::process::id());
     let v = nanos ^ (pid << 64) ^ 0x4c65_6b69_7300_0000_0000_0000_0000_0000;
     let h = format!("{v:032x}");
-    format!("{}-{}-4{}-a{}-{}", &h[0..8], &h[8..12], &h[13..16], &h[17..20], &h[20..32])
+    format!(
+        "{}-{}-4{}-a{}-{}",
+        &h[0..8],
+        &h[8..12],
+        &h[13..16],
+        &h[17..20],
+        &h[20..32]
+    )
 }
 
 #[cfg(test)]
@@ -503,13 +530,22 @@ fn pseudo_uuid() -> String {
 mod tests {
     use super::*;
 
-    fn svc(kind: DiscoveredKind, name: &str, host: &str, via: DiscoveryProtocol) -> DiscoveredService {
+    fn svc(
+        kind: DiscoveredKind,
+        name: &str,
+        host: &str,
+        via: DiscoveryProtocol,
+    ) -> DiscoveredService {
         DiscoveredService {
             kind,
             name: name.into(),
             host: host.into(),
             hostname: None,
-            port: if kind == DiscoveredKind::Smb { 445 } else { 5005 },
+            port: if kind == DiscoveredKind::Smb {
+                445
+            } else {
+                5005
+            },
             path: None,
             via,
         }
@@ -517,8 +553,14 @@ mod tests {
 
     #[test]
     fn instance_name_strips_type_and_unescapes() {
-        assert_eq!(instance_name("My\\032NAS._smb._tcp.local.", "_smb._tcp.local."), "My NAS");
-        assert_eq!(instance_name("DS920\\.home._smb._tcp.local.", "_smb._tcp.local."), "DS920.home");
+        assert_eq!(
+            instance_name("My\\032NAS._smb._tcp.local.", "_smb._tcp.local."),
+            "My NAS"
+        );
+        assert_eq!(
+            instance_name("DS920\\.home._smb._tcp.local.", "_smb._tcp.local."),
+            "DS920.home"
+        );
     }
 
     #[test]
@@ -528,7 +570,10 @@ mod tests {
             "8.8.8.8".parse().unwrap(),
             "192.168.1.5".parse().unwrap(),
         ];
-        assert_eq!(pick_address(addrs.into_iter()).as_deref(), Some("192.168.1.5"));
+        assert_eq!(
+            pick_address(addrs.into_iter()).as_deref(),
+            Some("192.168.1.5")
+        );
         let only6: Vec<IpAddr> = vec!["fe80::1".parse().unwrap()];
         assert_eq!(pick_address(only6.into_iter()).as_deref(), Some("fe80::1"));
     }
@@ -536,10 +581,30 @@ mod tests {
     #[test]
     fn mdns_beats_wsd_and_lends_its_name() {
         let merged = merge(vec![
-            svc(DiscoveredKind::Smb, "10.0.0.2", "10.0.0.2", DiscoveryProtocol::WsDiscovery),
-            svc(DiscoveredKind::Smb, "NAS", "10.0.0.2", DiscoveryProtocol::Mdns),
-            svc(DiscoveredKind::MediaServer, "10.0.0.2", "10.0.0.2", DiscoveryProtocol::Ssdp),
-            svc(DiscoveredKind::Smb, "10.0.0.9", "10.0.0.9", DiscoveryProtocol::WsDiscovery),
+            svc(
+                DiscoveredKind::Smb,
+                "10.0.0.2",
+                "10.0.0.2",
+                DiscoveryProtocol::WsDiscovery,
+            ),
+            svc(
+                DiscoveredKind::Smb,
+                "NAS",
+                "10.0.0.2",
+                DiscoveryProtocol::Mdns,
+            ),
+            svc(
+                DiscoveredKind::MediaServer,
+                "10.0.0.2",
+                "10.0.0.2",
+                DiscoveryProtocol::Ssdp,
+            ),
+            svc(
+                DiscoveredKind::Smb,
+                "10.0.0.9",
+                "10.0.0.9",
+                DiscoveryProtocol::WsDiscovery,
+            ),
         ]);
         assert_eq!(merged.len(), 3);
         let smb = merged
@@ -547,7 +612,10 @@ mod tests {
             .find(|s| s.kind == DiscoveredKind::Smb && s.host == "10.0.0.2")
             .unwrap();
         assert_eq!(smb.via, DiscoveryProtocol::Mdns);
-        let dlna = merged.iter().find(|s| s.kind == DiscoveredKind::MediaServer).unwrap();
+        let dlna = merged
+            .iter()
+            .find(|s| s.kind == DiscoveredKind::MediaServer)
+            .unwrap();
         assert_eq!(dlna.name, "NAS");
     }
 
@@ -557,7 +625,10 @@ mod tests {
             <wsd:Types>wsdp:Device pub:Computer</wsd:Types>
             <wsd:XAddrs>http://172.26.0.8:5357/6f2c</wsd:XAddrs>
             </wsd:ProbeMatch></wsd:ProbeMatches></soap:Body></soap:Envelope>"#;
-        assert_eq!(xml_text(body, "Types").as_deref(), Some("wsdp:Device pub:Computer"));
+        assert_eq!(
+            xml_text(body, "Types").as_deref(),
+            Some("wsdp:Device pub:Computer")
+        );
         assert_eq!(xaddr_host(body).as_deref(), Some("172.26.0.8"));
     }
 
@@ -585,7 +656,10 @@ mod tests {
     async fn live() {
         let found = discover(Duration::from_secs(4)).await;
         for s in &found {
-            println!("{:?} {:?} {} {}:{} {:?}", s.via, s.kind, s.name, s.host, s.port, s.path);
+            println!(
+                "{:?} {:?} {} {}:{} {:?}",
+                s.via, s.kind, s.name, s.host, s.port, s.path
+            );
         }
     }
 }

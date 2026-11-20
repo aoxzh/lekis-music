@@ -53,10 +53,7 @@ pub(crate) async fn ingest_missing(
     vfs: Arc<dyn Vfs>,
 ) -> Result<usize> {
     // 一次最多处理 2000 张；剩下的下次扫描再补，避免首次扫描卡太久。
-    let candidates = services
-        .library
-        .artwork_candidates(source_id, 2000)
-        .await?;
+    let candidates = services.library.artwork_candidates(source_id, 2000).await?;
     if candidates.is_empty() {
         return Ok(0);
     }
@@ -147,7 +144,9 @@ async fn load_cover(vfs: &dyn Vfs, path: &VfsPath) -> Option<(Vec<u8>, &'static 
             }
         }
     }
-    read_embedded(vfs, path).await.map(|bytes| (bytes, "embedded"))
+    read_embedded(vfs, path)
+        .await
+        .map(|bytes| (bytes, "embedded"))
 }
 
 async fn read_sidecar(vfs: &dyn Vfs, dir: &VfsPath) -> Option<Vec<u8>> {
@@ -156,9 +155,7 @@ async fn read_sidecar(vfs: &dyn Vfs, dir: &VfsPath) -> Option<Vec<u8>> {
         let Ok(meta) = vfs.stat(&path).await else {
             continue;
         };
-        if !matches!(meta.kind, EntryKind::File)
-            || meta.size == 0
-            || meta.size > MAX_SIDECAR_BYTES
+        if !matches!(meta.kind, EntryKind::File) || meta.size == 0 || meta.size > MAX_SIDECAR_BYTES
         {
             continue;
         }
@@ -229,7 +226,10 @@ async fn read_embedded(vfs: &dyn Vfs, path: &VfsPath) -> Option<Vec<u8>> {
         return None;
     }
 
-    for (head, tail) in [(HEAD_WINDOW, TAIL_WINDOW), (HEAD_WINDOW_RETRY, TAIL_WINDOW_RETRY)] {
+    for (head, tail) in [
+        (HEAD_WINDOW, TAIL_WINDOW),
+        (HEAD_WINDOW_RETRY, TAIL_WINDOW_RETRY),
+    ] {
         let Ok(data) = partial::read_head_tail(vfs, path, meta.size, head, tail).await else {
             continue;
         };

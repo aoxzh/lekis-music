@@ -29,9 +29,9 @@ const DB_INTERVAL: Duration = Duration::from_millis(1_000);
 pub(crate) async fn schedule(s: &Arc<Services>, track_id: TrackId) -> Result<()> {
     // 曲目必须存在；离线记录可以不存在（第一次下载）。
     let files = s.library.track_files(track_id).await?;
-    let first = files.first().ok_or_else(|| {
-        LekisError::not_found(format!("no playable file for track {track_id}"))
-    })?;
+    let first = files
+        .first()
+        .ok_or_else(|| LekisError::not_found(format!("no playable file for track {track_id}")))?;
     if let Some(existing) = current_row(&s.library, track_id).await? {
         if existing.state == OfflineState::Ready && Path::new(&existing.cache_path).is_file() {
             return Ok(());
@@ -543,10 +543,11 @@ async fn remove_parts_for(dir: &Path, track_id: TrackId) -> u64 {
     while let Ok(Some(entry)) = entries.next_entry().await {
         let name = entry.file_name();
         let Some(name) = name.to_str() else { continue };
-        if name.starts_with(&prefix) && name.ends_with(".part") {
-            if tokio::fs::remove_file(entry.path()).await.is_ok() {
-                removed += 1;
-            }
+        if name.starts_with(&prefix)
+            && name.ends_with(".part")
+            && tokio::fs::remove_file(entry.path()).await.is_ok()
+        {
+            removed += 1;
         }
     }
     removed

@@ -113,6 +113,20 @@ impl Resolver {
     }
 
     async fn resolve(&self, track_id: TrackId) -> Result<MediaSource> {
+        // SRC-11：网络电台用负数的合成 TrackId，直接打开保存的流地址。
+        // 不要求曲目扫描，也没有时长；播放器会把它当成不可 seek 的直播流。
+        if let Some(station_id) = lekis_types::RadioStationId::from_track_id(track_id) {
+            let station = self.library.radio_station(station_id).await?;
+            return Ok(MediaSource {
+                track_id,
+                location: MediaLocation::Url {
+                    url: station.url,
+                    headers: Vec::new(),
+                },
+                duration_hint_ms: 0,
+                gain_db: None,
+            });
+        }
         // OFF-03：已经有完整缓存时优先播本机文件。即使 NAS / 服务器暂时离线也能播。
         if let Some(download) = self.library.offline_ready_download(track_id).await? {
             if std::path::Path::new(&download.cache_path).is_file() {
@@ -127,7 +141,7 @@ impl Resolver {
                     Ok(files) => {
                         let net = self.health.network();
                         selection::pick_best(&files, &|id| self.health.get(id), net)
-                            .map(|f| f.replaygain.clone())
+                            .map(|f| f.replaygain)
                             .and_then(|rg| {
                                 self.replaygain_mode
                                     .read()

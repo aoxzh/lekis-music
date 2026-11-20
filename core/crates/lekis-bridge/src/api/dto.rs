@@ -217,6 +217,136 @@ impl From<lekis_core::discovery::DiscoveredService> for DiscoveredServiceDto {
 }
 
 // ---------------------------------------------------------------------------
+// 网络电台（SRC-11）
+// ---------------------------------------------------------------------------
+
+/// 一个网络电台。
+#[derive(Debug, Clone)]
+pub struct RadioStationDto {
+    /// 本机 ID。
+    pub id: i64,
+    /// Radio Browser 的稳定 UUID；自定义电台为 `None`。
+    pub station_uuid: Option<String>,
+    /// 显示名称。
+    pub name: String,
+    /// 流地址（仅 http/https）。
+    pub url: String,
+    /// 图标地址。
+    pub favicon: Option<String>,
+    /// 国家 / 地区。
+    pub country: Option<String>,
+    /// ISO 3166-1 国家代码。
+    pub country_code: Option<String>,
+    /// 语言。
+    pub language: Option<String>,
+    /// 标签 / 流派。
+    pub tags: Vec<String>,
+    /// 编码。
+    pub codec: Option<String>,
+    /// 码率（kbps）。
+    pub bitrate: Option<u32>,
+    /// 主页。
+    pub homepage: Option<String>,
+    /// 用户自定义。
+    pub custom: bool,
+    /// 已收藏。
+    pub favorite: bool,
+    /// 最近播放时间（Unix 毫秒）。
+    pub last_played_at: Option<i64>,
+}
+
+impl From<t::RadioStation> for RadioStationDto {
+    fn from(s: t::RadioStation) -> Self {
+        Self {
+            id: s.id.0,
+            station_uuid: s.station_uuid,
+            name: s.name,
+            url: s.url,
+            favicon: s.favicon,
+            country: s.country,
+            country_code: s.country_code,
+            language: s.language,
+            tags: s.tags,
+            codec: s.codec,
+            bitrate: s.bitrate,
+            homepage: s.homepage,
+            custom: s.is_custom,
+            favorite: s.favorite,
+            last_played_at: s.last_played_at,
+        }
+    }
+}
+
+/// 一页电台浏览结果。
+#[derive(Debug, Clone)]
+pub struct RadioPageDto {
+    /// 电台。
+    pub stations: Vec<RadioStationDto>,
+    /// 后面可能还有更多。
+    pub has_more: bool,
+}
+
+/// 浏览排序。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RadioSortDto {
+    /// 热度。
+    Popular,
+    /// 名称。
+    Name,
+}
+
+impl From<RadioSortDto> for lekis_core::RadioSort {
+    fn from(value: RadioSortDto) -> Self {
+        match value {
+            RadioSortDto::Popular => Self::Popular,
+            RadioSortDto::Name => Self::Name,
+        }
+    }
+}
+
+/// 一个筛选选项。
+#[derive(Debug, Clone)]
+pub struct RadioFilterOptionDto {
+    /// 显示名。
+    pub name: String,
+    /// 传给 `radio_browse` 的值。
+    pub value: String,
+    /// 电台数。
+    pub station_count: u32,
+}
+
+/// 国家 / 语言 / 标签筛选选项。
+#[derive(Debug, Clone)]
+pub struct RadioFilterOptionsDto {
+    /// 国家 / 地区。
+    pub countries: Vec<RadioFilterOptionDto>,
+    /// 语言。
+    pub languages: Vec<RadioFilterOptionDto>,
+    /// 标签 / 流派。
+    pub tags: Vec<RadioFilterOptionDto>,
+}
+
+impl From<lekis_core::RadioFilterOption> for RadioFilterOptionDto {
+    fn from(value: lekis_core::RadioFilterOption) -> Self {
+        Self {
+            name: value.name,
+            value: value.value,
+            station_count: value.station_count,
+        }
+    }
+}
+
+impl From<lekis_core::RadioFilterOptions> for RadioFilterOptionsDto {
+    fn from(value: lekis_core::RadioFilterOptions) -> Self {
+        Self {
+            countries: value.countries.into_iter().map(Into::into).collect(),
+            languages: value.languages.into_iter().map(Into::into).collect(),
+            tags: value.tags.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // 资料库
 // ---------------------------------------------------------------------------
 

@@ -8,7 +8,8 @@ impl LekisCore {
     /// 文件夹视图的第一层：有曲目的音源。
     pub async fn folder_roots(&self) -> Result<Vec<FolderRoot>> {
         let s = self.services.clone();
-        self.run(async move { s.library.folder_roots().await }).await
+        self.run(async move { s.library.folder_roots().await })
+            .await
     }
 
     /// 某个音源下目录 `path`（`""` = 根目录）的子文件夹和直属曲目数。

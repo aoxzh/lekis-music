@@ -11,7 +11,7 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'dto.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `into_rule_group`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `try_from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `try_from`
 
 /// 专辑（LIB-06）。
 class AlbumDto {
@@ -1960,6 +1960,202 @@ class PluginSettingDto {
           value == other.value &&
           hasValue == other.hasValue &&
           secret == other.secret;
+}
+
+/// 一个筛选选项。
+class RadioFilterOptionDto {
+  /// 显示名。
+  final String name;
+
+  /// 传给 `radio_browse` 的值。
+  final String value;
+
+  /// 电台数。
+  final int stationCount;
+
+  const RadioFilterOptionDto({
+    required this.name,
+    required this.value,
+    required this.stationCount,
+  });
+
+  @override
+  int get hashCode => name.hashCode ^ value.hashCode ^ stationCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RadioFilterOptionDto &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          value == other.value &&
+          stationCount == other.stationCount;
+}
+
+/// 国家 / 语言 / 标签筛选选项。
+class RadioFilterOptionsDto {
+  /// 国家 / 地区。
+  final List<RadioFilterOptionDto> countries;
+
+  /// 语言。
+  final List<RadioFilterOptionDto> languages;
+
+  /// 标签 / 流派。
+  final List<RadioFilterOptionDto> tags;
+
+  const RadioFilterOptionsDto({
+    required this.countries,
+    required this.languages,
+    required this.tags,
+  });
+
+  @override
+  int get hashCode => countries.hashCode ^ languages.hashCode ^ tags.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RadioFilterOptionsDto &&
+          runtimeType == other.runtimeType &&
+          countries == other.countries &&
+          languages == other.languages &&
+          tags == other.tags;
+}
+
+/// 一页电台浏览结果。
+class RadioPageDto {
+  /// 电台。
+  final List<RadioStationDto> stations;
+
+  /// 后面可能还有更多。
+  final bool hasMore;
+
+  const RadioPageDto({required this.stations, required this.hasMore});
+
+  @override
+  int get hashCode => stations.hashCode ^ hasMore.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RadioPageDto &&
+          runtimeType == other.runtimeType &&
+          stations == other.stations &&
+          hasMore == other.hasMore;
+}
+
+/// 浏览排序。
+enum RadioSortDto {
+  /// 热度。
+  popular,
+
+  /// 名称。
+  name,
+}
+
+/// 一个网络电台。
+class RadioStationDto {
+  /// 本机 ID。
+  final PlatformInt64 id;
+
+  /// Radio Browser 的稳定 UUID；自定义电台为 `None`。
+  final String? stationUuid;
+
+  /// 显示名称。
+  final String name;
+
+  /// 流地址（仅 http/https）。
+  final String url;
+
+  /// 图标地址。
+  final String? favicon;
+
+  /// 国家 / 地区。
+  final String? country;
+
+  /// ISO 3166-1 国家代码。
+  final String? countryCode;
+
+  /// 语言。
+  final String? language;
+
+  /// 标签 / 流派。
+  final List<String> tags;
+
+  /// 编码。
+  final String? codec;
+
+  /// 码率（kbps）。
+  final int? bitrate;
+
+  /// 主页。
+  final String? homepage;
+
+  /// 用户自定义。
+  final bool custom;
+
+  /// 已收藏。
+  final bool favorite;
+
+  /// 最近播放时间（Unix 毫秒）。
+  final PlatformInt64? lastPlayedAt;
+
+  const RadioStationDto({
+    required this.id,
+    this.stationUuid,
+    required this.name,
+    required this.url,
+    this.favicon,
+    this.country,
+    this.countryCode,
+    this.language,
+    required this.tags,
+    this.codec,
+    this.bitrate,
+    this.homepage,
+    required this.custom,
+    required this.favorite,
+    this.lastPlayedAt,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      stationUuid.hashCode ^
+      name.hashCode ^
+      url.hashCode ^
+      favicon.hashCode ^
+      country.hashCode ^
+      countryCode.hashCode ^
+      language.hashCode ^
+      tags.hashCode ^
+      codec.hashCode ^
+      bitrate.hashCode ^
+      homepage.hashCode ^
+      custom.hashCode ^
+      favorite.hashCode ^
+      lastPlayedAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RadioStationDto &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          stationUuid == other.stationUuid &&
+          name == other.name &&
+          url == other.url &&
+          favicon == other.favicon &&
+          country == other.country &&
+          countryCode == other.countryCode &&
+          language == other.language &&
+          tags == other.tags &&
+          codec == other.codec &&
+          bitrate == other.bitrate &&
+          homepage == other.homepage &&
+          custom == other.custom &&
+          favorite == other.favorite &&
+          lastPlayedAt == other.lastPlayedAt;
 }
 
 enum RepeatModeDto { off, all, one }

@@ -305,6 +305,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<RadioFilterOptionDto> dco_decode_list_radio_filter_option_dto(
+    dynamic raw,
+  );
+
+  @protected
+  List<RadioStationDto> dco_decode_list_radio_station_dto(dynamic raw);
+
+  @protected
   List<(String, String)> dco_decode_list_record_string_string(dynamic raw);
 
   @protected
@@ -458,6 +466,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PluginSettingDto dco_decode_plugin_setting_dto(dynamic raw);
+
+  @protected
+  RadioFilterOptionDto dco_decode_radio_filter_option_dto(dynamic raw);
+
+  @protected
+  RadioFilterOptionsDto dco_decode_radio_filter_options_dto(dynamic raw);
+
+  @protected
+  RadioPageDto dco_decode_radio_page_dto(dynamic raw);
+
+  @protected
+  RadioSortDto dco_decode_radio_sort_dto(dynamic raw);
+
+  @protected
+  RadioStationDto dco_decode_radio_station_dto(dynamic raw);
 
   @protected
   (String, String) dco_decode_record_string_string(dynamic raw);
@@ -916,6 +939,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<RadioFilterOptionDto> sse_decode_list_radio_filter_option_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<RadioStationDto> sse_decode_list_radio_station_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<(String, String)> sse_decode_list_record_string_string(
     SseDeserializer deserializer,
   );
@@ -1109,6 +1142,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PluginSettingDto sse_decode_plugin_setting_dto(SseDeserializer deserializer);
+
+  @protected
+  RadioFilterOptionDto sse_decode_radio_filter_option_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RadioFilterOptionsDto sse_decode_radio_filter_options_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RadioPageDto sse_decode_radio_page_dto(SseDeserializer deserializer);
+
+  @protected
+  RadioSortDto sse_decode_radio_sort_dto(SseDeserializer deserializer);
+
+  @protected
+  RadioStationDto sse_decode_radio_station_dto(SseDeserializer deserializer);
 
   @protected
   (String, String) sse_decode_record_string_string(
@@ -1680,6 +1732,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_radio_filter_option_dto(
+    List<RadioFilterOptionDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_radio_station_dto(
+    List<RadioStationDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_record_string_string(
     List<(String, String)> self,
     SseSerializer serializer,
@@ -1931,6 +1995,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_plugin_setting_dto(
     PluginSettingDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_radio_filter_option_dto(
+    RadioFilterOptionDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_radio_filter_options_dto(
+    RadioFilterOptionsDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_radio_page_dto(RadioPageDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_radio_sort_dto(RadioSortDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_radio_station_dto(
+    RadioStationDto self,
     SseSerializer serializer,
   );
 

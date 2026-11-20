@@ -24,6 +24,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
         9,
         include_str!("../migrations/0009_track_tag_overrides.sql"),
     ),
+    (10, include_str!("../migrations/0010_radio_station.sql")),
 ];
 
 pub(crate) fn run(conn: &mut Connection) -> Result<()> {

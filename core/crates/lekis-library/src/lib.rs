@@ -21,6 +21,7 @@ mod playback_state;
 mod playlist_io;
 mod playlists;
 mod position;
+mod radio;
 mod remote;
 mod scanned;
 mod search;

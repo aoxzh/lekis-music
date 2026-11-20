@@ -145,6 +145,111 @@ pub async fn start_scan(source_id: i64) -> Result<(), CoreError> {
     Ok(core().start_scan(lekis_types::SourceId(source_id)).await?)
 }
 
+// ---- 网络电台（SRC-11）----
+
+/// 浏览 / 搜索 Radio Browser。`country_code` 用 ISO 3166-1（`CN`），
+/// `language` / `tag` 用 Radio Browser 的原始值。结果会缓存到本地，返回带本机 ID。
+#[allow(clippy::too_many_arguments)]
+pub async fn radio_browse(
+    search: String,
+    country_code: Option<String>,
+    language: Option<String>,
+    tag: Option<String>,
+    sort: RadioSortDto,
+    offset: u32,
+    limit: u32,
+) -> Result<RadioPageDto, CoreError> {
+    let page = core()
+        .radio_browse(lekis_core::RadioQuery {
+            search,
+            country_code,
+            language,
+            tag,
+            sort: sort.into(),
+            offset,
+            limit: limit.clamp(1, lekis_core::RADIO_PAGE_MAX),
+        })
+        .await?;
+    Ok(RadioPageDto {
+        stations: page.stations.into_iter().map(Into::into).collect(),
+        has_more: page.has_more,
+    })
+}
+
+/// 国家 / 语言 / 标签筛选选项。
+pub async fn radio_filter_options() -> Result<RadioFilterOptionsDto, CoreError> {
+    Ok(core().radio_filter_options().await?.into())
+}
+
+/// 收藏的电台。
+pub async fn radio_favorites(limit: u32) -> Result<Vec<RadioStationDto>, CoreError> {
+    Ok(core()
+        .radio_favorites(limit)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// 最近播放过的电台。
+pub async fn radio_recent(limit: u32) -> Result<Vec<RadioStationDto>, CoreError> {
+    Ok(core()
+        .radio_recent(limit)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// 用户自定义的电台。
+pub async fn radio_custom(limit: u32) -> Result<Vec<RadioStationDto>, CoreError> {
+    Ok(core()
+        .radio_custom(limit)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// 添加自定义电台。`address` 可以是流地址，也可以是粘贴的 M3U / PLS 文本。
+pub async fn radio_add_custom(
+    name: String,
+    address: String,
+    homepage: Option<String>,
+) -> Result<RadioStationDto, CoreError> {
+    Ok(core()
+        .radio_add_custom(name, address, homepage)
+        .await?
+        .into())
+}
+
+/// 删除自定义电台。
+pub async fn radio_delete_custom(station_id: i64) -> Result<(), CoreError> {
+    Ok(core()
+        .radio_delete_custom(lekis_types::RadioStationId(station_id))
+        .await?)
+}
+
+/// 收藏 / 取消收藏电台。
+pub async fn radio_set_favorite(station_id: i64, favorite: bool) -> Result<(), CoreError> {
+    Ok(core()
+        .radio_set_favorite(lekis_types::RadioStationId(station_id), favorite)
+        .await?)
+}
+
+/// 用一组电台替换播放队列并从 `start` 开始播放。
+pub async fn radio_play(station_ids: Vec<i64>, start: u32) -> Result<u32, CoreError> {
+    Ok(core()
+        .radio_play(
+            station_ids
+                .into_iter()
+                .map(lekis_types::RadioStationId)
+                .collect(),
+            start,
+        )
+        .await?)
+}
+
 // ---- 资料库 ----
 
 pub async fn list_tracks(
