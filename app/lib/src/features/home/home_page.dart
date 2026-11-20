@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,12 +10,15 @@ import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/shelf.dart';
+import 'package:lekis/src/features/library/widgets/track_tile.dart'
+    show formatDuration;
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/widgets/current_track.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
 import 'package:lekis/src/features/stats/listening_stats_page.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/routes.dart';
+import 'package:lekis/src/shell/shell_chrome.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/brand_mark.dart';
 import 'package:material_ui/material_ui.dart';
@@ -52,72 +56,17 @@ class HomePage extends ConsumerWidget {
                     SliverPadding(
                       padding: EdgeInsets.fromLTRB(
                         gutter,
-                        LekisSpacing.xl,
+                        LekisSpacing.lg,
                         gutter,
                         0,
                       ),
-                      sliver: SliverToBoxAdapter(
-                        child: Semantics(
-                          header: true,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const LekisBrandMark(size: 28),
-                                  const SizedBox(width: LekisSpacing.sm),
-                                  Flexible(
-                                    child: Text(
-                                      'LEKIS · 本地资料库',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelSmall
-                                          ?.copyWith(
-                                            color: context.lekisColors.moon,
-                                            letterSpacing: 1.6,
-                                          ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: LekisSpacing.xs),
-                              Text(
-                                _greeting(),
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineMedium
-                                    ?.copyWith(fontSize: 34, height: 1.1),
-                              ),
-                              const SizedBox(height: LekisSpacing.xs),
-                              Text(
-                                '继续上次的，或从资料库里挑一张。',
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(
-                                      color:
-                                          context.lekisColors.onSurfaceVariant,
-                                    ),
-                              ),
-                              const SizedBox(height: LekisSpacing.xs),
-                              TextButton.icon(
-                                onPressed: () => Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => const ListeningStatsPage(),
-                                  ),
-                                ),
-                                icon: const Icon(Icons.insights_outlined),
-                                label: const Text('听歌统计'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                      sliver: const SliverToBoxAdapter(child: _HomeHeader()),
                     ),
                     if (hasTrack)
                       SliverPadding(
                         padding: EdgeInsets.fromLTRB(
                           gutter,
-                          LekisSpacing.xl,
+                          LekisSpacing.lg,
                           gutter,
                           0,
                         ),
@@ -159,13 +108,120 @@ class HomePage extends ConsumerWidget {
   }
 }
 
-String _greeting() {
-  final hour = DateTime.now().hour;
+String greetingFor(DateTime now) {
+  final hour = now.hour;
   if (hour < 5) return '夜深了';
   if (hour < 11) return '早上好';
   if (hour < 14) return '中午好';
   if (hour < 18) return '下午好';
   return '晚上好';
+}
+
+/// Eyebrow, greeting and the stats shortcut at the top of Home.
+///
+/// The brand mark is only shown when the navigation chrome (rail / sidebar)
+/// does not already show it.
+class _HomeHeader extends StatelessWidget {
+  const _HomeHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.lekisColors;
+    final showMark = !ShellChrome.showsBrandMarkOf(context);
+    final eyebrow = Text(
+      'LEKIS · 本地资料库',
+      style: theme.textTheme.labelSmall?.copyWith(
+        color: colors.moon,
+        letterSpacing: 1.6,
+      ),
+    );
+    return Semantics(
+      header: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (showMark)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const LekisBrandMark(size: LekisSpacing.xxl - LekisSpacing.xs),
+                const SizedBox(width: LekisSpacing.sm),
+                Flexible(child: eyebrow),
+              ],
+            )
+          else
+            eyebrow,
+          const SizedBox(height: LekisSpacing.xs),
+          const _Greeting(),
+          const SizedBox(height: LekisSpacing.xs),
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: LekisSpacing.sm,
+            children: [
+              Text(
+                '继续上次的，或从资料库里挑一张。',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const ListeningStatsPage(),
+                  ),
+                ),
+                icon: const Icon(Icons.insights_outlined),
+                label: const Text('听歌统计'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Time-of-day greeting that stays current: re-evaluated every minute while
+/// on screen and whenever the app comes back to the foreground.
+class _Greeting extends StatefulWidget {
+  const _Greeting();
+
+  @override
+  State<_Greeting> createState() => _GreetingState();
+}
+
+class _GreetingState extends State<_Greeting> with WidgetsBindingObserver {
+  late String _text = greetingFor(DateTime.now());
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _ticker = Timer.periodic(const Duration(minutes: 1), (_) => _refresh());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refresh();
+  }
+
+  void _refresh() {
+    final next = greetingFor(DateTime.now());
+    if (next != _text && mounted) setState(() => _text = next);
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      Text(_text, style: Theme.of(context).textTheme.headlineLarge);
 }
 
 /// Horizontal shelf of track cards; tapping plays the shelf from that card.
@@ -210,9 +266,20 @@ class TrackShelf extends ConsumerWidget {
   }
 }
 
-/// The current track as a full-width, artwork-tinted resume card.
+/// The current track as a compact, artwork-tinted resume card.
+///
+/// Its height follows the artwork, so wide windows no longer get a tall card
+/// with an empty middle: artwork | label, title, artist · album, play button
+/// and progress.
 class _ResumeHero extends ConsumerWidget {
   const _ResumeHero();
+
+  /// Artwork side on narrow cards / on wider cards.
+  static const double _artCompact = LekisSizes.listArtwork * 2;
+  static const double _artWide = LekisSizes.gridArtworkMin * 0.75;
+
+  /// Cards narrower than this use the smaller artwork and padding.
+  static const double _compactBelow = LekisSizes.gridArtworkMin * 3.5;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -222,6 +289,7 @@ class _ResumeHero extends ConsumerWidget {
     final palette = ref.watch(currentArtworkProvider).value?.palette;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final colors = context.lekisColors;
     final tint = palette == null
         ? scheme.primary
         : Color(0xFF000000 | palette.primary);
@@ -234,117 +302,143 @@ class _ResumeHero extends ConsumerWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 560;
-        final artSize = compact ? 96.0 : 136.0;
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(LekisRadius.xl),
-          child: SizedBox(
-            height: compact ? 168 : 200,
-            child: Stack(
-              fit: StackFit.expand,
+        final compact = constraints.maxWidth < _compactBelow;
+        final artSize = compact ? _artCompact : _artWide;
+        final pad = compact ? LekisSpacing.md : LekisSpacing.lg;
+
+        final info = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '继续收听',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: colors.moon,
+                letterSpacing: 1.4,
+              ),
+            ),
+            const SizedBox(height: LekisSpacing.xxs),
+            Text(
+              track.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: compact
+                  ? theme.textTheme.titleMedium
+                  : theme.textTheme.titleLarge,
+            ),
+            if (subtitle.isNotEmpty)
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            const SizedBox(height: LekisSpacing.sm),
+            const Row(
               children: [
-                ImageFiltered(
+                PlayPauseButton(filled: true),
+                SizedBox(width: LekisSpacing.md),
+                Expanded(child: _ResumeProgress()),
+              ],
+            ),
+          ],
+        );
+
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(LekisRadius.lg),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: ImageFiltered(
                   imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
                   child: Transform.scale(
                     scale: 1.3,
                     child: const CurrentArtwork(radius: 0),
                   ),
                 ),
-                DecoratedBox(
+              ),
+              Positioned.fill(
+                child: DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
                       colors: [
+                        tint.withValues(alpha: 0.30),
+                        scheme.surface.withValues(alpha: 0.82),
                         scheme.surface.withValues(alpha: 0.92),
-                        tint.withValues(alpha: 0.38),
-                        scheme.surface.withValues(alpha: 0.86),
                       ],
-                      stops: const [0, 0.62, 1],
+                      stops: const [0, 0.45, 1],
                     ),
                   ),
                 ),
-                Material(
-                  type: MaterialType.transparency,
-                  child: InkWell(
-                    onTap: () => openNowPlaying(context),
-                    child: Padding(
-                      padding: EdgeInsets.all(
-                        compact ? LekisSpacing.lg : LekisSpacing.xl,
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '继续收听',
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: context.lekisColors.moon,
-                                    letterSpacing: 1.4,
-                                  ),
-                                ),
-                                const SizedBox(height: LekisSpacing.sm),
-                                Text(
-                                  track.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.titleLarge?.copyWith(
-                                    fontSize: compact ? 22 : 26,
-                                  ),
-                                ),
-                                if (subtitle.isNotEmpty) ...[
-                                  const SizedBox(height: LekisSpacing.xxs),
-                                  Text(
-                                    subtitle,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color:
-                                          context.lekisColors.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                                const Spacer(),
-                                Row(
-                                  children: [
-                                    const PlayPauseButton(
-                                      filled: true,
-                                      size: 28,
-                                    ),
-                                    const SizedBox(width: LekisSpacing.sm),
-                                    Text(
-                                      '从上次停下的地方继续',
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
-                                            color: context
-                                                .lekisColors
-                                                .onSurfaceVariant,
-                                          ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
+              ),
+              Material(
+                type: MaterialType.transparency,
+                child: InkWell(
+                  onTap: () => openNowPlaying(context),
+                  child: Padding(
+                    padding: EdgeInsets.all(pad),
+                    child: Row(
+                      children: [
+                        SizedBox.square(
+                          dimension: artSize,
+                          child: const CurrentArtwork(
+                            radius: LekisRadius.artworkGrid,
                           ),
-                          const SizedBox(width: LekisSpacing.lg),
-                          SizedBox.square(
-                            dimension: artSize,
-                            child: CurrentArtwork(
-                              radius: LekisRadius.artworkGrid,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                        SizedBox(width: pad),
+                        Expanded(child: info),
+                      ],
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
+    );
+  }
+}
+
+/// Thin progress line + elapsed / total time. A widget of its own so only it
+/// rebuilds on position ticks.
+class _ResumeProgress extends ConsumerWidget {
+  const _ResumeProgress();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.lekisColors;
+    final progress = ref.watch(progressProvider);
+    final duration = ref.watch(playbackProvider.select((s) => s.durationMs));
+    final position = ref.watch(throttledPositionProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(LekisRadius.pill),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: LekisSpacing.xs,
+            color: colors.accent,
+            backgroundColor: colors.outline,
+          ),
+        ),
+        if (duration > 0) ...[
+          const SizedBox(height: LekisSpacing.xs),
+          Text(
+            '${formatDuration(position)} / ${formatDuration(duration)}',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: colors.onSurfaceVariant,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

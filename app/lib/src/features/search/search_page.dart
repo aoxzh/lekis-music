@@ -196,8 +196,8 @@ class _Results extends ConsumerWidget {
               },
             ),
           ),
-          const SliverPadding(
-            padding: EdgeInsets.only(bottom: LekisSpacing.xxl),
+          SliverPadding(
+            padding: EdgeInsets.only(bottom: scrollEndPadding(context)),
           ),
         ],
       ),

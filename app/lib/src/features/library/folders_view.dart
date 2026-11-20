@@ -87,7 +87,7 @@ class FolderRootsList extends ConsumerWidget {
             gutter - LekisSpacing.sm,
             LekisSpacing.sm,
             gutter - LekisSpacing.sm,
-            LekisSpacing.xl,
+            scrollEndPadding(context),
           ),
           itemExtent: LekisSizes.touchTargetMin + LekisSpacing.md,
           itemCount: roots.length,
@@ -203,7 +203,7 @@ class _FolderChildren extends StatelessWidget {
         gutter - LekisSpacing.sm,
         0,
         gutter - LekisSpacing.sm,
-        LekisSpacing.xl,
+        scrollEndPadding(context),
       ),
       children: [
         Padding(

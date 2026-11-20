@@ -66,7 +66,7 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
               controller: _controller,
               child: ListView(
                 controller: _controller,
-                padding: const EdgeInsets.only(bottom: LekisSpacing.xl),
+                padding: EdgeInsets.only(bottom: scrollEndPadding(context)),
                 children: [widget.header!, empty],
               ),
             );
@@ -97,8 +97,8 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
               if (widget.header != null)
                 SliverToBoxAdapter(child: widget.header),
               rows,
-              const SliverPadding(
-                padding: EdgeInsets.only(bottom: LekisSpacing.xl),
+              SliverPadding(
+                padding: EdgeInsets.only(bottom: scrollEndPadding(context)),
               ),
             ],
           ),

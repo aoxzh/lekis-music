@@ -1,5 +1,6 @@
 // Playback history: the most recent tracks, newest first.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
@@ -22,19 +23,22 @@ class PlaybackHistoryPage extends ConsumerWidget {
           if (tracks.isEmpty) {
             return const Center(child: Text('还没有播放记录'));
           }
+          final gutter = pageGutterOf(context);
           return ListView.builder(
-            padding: const EdgeInsets.symmetric(
-              horizontal: LekisSpacing.sm,
-              vertical: LekisSpacing.sm,
+            padding: EdgeInsets.fromLTRB(
+              gutter - LekisSpacing.sm,
+              LekisSpacing.sm,
+              gutter - LekisSpacing.sm,
+              scrollEndPadding(context),
             ),
+            itemExtent: TrackTile.extent,
             itemCount: tracks.length,
             itemBuilder: (context, i) {
               final track = tracks[i];
               return TrackTile(
                 track: track,
-                onTap: () => ref
-                    .read(playerActionsProvider)
-                    .playRows(tracks, start: i),
+                onTap: () =>
+                    ref.read(playerActionsProvider).playRows(tracks, start: i),
               );
             },
           );

@@ -143,7 +143,7 @@ class SourceKindChooser extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: featureMaxContentWidth),
         child: ListView(
-          padding: EdgeInsets.all(context.featureGutter),
+          padding: featureScrollPadding(context),
           children: [
             Text(
               SourcesStrings.chooseKind,
@@ -405,7 +405,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
           autovalidateMode: AutovalidateMode.onUserInteraction,
           child: AutofillGroup(
             child: ListView(
-              padding: EdgeInsets.all(context.featureGutter),
+              padding: featureScrollPadding(context),
               children: [
                 Row(
                   children: [

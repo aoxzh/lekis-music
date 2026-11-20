@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:lekis/src/features/library/widgets/album_card.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
@@ -6,8 +8,10 @@ import 'package:material_ui/material_ui.dart';
 
 /// A titled, horizontally scrolling row of artwork cards.
 ///
-/// Mouse users get previous/next page buttons (a vertical wheel does not
-/// scroll horizontal lists) and the list accepts mouse drags.
+/// Cards are sized by [shelfCardWidth] (several per row, the next one
+/// peeking). When the row overflows, mouse users get previous/next page
+/// buttons (a vertical wheel does not scroll horizontal lists); the list
+/// also accepts mouse drags.
 class ArtworkShelf extends StatefulWidget {
   const ArtworkShelf({
     super.key,
@@ -53,9 +57,26 @@ class _ArtworkShelfState extends State<ArtworkShelf> {
 
   @override
   Widget build(BuildContext context) {
-    final width = widget.cardWidth ?? LekisSizes.gridArtworkMin;
-    final height = width + ArtworkCardFrame.textBlockHeight(context);
     final gutter = pageGutterOf(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final available = constraints.maxWidth - gutter * 2;
+        final width = widget.cardWidth ?? shelfCardWidth(available);
+        final contentWidth =
+            widget.itemCount * (width + LekisSpacing.lg) - LekisSpacing.lg;
+        final overflows = contentWidth > available + 0.5;
+        return _build(context, gutter, width, overflows);
+      },
+    );
+  }
+
+  Widget _build(
+    BuildContext context,
+    double gutter,
+    double width,
+    bool overflows,
+  ) {
+    final height = width + ArtworkCardFrame.textBlockHeight(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -67,29 +88,37 @@ class _ArtworkShelfState extends State<ArtworkShelf> {
             gutter - LekisSpacing.sm,
             LekisSpacing.sm,
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Semantics(
-                  header: true,
-                  child: Text(
-                    widget.title,
-                    style: Theme.of(context).textTheme.titleLarge,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              minHeight: LekisSizes.touchTargetMin,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Semantics(
+                    header: true,
+                    child: Text(
+                      widget.title,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                   ),
                 ),
-              ),
-              ?widget.trailing,
-              IconButton(
-                tooltip: '上一页',
-                onPressed: () => _page(-1),
-                icon: const Icon(Icons.chevron_left_rounded),
-              ),
-              IconButton(
-                tooltip: '下一页',
-                onPressed: () => _page(1),
-                icon: const Icon(Icons.chevron_right_rounded),
-              ),
-            ],
+                ?widget.trailing,
+                // Paging buttons only when there is somewhere to page to.
+                if (overflows) ...[
+                  IconButton(
+                    tooltip: '上一页',
+                    onPressed: () => _page(-1),
+                    icon: const Icon(Icons.chevron_left_rounded),
+                  ),
+                  IconButton(
+                    tooltip: '下一页',
+                    onPressed: () => _page(1),
+                    icon: const Icon(Icons.chevron_right_rounded),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
         SizedBox(
@@ -118,4 +147,27 @@ class _ArtworkShelfState extends State<ArtworkShelf> {
       ],
     );
   }
+}
+
+/// Smallest / largest shelf card side.
+const double shelfCardMin = LekisSizes.gridArtworkMin * 0.75;
+const double shelfCardMax = LekisSizes.gridArtworkMin;
+
+/// Share of one more card left peeking at the edge of a shelf that scrolls,
+/// so it reads as scrollable on touch screens.
+const double _shelfPeek = 0.35;
+
+/// Card width for a shelf [available] logical pixels wide (inside the
+/// gutters): as many cards of at least [shelfCardMin] as fit, plus a peek of
+/// the next one. Every shelf at the same width gets the same card size,
+/// whatever its item count, so stacked shelves line up.
+double shelfCardWidth(double available) {
+  const gap = LekisSpacing.lg;
+  if (!available.isFinite || available <= 0) return shelfCardMin;
+  final columns = math.max(
+    2,
+    ((available + gap) / (shelfCardMin + gap)).floor(),
+  );
+  final width = (available - gap * columns) / (columns + _shelfPeek);
+  return width.clamp(shelfCardMin * 0.85, shelfCardMax);
 }

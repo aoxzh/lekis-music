@@ -32,7 +32,7 @@ class GenreList extends ConsumerWidget {
             gutter - LekisSpacing.sm,
             0,
             gutter - LekisSpacing.sm,
-            LekisSpacing.xl,
+            scrollEndPadding(context),
           ),
           itemExtent: LekisSizes.touchTargetMin + LekisSpacing.sm,
           itemCount: genres.length,

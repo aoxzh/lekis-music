@@ -2,6 +2,8 @@
 //
 // 快捷键（桌面）：Ctrl+N 添加音源，F5 重新扫描当前选中的音源。
 
+import 'dart:math' as math;
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -82,6 +84,10 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
       selectedId: twoPane ? selectedId : null,
       onOpen: _open,
       onAdd: _add,
+      // Room for the extended FAB below the last row on phones.
+      bottomClearance: compact
+          ? LekisSizes.touchTargetMin + LekisSpacing.xl
+          : 0,
     );
 
     final Widget body = !twoPane
@@ -111,31 +117,84 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
       child: FocusScope(
         autofocus: true,
         child: Scaffold(
-          appBar: AppBar(
-            title: const Text(SourcesStrings.title),
-            actions: [
-              if (!compact)
-                Padding(
-                  padding: EdgeInsets.only(right: context.featureGutter),
-                  child: FilledButton.tonalIcon(
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(0, LekisSizes.touchTargetMin),
+          body: SafeArea(
+            bottom: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Header(onAdd: compact ? null : _add),
+                Expanded(child: body),
+              ],
+            ),
+          ),
+          floatingActionButton: compact
+              ? Padding(
+                  // The shell may float its mini player / tab bar over the
+                  // page and report them in MediaQuery.padding (not
+                  // viewPadding, which is all Scaffold keeps the FAB above).
+                  padding: EdgeInsets.only(
+                    bottom: math.max(
+                      0,
+                      MediaQuery.paddingOf(context).bottom -
+                          MediaQuery.viewPaddingOf(context).bottom,
                     ),
+                  ),
+                  child: FloatingActionButton.extended(
                     onPressed: _add,
                     icon: const Icon(Icons.add),
                     label: const Text(SourcesStrings.addSource),
                   ),
-                ),
-            ],
-          ),
-          body: body,
-          floatingActionButton: compact
-              ? FloatingActionButton.extended(
-                  onPressed: _add,
-                  icon: const Icon(Icons.add),
-                  label: const Text(SourcesStrings.addSource),
                 )
               : null,
+        ),
+      ),
+    );
+  }
+}
+
+/// Page title (+ "add" on wider windows), laid out like the library header
+/// so switching tabs does not shift the title.
+class _Header extends StatelessWidget {
+  const _Header({required this.onAdd});
+
+  /// `null` → no button (phones use the floating action button).
+  final VoidCallback? onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final gutter = pageGutterOf(context);
+    final add = onAdd;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        gutter,
+        LekisSpacing.lg,
+        gutter,
+        LekisSpacing.md,
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: LekisSizes.touchTargetMin),
+        child: Row(
+          children: [
+            Expanded(
+              child: Semantics(
+                header: true,
+                child: Text(
+                  SourcesStrings.title,
+                  style: Theme.of(context).textTheme.headlineMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            if (add != null)
+              FilledButton.tonalIcon(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, LekisSizes.touchTargetMin),
+                ),
+                onPressed: add,
+                icon: const Icon(Icons.add),
+                label: const Text(SourcesStrings.addSource),
+              ),
+          ],
         ),
       ),
     );

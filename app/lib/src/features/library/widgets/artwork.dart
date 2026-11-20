@@ -98,7 +98,32 @@ class ArtworkImage extends StatelessWidget {
   }
 }
 
+/// The two ends of [ArtworkPlaceholder]'s gradient for [seed]. Now Playing
+/// derives its background from the same colours when a track has no cover.
+(Color, Color) placeholderGradientColors(int seed, Brightness brightness) {
+  final dark = brightness == Brightness.dark;
+  final hue = (seed * 47.0) % 360;
+  final start = HSLColor.fromAHSL(
+    1,
+    hue,
+    dark ? 0.46 : 0.36,
+    dark ? 0.30 : 0.86,
+  ).toColor();
+  final end = HSLColor.fromAHSL(
+    1,
+    (hue + 42) % 360,
+    dark ? 0.52 : 0.42,
+    dark ? 0.13 : 0.68,
+  ).toColor();
+  return (start, end);
+}
+
 class ArtworkPlaceholder extends StatelessWidget {
+  /// Initial letter size as a share of the tile side, and its opacity: a
+  /// quiet watermark, not a headline, at any tile size.
+  static const double _initialScale = 0.3;
+  static const double _initialOpacity = 0.5;
+
   const ArtworkPlaceholder({
     super.key,
     this.icon = Icons.music_note_rounded,
@@ -117,19 +142,10 @@ class ArtworkPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final hue = (seed * 47.0) % 360;
-    final start = HSLColor.fromAHSL(
-      1,
-      hue,
-      dark ? 0.46 : 0.36,
-      dark ? 0.30 : 0.86,
-    ).toColor();
-    final end = HSLColor.fromAHSL(
-      1,
-      (hue + 42) % 360,
-      dark ? 0.52 : 0.42,
-      dark ? 0.13 : 0.68,
-    ).toColor();
+    final (start, end) = placeholderGradientColors(
+      seed,
+      Theme.of(context).brightness,
+    );
     final fg = dark ? Colors.white : Colors.black;
     final initial = label == null || label!.trim().isEmpty
         ? null
@@ -169,10 +185,10 @@ class ArtworkPlaceholder extends StatelessWidget {
                     ? Text(
                         initial,
                         style: TextStyle(
-                          fontSize: side * 0.34,
-                          fontWeight: FontWeight.w700,
-                          color: fg.withValues(alpha: 0.72),
-                          letterSpacing: -1,
+                          fontSize: side * _initialScale,
+                          fontWeight: FontWeight.w600,
+                          color: fg.withValues(alpha: _initialOpacity),
+                          height: 1,
                         ),
                       )
                     : Icon(

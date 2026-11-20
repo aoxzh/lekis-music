@@ -204,11 +204,11 @@ class _SmartPlaylistEditorPageState
     final colors = context.lekisColors;
     final root = _root!;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(
+      padding: EdgeInsets.fromLTRB(
         LekisSpacing.lg,
         LekisSpacing.md,
         LekisSpacing.lg,
-        LekisSpacing.xxxl,
+        LekisSpacing.xxxl + MediaQuery.paddingOf(context).bottom,
       ),
       children: [
         Text(

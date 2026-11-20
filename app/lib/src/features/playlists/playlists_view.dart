@@ -140,7 +140,7 @@ class PlaylistsView extends ConsumerWidget {
                     gutter - LekisSpacing.sm,
                     LekisSpacing.xs,
                     gutter - LekisSpacing.sm,
-                    LekisSpacing.xxl,
+                    scrollEndPadding(context),
                   ),
                   itemCount: items.length,
                   itemBuilder: (context, i) {

@@ -31,8 +31,10 @@ class TrackTile extends ConsumerWidget {
     this.showArtwork = true,
   });
 
-  /// Height of every row – use as `ListView.itemExtent`.
-  static double get extent => LekisSizes.listArtwork + LekisSpacing.sm * 2;
+  /// Height of every row – use as `ListView.itemExtent`. 56 dp: the 48 dp
+  /// artwork with a slim margin, so the library reads denser than Home while
+  /// the row and its buttons stay 48 dp touch targets.
+  static double get extent => LekisSizes.listArtwork + LekisSpacing.sm;
 
   final TrackRowDto track;
   final VoidCallback onTap;

@@ -54,7 +54,7 @@ class _ArtistListState extends ConsumerState<ArtistList> {
               gutter - LekisSpacing.sm,
               0,
               gutter - LekisSpacing.sm,
-              LekisSpacing.xl,
+              scrollEndPadding(context),
             ),
             itemExtent: ArtistList.extent,
             itemCount: list.itemCount,

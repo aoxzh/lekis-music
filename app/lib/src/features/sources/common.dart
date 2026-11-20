@@ -42,6 +42,13 @@ extension FeatureLayoutX on BuildContext {
       isCompactWidth ? LekisSpacing.pageGutter : LekisSpacing.pageGutterDesktop;
 }
 
+/// 可滚动表单 / 详情页的内边距：四周 [FeatureLayoutX.featureGutter]，底部再让出
+/// 浮在内容上的迷你播放器、标签栏和手势区（[MediaQuery] 的底部 padding）。
+EdgeInsets featureScrollPadding(BuildContext context) {
+  final g = context.featureGutter;
+  return EdgeInsets.fromLTRB(g, g, g, g + MediaQuery.paddingOf(context).bottom);
+}
+
 /// 显示一条简短提示。
 void showFeatureSnack(BuildContext context, String message) {
   ScaffoldMessenger.maybeOf(context)

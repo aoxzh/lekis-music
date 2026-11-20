@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../../rust/api/dto.dart';
 import '../../../theme/tokens.dart';
 import '../../library/widgets/empty_state.dart';
+import '../../library/widgets/page_gutter.dart';
 import '../common.dart';
 import '../source_kind_info.dart';
 import '../sources_providers.dart';
@@ -18,11 +19,15 @@ class SourceList extends ConsumerWidget {
     required this.onOpen,
     required this.onAdd,
     this.selectedId,
+    this.bottomClearance = 0,
   });
 
   final ValueChanged<int> onOpen;
   final VoidCallback onAdd;
   final int? selectedId;
+
+  /// Extra room after the last row (e.g. for a floating action button).
+  final double bottomClearance;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -48,8 +53,16 @@ class SourceList extends ConsumerWidget {
             onAction: onAdd,
           );
         }
+        // Same gutter as the library: rows inset by `sm` so the badge lines
+        // up with the page title while the selection highlight keeps a margin.
+        final gutter = pageGutterOf(context);
         return ListView.builder(
-          padding: EdgeInsets.symmetric(vertical: LekisSpacing.sm),
+          padding: EdgeInsets.fromLTRB(
+            gutter - LekisSpacing.sm,
+            0,
+            gutter - LekisSpacing.sm,
+            scrollEndPadding(context) + bottomClearance,
+          ),
           itemCount: list.length,
           itemBuilder: (context, i) {
             final source = list[i];
@@ -109,31 +122,29 @@ class SourceTile extends ConsumerWidget {
             ],
           );
 
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: LekisSpacing.sm),
-      child: ListTile(
-        minTileHeight: LekisSizes.touchTargetMin + LekisSpacing.lg,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(LekisRadius.md),
-        ),
-        selected: selected,
-        selectedTileColor: colors.accentSoft,
-        leading: SourceKindBadge(icon: source.kind.icon),
-        title: Text(
-          source.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.titleMedium,
-        ),
-        subtitle: DefaultTextStyle.merge(
-          style: TextStyle(color: colors.onSurfaceVariant),
-          child: subtitle,
-        ),
-        trailing: id == null || runtime.scanning
-            ? null
-            : _RescanButton(sourceId: id),
-        onTap: onTap,
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: LekisSpacing.sm),
+      minTileHeight: LekisSizes.touchTargetMin + LekisSpacing.lg,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(LekisRadius.md),
       ),
+      selected: selected,
+      selectedTileColor: colors.accentSoft,
+      leading: SourceKindBadge(icon: source.kind.icon),
+      title: Text(
+        source.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: theme.textTheme.titleMedium,
+      ),
+      subtitle: DefaultTextStyle.merge(
+        style: TextStyle(color: colors.onSurfaceVariant),
+        child: subtitle,
+      ),
+      trailing: id == null || runtime.scanning
+          ? null
+          : _RescanButton(sourceId: id),
+      onTap: onTap,
     );
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/album_card.dart';
@@ -7,14 +9,18 @@ import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Even column count (≥ 2) whose cells are at least [minExtent] wide, so a
-/// vertical fold / two-pane split never cuts through an album card.
-int evenColumnCount(double width, double minExtent) {
-  var n = (width / minExtent).floor();
-  if (n < 2) return 2;
-  if (n.isOdd) n -= 1;
-  return n;
-}
+/// Largest album tile side: wider windows get more columns instead of
+/// bigger covers (the library is denser than Home).
+const double albumGridMaxExtent = LekisSizes.gridArtworkMin;
+
+/// Columns for an album grid [width] wide (inside the gutters): the fewest
+/// that keep every tile at most [albumGridMaxExtent], and never fewer than
+/// two. Same rule as [SliverGridDelegateWithMaxCrossAxisExtent], computed
+/// here so the cell height (cover + fixed text block) can be derived.
+int albumGridColumns(double width) => math.max(
+  2,
+  ((width + LekisSpacing.lg) / (albumGridMaxExtent + LekisSpacing.lg)).ceil(),
+);
 
 /// Paged album grid.
 class AlbumGrid extends ConsumerStatefulWidget {
@@ -58,16 +64,7 @@ class _AlbumGridState extends ConsumerState<AlbumGrid> {
         return LayoutBuilder(
           builder: (context, constraints) {
             final usable = constraints.maxWidth - gutter * 2;
-            final cols = evenColumnCount(
-              usable + LekisSpacing.lg,
-              LekisSizes.gridArtworkMin + LekisSpacing.lg,
-            );
-            // Exactly `cols` columns: the delegate uses
-            // ceil(width / (maxExtent + spacing)), so nudge just above.
-            final maxExtent = (usable / cols - LekisSpacing.lg + 0.5).clamp(
-              1.0,
-              double.infinity,
-            );
+            final cols = albumGridColumns(usable);
             final cellWidth = ((usable - LekisSpacing.lg * (cols - 1)) / cols)
                 .clamp(1.0, double.infinity);
             final cellHeight =
@@ -83,8 +80,8 @@ class _AlbumGridState extends ConsumerState<AlbumGrid> {
                   gutter,
                   scrollEndPadding(context),
                 ),
-                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: maxExtent,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: cols,
                   mainAxisSpacing: LekisSpacing.lg,
                   crossAxisSpacing: LekisSpacing.lg,
                   childAspectRatio: cellWidth / cellHeight,

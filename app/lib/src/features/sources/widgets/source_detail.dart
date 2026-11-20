@@ -61,7 +61,7 @@ class _SourceDetailState extends ConsumerState<SourceDetail> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: featureMaxContentWidth),
         child: ListView(
-          padding: EdgeInsets.all(context.featureGutter),
+          padding: featureScrollPadding(context),
           children: [
             Row(
               children: [
