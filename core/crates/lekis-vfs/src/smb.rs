@@ -27,7 +27,10 @@ use tokio::sync::Mutex;
 const DEFAULT_PORT: u16 = 445;
 
 /// `smb://[user[:pass@]host[:port]/share/path` 解析结果。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// 刻意不实现 `Debug`：里面带密码，避免哪天被 `?target` 打进日志
+/// （和 `SftpTarget` / `NfsTarget` 保持一致）。
+#[derive(Clone, PartialEq, Eq)]
 struct SmbTarget {
     /// `host:port`（已剥掉 userinfo）。
     addr: String,
@@ -107,9 +110,10 @@ impl SmbVfs {
         let mut guard = self.session.lock().await;
         if guard.is_none() {
             tracing::debug!(target: "vfs::smb", addr = %self.target.addr, "建立 SMB 会话");
+            // 和 list_shares 走同一套映射：主机不可达是 network，不是 io。
             let mut client = smb2::connect(&self.target.addr, &self.target.user, &self.password)
                 .await
-                .map_err(smb_err)?;
+                .map_err(smb_auth_err)?;
             let tree = client
                 .connect_share(&self.target.share)
                 .await
@@ -313,7 +317,8 @@ fn smb_auth_err(err: smb2::Error) -> LekisError {
 }
 
 /// `smb://[user[:pass@]host[:port][/...]` 里和服务器有关的部分。
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// 同上：带密码，不实现 `Debug`。
+#[derive(Clone, PartialEq, Eq)]
 struct SmbServer {
     /// `host:port`（已剥掉 userinfo）。
     addr: String,

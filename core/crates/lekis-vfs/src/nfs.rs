@@ -541,7 +541,7 @@ where
         for entry in entries {
             cookie = entry.cookie;
             let name = decode_name(&entry.name.0);
-            let Some(name) = name.filter(|n| n != "." && n != "..") else {
+            let Some(name) = name.filter(|n| usable_entry_name(n)) else {
                 continue;
             };
             let meta = match entry.name_attributes {
@@ -608,7 +608,7 @@ where
             cookie = entry.cookie;
             advanced = true;
             if let Some(name) = decode_name(&entry.name.0) {
-                if name != "." && name != ".." {
+                if usable_entry_name(&name) {
                     out.push(name);
                 }
             }
@@ -714,6 +714,15 @@ fn decode_name(opaque: &Opaque<'_>) -> Option<String> {
     std::str::from_utf8(opaque.as_ref())
         .ok()
         .map(ToString::to_string)
+}
+
+/// 一个目录项能不能用：跳过 `.`、`..`、空名和带 `/` 的名字。
+///
+/// 空名看着无害，实际会让扫描器死循环：`VfsPath::join("")` 返回原目录，
+/// 于是同一层被反复列出来、`changed` 无限增长（`lekis-scanner::walk` 没有
+/// visited 集合）。SFTP / SMB 早就过滤了，NFS 这里补齐。
+fn usable_entry_name(name: &str) -> bool {
+    !name.is_empty() && name != "." && name != ".." && !name.contains('/')
 }
 
 /// `nfsstat3` → `LekisError`。
@@ -927,12 +936,21 @@ fn percent_decode(input: &str) -> String {
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            let hex = &input[i + 1..i + 3];
-            if let Ok(value) = u8::from_str_radix(hex, 16) {
-                out.push(value);
-                i += 3;
-                continue;
+        // 按字节判断，绝不能拿 &str 的按字节切片：`%` 后面跟中文时
+        // `input[i + 1..i + 3]` 会切开多字节字符而 panic（导出路径里
+        // 完全可能出现 `100%音乐` 这种写法）。
+        if bytes[i] == b'%'
+            && i + 2 < bytes.len()
+            && bytes[i + 1].is_ascii_hexdigit()
+            && bytes[i + 2].is_ascii_hexdigit()
+        {
+            let hex = [bytes[i + 1], bytes[i + 2]];
+            if let Ok(text) = std::str::from_utf8(&hex) {
+                if let Ok(value) = u8::from_str_radix(text, 16) {
+                    out.push(value);
+                    i += 3;
+                    continue;
+                }
             }
         }
         out.push(bytes[i]);
@@ -947,6 +965,27 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
+
+    #[test]
+    fn entry_names_skip_empty_and_relative() {
+        assert!(!usable_entry_name(""));
+        assert!(!usable_entry_name("."));
+        assert!(!usable_entry_name(".."));
+        assert!(!usable_entry_name("Music/Albums"));
+        assert!(usable_entry_name("Music"));
+        assert!(usable_entry_name("音乐"));
+    }
+
+    #[test]
+    fn percent_decode_never_panics_on_non_ascii_after_percent() {
+        // 一个 `%` 后面直接跟中文：以前会按字节切 &str，panic。
+        assert_eq!(percent_decode("100%音乐"), "100%音乐");
+        assert_eq!(percent_decode("%音"), "%音");
+        // 正常编码仍然解码。
+        assert_eq!(percent_decode("%E9%9F%B3%E4%B9%90"), "音乐");
+        assert_eq!(percent_decode("100%25"), "100%");
+        assert_eq!(percent_decode("a%2"), "a%2");
+    }
 
     #[test]
     fn parses_minimal_url() {
