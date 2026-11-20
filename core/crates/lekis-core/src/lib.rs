@@ -17,6 +17,7 @@ mod enrich;
 pub mod equalizer;
 pub mod events;
 mod folders;
+mod health;
 /// In-memory diagnostic log ring for the Settings screen (SET-03).
 pub mod logs;
 mod lyrics_local;
@@ -34,6 +35,7 @@ pub use enrich::EnrichReport;
 pub use equalizer::EqualizerSettings;
 pub use events::EventListener;
 pub use folders::{FolderEntry, FolderListing, FolderRoot};
+pub use health::HealthScanReport;
 pub use lekis_playback::PlaybackSnapshot;
 pub use platform::{CredentialStore, MemoryCredentialStore, PlatformServices};
 pub use plugins::{PluginInfo, PluginPermissions, PluginSettingView};
@@ -44,6 +46,7 @@ pub use sync_engine::SyncReport;
 use events::EventBus;
 use lekis_library::{EnrichCandidateRow, Library, LyricsRow, PlaylistEntry};
 pub use lekis_library::{
+    DuplicateGroup, DuplicateTrack, HealthIssueKind, LibraryHealthEntry, LibraryHealthSummary,
     OfflineDownload, OfflineStats, PlaybackStateRow, SourceInfo, TrackContext, TrackUserState,
 };
 pub use lekis_library::ListeningSummary;
@@ -820,6 +823,57 @@ impl LekisCore {
         let s = self.services.clone();
         self.run(async move { s.library.search(&text, limit.min(100)).await })
             .await
+    }
+
+    // ---- 重复检测与库健康（LIB-10 / LIB-11）----
+
+    /// 分页列出重复组。每组的保留版本按无损 / 音质 / 文件大小挑选。
+    pub async fn duplicate_groups(&self, offset: u32, limit: u32) -> Result<Vec<DuplicateGroup>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.duplicate_groups(offset, limit).await })
+            .await
+    }
+
+    /// 重复组总数。
+    pub async fn duplicate_group_count(&self) -> Result<u64> {
+        let s = self.services.clone();
+        self.run(async move { s.library.duplicate_group_count().await })
+            .await
+    }
+
+    /// 库健康汇总。
+    pub async fn library_health_summary(&self) -> Result<LibraryHealthSummary> {
+        let s = self.services.clone();
+        self.run(async move { s.library.library_health_summary().await })
+            .await
+    }
+
+    /// 某一类健康问题的条目数。
+    pub async fn library_health_count(&self, kind: HealthIssueKind) -> Result<u64> {
+        let s = self.services.clone();
+        self.run(async move { s.library.library_health_count(kind).await })
+            .await
+    }
+
+    /// 某一类健康问题的一页条目。
+    pub async fn library_health_page(
+        &self,
+        kind: HealthIssueKind,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<LibraryHealthEntry>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.library_health_page(kind, offset, limit).await })
+            .await
+    }
+
+    /// 扫描所有文件系统音源的可读性，写入"损坏 / 不可读"状态。
+    ///
+    /// 一次性返回；每个文件只读 1 个字节，不解析标签，也不做频谱分析。
+    /// 某个音源整体打不开时只记录音源级错误，不会把它的所有文件都标成损坏。
+    pub async fn scan_library_health(&self) -> Result<HealthScanReport> {
+        let s = self.services.clone();
+        self.run(async move { health::scan(&s).await }).await
     }
 
     // ---- 浏览维度（LIB-06）----
@@ -2874,6 +2928,39 @@ mod tests {
             std::fs::read(root.join("music/01. Cover Me.flac"))?,
             b"not really audio"
         );
+        drop(core);
+        let _ = std::fs::remove_dir_all(&root);
+        Ok(())
+    }
+
+    #[test]
+    fn health_scan_marks_and_clears_unreadable_files() -> Result<()> {
+        let (core, root, _source, _events, rt) =
+            core_with_local_tracks("healthscan", &["01. Alpha.flac", "02. Beta.flac"])?;
+        let missing = root.join("music/01. Alpha.flac");
+        std::fs::remove_file(&missing)?;
+        rt.block_on(async {
+            let report = core.scan_library_health().await?;
+            assert_eq!(report.sources, 1);
+            assert_eq!(report.files_checked, 2);
+            assert_eq!(report.unreadable, 1);
+            assert_eq!(report.failed_sources, 0);
+            assert_eq!(core.library_health_summary().await?.unreadable_files, 1);
+            let page = core
+                .library_health_page(HealthIssueKind::Unreadable, 0, 10)
+                .await?;
+            assert_eq!(page.len(), 1);
+            assert_eq!(page[0].path, "01. Alpha.flac");
+            assert!(page[0].detail.is_some());
+
+            // 文件回来后重新扫描，错误状态要被清掉。
+            std::fs::write(&missing, b"x")?;
+            let report = core.scan_library_health().await?;
+            assert_eq!(report.unreadable, 0);
+            assert_eq!(report.cleared, 1);
+            assert_eq!(core.library_health_summary().await?.unreadable_files, 0);
+            Ok::<_, LekisError>(())
+        })?;
         drop(core);
         let _ = std::fs::remove_dir_all(&root);
         Ok(())

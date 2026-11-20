@@ -11,7 +11,7 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'dto.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `into_rule_group`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `try_from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `try_from`
 
 /// 专辑（LIB-06）。
 class AlbumDto {
@@ -408,6 +408,180 @@ enum DiscoveryProtocolDto {
   ssdp,
 }
 
+/// 一组重复曲目。
+class DuplicateGroupDto {
+  /// 分组用的规范化键（不展示）。
+  final String key;
+
+  /// 代表标题。
+  final String title;
+
+  /// 代表艺人。
+  final String artistLine;
+
+  /// 代表专辑。
+  final String? albumTitle;
+
+  /// 代表专辑 ID。
+  final PlatformInt64? albumId;
+
+  /// 组内一致的 MusicBrainz Recording ID。
+  final String? mbidRecording;
+
+  /// 建议保留的曲目。
+  final PlatformInt64 keepTrackId;
+
+  /// 所有版本，按推荐顺序排列。
+  final List<DuplicateTrackDto> tracks;
+
+  const DuplicateGroupDto({
+    required this.key,
+    required this.title,
+    required this.artistLine,
+    this.albumTitle,
+    this.albumId,
+    this.mbidRecording,
+    required this.keepTrackId,
+    required this.tracks,
+  });
+
+  @override
+  int get hashCode =>
+      key.hashCode ^
+      title.hashCode ^
+      artistLine.hashCode ^
+      albumTitle.hashCode ^
+      albumId.hashCode ^
+      mbidRecording.hashCode ^
+      keepTrackId.hashCode ^
+      tracks.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DuplicateGroupDto &&
+          runtimeType == other.runtimeType &&
+          key == other.key &&
+          title == other.title &&
+          artistLine == other.artistLine &&
+          albumTitle == other.albumTitle &&
+          albumId == other.albumId &&
+          mbidRecording == other.mbidRecording &&
+          keepTrackId == other.keepTrackId &&
+          tracks == other.tracks;
+}
+
+/// 重复组里的一个文件版本。
+class DuplicateTrackDto {
+  /// 曲目 ID（同一组的多个文件可能属于同一首曲目）。
+  final PlatformInt64 trackId;
+
+  /// 音源。
+  final PlatformInt64? sourceId;
+
+  /// 标题。
+  final String title;
+
+  /// 艺人署名。
+  final String artistLine;
+
+  /// 专辑。
+  final String? albumTitle;
+
+  /// 专辑 ID。
+  final PlatformInt64? albumId;
+
+  /// 文件路径。
+  final String path;
+
+  /// 时长（毫秒）。
+  final BigInt durationMs;
+
+  /// 文件大小（字节）。
+  final BigInt sizeBytes;
+
+  /// 音质标签（如 `FLAC 24/96`）。
+  final String? format;
+
+  /// 编码名。
+  final String? codec;
+
+  /// 平均码率（kbps）。
+  final int? bitrateKbps;
+
+  /// 位深。
+  final int? bitDepth;
+
+  /// 采样率（Hz）。
+  final int? sampleRate;
+
+  /// 资料库音质分。
+  final PlatformInt64 qualityScore;
+
+  /// 是否建议保留。每组恰好一个。
+  final bool suggestedKeep;
+
+  const DuplicateTrackDto({
+    required this.trackId,
+    this.sourceId,
+    required this.title,
+    required this.artistLine,
+    this.albumTitle,
+    this.albumId,
+    required this.path,
+    required this.durationMs,
+    required this.sizeBytes,
+    this.format,
+    this.codec,
+    this.bitrateKbps,
+    this.bitDepth,
+    this.sampleRate,
+    required this.qualityScore,
+    required this.suggestedKeep,
+  });
+
+  @override
+  int get hashCode =>
+      trackId.hashCode ^
+      sourceId.hashCode ^
+      title.hashCode ^
+      artistLine.hashCode ^
+      albumTitle.hashCode ^
+      albumId.hashCode ^
+      path.hashCode ^
+      durationMs.hashCode ^
+      sizeBytes.hashCode ^
+      format.hashCode ^
+      codec.hashCode ^
+      bitrateKbps.hashCode ^
+      bitDepth.hashCode ^
+      sampleRate.hashCode ^
+      qualityScore.hashCode ^
+      suggestedKeep.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DuplicateTrackDto &&
+          runtimeType == other.runtimeType &&
+          trackId == other.trackId &&
+          sourceId == other.sourceId &&
+          title == other.title &&
+          artistLine == other.artistLine &&
+          albumTitle == other.albumTitle &&
+          albumId == other.albumId &&
+          path == other.path &&
+          durationMs == other.durationMs &&
+          sizeBytes == other.sizeBytes &&
+          format == other.format &&
+          codec == other.codec &&
+          bitrateKbps == other.bitrateKbps &&
+          bitDepth == other.bitDepth &&
+          sampleRate == other.sampleRate &&
+          qualityScore == other.qualityScore &&
+          suggestedKeep == other.suggestedKeep;
+}
+
 /// 待确认队列里的一条候选（ENR-06）。
 class EnrichCandidateDto {
   /// 候选 ID。
@@ -603,6 +777,249 @@ class GenreCountDto {
           runtimeType == other.runtimeType &&
           name == other.name &&
           trackCount == other.trackCount;
+}
+
+/// 健康问题类型。
+enum HealthIssueKindDto {
+  /// 缺封面。
+  missingCover,
+
+  /// 缺歌词。
+  missingLyrics,
+
+  /// 缺标题 / 艺人。
+  missingTags,
+
+  /// 疑似假无损。
+  fakeLossless,
+
+  /// 损坏 / 不可读文件。
+  unreadable,
+}
+
+/// 健康报告的一条。
+class LibraryHealthEntryDto {
+  /// 问题类型。
+  final HealthIssueKindDto kind;
+
+  /// 曲目。
+  final PlatformInt64 trackId;
+
+  /// 标题。
+  final String title;
+
+  /// 艺人。
+  final String artistLine;
+
+  /// 专辑。
+  final String? albumTitle;
+
+  /// 专辑 ID。
+  final PlatformInt64? albumId;
+
+  /// 音源。
+  final PlatformInt64? sourceId;
+
+  /// 文件路径。
+  final String path;
+
+  /// 音质标签。
+  final String? format;
+
+  /// 编码名。
+  final String? codec;
+
+  /// 平均码率（kbps）。
+  final int? bitrateKbps;
+
+  /// 位深。
+  final int? bitDepth;
+
+  /// 采样率（Hz）。
+  final int? sampleRate;
+
+  /// 文件大小（字节）。
+  final BigInt sizeBytes;
+
+  /// 时长（毫秒）。
+  final BigInt durationMs;
+
+  /// 额外说明（不可读文件的原因）。
+  final String? detail;
+
+  const LibraryHealthEntryDto({
+    required this.kind,
+    required this.trackId,
+    required this.title,
+    required this.artistLine,
+    this.albumTitle,
+    this.albumId,
+    this.sourceId,
+    required this.path,
+    this.format,
+    this.codec,
+    this.bitrateKbps,
+    this.bitDepth,
+    this.sampleRate,
+    required this.sizeBytes,
+    required this.durationMs,
+    this.detail,
+  });
+
+  @override
+  int get hashCode =>
+      kind.hashCode ^
+      trackId.hashCode ^
+      title.hashCode ^
+      artistLine.hashCode ^
+      albumTitle.hashCode ^
+      albumId.hashCode ^
+      sourceId.hashCode ^
+      path.hashCode ^
+      format.hashCode ^
+      codec.hashCode ^
+      bitrateKbps.hashCode ^
+      bitDepth.hashCode ^
+      sampleRate.hashCode ^
+      sizeBytes.hashCode ^
+      durationMs.hashCode ^
+      detail.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LibraryHealthEntryDto &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          trackId == other.trackId &&
+          title == other.title &&
+          artistLine == other.artistLine &&
+          albumTitle == other.albumTitle &&
+          albumId == other.albumId &&
+          sourceId == other.sourceId &&
+          path == other.path &&
+          format == other.format &&
+          codec == other.codec &&
+          bitrateKbps == other.bitrateKbps &&
+          bitDepth == other.bitDepth &&
+          sampleRate == other.sampleRate &&
+          sizeBytes == other.sizeBytes &&
+          durationMs == other.durationMs &&
+          detail == other.detail;
+}
+
+/// 一次健康扫描的结果。
+class LibraryHealthScanReportDto {
+  /// 扫描的音源数。
+  final int sources;
+
+  /// 检查的文件数。
+  final BigInt filesChecked;
+
+  /// 不可读文件数（包括之前已标记的）。
+  final BigInt unreadable;
+
+  /// 恢复正常的文件数。
+  final BigInt cleared;
+
+  /// 打不开的音源数。
+  final int failedSources;
+
+  /// 音源级错误。
+  final List<String> errors;
+
+  const LibraryHealthScanReportDto({
+    required this.sources,
+    required this.filesChecked,
+    required this.unreadable,
+    required this.cleared,
+    required this.failedSources,
+    required this.errors,
+  });
+
+  static Future<LibraryHealthScanReportDto> default_() =>
+      RustLib.instance.api.crateApiDtoLibraryHealthScanReportDtoDefault();
+
+  @override
+  int get hashCode =>
+      sources.hashCode ^
+      filesChecked.hashCode ^
+      unreadable.hashCode ^
+      cleared.hashCode ^
+      failedSources.hashCode ^
+      errors.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LibraryHealthScanReportDto &&
+          runtimeType == other.runtimeType &&
+          sources == other.sources &&
+          filesChecked == other.filesChecked &&
+          unreadable == other.unreadable &&
+          cleared == other.cleared &&
+          failedSources == other.failedSources &&
+          errors == other.errors;
+}
+
+/// 库健康汇总。
+class LibraryHealthSummaryDto {
+  /// 曲目总数。
+  final BigInt totalTracks;
+
+  /// 重复组数量。
+  final BigInt duplicateGroups;
+
+  /// 缺封面。
+  final BigInt missingCover;
+
+  /// 缺歌词。
+  final BigInt missingLyrics;
+
+  /// 缺标题 / 艺人。
+  final BigInt missingTags;
+
+  /// 疑似假无损。
+  final BigInt fakeLossless;
+
+  /// 损坏 / 不可读文件。
+  final BigInt unreadableFiles;
+
+  const LibraryHealthSummaryDto({
+    required this.totalTracks,
+    required this.duplicateGroups,
+    required this.missingCover,
+    required this.missingLyrics,
+    required this.missingTags,
+    required this.fakeLossless,
+    required this.unreadableFiles,
+  });
+
+  static Future<LibraryHealthSummaryDto> default_() =>
+      RustLib.instance.api.crateApiDtoLibraryHealthSummaryDtoDefault();
+
+  @override
+  int get hashCode =>
+      totalTracks.hashCode ^
+      duplicateGroups.hashCode ^
+      missingCover.hashCode ^
+      missingLyrics.hashCode ^
+      missingTags.hashCode ^
+      fakeLossless.hashCode ^
+      unreadableFiles.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LibraryHealthSummaryDto &&
+          runtimeType == other.runtimeType &&
+          totalTracks == other.totalTracks &&
+          duplicateGroups == other.duplicateGroups &&
+          missingCover == other.missingCover &&
+          missingLyrics == other.missingLyrics &&
+          missingTags == other.missingTags &&
+          fakeLossless == other.fakeLossless &&
+          unreadableFiles == other.unreadableFiles;
 }
 
 enum LibraryScopeDto { catalog, playlists, userState, sources }

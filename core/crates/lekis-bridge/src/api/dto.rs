@@ -1545,6 +1545,248 @@ impl TryFrom<SmartRulesDto> for lekis_library::SmartRules {
 }
 
 // ---------------------------------------------------------------------------
+// 重复检测与库健康（LIB-10 / LIB-11）
+// ---------------------------------------------------------------------------
+
+/// 重复组里的一个文件版本。
+#[derive(Debug, Clone)]
+pub struct DuplicateTrackDto {
+    /// 曲目 ID（同一组的多个文件可能属于同一首曲目）。
+    pub track_id: i64,
+    /// 音源。
+    pub source_id: Option<i64>,
+    /// 标题。
+    pub title: String,
+    /// 艺人署名。
+    pub artist_line: String,
+    /// 专辑。
+    pub album_title: Option<String>,
+    /// 专辑 ID。
+    pub album_id: Option<i64>,
+    /// 文件路径。
+    pub path: String,
+    /// 时长（毫秒）。
+    pub duration_ms: u64,
+    /// 文件大小（字节）。
+    pub size_bytes: u64,
+    /// 音质标签（如 `FLAC 24/96`）。
+    pub format: Option<String>,
+    /// 编码名。
+    pub codec: Option<String>,
+    /// 平均码率（kbps）。
+    pub bitrate_kbps: Option<u32>,
+    /// 位深。
+    pub bit_depth: Option<u8>,
+    /// 采样率（Hz）。
+    pub sample_rate: Option<u32>,
+    /// 资料库音质分。
+    pub quality_score: i64,
+    /// 是否建议保留。每组恰好一个。
+    pub suggested_keep: bool,
+}
+
+impl From<lekis_library::DuplicateTrack> for DuplicateTrackDto {
+    fn from(t: lekis_library::DuplicateTrack) -> Self {
+        Self {
+            track_id: t.track_id.0,
+            source_id: t.source_id.map(|s| s.0),
+            title: t.title,
+            artist_line: t.artist_line,
+            album_title: t.album_title,
+            album_id: t.album_id.map(|a| a.0),
+            path: t.path,
+            duration_ms: t.duration_ms,
+            size_bytes: t.size_bytes,
+            format: t.format,
+            codec: t.codec,
+            bitrate_kbps: t.bitrate_kbps,
+            bit_depth: t.bit_depth,
+            sample_rate: t.sample_rate,
+            quality_score: t.quality_score,
+            suggested_keep: t.suggested_keep,
+        }
+    }
+}
+
+/// 一组重复曲目。
+#[derive(Debug, Clone)]
+pub struct DuplicateGroupDto {
+    /// 分组用的规范化键（不展示）。
+    pub key: String,
+    /// 代表标题。
+    pub title: String,
+    /// 代表艺人。
+    pub artist_line: String,
+    /// 代表专辑。
+    pub album_title: Option<String>,
+    /// 代表专辑 ID。
+    pub album_id: Option<i64>,
+    /// 组内一致的 MusicBrainz Recording ID。
+    pub mbid_recording: Option<String>,
+    /// 建议保留的曲目。
+    pub keep_track_id: i64,
+    /// 所有版本，按推荐顺序排列。
+    pub tracks: Vec<DuplicateTrackDto>,
+}
+
+impl From<lekis_library::DuplicateGroup> for DuplicateGroupDto {
+    fn from(g: lekis_library::DuplicateGroup) -> Self {
+        Self {
+            key: g.key,
+            title: g.title,
+            artist_line: g.artist_line,
+            album_title: g.album_title,
+            album_id: g.album_id.map(|a| a.0),
+            mbid_recording: g.mbid_recording,
+            keep_track_id: g.keep_track_id.0,
+            tracks: g.tracks.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+/// 健康问题类型。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HealthIssueKindDto {
+    /// 缺封面。
+    MissingCover,
+    /// 缺歌词。
+    MissingLyrics,
+    /// 缺标题 / 艺人。
+    MissingTags,
+    /// 疑似假无损。
+    FakeLossless,
+    /// 损坏 / 不可读文件。
+    Unreadable,
+}
+
+mirror_enum!(HealthIssueKindDto <=> lekis_core::HealthIssueKind {
+    MissingCover, MissingLyrics, MissingTags, FakeLossless, Unreadable
+});
+
+/// 库健康汇总。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct LibraryHealthSummaryDto {
+    /// 曲目总数。
+    pub total_tracks: u64,
+    /// 重复组数量。
+    pub duplicate_groups: u64,
+    /// 缺封面。
+    pub missing_cover: u64,
+    /// 缺歌词。
+    pub missing_lyrics: u64,
+    /// 缺标题 / 艺人。
+    pub missing_tags: u64,
+    /// 疑似假无损。
+    pub fake_lossless: u64,
+    /// 损坏 / 不可读文件。
+    pub unreadable_files: u64,
+}
+
+impl From<lekis_core::LibraryHealthSummary> for LibraryHealthSummaryDto {
+    fn from(s: lekis_core::LibraryHealthSummary) -> Self {
+        Self {
+            total_tracks: s.total_tracks,
+            duplicate_groups: s.duplicate_groups,
+            missing_cover: s.missing_cover,
+            missing_lyrics: s.missing_lyrics,
+            missing_tags: s.missing_tags,
+            fake_lossless: s.fake_lossless,
+            unreadable_files: s.unreadable_files,
+        }
+    }
+}
+
+/// 健康报告的一条。
+#[derive(Debug, Clone)]
+pub struct LibraryHealthEntryDto {
+    /// 问题类型。
+    pub kind: HealthIssueKindDto,
+    /// 曲目。
+    pub track_id: i64,
+    /// 标题。
+    pub title: String,
+    /// 艺人。
+    pub artist_line: String,
+    /// 专辑。
+    pub album_title: Option<String>,
+    /// 专辑 ID。
+    pub album_id: Option<i64>,
+    /// 音源。
+    pub source_id: Option<i64>,
+    /// 文件路径。
+    pub path: String,
+    /// 音质标签。
+    pub format: Option<String>,
+    /// 编码名。
+    pub codec: Option<String>,
+    /// 平均码率（kbps）。
+    pub bitrate_kbps: Option<u32>,
+    /// 位深。
+    pub bit_depth: Option<u8>,
+    /// 采样率（Hz）。
+    pub sample_rate: Option<u32>,
+    /// 文件大小（字节）。
+    pub size_bytes: u64,
+    /// 时长（毫秒）。
+    pub duration_ms: u64,
+    /// 额外说明（不可读文件的原因）。
+    pub detail: Option<String>,
+}
+
+impl From<lekis_library::LibraryHealthEntry> for LibraryHealthEntryDto {
+    fn from(e: lekis_library::LibraryHealthEntry) -> Self {
+        Self {
+            kind: e.kind.into(),
+            track_id: e.track_id.0,
+            title: e.title,
+            artist_line: e.artist_line,
+            album_title: e.album_title,
+            album_id: e.album_id.map(|a| a.0),
+            source_id: e.source_id.map(|s| s.0),
+            path: e.path,
+            format: e.format,
+            codec: e.codec,
+            bitrate_kbps: e.bitrate_kbps,
+            bit_depth: e.bit_depth,
+            sample_rate: e.sample_rate,
+            size_bytes: e.size_bytes,
+            duration_ms: e.duration_ms,
+            detail: e.detail,
+        }
+    }
+}
+
+/// 一次健康扫描的结果。
+#[derive(Debug, Clone, Default)]
+pub struct LibraryHealthScanReportDto {
+    /// 扫描的音源数。
+    pub sources: u32,
+    /// 检查的文件数。
+    pub files_checked: u64,
+    /// 不可读文件数（包括之前已标记的）。
+    pub unreadable: u64,
+    /// 恢复正常的文件数。
+    pub cleared: u64,
+    /// 打不开的音源数。
+    pub failed_sources: u32,
+    /// 音源级错误。
+    pub errors: Vec<String>,
+}
+
+impl From<lekis_core::HealthScanReport> for LibraryHealthScanReportDto {
+    fn from(r: lekis_core::HealthScanReport) -> Self {
+        Self {
+            sources: r.sources,
+            files_checked: r.files_checked,
+            unreadable: r.unreadable,
+            cleared: r.cleared,
+            failed_sources: r.failed_sources,
+            errors: r.errors,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // 事件
 // ---------------------------------------------------------------------------
 

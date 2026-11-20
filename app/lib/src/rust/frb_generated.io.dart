@@ -119,6 +119,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt dco_decode_box_autoadd_u_64(dynamic raw);
 
   @protected
+  int dco_decode_box_autoadd_u_8(dynamic raw);
+
+  @protected
   CoreConfigDto dco_decode_core_config_dto(dynamic raw);
 
   @protected
@@ -135,6 +138,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DiscoveryProtocolDto dco_decode_discovery_protocol_dto(dynamic raw);
+
+  @protected
+  DuplicateGroupDto dco_decode_duplicate_group_dto(dynamic raw);
+
+  @protected
+  DuplicateTrackDto dco_decode_duplicate_track_dto(dynamic raw);
 
   @protected
   EnrichCandidateDto dco_decode_enrich_candidate_dto(dynamic raw);
@@ -170,10 +179,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GenreCountDto dco_decode_genre_count_dto(dynamic raw);
 
   @protected
+  HealthIssueKindDto dco_decode_health_issue_kind_dto(dynamic raw);
+
+  @protected
   int dco_decode_i_32(dynamic raw);
 
   @protected
   PlatformInt64 dco_decode_i_64(dynamic raw);
+
+  @protected
+  LibraryHealthEntryDto dco_decode_library_health_entry_dto(dynamic raw);
+
+  @protected
+  LibraryHealthScanReportDto dco_decode_library_health_scan_report_dto(
+    dynamic raw,
+  );
+
+  @protected
+  LibraryHealthSummaryDto dco_decode_library_health_summary_dto(dynamic raw);
 
   @protected
   LibraryScopeDto dco_decode_library_scope_dto(dynamic raw);
@@ -199,6 +222,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<DuplicateGroupDto> dco_decode_list_duplicate_group_dto(dynamic raw);
+
+  @protected
+  List<DuplicateTrackDto> dco_decode_list_duplicate_track_dto(dynamic raw);
+
+  @protected
   List<EnrichCandidateDto> dco_decode_list_enrich_candidate_dto(dynamic raw);
 
   @protected
@@ -212,6 +241,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<GenreCountDto> dco_decode_list_genre_count_dto(dynamic raw);
+
+  @protected
+  List<LibraryHealthEntryDto> dco_decode_list_library_health_entry_dto(
+    dynamic raw,
+  );
 
   @protected
   List<ListeningBucketDto> dco_decode_list_listening_bucket_dto(dynamic raw);
@@ -345,6 +379,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
+
+  @protected
+  int? dco_decode_opt_box_autoadd_u_8(dynamic raw);
 
   @protected
   List<String>? dco_decode_opt_list_String(dynamic raw);
@@ -605,6 +642,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
 
   @protected
+  int sse_decode_box_autoadd_u_8(SseDeserializer deserializer);
+
+  @protected
   CoreConfigDto sse_decode_core_config_dto(SseDeserializer deserializer);
 
   @protected
@@ -625,6 +665,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DiscoveryProtocolDto sse_decode_discovery_protocol_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DuplicateGroupDto sse_decode_duplicate_group_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DuplicateTrackDto sse_decode_duplicate_track_dto(
     SseDeserializer deserializer,
   );
 
@@ -666,10 +716,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GenreCountDto sse_decode_genre_count_dto(SseDeserializer deserializer);
 
   @protected
+  HealthIssueKindDto sse_decode_health_issue_kind_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+
+  @protected
+  LibraryHealthEntryDto sse_decode_library_health_entry_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LibraryHealthScanReportDto sse_decode_library_health_scan_report_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LibraryHealthSummaryDto sse_decode_library_health_summary_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   LibraryScopeDto sse_decode_library_scope_dto(SseDeserializer deserializer);
@@ -699,6 +769,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<DuplicateGroupDto> sse_decode_list_duplicate_group_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<DuplicateTrackDto> sse_decode_list_duplicate_track_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<EnrichCandidateDto> sse_decode_list_enrich_candidate_dto(
     SseDeserializer deserializer,
   );
@@ -720,6 +800,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<GenreCountDto> sse_decode_list_genre_count_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<LibraryHealthEntryDto> sse_decode_list_library_health_entry_dto(
     SseDeserializer deserializer,
   );
 
@@ -901,6 +986,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  int? sse_decode_opt_box_autoadd_u_8(SseDeserializer deserializer);
 
   @protected
   List<String>? sse_decode_opt_list_String(SseDeserializer deserializer);
@@ -1212,6 +1300,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_u_8(int self, SseSerializer serializer);
+
+  @protected
   void sse_encode_core_config_dto(CoreConfigDto self, SseSerializer serializer);
 
   @protected
@@ -1235,6 +1326,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_discovery_protocol_dto(
     DiscoveryProtocolDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_duplicate_group_dto(
+    DuplicateGroupDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_duplicate_track_dto(
+    DuplicateTrackDto self,
     SseSerializer serializer,
   );
 
@@ -1287,10 +1390,34 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_genre_count_dto(GenreCountDto self, SseSerializer serializer);
 
   @protected
+  void sse_encode_health_issue_kind_dto(
+    HealthIssueKindDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_library_health_entry_dto(
+    LibraryHealthEntryDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_library_health_scan_report_dto(
+    LibraryHealthScanReportDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_library_health_summary_dto(
+    LibraryHealthSummaryDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_library_scope_dto(
@@ -1329,6 +1456,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_duplicate_group_dto(
+    List<DuplicateGroupDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_duplicate_track_dto(
+    List<DuplicateTrackDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_enrich_candidate_dto(
     List<EnrichCandidateDto> self,
     SseSerializer serializer,
@@ -1355,6 +1494,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_genre_count_dto(
     List<GenreCountDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_library_health_entry_dto(
+    List<LibraryHealthEntryDto> self,
     SseSerializer serializer,
   );
 
@@ -1597,6 +1742,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_8(int? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_list_String(List<String>? self, SseSerializer serializer);

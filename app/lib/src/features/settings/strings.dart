@@ -52,6 +52,8 @@ abstract final class SettingsStrings {
   static const sourcesHint = '管理本地文件夹、NAS 和媒体服务器';
   static const enrichReview = '待确认的补全';
   static const enrichReviewHint = '检查自动找到的封面、歌词和标签';
+  static const libraryHealth = '资料库检查';
+  static const libraryHealthHint = '查找重复歌曲、缺失标签 / 封面 / 歌词和不可读文件';
   static String pendingCount(int n) => '$n 条待确认';
   static const downloads = '下载';
   static const downloadsHint = '离线缓存、下载队列和失败重试';

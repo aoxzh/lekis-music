@@ -209,6 +209,55 @@ pub async fn search(text: String, limit: u32) -> Result<SearchResultsDto, CoreEr
     Ok(core().search(text, limit).await?.into())
 }
 
+// ---- 重复检测与库健康（LIB-10 / LIB-11）----
+
+/// 分页列出重复组；每组的保留版本由核心挑选。
+pub async fn duplicate_groups(
+    offset: u32,
+    limit: u32,
+) -> Result<Vec<DuplicateGroupDto>, CoreError> {
+    Ok(core()
+        .duplicate_groups(offset, limit)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// 重复组总数。
+pub async fn duplicate_group_count() -> Result<u64, CoreError> {
+    Ok(core().duplicate_group_count().await?)
+}
+
+/// 库健康汇总。
+pub async fn library_health_summary() -> Result<LibraryHealthSummaryDto, CoreError> {
+    Ok(core().library_health_summary().await?.into())
+}
+
+/// 某一类健康问题的条目数。
+pub async fn library_health_count(kind: HealthIssueKindDto) -> Result<u64, CoreError> {
+    Ok(core().library_health_count(kind.into()).await?)
+}
+
+/// 某一类健康问题的一页条目。
+pub async fn library_health_page(
+    kind: HealthIssueKindDto,
+    offset: u32,
+    limit: u32,
+) -> Result<Vec<LibraryHealthEntryDto>, CoreError> {
+    Ok(core()
+        .library_health_page(kind.into(), offset, limit)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// 扫描所有文件系统音源的可读性；一次性返回扫描结果。
+pub async fn scan_library_health() -> Result<LibraryHealthScanReportDto, CoreError> {
+    Ok(core().scan_library_health().await?.into())
+}
+
 // ---- 浏览维度（LIB-06）----
 
 pub async fn list_albums(

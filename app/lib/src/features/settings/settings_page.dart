@@ -11,6 +11,7 @@ import '../../theme/tokens.dart';
 import '../downloads/downloads_models.dart';
 import '../downloads/downloads_providers.dart';
 import 'equalizer_page.dart';
+import '../library/library_health_page.dart';
 import 'logs_page.dart';
 import '../enrich/enrich_providers.dart';
 import '../now_playing/lyrics_stage_settings.dart';
@@ -358,6 +359,13 @@ class _LibrarySection extends ConsumerWidget {
               : null,
           chevron: true,
           onTap: () => openDownloads(context),
+        ),
+        SettingsTile(
+          icon: Icons.health_and_safety_outlined,
+          title: SettingsStrings.libraryHealth,
+          subtitle: const Text(SettingsStrings.libraryHealthHint),
+          chevron: true,
+          onTap: () => Navigator.of(context).push(LibraryHealthPage.route()),
         ),
         SettingsTile(
           icon: Icons.auto_fix_high_outlined,

@@ -11,6 +11,7 @@ mod browse;
 mod db;
 mod enrich_queue;
 mod folders;
+mod library_health;
 mod listening;
 mod lyrics;
 mod migrations;
@@ -33,6 +34,10 @@ pub use artwork::{cache_relative_path, ArtworkCandidate, ArtworkRow};
 pub use db::{DbResultExt, Library};
 pub use enrich_queue::{EnrichCandidateRow, NewEnrichCandidate};
 pub use folders::{normalize_folder_path, FolderEntry, FolderListing, FolderRoot};
+pub use library_health::{
+    DuplicateGroup, DuplicateTrack, FileHealthUpdate, HealthIssueKind, HealthScanFile,
+    LibraryHealthEntry, LibraryHealthSummary, DUPLICATE_DURATION_TOLERANCE_MS,
+};
 pub use listening::{
     AlbumListening, ArtistListening, ListeningBucket, ListeningSummary, TrackListening,
 };

@@ -1,5 +1,7 @@
 use crate::migrations;
+use crate::normalize::norm_key;
 use lekis_types::{ErrorCode, LekisError, Result};
+use rusqlite::functions::FunctionFlags;
 use rusqlite::{Connection, OpenFlags};
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -48,6 +50,25 @@ fn configure(conn: &Connection) -> Result<()> {
          PRAGMA busy_timeout = 5000;
          PRAGMA temp_store = MEMORY;",
     )
+    .db()?;
+    register_functions(conn)
+}
+
+/// 注册只在 SQL 里用到的 Rust 函数。
+///
+/// 去重 / 健康报告在 SQL 里按规范化标题、艺人、专辑聚合。SQLite 本身不认简繁和
+/// Unicode 大小写，所以把 [`norm_key`] 注册成标量函数，避免把十万行拉到内存里。
+/// 只读连接也要注册，否则同一个查询在写线程上能跑、在查询线程上报 "no such function"。
+fn register_functions(conn: &Connection) -> Result<()> {
+    conn.create_scalar_function(
+        "lekis_norm",
+        1,
+        FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC,
+        |ctx| {
+            let value: Option<String> = ctx.get(0)?;
+            Ok(value.map(|s| norm_key(&s)).unwrap_or_default())
+        },
+    )
     .db()
 }
 
@@ -67,6 +88,7 @@ impl Library {
                 .db()?;
                 conn.execute_batch("PRAGMA busy_timeout = 5000; PRAGMA query_only = ON;")
                     .db()?;
+                register_functions(&conn)?;
                 Ok(Mutex::new(conn))
             })
             .collect::<Result<Vec<_>>>()?;

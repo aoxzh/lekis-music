@@ -109,6 +109,42 @@ Future<List<TrackRowDto>> recentlyPlayed({required int limit}) =>
 Future<SearchResultsDto> search({required String text, required int limit}) =>
     RustLib.instance.api.crateApiCoreSearch(text: text, limit: limit);
 
+/// 分页列出重复组；每组的保留版本由核心挑选。
+Future<List<DuplicateGroupDto>> duplicateGroups({
+  required int offset,
+  required int limit,
+}) => RustLib.instance.api.crateApiCoreDuplicateGroups(
+  offset: offset,
+  limit: limit,
+);
+
+/// 重复组总数。
+Future<BigInt> duplicateGroupCount() =>
+    RustLib.instance.api.crateApiCoreDuplicateGroupCount();
+
+/// 库健康汇总。
+Future<LibraryHealthSummaryDto> libraryHealthSummary() =>
+    RustLib.instance.api.crateApiCoreLibraryHealthSummary();
+
+/// 某一类健康问题的条目数。
+Future<BigInt> libraryHealthCount({required HealthIssueKindDto kind}) =>
+    RustLib.instance.api.crateApiCoreLibraryHealthCount(kind: kind);
+
+/// 某一类健康问题的一页条目。
+Future<List<LibraryHealthEntryDto>> libraryHealthPage({
+  required HealthIssueKindDto kind,
+  required int offset,
+  required int limit,
+}) => RustLib.instance.api.crateApiCoreLibraryHealthPage(
+  kind: kind,
+  offset: offset,
+  limit: limit,
+);
+
+/// 扫描所有文件系统音源的可读性；一次性返回扫描结果。
+Future<LibraryHealthScanReportDto> scanLibraryHealth() =>
+    RustLib.instance.api.crateApiCoreScanLibraryHealth();
+
 Future<List<AlbumDto>> listAlbums({
   required TrackSortDto sort,
   required int offset,
