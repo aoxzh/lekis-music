@@ -1,5 +1,7 @@
 # Lekis 音乐 · Linux 桌面版
 
+> **已冻结**（[ADR-0006](../../docs/adr/0006-flutter-ui.md)）：UI 已改用 Flutter（[`app/`](../../app/)）。这里不再加功能、不作为日常构建目标，Alpha 退出后连同 `core/crates/lekis-ffi`、`tools/gen-bindings.*`、`tools/build-*-core.*` 和对应 CI 一起删除。下面的内容只作历史参考。
+
 Lekis Music 的 Linux 前端：**Rust + GTK4**。
 
 界面结构和 [`apps/windows`](../windows)（C#/WinUI3）、[`apps/android`](../android)

@@ -1,5 +1,7 @@
 # Lekis Music — Windows
 
+> **已冻结**（[ADR-0006](../../docs/adr/0006-flutter-ui.md)）：UI 已改用 Flutter（[`app/`](../../app/)）。这里不再加功能、不作为日常构建目标，Alpha 退出后连同 `core/crates/lekis-ffi`、`tools/gen-bindings.*`、`tools/build-*-core.*` 和对应 CI 一起删除。下面的内容只作历史参考。
+
 C# / .NET 10 + WinUI 3（Windows App SDK 2.7）+ CommunityToolkit.Mvvm + Microsoft.Extensions.DependencyInjection。
 免打包（unpackaged）+ 自包含 Windows App SDK，`dotnet build` 完直接跑 `bin` 下的 `Lekis.exe`。
 

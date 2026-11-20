@@ -48,3 +48,6 @@ plugin-sdk/js/dist/
 
 # Local agent worktrees / task scratch
 .claude/
+
+# Local scratch output (screenshots, run logs, acceptance notes)
+logs/

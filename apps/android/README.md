@@ -1,5 +1,7 @@
 # Lekis Music — Android
 
+> **已冻结**（[ADR-0006](../../docs/adr/0006-flutter-ui.md)）：UI 已改用 Flutter（[`app/`](../../app/)）。这里不再加功能、不作为日常构建目标，Alpha 退出后连同 `core/crates/lekis-ffi`、`tools/gen-bindings.*`、`tools/build-*-core.*` 和对应 CI 一起删除。下面的内容只作历史参考。
+
 Kotlin + Jetpack Compose + Media3 + Hilt。最低 Android 8.0（API 26），目标 API 35。
 
 ## 模块

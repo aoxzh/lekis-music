@@ -9,6 +9,8 @@
 | [`wit/lekis-plugin.wit`](wit/lekis-plugin.wit) | WASM 插件接口 | 1.x 草案 |
 | [`examples/lrclib-lyrics/`](examples/lrclib-lyrics/) | 最小示例：LRCLIB 歌词 | 可读 |
 
+宿主现状：JS 运行时（`lekis-plugin-host`，rquickjs）和 App 内本地插件管理（文件夹 / zip 安装、启用、权限、设置、删除）已经可用；WASM 运行时、GitHub topic 索引、脚手架 CLI 还没做（1.0 / 1.x）。
+
 ## 一个插件长什么样
 
 ```
@@ -36,4 +38,4 @@ my-plugin/
 
 ## 红线
 
-官方仓库不接受任何第三方流媒体音源插件（YouTube、网易云、QQ 音乐等）。见 [CONTRIBUTING.md](../CONTRIBUTING.md) 第 6 节。
+官方仓库不接受任何第三方流媒体音源插件（YouTube、网易云、QQ 音乐等）。见 [CONTRIBUTING.md](../CONTRIBUTING.md) 第 7 节。

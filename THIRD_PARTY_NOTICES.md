@@ -31,7 +31,7 @@ with each package. The Rust dependency graph is checked in CI with
 | Flutter / material_ui / path_provider / flutter_lints / build_runner | BSD-3-Clause (Flutter Authors / Dart project authors) |
 | flutter_riverpod, freezed_annotation, freezed | MIT |
 | flutter_rust_bridge | MIT |
-| file_picker, audio_service, audio_session, permission_handler | MIT |
+| file_picker, audio_service, audio_session, permission_handler, tray_manager, window_manager | MIT |
 | cupertino_icons | MIT |
 
 ## Vendored code and assets
