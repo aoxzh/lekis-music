@@ -7,6 +7,7 @@ import 'api/core.dart';
 import 'api/dto.dart';
 import 'api/error.dart';
 import 'api/media_controls.dart';
+import 'api/podcast.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -72,7 +73,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 767623108;
+  int get rustContentHash => -1082664375;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -396,6 +397,76 @@ abstract class RustLibApi extends BaseApi {
   Future<List<PluginInfoDto>> crateApiCorePlugins();
 
   String crateApiCorePluginsDir();
+
+  Future<List<PodcastEpisodeDto>> crateApiPodcastPodcastEpisodes({
+    required PlatformInt64 podcastId,
+    required int offset,
+    required int limit,
+  });
+
+  Future<String> crateApiPodcastPodcastExportOpml();
+
+  Future<PodcastDto> crateApiPodcastPodcastGet({
+    required PlatformInt64 podcastId,
+  });
+
+  Future<OpmlImportReportDto> crateApiPodcastPodcastImportOpml({
+    required String text,
+  });
+
+  Future<List<PodcastEpisodeDto>> crateApiPodcastPodcastInProgress({
+    required int limit,
+  });
+
+  Future<List<PodcastEpisodeDto>> crateApiPodcastPodcastLatestEpisodes({
+    required int limit,
+  });
+
+  Future<void> crateApiPodcastPodcastMarkAllPlayed({
+    required PlatformInt64 podcastId,
+  });
+
+  Future<PodcastDto> crateApiPodcastPodcastOpenDirectory({
+    PlatformInt64? itunesId,
+    String? feedUrl,
+  });
+
+  Future<PodcastDto> crateApiPodcastPodcastOpenFeed({required String address});
+
+  Future<int> crateApiPodcastPodcastPlay({
+    required Int64List episodeIds,
+    required int start,
+  });
+
+  Future<PodcastDto> crateApiPodcastPodcastRefresh({
+    required PlatformInt64 podcastId,
+  });
+
+  Future<PodcastRefreshReportDto> crateApiPodcastPodcastRefreshAll();
+
+  Future<List<DirectoryPodcastDto>> crateApiPodcastPodcastSearch({
+    required String term,
+    required String country,
+    required int limit,
+  });
+
+  Future<void> crateApiPodcastPodcastSetPlayed({
+    required PlatformInt64 episodeId,
+    required bool played,
+  });
+
+  Future<void> crateApiPodcastPodcastSetSubscribed({
+    required PlatformInt64 podcastId,
+    required bool subscribed,
+  });
+
+  Future<List<PodcastDto>> crateApiPodcastPodcastSubscriptions();
+
+  Future<List<DirectoryPodcastDto>> crateApiPodcastPodcastTop({
+    required String country,
+    int? genreId,
+    required int limit,
+  });
 
   Future<List<TrackRowDto>> crateApiCorePreviewSmartRules({
     required SmartRulesDto rules,
@@ -3582,6 +3653,559 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "plugins_dir", argNames: []);
 
   @override
+  Future<List<PodcastEpisodeDto>> crateApiPodcastPodcastEpisodes({
+    required PlatformInt64 podcastId,
+    required int offset,
+    required int limit,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(podcastId, serializer);
+          sse_encode_u_32(offset, serializer);
+          sse_encode_u_32(limit, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 101,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_podcast_episode_dto,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiPodcastPodcastEpisodesConstMeta,
+        argValues: [podcastId, offset, limit],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPodcastPodcastEpisodesConstMeta =>
+      const TaskConstMeta(
+        debugName: "podcast_episodes",
+        argNames: ["podcastId", "offset", "limit"],
+      );
+
+  @override
+  Future<String> crateApiPodcastPodcastExportOpml() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 102,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiPodcastPodcastExportOpmlConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPodcastPodcastExportOpmlConstMeta =>
+      const TaskConstMeta(debugName: "podcast_export_opml", argNames: []);
+
+  @override
+  Future<PodcastDto> crateApiPodcastPodcastGet({
+    required PlatformInt64 podcastId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(podcastId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 103,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_podcast_dto,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiPodcastPodcastGetConstMeta,
+        argValues: [podcastId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPodcastPodcastGetConstMeta =>
+      const TaskConstMeta(debugName: "podcast_get", argNames: ["podcastId"]);
+
+  @override
+  Future<OpmlImportReportDto> crateApiPodcastPodcastImportOpml({
+    required String text,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(text, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 104,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opml_import_report_dto,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiPodcastPodcastImportOpmlConstMeta,
+        argValues: [text],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPodcastPodcastImportOpmlConstMeta =>
+      const TaskConstMeta(debugName: "podcast_import_opml", argNames: ["text"]);
+
+  @override
+  Future<List<PodcastEpisodeDto>> crateApiPodcastPodcastInProgress({
+    required int limit,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_32(limit, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 105,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_podcast_episode_dto,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiPodcastPodcastInProgressConstMeta,
+        argValues: [limit],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPodcastPodcastInProgressConstMeta =>
+      const TaskConstMeta(
+        debugName: "podcast_in_progress",
+        argNames: ["limit"],
+      );
+
+  @override
+  Future<List<PodcastEpisodeDto>> crateApiPodcastPodcastLatestEpisodes({
+    required int limit,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_u_32(limit, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 106,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_podcast_episode_dto,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiPodcastPodcastLatestEpisodesConstMeta,
+        argValues: [limit],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPodcastPodcastLatestEpisodesConstMeta =>
+      const TaskConstMeta(
+        debugName: "podcast_latest_episodes",
+        argNames: ["limit"],
+      );
+
+  @override
+  Future<void> crateApiPodcastPodcastMarkAllPlayed({
+    required PlatformInt64 podcastId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(podcastId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 107,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiPodcastPodcastMarkAllPlayedConstMeta,
+        argValues: [podcastId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPodcastPodcastMarkAllPlayedConstMeta =>
+      const TaskConstMeta(
+        debugName: "podcast_mark_all_played",
+        argNames: ["podcastId"],
+      );
+
+  @override
+  Future<PodcastDto> crateApiPodcastPodcastOpenDirectory({
+    PlatformInt64? itunesId,
+    String? feedUrl,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_opt_box_autoadd_i_64(itunesId, serializer);
+          sse_encode_opt_String(feedUrl, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 108,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_podcast_dto,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiPodcastPodcastOpenDirectoryConstMeta,
+        argValues: [itunesId, feedUrl],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPodcastPodcastOpenDirectoryConstMeta =>
+      const TaskConstMeta(
+        debugName: "podcast_open_directory",
+        argNames: ["itunesId", "feedUrl"],
+      );
+
+  @override
+  Future<PodcastDto> crateApiPodcastPodcastOpenFeed({required String address}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(address, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 109,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_podcast_dto,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiPodcastPodcastOpenFeedConstMeta,
+        argValues: [address],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPodcastPodcastOpenFeedConstMeta =>
+      const TaskConstMeta(
+        debugName: "podcast_open_feed",
+        argNames: ["address"],
+      );
+
+  @override
+  Future<int> crateApiPodcastPodcastPlay({
+    required Int64List episodeIds,
+    required int start,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_i_64_strict(episodeIds, serializer);
+          sse_encode_u_32(start, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 110,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_u_32,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiPodcastPodcastPlayConstMeta,
+        argValues: [episodeIds, start],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPodcastPodcastPlayConstMeta => const TaskConstMeta(
+    debugName: "podcast_play",
+    argNames: ["episodeIds", "start"],
+  );
+
+  @override
+  Future<PodcastDto> crateApiPodcastPodcastRefresh({
+    required PlatformInt64 podcastId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(podcastId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 111,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_podcast_dto,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiPodcastPodcastRefreshConstMeta,
+        argValues: [podcastId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPodcastPodcastRefreshConstMeta =>
+      const TaskConstMeta(
+        debugName: "podcast_refresh",
+        argNames: ["podcastId"],
+      );
+
+  @override
+  Future<PodcastRefreshReportDto> crateApiPodcastPodcastRefreshAll() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 112,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_podcast_refresh_report_dto,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiPodcastPodcastRefreshAllConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPodcastPodcastRefreshAllConstMeta =>
+      const TaskConstMeta(debugName: "podcast_refresh_all", argNames: []);
+
+  @override
+  Future<List<DirectoryPodcastDto>> crateApiPodcastPodcastSearch({
+    required String term,
+    required String country,
+    required int limit,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(term, serializer);
+          sse_encode_String(country, serializer);
+          sse_encode_u_32(limit, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 113,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_directory_podcast_dto,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiPodcastPodcastSearchConstMeta,
+        argValues: [term, country, limit],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPodcastPodcastSearchConstMeta =>
+      const TaskConstMeta(
+        debugName: "podcast_search",
+        argNames: ["term", "country", "limit"],
+      );
+
+  @override
+  Future<void> crateApiPodcastPodcastSetPlayed({
+    required PlatformInt64 episodeId,
+    required bool played,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(episodeId, serializer);
+          sse_encode_bool(played, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 114,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiPodcastPodcastSetPlayedConstMeta,
+        argValues: [episodeId, played],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPodcastPodcastSetPlayedConstMeta =>
+      const TaskConstMeta(
+        debugName: "podcast_set_played",
+        argNames: ["episodeId", "played"],
+      );
+
+  @override
+  Future<void> crateApiPodcastPodcastSetSubscribed({
+    required PlatformInt64 podcastId,
+    required bool subscribed,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(podcastId, serializer);
+          sse_encode_bool(subscribed, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 115,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiPodcastPodcastSetSubscribedConstMeta,
+        argValues: [podcastId, subscribed],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPodcastPodcastSetSubscribedConstMeta =>
+      const TaskConstMeta(
+        debugName: "podcast_set_subscribed",
+        argNames: ["podcastId", "subscribed"],
+      );
+
+  @override
+  Future<List<PodcastDto>> crateApiPodcastPodcastSubscriptions() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 116,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_podcast_dto,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiPodcastPodcastSubscriptionsConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPodcastPodcastSubscriptionsConstMeta =>
+      const TaskConstMeta(debugName: "podcast_subscriptions", argNames: []);
+
+  @override
+  Future<List<DirectoryPodcastDto>> crateApiPodcastPodcastTop({
+    required String country,
+    int? genreId,
+    required int limit,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(country, serializer);
+          sse_encode_opt_box_autoadd_u_32(genreId, serializer);
+          sse_encode_u_32(limit, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 117,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_directory_podcast_dto,
+          decodeErrorData: sse_decode_core_error,
+        ),
+        constMeta: kCrateApiPodcastPodcastTopConstMeta,
+        argValues: [country, genreId, limit],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPodcastPodcastTopConstMeta => const TaskConstMeta(
+    debugName: "podcast_top",
+    argNames: ["country", "genreId", "limit"],
+  );
+
+  @override
   Future<List<TrackRowDto>> crateApiCorePreviewSmartRules({
     required SmartRulesDto rules,
     required int offset,
@@ -3597,7 +4221,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 101,
+            funcId: 118,
             port: port_,
           );
         },
@@ -3627,7 +4251,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 102,
+            funcId: 119,
           )!;
         },
         codec: SseCodec(
@@ -3658,7 +4282,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 103,
+            funcId: 120,
             port: port_,
           );
         },
@@ -3689,7 +4313,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 104,
+            funcId: 121,
           )!;
         },
         codec: SseCodec(
@@ -3716,7 +4340,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 105,
+            funcId: 122,
           )!;
         },
         codec: SseCodec(
@@ -3749,7 +4373,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 106,
+            funcId: 123,
             port: port_,
           );
         },
@@ -3793,7 +4417,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 107,
+            funcId: 124,
             port: port_,
           );
         },
@@ -3831,7 +4455,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 108,
+            funcId: 125,
             port: port_,
           );
         },
@@ -3861,7 +4485,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 109,
+            funcId: 126,
             port: port_,
           );
         },
@@ -3894,7 +4518,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 110,
+            funcId: 127,
             port: port_,
           );
         },
@@ -3921,7 +4545,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 111,
+            funcId: 128,
             port: port_,
           );
         },
@@ -3953,7 +4577,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 112,
+            funcId: 129,
             port: port_,
           );
         },
@@ -3983,7 +4607,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 113,
+            funcId: 130,
             port: port_,
           );
         },
@@ -4015,7 +4639,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 114,
+            funcId: 131,
             port: port_,
           );
         },
@@ -4048,7 +4672,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 115,
+            funcId: 132,
             port: port_,
           );
         },
@@ -4079,7 +4703,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 116,
+            funcId: 133,
           )!;
         },
         codec: SseCodec(
@@ -4106,7 +4730,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 117,
+            funcId: 134,
             port: port_,
           );
         },
@@ -4134,7 +4758,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 118,
+            funcId: 135,
             port: port_,
           );
         },
@@ -4166,7 +4790,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 119,
+            funcId: 136,
             port: port_,
           );
         },
@@ -4198,7 +4822,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 120,
+            funcId: 137,
             port: port_,
           );
         },
@@ -4229,7 +4853,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 121,
+            funcId: 138,
             port: port_,
           );
         },
@@ -4261,7 +4885,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 122,
+            funcId: 139,
             port: port_,
           );
         },
@@ -4292,7 +4916,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 123,
+            funcId: 140,
             port: port_,
           );
         },
@@ -4320,7 +4944,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 124,
+            funcId: 141,
             port: port_,
           );
         },
@@ -4352,7 +4976,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 125,
+            funcId: 142,
             port: port_,
           );
         },
@@ -4386,7 +5010,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 126,
+            funcId: 143,
           )!;
         },
         codec: SseCodec(
@@ -4415,7 +5039,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 127,
+            funcId: 144,
             port: port_,
           );
         },
@@ -4445,7 +5069,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 128,
+            funcId: 145,
             port: port_,
           );
         },
@@ -4475,7 +5099,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 129,
+            funcId: 146,
             port: port_,
           );
         },
@@ -4502,7 +5126,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 130,
+            funcId: 147,
             port: port_,
           );
         },
@@ -4529,7 +5153,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 131,
+            funcId: 148,
           )!;
         },
         codec: SseCodec(
@@ -4556,7 +5180,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 132,
+            funcId: 149,
             port: port_,
           );
         },
@@ -4586,7 +5210,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 133,
+            funcId: 150,
           )!;
         },
         codec: SseCodec(
@@ -4617,7 +5241,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 134,
+            funcId: 151,
             port: port_,
           );
         },
@@ -4645,7 +5269,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 135,
+            funcId: 152,
           )!;
         },
         codec: SseCodec(
@@ -4676,7 +5300,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 136,
+            funcId: 153,
             port: port_,
           );
         },
@@ -4706,7 +5330,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 137,
+            funcId: 154,
             port: port_,
           );
         },
@@ -4738,7 +5362,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 138,
+            funcId: 155,
             port: port_,
           );
         },
@@ -4772,7 +5396,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 139,
+            funcId: 156,
             port: port_,
           );
         },
@@ -4806,7 +5430,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 140,
+            funcId: 157,
             port: port_,
           );
         },
@@ -4837,7 +5461,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 141,
+            funcId: 158,
           )!;
         },
         codec: SseCodec(
@@ -4864,7 +5488,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 142,
+            funcId: 159,
           )!;
         },
         codec: SseCodec(
@@ -4894,7 +5518,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 143,
+            funcId: 160,
           )!;
         },
         codec: SseCodec(
@@ -4925,7 +5549,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 144,
+            funcId: 161,
             port: port_,
           );
         },
@@ -4960,7 +5584,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 145,
+            funcId: 162,
             port: port_,
           );
         },
@@ -4995,7 +5619,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 146,
+            funcId: 163,
             port: port_,
           );
         },
@@ -5032,7 +5656,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 147,
+            funcId: 164,
             port: port_,
           );
         },
@@ -5067,7 +5691,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 148,
+            funcId: 165,
             port: port_,
           );
         },
@@ -5097,7 +5721,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 149,
+            funcId: 166,
           )!;
         },
         codec: SseCodec(
@@ -5129,7 +5753,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 150,
+            funcId: 167,
             port: port_,
           );
         },
@@ -5164,7 +5788,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 151,
+            funcId: 168,
             port: port_,
           );
         },
@@ -5192,7 +5816,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 152,
+            funcId: 169,
           )!;
         },
         codec: SseCodec(
@@ -5223,7 +5847,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 153,
+            funcId: 170,
             port: port_,
           );
         },
@@ -5258,7 +5882,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 154,
+            funcId: 171,
             port: port_,
           );
         },
@@ -5293,7 +5917,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 155,
+            funcId: 172,
             port: port_,
           );
         },
@@ -5324,7 +5948,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 156,
+            funcId: 173,
           )!;
         },
         codec: SseCodec(
@@ -5357,7 +5981,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 157,
+            funcId: 174,
             port: port_,
           );
         },
@@ -5387,7 +6011,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 158,
+            funcId: 175,
             port: port_,
           );
         },
@@ -5415,7 +6039,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 159,
+            funcId: 176,
             port: port_,
           );
         },
@@ -5443,7 +6067,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 160,
+            funcId: 177,
             port: port_,
           );
         },
@@ -5470,7 +6094,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 161,
+            funcId: 178,
             port: port_,
           );
         },
@@ -5497,7 +6121,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 162,
+            funcId: 179,
             port: port_,
           );
         },
@@ -5525,7 +6149,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 163,
+            funcId: 180,
             port: port_,
           );
         },
@@ -5552,7 +6176,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 164,
+            funcId: 181,
             port: port_,
           );
         },
@@ -5582,7 +6206,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 165,
+            funcId: 182,
             port: port_,
           );
         },
@@ -5612,7 +6236,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 166,
+            funcId: 183,
             port: port_,
           );
         },
@@ -5643,7 +6267,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 167,
+            funcId: 184,
             port: port_,
           );
         },
@@ -5673,7 +6297,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 168,
+            funcId: 185,
             port: port_,
           );
         },
@@ -6070,6 +6694,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DirectoryPodcastDto dco_decode_directory_podcast_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    return DirectoryPodcastDto(
+      itunesId: dco_decode_opt_box_autoadd_i_64(arr[0]),
+      title: dco_decode_String(arr[1]),
+      author: dco_decode_opt_String(arr[2]),
+      artworkUrl: dco_decode_opt_String(arr[3]),
+      feedUrl: dco_decode_opt_String(arr[4]),
+      genre: dco_decode_opt_String(arr[5]),
+      episodeCount: dco_decode_opt_box_autoadd_u_32(arr[6]),
+      localId: dco_decode_opt_box_autoadd_i_64(arr[7]),
+      subscribed: dco_decode_bool(arr[8]),
+    );
+  }
+
+  @protected
   DiscoveredKindDto dco_decode_discovered_kind_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return DiscoveredKindDto.values[raw as int];
@@ -6396,6 +7039,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<DirectoryPodcastDto> dco_decode_list_directory_podcast_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_directory_podcast_dto)
+        .toList();
+  }
+
+  @protected
   List<DiscoveredServiceDto> dco_decode_list_discovered_service_dto(
     dynamic raw,
   ) {
@@ -6503,6 +7154,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<PluginSettingDto> dco_decode_list_plugin_setting_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_plugin_setting_dto).toList();
+  }
+
+  @protected
+  List<PodcastDto> dco_decode_list_podcast_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_podcast_dto).toList();
+  }
+
+  @protected
+  List<PodcastEpisodeDto> dco_decode_list_podcast_episode_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_podcast_episode_dto).toList();
   }
 
   @protected
@@ -6692,6 +7355,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return OfflineStatsDto(
       count: dco_decode_u_64(arr[0]),
       bytes: dco_decode_u_64(arr[1]),
+    );
+  }
+
+  @protected
+  OpmlImportReportDto dco_decode_opml_import_report_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return OpmlImportReportDto(
+      total: dco_decode_u_32(arr[0]),
+      added: dco_decode_u_32(arr[1]),
+      alreadySubscribed: dco_decode_u_32(arr[2]),
+      failed: dco_decode_u_32(arr[3]),
     );
   }
 
@@ -7051,6 +7728,71 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       value: dco_decode_opt_String(arr[6]),
       hasValue: dco_decode_bool(arr[7]),
       secret: dco_decode_bool(arr[8]),
+    );
+  }
+
+  @protected
+  PodcastDto dco_decode_podcast_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 15)
+      throw Exception('unexpected arr length: expect 15 but see ${arr.length}');
+    return PodcastDto(
+      id: dco_decode_i_64(arr[0]),
+      feedUrl: dco_decode_String(arr[1]),
+      itunesId: dco_decode_opt_box_autoadd_i_64(arr[2]),
+      title: dco_decode_String(arr[3]),
+      author: dco_decode_opt_String(arr[4]),
+      description: dco_decode_opt_String(arr[5]),
+      artworkUrl: dco_decode_opt_String(arr[6]),
+      link: dco_decode_opt_String(arr[7]),
+      categories: dco_decode_list_String(arr[8]),
+      subscribed: dco_decode_bool(arr[9]),
+      lastRefreshedAt: dco_decode_opt_box_autoadd_i_64(arr[10]),
+      lastError: dco_decode_opt_String(arr[11]),
+      episodeCount: dco_decode_u_32(arr[12]),
+      unplayedCount: dco_decode_u_32(arr[13]),
+      latestPublishedAt: dco_decode_opt_box_autoadd_i_64(arr[14]),
+    );
+  }
+
+  @protected
+  PodcastEpisodeDto dco_decode_podcast_episode_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 17)
+      throw Exception('unexpected arr length: expect 17 but see ${arr.length}');
+    return PodcastEpisodeDto(
+      id: dco_decode_i_64(arr[0]),
+      trackId: dco_decode_i_64(arr[1]),
+      podcastId: dco_decode_i_64(arr[2]),
+      podcastTitle: dco_decode_String(arr[3]),
+      title: dco_decode_String(arr[4]),
+      description: dco_decode_opt_String(arr[5]),
+      audioUrl: dco_decode_String(arr[6]),
+      sizeBytes: dco_decode_opt_box_autoadd_u_64(arr[7]),
+      durationMs: dco_decode_u_64(arr[8]),
+      publishedAt: dco_decode_opt_box_autoadd_i_64(arr[9]),
+      artworkUrl: dco_decode_opt_String(arr[10]),
+      episodeNo: dco_decode_opt_box_autoadd_u_32(arr[11]),
+      seasonNo: dco_decode_opt_box_autoadd_u_32(arr[12]),
+      link: dco_decode_opt_String(arr[13]),
+      positionMs: dco_decode_u_64(arr[14]),
+      played: dco_decode_bool(arr[15]),
+      lastPlayedAt: dco_decode_opt_box_autoadd_i_64(arr[16]),
+    );
+  }
+
+  @protected
+  PodcastRefreshReportDto dco_decode_podcast_refresh_report_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return PodcastRefreshReportDto(
+      refreshed: dco_decode_u_32(arr[0]),
+      failed: dco_decode_u_32(arr[1]),
+      newEpisodes: dco_decode_u_32(arr[2]),
     );
   }
 
@@ -7951,6 +8693,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DirectoryPodcastDto sse_decode_directory_podcast_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_itunesId = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_title = sse_decode_String(deserializer);
+    var var_author = sse_decode_opt_String(deserializer);
+    var var_artworkUrl = sse_decode_opt_String(deserializer);
+    var var_feedUrl = sse_decode_opt_String(deserializer);
+    var var_genre = sse_decode_opt_String(deserializer);
+    var var_episodeCount = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_localId = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_subscribed = sse_decode_bool(deserializer);
+    return DirectoryPodcastDto(
+      itunesId: var_itunesId,
+      title: var_title,
+      author: var_author,
+      artworkUrl: var_artworkUrl,
+      feedUrl: var_feedUrl,
+      genre: var_genre,
+      episodeCount: var_episodeCount,
+      localId: var_localId,
+      subscribed: var_subscribed,
+    );
+  }
+
+  @protected
   DiscoveredKindDto sse_decode_discovered_kind_dto(
     SseDeserializer deserializer,
   ) {
@@ -8382,6 +9151,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<DirectoryPodcastDto> sse_decode_list_directory_podcast_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <DirectoryPodcastDto>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_directory_podcast_dto(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<DiscoveredServiceDto> sse_decode_list_discovered_service_dto(
     SseDeserializer deserializer,
   ) {
@@ -8613,6 +9396,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <PluginSettingDto>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_plugin_setting_dto(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<PodcastDto> sse_decode_list_podcast_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <PodcastDto>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_podcast_dto(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<PodcastEpisodeDto> sse_decode_list_podcast_episode_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <PodcastEpisodeDto>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_podcast_episode_dto(deserializer));
     }
     return ans_;
   }
@@ -8893,6 +9702,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_count = sse_decode_u_64(deserializer);
     var var_bytes = sse_decode_u_64(deserializer);
     return OfflineStatsDto(count: var_count, bytes: var_bytes);
+  }
+
+  @protected
+  OpmlImportReportDto sse_decode_opml_import_report_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_total = sse_decode_u_32(deserializer);
+    var var_added = sse_decode_u_32(deserializer);
+    var var_alreadySubscribed = sse_decode_u_32(deserializer);
+    var var_failed = sse_decode_u_32(deserializer);
+    return OpmlImportReportDto(
+      total: var_total,
+      added: var_added,
+      alreadySubscribed: var_alreadySubscribed,
+      failed: var_failed,
+    );
   }
 
   @protected
@@ -9420,6 +10246,101 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       value: var_value,
       hasValue: var_hasValue,
       secret: var_secret,
+    );
+  }
+
+  @protected
+  PodcastDto sse_decode_podcast_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_i_64(deserializer);
+    var var_feedUrl = sse_decode_String(deserializer);
+    var var_itunesId = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_title = sse_decode_String(deserializer);
+    var var_author = sse_decode_opt_String(deserializer);
+    var var_description = sse_decode_opt_String(deserializer);
+    var var_artworkUrl = sse_decode_opt_String(deserializer);
+    var var_link = sse_decode_opt_String(deserializer);
+    var var_categories = sse_decode_list_String(deserializer);
+    var var_subscribed = sse_decode_bool(deserializer);
+    var var_lastRefreshedAt = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_lastError = sse_decode_opt_String(deserializer);
+    var var_episodeCount = sse_decode_u_32(deserializer);
+    var var_unplayedCount = sse_decode_u_32(deserializer);
+    var var_latestPublishedAt = sse_decode_opt_box_autoadd_i_64(deserializer);
+    return PodcastDto(
+      id: var_id,
+      feedUrl: var_feedUrl,
+      itunesId: var_itunesId,
+      title: var_title,
+      author: var_author,
+      description: var_description,
+      artworkUrl: var_artworkUrl,
+      link: var_link,
+      categories: var_categories,
+      subscribed: var_subscribed,
+      lastRefreshedAt: var_lastRefreshedAt,
+      lastError: var_lastError,
+      episodeCount: var_episodeCount,
+      unplayedCount: var_unplayedCount,
+      latestPublishedAt: var_latestPublishedAt,
+    );
+  }
+
+  @protected
+  PodcastEpisodeDto sse_decode_podcast_episode_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_i_64(deserializer);
+    var var_trackId = sse_decode_i_64(deserializer);
+    var var_podcastId = sse_decode_i_64(deserializer);
+    var var_podcastTitle = sse_decode_String(deserializer);
+    var var_title = sse_decode_String(deserializer);
+    var var_description = sse_decode_opt_String(deserializer);
+    var var_audioUrl = sse_decode_String(deserializer);
+    var var_sizeBytes = sse_decode_opt_box_autoadd_u_64(deserializer);
+    var var_durationMs = sse_decode_u_64(deserializer);
+    var var_publishedAt = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_artworkUrl = sse_decode_opt_String(deserializer);
+    var var_episodeNo = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_seasonNo = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_link = sse_decode_opt_String(deserializer);
+    var var_positionMs = sse_decode_u_64(deserializer);
+    var var_played = sse_decode_bool(deserializer);
+    var var_lastPlayedAt = sse_decode_opt_box_autoadd_i_64(deserializer);
+    return PodcastEpisodeDto(
+      id: var_id,
+      trackId: var_trackId,
+      podcastId: var_podcastId,
+      podcastTitle: var_podcastTitle,
+      title: var_title,
+      description: var_description,
+      audioUrl: var_audioUrl,
+      sizeBytes: var_sizeBytes,
+      durationMs: var_durationMs,
+      publishedAt: var_publishedAt,
+      artworkUrl: var_artworkUrl,
+      episodeNo: var_episodeNo,
+      seasonNo: var_seasonNo,
+      link: var_link,
+      positionMs: var_positionMs,
+      played: var_played,
+      lastPlayedAt: var_lastPlayedAt,
+    );
+  }
+
+  @protected
+  PodcastRefreshReportDto sse_decode_podcast_refresh_report_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_refreshed = sse_decode_u_32(deserializer);
+    var var_failed = sse_decode_u_32(deserializer);
+    var var_newEpisodes = sse_decode_u_32(deserializer);
+    return PodcastRefreshReportDto(
+      refreshed: var_refreshed,
+      failed: var_failed,
+      newEpisodes: var_newEpisodes,
     );
   }
 
@@ -10404,6 +11325,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_directory_podcast_dto(
+    DirectoryPodcastDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_box_autoadd_i_64(self.itunesId, serializer);
+    sse_encode_String(self.title, serializer);
+    sse_encode_opt_String(self.author, serializer);
+    sse_encode_opt_String(self.artworkUrl, serializer);
+    sse_encode_opt_String(self.feedUrl, serializer);
+    sse_encode_opt_String(self.genre, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.episodeCount, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.localId, serializer);
+    sse_encode_bool(self.subscribed, serializer);
+  }
+
+  @protected
   void sse_encode_discovered_kind_dto(
     DiscoveredKindDto self,
     SseSerializer serializer,
@@ -10738,6 +11676,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_directory_podcast_dto(
+    List<DirectoryPodcastDto> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_directory_podcast_dto(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_discovered_service_dto(
     List<DiscoveredServiceDto> self,
     SseSerializer serializer,
@@ -10938,6 +11888,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_plugin_setting_dto(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_podcast_dto(
+    List<PodcastDto> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_podcast_dto(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_podcast_episode_dto(
+    List<PodcastEpisodeDto> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_podcast_episode_dto(item, serializer);
     }
   }
 
@@ -11181,6 +12155,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_64(self.count, serializer);
     sse_encode_u_64(self.bytes, serializer);
+  }
+
+  @protected
+  void sse_encode_opml_import_report_dto(
+    OpmlImportReportDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.total, serializer);
+    sse_encode_u_32(self.added, serializer);
+    sse_encode_u_32(self.alreadySubscribed, serializer);
+    sse_encode_u_32(self.failed, serializer);
   }
 
   @protected
@@ -11637,6 +12623,62 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.value, serializer);
     sse_encode_bool(self.hasValue, serializer);
     sse_encode_bool(self.secret, serializer);
+  }
+
+  @protected
+  void sse_encode_podcast_dto(PodcastDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.id, serializer);
+    sse_encode_String(self.feedUrl, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.itunesId, serializer);
+    sse_encode_String(self.title, serializer);
+    sse_encode_opt_String(self.author, serializer);
+    sse_encode_opt_String(self.description, serializer);
+    sse_encode_opt_String(self.artworkUrl, serializer);
+    sse_encode_opt_String(self.link, serializer);
+    sse_encode_list_String(self.categories, serializer);
+    sse_encode_bool(self.subscribed, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.lastRefreshedAt, serializer);
+    sse_encode_opt_String(self.lastError, serializer);
+    sse_encode_u_32(self.episodeCount, serializer);
+    sse_encode_u_32(self.unplayedCount, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.latestPublishedAt, serializer);
+  }
+
+  @protected
+  void sse_encode_podcast_episode_dto(
+    PodcastEpisodeDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.id, serializer);
+    sse_encode_i_64(self.trackId, serializer);
+    sse_encode_i_64(self.podcastId, serializer);
+    sse_encode_String(self.podcastTitle, serializer);
+    sse_encode_String(self.title, serializer);
+    sse_encode_opt_String(self.description, serializer);
+    sse_encode_String(self.audioUrl, serializer);
+    sse_encode_opt_box_autoadd_u_64(self.sizeBytes, serializer);
+    sse_encode_u_64(self.durationMs, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.publishedAt, serializer);
+    sse_encode_opt_String(self.artworkUrl, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.episodeNo, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.seasonNo, serializer);
+    sse_encode_opt_String(self.link, serializer);
+    sse_encode_u_64(self.positionMs, serializer);
+    sse_encode_bool(self.played, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.lastPlayedAt, serializer);
+  }
+
+  @protected
+  void sse_encode_podcast_refresh_report_dto(
+    PodcastRefreshReportDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.refreshed, serializer);
+    sse_encode_u_32(self.failed, serializer);
+    sse_encode_u_32(self.newEpisodes, serializer);
   }
 
   @protected

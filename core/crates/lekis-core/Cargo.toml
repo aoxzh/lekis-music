@@ -26,14 +26,17 @@ mdns-sd.workspace = true
 reqwest.workspace = true
 # 把旧版本塞在地址 userinfo 里的密码迁回凭据库（SRC-15）。
 url.workspace = true
+# 播客 RSS / Atom / OPML 解析（SRC-12）。
+quick-xml.workspace = true
 # 插件 .zip 安装。
 zip.workspace = true
+# 多地址媒体服务器故障转移（SRC-14）实现 MediaServer trait。
+async-trait.workspace = true
 
 [dev-dependencies]
 # 测试里造 PNG 封面（缩略图按需生成、接受封面候选）。
 image.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
-async-trait.workspace = true
 bytes.workspace = true
 
 [lints]

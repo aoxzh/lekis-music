@@ -19,6 +19,7 @@ use lekis_playback::{MediaLocation, MediaSource};
 use lekis_providers::MediaServer;
 use lekis_types::{LekisError, Result, SourceConfig, SourceId, SourceKind, TrackId};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
@@ -124,6 +125,19 @@ impl Resolver {
                     headers: Vec::new(),
                 },
                 duration_hint_ms: 0,
+                gain_db: None,
+            });
+        }
+        // SRC-12：播客单集同样是合成 TrackId，直接打开 enclosure 地址（支持 Range 时可 seek）。
+        if let Some(episode_id) = lekis_types::PodcastEpisodeId::from_track_id(track_id) {
+            let episode = self.library.podcast_episode(episode_id).await?;
+            return Ok(MediaSource {
+                track_id,
+                location: MediaLocation::Url {
+                    url: episode.audio_url,
+                    headers: Vec::new(),
+                },
+                duration_hint_ms: episode.duration_ms,
                 gain_db: None,
             });
         }
@@ -270,7 +284,7 @@ impl Resolver {
 /// 按源配置构造服务器客户端。
 ///
 /// 约定（与 `SourceConfig` 的字段对应）：
-/// - `addresses[0]`：服务器根地址；
+/// - `addresses`：服务器根地址，第一个优先，其余是备用地址（SRC-14）；
 /// - `options["username"]`：OpenSubsonic / Jellyfin 的用户名（Jellyfin 走 API Key 时不需要）；
 /// - `options["api_key"]` 或 `credential_ref` 指向的密钥：Jellyfin 的 API Key、Plex 的 token；
 /// - `credential_ref` 指向的密钥优先当作"密码 / token"，`options` 里的明文只作为兜底。
@@ -278,12 +292,6 @@ pub(crate) fn build_server(
     config: &SourceConfig,
     credentials: &dyn crate::CredentialStore,
 ) -> Result<Box<dyn MediaServer>> {
-    let base_url = config
-        .addresses
-        .first()
-        .map(|s| s.trim_end_matches('/'))
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| LekisError::invalid("server source needs at least one address"))?;
     let secret = config
         .credential_ref
         .as_deref()
@@ -293,12 +301,39 @@ pub(crate) fn build_server(
         .unwrap_or_default();
     let username = config.options.get("username").cloned().unwrap_or_default();
 
-    match config.kind {
+    // SRC-14：每个地址（家里 / Tailscale / 外网）各建一个客户端，按顺序故障转移。
+    let mut servers: Vec<Box<dyn MediaServer>> = Vec::new();
+    let mut last_error = None;
+    for raw in &config.addresses {
+        let base_url = raw.trim().trim_end_matches('/');
+        if base_url.is_empty() {
+            continue;
+        }
+        match build_one_server(config.kind, base_url, &username, secret.clone()) {
+            Ok(server) => servers.push(server),
+            Err(e) => last_error = Some(e),
+        }
+    }
+    match servers.len() {
+        0 => Err(last_error
+            .unwrap_or_else(|| LekisError::invalid("server source needs at least one address"))),
+        1 => Ok(servers.remove(0)),
+        _ => Ok(Box::new(FailoverServer::new(servers))),
+    }
+}
+
+fn build_one_server(
+    kind: SourceKind,
+    base_url: &str,
+    username: &str,
+    secret: String,
+) -> Result<Box<dyn MediaServer>> {
+    match kind {
         SourceKind::OpenSubsonic => Ok(Box::new(lekis_providers::opensubsonic::OpenSubsonic::new(
-            base_url, &username, secret,
+            base_url, username, secret,
         ))),
         SourceKind::Jellyfin | SourceKind::Emby => Ok(Box::new(
-            lekis_providers::jellyfin::Jellyfin::new(config.kind, base_url, secret)?,
+            lekis_providers::jellyfin::Jellyfin::new(kind, base_url, secret)?,
         )),
         SourceKind::Plex => Ok(Box::new(lekis_providers::plex::Plex::new(
             base_url, secret,
@@ -306,6 +341,91 @@ pub(crate) fn build_server(
         other => Err(LekisError::unsupported(format!(
             "not a media server source: {other:?}"
         ))),
+    }
+}
+
+/// 多地址媒体服务器：从上次成功的地址开始依次尝试，成功的地址会被记住。
+/// 规则和 `lekis_vfs::failover::FailoverVfs` 一致：已确认可达的地址给出明确
+/// 答复（找不到、参数错、凭据错…）时不再换地址重试。
+struct FailoverServer {
+    servers: Vec<Box<dyn MediaServer>>,
+    current: AtomicUsize,
+    verified: AtomicBool,
+}
+
+impl FailoverServer {
+    fn new(servers: Vec<Box<dyn MediaServer>>) -> Self {
+        Self {
+            servers,
+            current: AtomicUsize::new(0),
+            verified: AtomicBool::new(false),
+        }
+    }
+
+    async fn attempt<'a, T, F, Fut>(&'a self, f: F) -> Result<T>
+    where
+        F: Fn(&'a dyn MediaServer) -> Fut,
+        Fut: std::future::Future<Output = Result<T>> + 'a,
+    {
+        let n = self.servers.len();
+        let start = self.current.load(Ordering::Relaxed) % n;
+        let mut last_error = None;
+        for step in 0..n {
+            let index = (start + step) % n;
+            match f(self.servers[index].as_ref()).await {
+                Ok(value) => {
+                    self.current.store(index, Ordering::Relaxed);
+                    self.verified.store(true, Ordering::Relaxed);
+                    return Ok(value);
+                }
+                Err(e) => {
+                    let definite = lekis_vfs::failover::is_definite_answer(&e)
+                        || e.code == lekis_types::ErrorCode::Auth;
+                    if step == 0 && self.verified.load(Ordering::Relaxed) && definite {
+                        return Err(e);
+                    }
+                    if step == 0 {
+                        self.verified.store(false, Ordering::Relaxed);
+                    }
+                    last_error = Some(e);
+                }
+            }
+        }
+        Err(last_error.unwrap_or_else(|| LekisError::internal("no server address")))
+    }
+}
+
+#[async_trait::async_trait]
+impl MediaServer for FailoverServer {
+    fn kind(&self) -> SourceKind {
+        self.servers[0].kind()
+    }
+
+    async fn ping(&self) -> Result<()> {
+        self.attempt(|s| s.ping()).await
+    }
+
+    async fn list_tracks(
+        &self,
+        offset: u32,
+        limit: u32,
+        since_ms: Option<i64>,
+    ) -> Result<Vec<lekis_providers::RemoteTrack>> {
+        self.attempt(|s| s.list_tracks(offset, limit, since_ms))
+            .await
+    }
+
+    async fn stream(
+        &self,
+        external_id: &str,
+        quality: lekis_providers::StreamQuality,
+    ) -> Result<lekis_providers::StreamTarget> {
+        self.attempt(|s| s.stream(external_id, quality)).await
+    }
+
+    async fn scrobble(&self, external_id: &str, played_at_ms: i64) -> Result<()> {
+        self.attempt(|s| s.scrobble(external_id, played_at_ms))
+            .await
     }
 }
 
@@ -546,5 +666,72 @@ mod tests {
             selection::stream_quality_for(&f, NetworkContext::Home),
             lekis_providers::StreamQuality::Original
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod failover_server_tests {
+    use super::*;
+    use lekis_providers::{RemoteTrack, StreamQuality, StreamTarget};
+    use lekis_types::ErrorCode;
+    use std::sync::atomic::AtomicU32;
+
+    struct Fake {
+        error: Option<ErrorCode>,
+        calls: Arc<AtomicU32>,
+    }
+
+    #[async_trait::async_trait]
+    impl MediaServer for Fake {
+        fn kind(&self) -> SourceKind {
+            SourceKind::Jellyfin
+        }
+        async fn ping(&self) -> Result<()> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            match self.error {
+                Some(code) => Err(LekisError::new(code, "fake")),
+                None => Ok(()),
+            }
+        }
+        async fn list_tracks(&self, _: u32, _: u32, _: Option<i64>) -> Result<Vec<RemoteTrack>> {
+            Ok(Vec::new())
+        }
+        async fn stream(&self, _: &str, _: StreamQuality) -> Result<StreamTarget> {
+            Err(LekisError::new(ErrorCode::NotFound, "no such track"))
+        }
+        async fn scrobble(&self, _: &str, _: i64) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn unreachable_first_address_falls_back_and_sticks() {
+        let a = Arc::new(AtomicU32::new(0));
+        let b = Arc::new(AtomicU32::new(0));
+        let server = FailoverServer::new(vec![
+            Box::new(Fake {
+                error: Some(ErrorCode::Network),
+                calls: a.clone(),
+            }),
+            Box::new(Fake {
+                error: None,
+                calls: b.clone(),
+            }),
+        ]);
+        server.ping().await.unwrap();
+        server.ping().await.unwrap();
+        assert_eq!(a.load(Ordering::Relaxed), 1, "dead address tried only once");
+        assert_eq!(b.load(Ordering::Relaxed), 2);
+        // A definite "not found" from the known-good address is final.
+        assert_eq!(
+            server
+                .stream("x", StreamQuality::Original)
+                .await
+                .unwrap_err()
+                .code,
+            ErrorCode::NotFound
+        );
+        assert_eq!(server.current.load(Ordering::Relaxed), 1);
     }
 }

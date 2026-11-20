@@ -187,8 +187,8 @@ fn existing_track_ids(c: &Connection, ids: &[i64]) -> Result<HashSet<i64>> {
         let radio_ids: Vec<i64> = chunk
             .iter()
             .copied()
-            .filter(|id| *id < 0)
-            .map(|id| -id)
+            .filter_map(|id| lekis_types::RadioStationId::from_track_id(lekis_types::TrackId(id)))
+            .map(|id| id.0)
             .collect();
         if !radio_ids.is_empty() {
             let placeholders = std::iter::repeat_n("?", radio_ids.len())
@@ -203,6 +203,29 @@ fn existing_track_ids(c: &Connection, ids: &[i64]) -> Result<HashSet<i64>> {
                 .db()?;
             for id in rows {
                 valid.insert(id.db()?);
+            }
+        }
+
+        // 播客单集同理（SRC-12），合成 ID 是 -(2^40 + id)。
+        let episode_ids: Vec<i64> = chunk
+            .iter()
+            .copied()
+            .filter_map(|id| lekis_types::PodcastEpisodeId::from_track_id(lekis_types::TrackId(id)))
+            .map(|id| id.0)
+            .collect();
+        if !episode_ids.is_empty() {
+            let placeholders = std::iter::repeat_n("?", episode_ids.len())
+                .collect::<Vec<_>>()
+                .join(",");
+            let sql = format!("SELECT id FROM podcast_episode WHERE id IN ({placeholders})");
+            let mut stmt = c.prepare_cached(&sql).db()?;
+            let rows = stmt
+                .query_map(rusqlite::params_from_iter(episode_ids.iter()), |r| {
+                    r.get::<_, i64>(0)
+                })
+                .db()?;
+            for id in rows {
+                valid.insert(lekis_types::PodcastEpisodeId(id.db()?).track_id().0);
             }
         }
     }

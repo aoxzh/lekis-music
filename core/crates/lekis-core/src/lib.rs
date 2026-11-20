@@ -24,6 +24,7 @@ mod lyrics_local;
 mod offline;
 pub mod platform;
 pub mod plugins;
+pub mod podcast;
 pub mod radio;
 mod remote_scan;
 mod resolver;
@@ -40,6 +41,9 @@ pub use health::HealthScanReport;
 pub use lekis_playback::PlaybackSnapshot;
 pub use platform::{CredentialStore, MemoryCredentialStore, PlatformServices};
 pub use plugins::{PluginInfo, PluginPermissions, PluginSettingView};
+pub use podcast::{
+    DirectoryPodcast, OpmlImportReport, PodcastRefreshReport, PODCAST_DIRECTORY_MAX,
+};
 pub use radio::{
     RadioFilterOption, RadioFilterOptions, RadioPage, RadioQuery, RadioSort, RADIO_PAGE_MAX,
 };
@@ -48,12 +52,12 @@ pub use selection::{NetworkContext, Reachability, SourceHealth};
 pub use sync_engine::SyncReport;
 
 use events::EventBus;
+pub use lekis_library::ListeningSummary;
 pub use lekis_library::{
     BatchTagWriteItem, DuplicateGroup, DuplicateTrack, HealthIssueKind, LibraryHealthEntry,
     LibraryHealthSummary, OfflineDownload, OfflineStats, PlaybackStateRow, SourceInfo,
     TagWriteResult, TrackContext, TrackUserState,
 };
-pub use lekis_library::ListeningSummary;
 use lekis_library::{EnrichCandidateRow, Library, LyricsRow, PlaylistEntry};
 use lekis_playback::{EngineCommand, EqControl, OutputDevice, OutputMode, PlaybackEngine};
 use lekis_scanner::{tags::LoftyTagReader, Scanner};
@@ -100,6 +104,8 @@ struct Services {
     scrobble: Arc<scrobble::Scrobbler>,
     /// 网络电台（SRC-11）：Radio Browser 客户端和筛选缓存。
     radio: radio::RadioBrowser,
+    /// 播客（SRC-12）：Apple 目录 + RSS 抓取。
+    podcast: podcast::PodcastClient,
     /// 正在进行的离线下载（曲目 → 取消标记）。
     downloads:
         std::sync::Mutex<std::collections::HashMap<TrackId, Arc<std::sync::atomic::AtomicBool>>>,
@@ -298,6 +304,7 @@ impl LekisCore {
             &config.data_dir,
         ));
         let radio = radio::RadioBrowser::new()?;
+        let podcast = podcast::PodcastClient::new()?;
         let plugins = Arc::new(plugins::PluginManager::new(
             &config.data_dir,
             library.clone(),
@@ -319,6 +326,7 @@ impl LekisCore {
             resolver,
             scrobble: scrobbler,
             radio,
+            podcast,
             downloads: std::sync::Mutex::new(std::collections::HashMap::new()),
             plugins,
             eq,
@@ -915,6 +923,10 @@ impl LekisCore {
                 let station = s.library.radio_station(station_id).await?;
                 return Ok(radio::station_track(&station));
             }
+            if let Some(episode_id) = PodcastEpisodeId::from_track_id(id) {
+                let episode = s.library.podcast_episode(episode_id).await?;
+                return Ok(podcast::episode_track(&episode));
+            }
             s.library.get_track(id).await
         })
         .await
@@ -933,6 +945,16 @@ impl LekisCore {
                     updated_hlc: None,
                 };
                 return Ok((radio::station_track(&station), state));
+            }
+            if let Some(episode_id) = PodcastEpisodeId::from_track_id(id) {
+                let episode = s.library.podcast_episode(episode_id).await?;
+                let state = TrackUserState {
+                    loved: false,
+                    rating: None,
+                    play_count: 0,
+                    updated_hlc: None,
+                };
+                return Ok((podcast::episode_track(&episode), state));
             }
             let track = s.library.get_track(id).await?;
             let state = s.library.user_state(track.uid.clone()).await?;
@@ -1164,6 +1186,10 @@ impl LekisCore {
             self.radio_set_favorite(station_id, loved).await?;
             return Ok(());
         }
+        // 播客单集没有收藏（订阅在节目级别）。
+        if PodcastEpisodeId::from_track_id(id).is_some() {
+            return Ok(());
+        }
         let s = self.services.clone();
         self.run(async move {
             let track = s.library.get_track(id).await?;
@@ -1263,7 +1289,10 @@ impl LekisCore {
             let bands = serde_json::to_string(&settings.bands_db)
                 .map_err(|e| LekisError::internal(format!("serialize eq bands: {e}")))?;
             s.library
-                .set_setting(settings::EQ_ENABLED, if settings.enabled { "true" } else { "false" })
+                .set_setting(
+                    settings::EQ_ENABLED,
+                    if settings.enabled { "true" } else { "false" },
+                )
                 .await?;
             s.library
                 .set_setting(settings::EQ_PREAMP, &settings.preamp_db.to_string())
@@ -1555,6 +1584,15 @@ impl LekisCore {
                         Err(e) if e.code == ErrorCode::NotFound => {}
                         Err(e) => return Err(e),
                     }
+                } else if let Some(episode_id) = PodcastEpisodeId::from_track_id(id) {
+                    match s.library.podcast_episode(episode_id).await {
+                        Ok(episode) => {
+                            rows.push(podcast::episode_track_row(&episode));
+                            continue;
+                        }
+                        Err(e) if e.code == ErrorCode::NotFound => {}
+                        Err(e) => return Err(e),
+                    }
                 } else {
                     match s.library.track_row(id).await {
                         Ok(row) => {
@@ -1652,6 +1690,10 @@ impl LekisCore {
     /// 播放中由 App 节流调用，不要每个进度 tick 都写库。
     pub async fn save_playback_state(&self) -> Result<()> {
         let snap = self.services.engine.snapshot();
+        // SRC-12：正在播的是播客单集时顺带记住进度（失败不影响会话保存）。
+        if let Err(e) = self.podcast_save_progress(&snap).await {
+            tracing::debug!(target: "core::podcast", error = %e.message, "save podcast progress failed");
+        }
         let s = self.services.clone();
         if snap.queue.is_empty() {
             return self
@@ -1867,7 +1909,7 @@ impl LekisCore {
     ///
     /// 电台没有歌词：直接返回 `None`，不查库、不发网络请求。
     pub async fn lyrics(&self, id: TrackId) -> Result<Option<Lyrics>> {
-        if RadioStationId::from_track_id(id).is_some() {
+        if id.0 < 0 {
             return Ok(None);
         }
         let s = self.services.clone();
@@ -1902,7 +1944,7 @@ impl LekisCore {
 
     /// 这首歌所有可用歌词（按来源优先级排序，供用户切换）。
     pub async fn lyrics_versions(&self, id: TrackId) -> Result<Vec<LyricsRow>> {
-        if RadioStationId::from_track_id(id).is_some() {
+        if id.0 < 0 {
             return Ok(Vec::new());
         }
         let s = self.services.clone();
@@ -1931,7 +1973,7 @@ impl LekisCore {
 
     /// 曲目的生效封面（曲目级优先，回落专辑级）。电台没有本地封面。
     pub async fn artwork(&self, id: TrackId) -> Result<Option<lekis_library::ArtworkRow>> {
-        if RadioStationId::from_track_id(id).is_some() {
+        if id.0 < 0 {
             return Ok(None);
         }
         let s = self.services.clone();
@@ -2266,6 +2308,10 @@ impl LekisCore {
     ///
     /// 电台只更新最近播放时间，不写曲目播放统计，也不产生 scrobble。
     pub async fn record_play(&self, id: TrackId, ms_played: u64) -> Result<()> {
+        // 播客单集的进度由 save_playback_state 写回，不进曲目播放统计。
+        if PodcastEpisodeId::from_track_id(id).is_some() {
+            return Ok(());
+        }
         if let Some(station_id) = RadioStationId::from_track_id(id) {
             let s = self.services.clone();
             self.run(async move {
@@ -2987,8 +3033,7 @@ mod tests {
         rt.block_on(async {
             for _ in 0..400 {
                 if !core.playback_snapshot().gapless
-                    && core.services.resolver.replaygain_mode()
-                        == resolver::ReplayGainMode::Album
+                    && core.services.resolver.replaygain_mode() == resolver::ReplayGainMode::Album
                 {
                     break;
                 }
@@ -3008,8 +3053,7 @@ mod tests {
     /// PLY-04：设置写入资料库、立即进入播放控制句柄，重启后还能读回来。
     #[test]
     fn equalizer_settings_persist_and_apply_immediately() -> Result<()> {
-        let root =
-            std::env::temp_dir().join(format!("lekis-core-eq-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("lekis-core-eq-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let saved = EqualizerSettings {
             enabled: true,

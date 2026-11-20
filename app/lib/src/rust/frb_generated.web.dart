@@ -10,6 +10,7 @@ import 'api/core.dart';
 import 'api/dto.dart';
 import 'api/error.dart';
 import 'api/media_controls.dart';
+import 'api/podcast.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -144,6 +145,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CoreEventDto dco_decode_core_event_dto(dynamic raw);
 
   @protected
+  DirectoryPodcastDto dco_decode_directory_podcast_dto(dynamic raw);
+
+  @protected
   DiscoveredKindDto dco_decode_discovered_kind_dto(dynamic raw);
 
   @protected
@@ -235,6 +239,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<DirectoryPodcastDto> dco_decode_list_directory_podcast_dto(dynamic raw);
+
+  @protected
   List<DiscoveredServiceDto> dco_decode_list_discovered_service_dto(
     dynamic raw,
   );
@@ -288,6 +295,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<PluginSettingDto> dco_decode_list_plugin_setting_dto(dynamic raw);
+
+  @protected
+  List<PodcastDto> dco_decode_list_podcast_dto(dynamic raw);
+
+  @protected
+  List<PodcastEpisodeDto> dco_decode_list_podcast_episode_dto(dynamic raw);
 
   @protected
   Float32List dco_decode_list_prim_f_32_strict(dynamic raw);
@@ -353,6 +366,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   OfflineStatsDto dco_decode_offline_stats_dto(dynamic raw);
+
+  @protected
+  OpmlImportReportDto dco_decode_opml_import_report_dto(dynamic raw);
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
@@ -466,6 +482,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PluginSettingDto dco_decode_plugin_setting_dto(dynamic raw);
+
+  @protected
+  PodcastDto dco_decode_podcast_dto(dynamic raw);
+
+  @protected
+  PodcastEpisodeDto dco_decode_podcast_episode_dto(dynamic raw);
+
+  @protected
+  PodcastRefreshReportDto dco_decode_podcast_refresh_report_dto(dynamic raw);
 
   @protected
   RadioFilterOptionDto dco_decode_radio_filter_option_dto(dynamic raw);
@@ -726,6 +751,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CoreEventDto sse_decode_core_event_dto(SseDeserializer deserializer);
 
   @protected
+  DirectoryPodcastDto sse_decode_directory_podcast_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   DiscoveredKindDto sse_decode_discovered_kind_dto(
     SseDeserializer deserializer,
   );
@@ -841,6 +871,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<DirectoryPodcastDto> sse_decode_list_directory_podcast_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<DiscoveredServiceDto> sse_decode_list_discovered_service_dto(
     SseDeserializer deserializer,
   );
@@ -920,6 +955,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<PluginSettingDto> sse_decode_list_plugin_setting_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<PodcastDto> sse_decode_list_podcast_dto(SseDeserializer deserializer);
+
+  @protected
+  List<PodcastEpisodeDto> sse_decode_list_podcast_episode_dto(
     SseDeserializer deserializer,
   );
 
@@ -1005,6 +1048,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   OfflineStatsDto sse_decode_offline_stats_dto(SseDeserializer deserializer);
+
+  @protected
+  OpmlImportReportDto sse_decode_opml_import_report_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
@@ -1142,6 +1190,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PluginSettingDto sse_decode_plugin_setting_dto(SseDeserializer deserializer);
+
+  @protected
+  PodcastDto sse_decode_podcast_dto(SseDeserializer deserializer);
+
+  @protected
+  PodcastEpisodeDto sse_decode_podcast_episode_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PodcastRefreshReportDto sse_decode_podcast_refresh_report_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   RadioFilterOptionDto sse_decode_radio_filter_option_dto(
@@ -1456,6 +1517,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_core_event_dto(CoreEventDto self, SseSerializer serializer);
 
   @protected
+  void sse_encode_directory_podcast_dto(
+    DirectoryPodcastDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_discovered_kind_dto(
     DiscoveredKindDto self,
     SseSerializer serializer,
@@ -1600,6 +1667,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_directory_podcast_dto(
+    List<DirectoryPodcastDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_discovered_service_dto(
     List<DiscoveredServiceDto> self,
     SseSerializer serializer,
@@ -1698,6 +1771,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_plugin_setting_dto(
     List<PluginSettingDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_podcast_dto(
+    List<PodcastDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_podcast_episode_dto(
+    List<PodcastEpisodeDto> self,
     SseSerializer serializer,
   );
 
@@ -1818,6 +1903,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_offline_stats_dto(
     OfflineStatsDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opml_import_report_dto(
+    OpmlImportReportDto self,
     SseSerializer serializer,
   );
 
@@ -1995,6 +2086,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_plugin_setting_dto(
     PluginSettingDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_podcast_dto(PodcastDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_podcast_episode_dto(
+    PodcastEpisodeDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_podcast_refresh_report_dto(
+    PodcastRefreshReportDto self,
     SseSerializer serializer,
   );
 

@@ -111,6 +111,92 @@ pub struct RadioStation {
 }
 
 // ---------------------------------------------------------------------------
+// 播客（SRC-12）
+// ---------------------------------------------------------------------------
+
+/// 一档播客节目（RSS 源）。
+///
+/// 打开过的节目都会缓存到本地；`subscribed` 为真才出现在「我的订阅」里。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Podcast {
+    /// 本机 ID。
+    pub id: PodcastId,
+    /// RSS 地址（仅 http/https）。
+    pub feed_url: String,
+    /// Apple Podcasts 目录 ID（从目录添加时才有）。
+    pub itunes_id: Option<i64>,
+    /// 标题。
+    pub title: String,
+    /// 作者 / 出品方。
+    pub author: Option<String>,
+    /// 简介（纯文本）。
+    pub description: Option<String>,
+    /// 封面地址。
+    pub artwork_url: Option<String>,
+    /// 节目主页。
+    pub link: Option<String>,
+    /// 语言。
+    pub language: Option<String>,
+    /// 分类。
+    pub categories: Vec<String>,
+    /// 是否已订阅。
+    pub subscribed: bool,
+    /// 订阅时间（Unix 毫秒）。
+    pub subscribed_at: Option<i64>,
+    /// 最近一次成功刷新（Unix 毫秒）。
+    pub last_refreshed_at: Option<i64>,
+    /// 最近一次刷新失败的原因。
+    pub last_error: Option<String>,
+    /// 单集数。
+    pub episode_count: u32,
+    /// 未播放的单集数。
+    pub unplayed_count: u32,
+    /// 最新一集的发布时间（Unix 毫秒）。
+    pub latest_published_at: Option<i64>,
+}
+
+/// 播客单集。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PodcastEpisode {
+    /// 本机 ID。
+    pub id: PodcastEpisodeId,
+    /// 所属节目。
+    pub podcast_id: PodcastId,
+    /// 节目标题（冗余，方便列表显示）。
+    pub podcast_title: String,
+    /// RSS `guid`（没有时用音频地址）。
+    pub guid: String,
+    /// 标题。
+    pub title: String,
+    /// 简介（纯文本）。
+    pub description: Option<String>,
+    /// 音频地址（enclosure）。
+    pub audio_url: String,
+    /// MIME 类型。
+    pub mime_type: Option<String>,
+    /// 文件大小（字节）。
+    pub size_bytes: Option<u64>,
+    /// 时长（毫秒，0 表示未知）。
+    pub duration_ms: u64,
+    /// 发布时间（Unix 毫秒）。
+    pub published_at: Option<i64>,
+    /// 单集封面；没有时 UI 用节目封面。
+    pub artwork_url: Option<String>,
+    /// 集数。
+    pub episode_no: Option<u32>,
+    /// 季。
+    pub season_no: Option<u32>,
+    /// 单集网页。
+    pub link: Option<String>,
+    /// 上次听到的位置（毫秒）。
+    pub position_ms: u64,
+    /// 已播放完。
+    pub played: bool,
+    /// 最近播放时间（Unix 毫秒）。
+    pub last_played_at: Option<i64>,
+}
+
+// ---------------------------------------------------------------------------
 // 音频属性
 // ---------------------------------------------------------------------------
 

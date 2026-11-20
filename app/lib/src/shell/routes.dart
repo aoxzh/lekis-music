@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/features/downloads/downloads_page.dart';
 import 'package:lekis/src/features/enrich/enrich_review_page.dart';
 import 'package:lekis/src/features/plugins/plugins_page.dart';
+import 'package:lekis/src/features/podcasts/podcast_detail_page.dart';
 
 export 'package:lekis/src/features/now_playing/now_playing_route.dart'
     show NowPlayingRoute, openNowPlaying;
@@ -34,3 +35,7 @@ Future<void> openPlugins(BuildContext context) => Navigator.of(context).push(
     builder: (_) => const PluginsPage(),
   ),
 );
+
+/// Opens one podcast (already in the local library) inside the current tab.
+Future<void> openPodcast(BuildContext context, int podcastId) =>
+    Navigator.of(context).push(PodcastDetailPage.route(podcastId: podcastId));

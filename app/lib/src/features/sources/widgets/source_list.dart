@@ -7,7 +7,6 @@ import '../../../rust/api/dto.dart';
 import '../../../theme/tokens.dart';
 import '../../library/widgets/empty_state.dart';
 import '../../library/widgets/page_gutter.dart';
-import '../../radio/radio_page.dart';
 import '../common.dart';
 import '../source_kind_info.dart';
 import '../sources_providers.dart';
@@ -52,10 +51,6 @@ class SourceList extends ConsumerWidget {
             actionLabel: SourcesStrings.addSource,
             actionIcon: Icons.add,
             onAction: onAdd,
-            secondaryLabel: '网络电台',
-            secondaryIcon: Icons.radio_rounded,
-            onSecondary: () =>
-                Navigator.of(context).push<void>(RadioPage.route()),
           );
         }
         // Same gutter as the library: rows inset by `sm` so the badge lines
@@ -68,15 +63,9 @@ class SourceList extends ConsumerWidget {
             gutter - LekisSpacing.sm,
             scrollEndPadding(context) + bottomClearance,
           ),
-          itemCount: list.length + 1,
+          itemCount: list.length,
           itemBuilder: (context, i) {
-            if (i == 0) {
-              return _RadioEntryTile(
-                onTap: () =>
-                    Navigator.of(context).push<void>(RadioPage.route()),
-              );
-            }
-            final source = list[i - 1];
+            final source = list[i];
             final id = source.id;
             return SourceTile(
               source: source,
@@ -160,43 +149,6 @@ class SourceTile extends ConsumerWidget {
   }
 }
 
-/// 「音源」页顶部的网络电台入口，不占一个真实音源。
-class _RadioEntryTile extends StatelessWidget {
-  const _RadioEntryTile({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.lekisColors;
-    // Same row metrics as [SourceTile] so the entry lines up with the sources.
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: LekisSpacing.sm),
-      minTileHeight: LekisSizes.touchTargetMin + LekisSpacing.lg,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(LekisRadius.md),
-      ),
-      leading: const SourceKindBadge(icon: Icons.radio_rounded),
-      title: Text(
-        '网络电台',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.titleMedium,
-      ),
-      subtitle: Text(
-        '搜索 Radio Browser，管理收藏和自定义流',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: colors.onSurfaceVariant),
-      ),
-      trailing: Icon(
-        Icons.chevron_right_rounded,
-        color: colors.onSurfaceVariant,
-      ),
-      onTap: onTap,
-    );
-  }
-}
-
 class _RescanButton extends ConsumerWidget {
   const _RescanButton({required this.sourceId});
   final int sourceId;
@@ -234,9 +186,6 @@ class _Message extends StatelessWidget {
     required this.actionLabel,
     required this.actionIcon,
     required this.onAction,
-    this.secondaryLabel,
-    this.secondaryIcon,
-    this.onSecondary,
   });
 
   final IconData icon;
@@ -245,9 +194,6 @@ class _Message extends StatelessWidget {
   final String actionLabel;
   final IconData actionIcon;
   final VoidCallback onAction;
-  final String? secondaryLabel;
-  final IconData? secondaryIcon;
-  final VoidCallback? onSecondary;
 
   @override
   Widget build(BuildContext context) {
@@ -256,26 +202,13 @@ class _Message extends StatelessWidget {
       title: title,
       message: body,
       maxWidth: featureMaxContentWidth / 2,
-      action: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FilledButton.icon(
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(0, LekisSizes.touchTargetMin),
-            ),
-            onPressed: onAction,
-            icon: Icon(actionIcon),
-            label: Text(actionLabel),
-          ),
-          if (secondaryLabel != null && onSecondary != null) ...[
-            const SizedBox(height: LekisSpacing.sm),
-            TextButton.icon(
-              onPressed: onSecondary,
-              icon: Icon(secondaryIcon ?? Icons.radio_rounded),
-              label: Text(secondaryLabel!),
-            ),
-          ],
-        ],
+      action: FilledButton.icon(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, LekisSizes.touchTargetMin),
+        ),
+        onPressed: onAction,
+        icon: Icon(actionIcon),
+        label: Text(actionLabel),
       ),
     );
   }

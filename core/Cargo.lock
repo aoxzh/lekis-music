@@ -2463,6 +2463,7 @@ dependencies = [
  "lekis-types",
  "lekis-vfs",
  "mdns-sd",
+ "quick-xml",
  "reqwest",
  "serde",
  "serde_json",

@@ -38,6 +38,30 @@ local_id! {
     ArtworkId,
     /// 网络电台（本地收藏 / 自定义）。
     RadioStationId,
+    /// 播客节目（订阅 / 预览过的 RSS 源）。
+    PodcastId,
+    /// 播客单集。
+    PodcastEpisodeId,
+}
+
+/// 播客单集合成 `TrackId` 的偏移量。
+///
+/// 电台占用 `-1 ..= -(2^40 - 1)`，单集占用 `-(2^40 + id)`，两段互不重叠，
+/// 都避开资料库里永远为正的 `track.id`。
+pub const PODCAST_EPISODE_TRACK_OFFSET: i64 = 1 << 40;
+
+impl PodcastEpisodeId {
+    /// 单集在播放队列里使用的合成曲目 ID。
+    pub fn track_id(self) -> TrackId {
+        TrackId(-(PODCAST_EPISODE_TRACK_OFFSET + self.0))
+    }
+
+    /// 从合成曲目 ID 还原单集 ID；其他曲目返回 `None`。
+    pub fn from_track_id(track_id: TrackId) -> Option<Self> {
+        (track_id.0 <= -PODCAST_EPISODE_TRACK_OFFSET)
+            .then(|| Self(-track_id.0 - PODCAST_EPISODE_TRACK_OFFSET))
+            .filter(|id| id.0 > 0)
+    }
 }
 
 impl RadioStationId {
@@ -51,7 +75,7 @@ impl RadioStationId {
 
     /// 从合成曲目 ID 还原电台 ID；普通曲目返回 `None`。
     pub fn from_track_id(track_id: TrackId) -> Option<Self> {
-        (track_id.0 < 0).then_some(Self(-track_id.0))
+        (track_id.0 < 0 && track_id.0 > -PODCAST_EPISODE_TRACK_OFFSET).then_some(Self(-track_id.0))
     }
 }
 
@@ -110,6 +134,17 @@ impl TrackUid {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn podcast_episode_track_id_does_not_collide_with_radio() {
+        let episode = PodcastEpisodeId(7);
+        let track = episode.track_id();
+        assert!(track.0 < 0);
+        assert_eq!(PodcastEpisodeId::from_track_id(track), Some(episode));
+        assert_eq!(RadioStationId::from_track_id(track), None);
+        assert_eq!(PodcastEpisodeId::from_track_id(TrackId(-7)), None);
+        assert_eq!(PodcastEpisodeId::from_track_id(TrackId(7)), None);
+    }
 
     #[test]
     fn radio_track_id_is_negative_and_roundtrips() {
