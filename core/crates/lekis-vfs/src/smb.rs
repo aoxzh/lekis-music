@@ -312,10 +312,21 @@ fn smb_auth_err(err: smb2::Error) -> LekisError {
     mapped
 }
 
-/// 解析 `smb://[user[:pass@]host[:port]/share[/path]`。
-///
-/// 凭据（userinfo）会被单独摘出来，**不留在地址字符串里**，避免被日志打出去。
-fn parse_smb_url(url: &str) -> Result<SmbTarget> {
+/// `smb://[user[:pass@]host[:port][/...]` 里和服务器有关的部分。
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SmbServer {
+    /// `host:port`（已剥掉 userinfo）。
+    addr: String,
+    /// 用户名（percent 解码后）。
+    user: String,
+    /// URL userinfo 里的密码（percent 解码后）。
+    password: Option<String>,
+    /// percent 解码后的路径（去掉首尾 `/`），可能是空串。
+    path: String,
+}
+
+/// 解析主机 / 端口 / userinfo，不要求带共享名。
+fn parse_smb_server(url: &str) -> Result<SmbServer> {
     if !url.starts_with("smb://") {
         return Err(LekisError::invalid("SMB address must start with smb://"));
     }
@@ -331,8 +342,6 @@ fn parse_smb_url(url: &str) -> Result<SmbTarget> {
         _ => host.to_string(),
     };
     let port = parsed.port().unwrap_or(DEFAULT_PORT);
-    let user = percent_decode(parsed.username());
-    let password = parsed.password().map(percent_decode);
 
     // `url::Url` 会把 `..` 规范化掉，所以要在**原始字符串**上先拒绝它。
     if raw_path_segments(url).any(|seg| seg == "..") {
@@ -341,10 +350,22 @@ fn parse_smb_url(url: &str) -> Result<SmbTarget> {
 
     // `Url::path()` 返回的是未解码的 path，中文 / 空格要先 percent 解码。
     let path = percent_decode(parsed.path());
-    let path = path.trim_matches('/');
-    let (share, root) = match path.split_once('/') {
+    Ok(SmbServer {
+        addr: format!("{host}:{port}"),
+        user: percent_decode(parsed.username()),
+        password: parsed.password().map(percent_decode),
+        path: path.trim_matches('/').to_string(),
+    })
+}
+
+/// 解析 `smb://[user[:pass@]host[:port]/share[/path]`。
+///
+/// 凭据（userinfo）会被单独摘出来，**不留在地址字符串里**，避免被日志打出去。
+fn parse_smb_url(url: &str) -> Result<SmbTarget> {
+    let server = parse_smb_server(url)?;
+    let (share, root) = match server.path.split_once('/') {
         Some((share, rest)) => (share, rest.trim_matches('/').to_string()),
-        None => (path, String::new()),
+        None => (server.path.as_str(), String::new()),
     };
     if share.is_empty() {
         return Err(LekisError::invalid(
@@ -362,12 +383,37 @@ fn parse_smb_url(url: &str) -> Result<SmbTarget> {
     };
 
     Ok(SmbTarget {
-        addr: format!("{host}:{port}"),
-        user,
-        password,
         share: share.to_string(),
         root,
+        addr: server.addr,
+        user: server.user,
+        password: server.password,
     })
+}
+
+/// 列出服务器上的磁盘共享（srvsvc `NetShareEnumAll`，经 `IPC$` 命名管道）。
+///
+/// `url` 只用主机、端口和 userinfo（`smb://nas` 即可）；`password` 优先于 URL 里的密码。
+/// 用户名为空时按访客登录。管理共享（`C$`、`IPC$` 这类以 `$` 结尾的）不返回。
+pub async fn list_shares(url: &str, password: Option<String>) -> Result<Vec<crate::ShareInfo>> {
+    let server = parse_smb_server(url)?;
+    let password = password
+        .filter(|p| !p.is_empty())
+        .or(server.password)
+        .unwrap_or_default();
+    tracing::debug!(target: "vfs::smb", addr = %server.addr, "枚举 SMB 共享");
+    let mut client = smb2::connect(&server.addr, &server.user, &password)
+        .await
+        .map_err(smb_auth_err)?;
+    let shares = client.list_shares().await.map_err(smb_err)?;
+    Ok(shares
+        .into_iter()
+        .filter(|s| !s.name.is_empty() && !s.name.ends_with('$'))
+        .map(|s| crate::ShareInfo {
+            name: s.name,
+            comment: s.comment,
+        })
+        .collect())
 }
 
 /// 取原始 URL 字符串里 path 部分的各段（**不经过 `url::Url` 规范化**）。
@@ -443,6 +489,18 @@ mod tests {
         assert!(parse_smb_url("smb://nas/").is_err());
         assert!(parse_smb_url("smb:///share").is_err(), "缺少主机名要报错");
         assert!(parse_smb_url("smb://nas/share/../etc").is_err());
+    }
+
+    #[test]
+    fn server_part_parses_without_share() {
+        let server = parse_smb_server("smb://bob@nas.local:1445").expect("应能解析");
+        assert_eq!(server.addr, "nas.local:1445");
+        assert_eq!(server.user, "bob");
+        assert_eq!(server.path, "");
+        let server = parse_smb_server("smb://nas/").expect("应能解析");
+        assert_eq!(server.addr, "nas:445");
+        assert!(parse_smb_server("smb://nas/a/../b").is_err());
+        assert!(parse_smb_server("http://nas").is_err());
     }
 
     #[test]

@@ -30,6 +30,7 @@ mod remote_scan;
 mod resolver;
 pub mod scrobble;
 pub mod selection;
+mod source_browse;
 mod sync_engine;
 
 pub use config::{CoreConfig, PlatformKind};
@@ -49,6 +50,8 @@ pub use radio::{
 };
 pub use scrobble::{ScrobbleSettings, ScrobbleSettingsInput, ScrobbleStatus};
 pub use selection::{NetworkContext, Reachability, SourceHealth};
+pub use lekis_vfs::ShareInfo;
+pub use source_browse::SourceListing;
 pub use sync_engine::SyncReport;
 
 use events::EventBus;
@@ -493,6 +496,53 @@ impl LekisCore {
             tokio::time::timeout(TEST_SOURCE_TIMEOUT, probe)
                 .await
                 .map_err(|_| LekisError::new(ErrorCode::Network, "source test timed out"))?
+        })
+        .await
+    }
+
+    /// 列出一个**未保存**音源配置里某个目录下的子文件夹（「添加音源」时选子目录用）。
+    ///
+    /// `path` 相对于配置的根目录（SMB 是共享根，NFS 是导出根，WebDAV 是 URL，
+    /// SFTP 是地址里的路径），`/` 分隔，空串是根。不包含 `..`。密码按
+    /// `credential_ref` 读取，和 [`test_source`](Self::test_source) 一样。
+    pub async fn browse_source(&self, config: SourceConfig, path: String) -> Result<SourceListing> {
+        let s = self.services.clone();
+        self.run(async move {
+            if !config.kind.is_filesystem() || config.kind == SourceKind::Local {
+                return Err(LekisError::new(
+                    ErrorCode::Unsupported,
+                    "only network filesystem sources can be browsed",
+                ));
+            }
+            let dir = lekis_vfs::VfsPath::parse(&path)
+                .ok_or_else(|| LekisError::invalid("browse path must not contain .."))?;
+            let probe = async {
+                let vfs = s.open_vfs(&config)?;
+                vfs.list_dir(&dir).await
+            };
+            let entries = tokio::time::timeout(TEST_SOURCE_TIMEOUT, probe)
+                .await
+                .map_err(|_| LekisError::new(ErrorCode::Network, "browse timed out"))??;
+            Ok(SourceListing::from_entries(entries))
+        })
+        .await
+    }
+
+    /// 列出服务器上的 SMB 共享 / NFS 导出（只用配置第一个地址的主机部分）。
+    pub async fn list_shares(&self, config: SourceConfig) -> Result<Vec<ShareInfo>> {
+        let s = self.services.clone();
+        self.run(async move {
+            let password = config
+                .credential_ref
+                .as_deref()
+                .filter(|r| !r.is_empty())
+                .and_then(|r| s.platform.credentials.get(r));
+            tokio::time::timeout(
+                TEST_SOURCE_TIMEOUT,
+                lekis_vfs::list_shares(&config, password),
+            )
+            .await
+            .map_err(|_| LekisError::new(ErrorCode::Network, "listing shares timed out"))?
         })
         .await
     }
@@ -2767,6 +2817,52 @@ mod tests {
                     |e| matches!(e, CoreEvent::ScanFailed { source_id, .. } if *source_id == source)
                 ));
             }
+            Ok::<_, LekisError>(())
+        })?;
+        drop(core);
+        let _ = std::fs::remove_dir_all(&root);
+        Ok(())
+    }
+
+    #[test]
+    fn browse_and_share_listing_reject_unsupported_input() -> Result<()> {
+        let root = std::env::temp_dir().join(format!("lekis-core-browse-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let core = LekisCore::new(CoreConfig::for_tests(&root), PlatformServices::in_memory())?;
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        let config = |kind: SourceKind, address: &str| SourceConfig {
+            id: None,
+            kind,
+            name: "draft".into(),
+            addresses: vec![address.into()],
+            root_path: String::new(),
+            credential_ref: None,
+            options: Default::default(),
+            enabled: true,
+        };
+        rt.block_on(async {
+            let err = core
+                .browse_source(config(SourceKind::Local, "C:/Music"), String::new())
+                .await
+                .unwrap_err();
+            assert_eq!(err.code, ErrorCode::Unsupported);
+            let err = core
+                .browse_source(config(SourceKind::Smb, "smb://nas/music"), "a/../..".into())
+                .await
+                .unwrap_err();
+            assert_eq!(err.code, ErrorCode::InvalidArgument);
+            let err = core
+                .list_shares(config(SourceKind::WebDav, "http://nas"))
+                .await
+                .unwrap_err();
+            assert_eq!(err.code, ErrorCode::Unsupported);
+            let err = core
+                .list_shares(config(SourceKind::Smb, "http://nas"))
+                .await
+                .unwrap_err();
+            assert_eq!(err.code, ErrorCode::InvalidArgument);
             Ok::<_, LekisError>(())
         })?;
         drop(core);

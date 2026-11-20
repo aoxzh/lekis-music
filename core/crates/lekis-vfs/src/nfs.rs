@@ -75,6 +75,8 @@ struct NfsTarget {
     export: String,
     /// 是否从特权端口（300-1023）发起连接。
     privileged: bool,
+    /// 导出里的子目录（`?subdir=`，`/` 分隔、无首尾 `/`，空串表示导出根）。
+    subdir: String,
 }
 
 /// NFS 文件系统。
@@ -155,8 +157,14 @@ impl NfsVfs {
             builder = builder.nfs3_port(port);
         }
 
-        let conn = builder.mount().await.map_err(connect_err)?;
-        let root = conn.root_nfs_fh3();
+        let mut conn = builder.mount().await.map_err(connect_err)?;
+        let mut root = conn.root_nfs_fh3();
+        if !self.target.subdir.is_empty() {
+            // 子目录不是独立的导出：先挂导出根，再逐级 LOOKUP 到子目录。
+            let sub = VfsPath::parse(&self.target.subdir)
+                .ok_or_else(|| LekisError::invalid("NFS 子目录不合法"))?;
+            root = resolve_fh(&mut conn, &root, &sub).await?;
+        }
         tracing::debug!(
             target: "vfs::nfs",
             host = %self.target.host,
@@ -756,8 +764,64 @@ fn connect_err(err: ConnectError) -> LekisError {
     }
 }
 
-/// 解析 `nfs://host[:port]/export[/path]`。
+/// 列出服务器的 NFS 导出（MOUNT 协议的 `EXPORT` 过程）。
+///
+/// `url` 只需要 `nfs://host[:port]`（端口是 portmapper 端口），导出路径可以省略。
+pub async fn list_exports(url: &str) -> Result<Vec<crate::ShareInfo>> {
+    use nfs3_client::net::Connector;
+    use std::net::{IpAddr, SocketAddr};
+
+    let target = parse_nfs_target(url, false)?;
+    tracing::debug!(target: "vfs::nfs", host = %target.host, "列出 NFS 导出");
+    let host = resolve_host(&target.host, target.pmap_port).await?;
+    let ip: IpAddr = host
+        .parse()
+        .map_err(|_| LekisError::new(ErrorCode::Network, "NFS: 主机地址不合法"))?;
+    let net = |e: std::io::Error| LekisError::new(ErrorCode::Network, format!("NFS 连接失败：{e}"));
+    let mount_port = match target.mount_port {
+        Some(port) => port,
+        None => {
+            let io = TokioConnector
+                .connect(SocketAddr::new(ip, target.pmap_port))
+                .await
+                .map_err(net)?;
+            let mut portmapper = nfs3_client::PortmapperClient::new(io);
+            portmapper
+                .getport(
+                    nfs3_client::nfs3_types::mount::PROGRAM,
+                    nfs3_client::nfs3_types::mount::VERSION,
+                    nfs3_client::nfs3_types::portmap::IPPROTO_TCP,
+                )
+                .await
+                .map_err(|e| {
+                    LekisError::new(ErrorCode::Network, format!("NFS portmapper 失败：{e}"))
+                })?
+        }
+    };
+    let io = TokioConnector
+        .connect(SocketAddr::new(ip, mount_port))
+        .await
+        .map_err(net)?;
+    let mut mount = nfs3_client::MountClient::new(io);
+    let exports = mount.export().await.map_err(rpc_err)?;
+    Ok(exports
+        .0
+        .into_iter()
+        .map(|node| crate::ShareInfo {
+            name: String::from_utf8_lossy(node.ex_dir.0.as_ref()).into_owned(),
+            comment: String::new(),
+        })
+        .filter(|s| !s.name.is_empty())
+        .collect())
+}
+
+/// 解析 `nfs://host[:port]/export[?subdir=a/b]`。
 fn parse_nfs_url(url: &str) -> Result<NfsTarget> {
+    parse_nfs_target(url, true)
+}
+
+/// 解析 NFS 地址；`require_export` 为假时允许只有主机（列导出用）。
+fn parse_nfs_target(url: &str, require_export: bool) -> Result<NfsTarget> {
     let rest = url
         .strip_prefix("nfs://")
         .ok_or_else(|| LekisError::invalid("NFS 地址必须以 nfs:// 开头"))?;
@@ -797,7 +861,7 @@ fn parse_nfs_url(url: &str) -> Result<NfsTarget> {
     }
 
     let export = percent_decode(path);
-    if export.is_empty() || export == "/" {
+    if require_export && (export.is_empty() || export == "/") {
         return Err(LekisError::invalid(
             "NFS 地址必须带导出路径，例如 nfs://192.168.1.10/volume1/music",
         ));
@@ -814,6 +878,7 @@ fn parse_nfs_url(url: &str) -> Result<NfsTarget> {
         nfs_port: None,
         export,
         privileged: false,
+        subdir: String::new(),
     };
 
     for pair in query.split('&').filter(|s| !s.is_empty()) {
@@ -830,6 +895,13 @@ fn parse_nfs_url(url: &str) -> Result<NfsTarget> {
             "mountport" => target.mount_port = parse_port(Some(value))?,
             "nfsport" => target.nfs_port = parse_port(Some(value))?,
             "privileged" => target.privileged = matches!(value, "1" | "true" | "yes"),
+            "subdir" => {
+                let raw = percent_decode(&value.replace('+', " "));
+                target.subdir = VfsPath::parse(&raw)
+                    .ok_or_else(|| LekisError::invalid("NFS 子目录不允许包含 `..`"))?
+                    .as_str()
+                    .to_string();
+            }
             // 未知参数忽略：源配置里可能带着给别的后端用的选项。
             _ => {}
         }
@@ -904,6 +976,20 @@ mod tests {
     }
 
     #[test]
+    fn parses_subdir_and_host_only_target() {
+        let t = parse_nfs_url("nfs://nas/volume1/music?subdir=FLAC%2F%E5%8F%A4%E5%85%B8/")
+            .expect("应能解析");
+        assert_eq!(t.export, "/volume1/music");
+        assert_eq!(t.subdir, "FLAC/古典");
+        let t = parse_nfs_url("nfs://nas/export?subdir=A/./B").expect("应能解析");
+        assert_eq!(t.subdir, "A/B");
+        let t = parse_nfs_target("nfs://nas:1111", false).expect("列导出时可以不带导出路径");
+        assert_eq!(t.host, "nas");
+        assert_eq!(t.pmap_port, 1111);
+        assert_eq!(t.export, "");
+    }
+
+    #[test]
     fn decodes_chinese_export_path() {
         let t = parse_nfs_url("nfs://nas/%E9%9F%B3%E4%B9%90").expect("应能解析");
         assert_eq!(t.export, "/音乐");
@@ -919,6 +1005,7 @@ mod tests {
             "不允许 .."
         );
         assert!(parse_nfs_url("nfs://nas/export?nfsport=abc").is_err());
+        assert!(parse_nfs_url("nfs://nas/export?subdir=a/../b").is_err());
     }
 
     #[test]

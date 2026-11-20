@@ -18,6 +18,8 @@ futures-util.workspace = true
 httpdate.workspace = true
 percent-encoding.workspace = true
 url.workspace = true
+# SFTP 私钥凭据（`{"private_key": ..., "passphrase": ...}`）
+serde_json.workspace = true
 
 # WebDAV（SRC-03）
 reqwest.workspace = true

@@ -19,7 +19,7 @@ class SourceCredentialService {
 
   /// 新音源：有密码时先生成引用并写凭据，再保存配置。保存失败会清掉刚写的凭据。
   Future<int> add(SourceDraft draft) async {
-    final secret = draft.secret;
+    final secret = draft.credentialSecret;
     final usesSecret = draft.usesCredential && secret.isNotEmpty;
     final ref = usesSecret ? _newRef() : null;
     if (ref != null) {
@@ -39,7 +39,7 @@ class SourceCredentialService {
   /// 改成访客 / 匿名访问时把旧凭据删掉，地址和 options 里仍然不放密码。
   Future<void> update(SourceConfigDto existing, SourceDraft draft) async {
     final oldRef = _nonEmpty(existing.credentialRef);
-    final secret = draft.secret;
+    final secret = draft.credentialSecret;
     final String? ref;
     final String? secretToWrite;
     if (!draft.usesCredential) {
@@ -98,9 +98,35 @@ class SourceCredentialService {
 
   /// 表单里的“测试连接”：密码还没保存时用临时引用，测完立刻删掉，
   /// 不污染正式凭据，也不需要先把音源写进数据库。
-  Future<void> testDraft(SourceDraft draft, {SourceConfigDto? existing}) async {
+  Future<void> testDraft(SourceDraft draft, {SourceConfigDto? existing}) =>
+      _withDraftConfig(draft, existing, _gateway.testSource);
+
+  /// 列出草稿里主机上的 SMB 共享 / NFS 导出（凭据处理同 [testDraft]）。
+  Future<List<ShareDto>> listShares(
+    SourceDraft draft, {
+    SourceConfigDto? existing,
+  }) => _withDraftConfig(draft, existing, _gateway.listShares);
+
+  /// 浏览草稿配置根目录下 `path` 的子文件夹（凭据处理同 [testDraft]）。
+  Future<SourceListingDto> browse(
+    SourceDraft draft,
+    String path, {
+    SourceConfigDto? existing,
+  }) => _withDraftConfig(
+    draft,
+    existing,
+    (config) => _gateway.browseSource(config, path),
+  );
+
+  /// 用草稿拼出配置并执行 `action`。刚输入的密码写进临时引用，用完立刻删掉；
+  /// 没输入新密码时沿用已保存音源的引用。
+  Future<T> _withDraftConfig<T>(
+    SourceDraft draft,
+    SourceConfigDto? existing,
+    Future<T> Function(SourceConfigDto config) action,
+  ) async {
     final existingRef = _nonEmpty(existing?.credentialRef);
-    final secret = draft.secret;
+    final secret = draft.credentialSecret;
     final tempRef = draft.usesCredential && secret.isNotEmpty
         ? _newRef()
         : null;
@@ -109,11 +135,15 @@ class SourceCredentialService {
       await _gateway.setCredential(tempRef, secret);
     }
     try {
-      await _gateway.testSource(draft.toConfig(credentialRef: ref));
+      return await action(draft.toConfig(credentialRef: ref));
     } finally {
       if (tempRef != null) await _deleteQuietly(tempRef);
     }
   }
+
+  /// 某个引用是否已保存凭据（不返回内容）。
+  bool hasCredential(String credentialRef) =>
+      _gateway.hasCredential(credentialRef);
 
   Future<void> _deleteQuietly(String ref) async {
     try {

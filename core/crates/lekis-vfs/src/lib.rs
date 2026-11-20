@@ -110,7 +110,7 @@ pub fn open(config: &SourceConfig, password: Option<String>) -> Result<Arc<dyn V
     let mut last_error = None;
     for raw in &config.addresses {
         let address = with_username(raw, config.options.get("username").map(String::as_str));
-        match build_backend(config.kind, &address, password.clone()) {
+        match build_backend(config, &address, password.clone()) {
             Ok(vfs) => backends.push(vfs),
             Err(e) => last_error = Some(e),
         }
@@ -127,16 +127,23 @@ pub fn open(config: &SourceConfig, password: Option<String>) -> Result<Arc<dyn V
 }
 
 fn build_backend(
-    kind: SourceKind,
+    config: &SourceConfig,
     address: &str,
     password: Option<String>,
 ) -> Result<Arc<dyn Vfs>> {
-    let vfs: Arc<dyn Vfs> = match kind {
+    let vfs: Arc<dyn Vfs> = match config.kind {
         SourceKind::Local => Arc::new(local::LocalVfs::new(address)?),
         SourceKind::Smb => Arc::new(smb::SmbVfs::connect(address, password)?),
         SourceKind::WebDav => Arc::new(webdav::WebDavVfs::new(address, password)?),
         SourceKind::Nfs => Arc::new(nfs::NfsVfs::connect(address)?),
-        SourceKind::Sftp => Arc::new(sftp::SftpVfs::connect(address, password)?),
+        SourceKind::Sftp => {
+            // `options["auth"] = "key"`：凭据库里存的是私钥本身，不是密码。
+            let inline_key = config
+                .options
+                .get(sftp::AUTH_OPTION)
+                .is_some_and(|v| v.trim() == sftp::AUTH_KEY);
+            Arc::new(sftp::SftpVfs::connect_with(address, password, inline_key)?)
+        }
         other => {
             return Err(LekisError::invalid(format!(
                 "source kind {other:?} is not a filesystem source"
@@ -144,6 +151,40 @@ fn build_backend(
         }
     };
     Ok(vfs)
+}
+
+/// 服务器上的一个共享（SMB）或导出（NFS）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShareInfo {
+    /// 共享名（SMB）或导出路径（NFS，形如 `/volume1/music`）。
+    pub name: String,
+    /// 服务器给的备注，没有时为空串。
+    pub comment: String,
+}
+
+/// 列出服务器上的共享 / 导出，用于「添加音源」时让用户点选，不用手打共享名。
+///
+/// 只看 `config.addresses` 的第一个地址的主机部分：SMB 地址可以不带共享名
+/// （`smb://nas`），NFS 地址可以不带导出路径（`nfs://nas`）。其他类型返回 `Unsupported`。
+pub async fn list_shares(config: &SourceConfig, password: Option<String>) -> Result<Vec<ShareInfo>> {
+    let raw = config
+        .addresses
+        .first()
+        .ok_or_else(|| LekisError::invalid("source has no address"))?;
+    let address = with_username(raw, config.options.get("username").map(String::as_str));
+    let mut shares = match config.kind {
+        SourceKind::Smb => smb::list_shares(&address, password).await?,
+        SourceKind::Nfs => nfs::list_exports(&address).await?,
+        other => {
+            return Err(LekisError::new(
+                lekis_types::ErrorCode::Unsupported,
+                format!("source kind {other:?} has no share list"),
+            ))
+        }
+    };
+    shares.sort_by_key(|s| s.name.to_lowercase());
+    shares.dedup_by(|a, b| a.name == b.name);
+    Ok(shares)
 }
 
 /// 地址里没有用户名、而选项里给了用户名时，把用户名补进 URL 的 userinfo。

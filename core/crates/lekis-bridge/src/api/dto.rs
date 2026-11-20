@@ -217,6 +217,46 @@ impl From<lekis_core::discovery::DiscoveredService> for DiscoveredServiceDto {
 }
 
 // ---------------------------------------------------------------------------
+// 添加音源时的共享列表 / 目录浏览
+// ---------------------------------------------------------------------------
+
+/// 服务器上的一个 SMB 共享或 NFS 导出。
+#[derive(Debug, Clone)]
+pub struct ShareDto {
+    /// 共享名（SMB）或导出路径（NFS）。
+    pub name: String,
+    /// 服务器给的备注，没有时为空串。
+    pub comment: String,
+}
+
+impl From<lekis_core::ShareInfo> for ShareDto {
+    fn from(s: lekis_core::ShareInfo) -> Self {
+        Self {
+            name: s.name,
+            comment: s.comment,
+        }
+    }
+}
+
+/// 远端一层目录的浏览结果。
+#[derive(Debug, Clone)]
+pub struct SourceListingDto {
+    /// 子文件夹名（已去掉隐藏 / 系统目录，按名称排序）。
+    pub folders: Vec<String>,
+    /// 这一层直接包含的音频文件数。
+    pub audio_files: u32,
+}
+
+impl From<lekis_core::SourceListing> for SourceListingDto {
+    fn from(l: lekis_core::SourceListing) -> Self {
+        Self {
+            folders: l.folders,
+            audio_files: l.audio_files,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // 网络电台（SRC-11）
 // ---------------------------------------------------------------------------
 

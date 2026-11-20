@@ -208,6 +208,10 @@ class _SourceDetailState extends ConsumerState<SourceDetail> {
 
   String _credentialLabel(SourceConfigDto source, bool saved, String username) {
     if (saved) return SourcesStrings.credentialSaved;
+    // NFSv3 按 IP 授权，没有账号密码。
+    if (source.kind == SourceKindDto.nfs) {
+      return SourcesStrings.credentialAnonymous;
+    }
     if (source.kind == SourceKindDto.smb && username.isEmpty) {
       return SourcesStrings.credentialGuest;
     }

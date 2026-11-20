@@ -3,20 +3,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../../rust/api/core.dart' as core;
 import '../../../rust/api/dto.dart';
 import '../../../theme/tokens.dart';
 import '../common.dart';
+import '../discovery_providers.dart';
 import '../local_folder_access.dart';
 import '../source_draft.dart';
 import '../source_kind_info.dart';
 import '../sources_providers.dart';
 import '../strings.dart';
 import 'lan_discovery.dart';
+import 'remote_folder_picker.dart';
 import 'source_status.dart';
 
 /// 添加音源的整个流程（可以嵌进双栏右侧，也可以包成独立页面）。
-class AddSourcePane extends StatefulWidget {
+class AddSourcePane extends ConsumerStatefulWidget {
   const AddSourcePane({super.key, required this.onDone, this.onCancel});
 
   /// 保存成功后回调新音源的 ID。
@@ -24,10 +25,10 @@ class AddSourcePane extends StatefulWidget {
   final VoidCallback? onCancel;
 
   @override
-  State<AddSourcePane> createState() => _AddSourcePaneState();
+  ConsumerState<AddSourcePane> createState() => _AddSourcePaneState();
 }
 
-class _AddSourcePaneState extends State<AddSourcePane> {
+class _AddSourcePaneState extends ConsumerState<AddSourcePane> {
   SourceKindDto? _kind;
   SourceDraft? _prefill;
 
@@ -55,6 +56,8 @@ class _AddSourcePaneState extends State<AddSourcePane> {
 
   @override
   Widget build(BuildContext context) {
+    // 进表单再返回时保留发现结果，不用每次重扫一遍。
+    ref.watch(lanDiscoveryProvider.select((s) => s.hasScanned));
     final kind = _kind;
     return AnimatedSwitcher(
       duration: LekisMotion.normal,
@@ -157,6 +160,9 @@ class SourceKindChooser extends StatelessWidget {
             const SizedBox(height: LekisSpacing.xl),
             // 本地文件夹是绝大多数人的第一步：单独放大、放在最前面。
             _FeaturedLocalOption(onTap: () => onChoose(SourceKindDto.local)),
+            const SizedBox(height: LekisSpacing.xl),
+            // 打开就自动扫局域网，找到的 NAS 紧跟在本地文件夹后面，点一下就能预填。
+            LanDiscoverySection(onPick: onDiscovered),
             const SizedBox(height: LekisSpacing.xxl),
             Text(
               SourcesStrings.groupNetwork,
@@ -167,14 +173,14 @@ class SourceKindChooser extends StatelessWidget {
             group(SourcesStrings.groupNetworkShare, const [
               SourceKindDto.smb,
               SourceKindDto.webDav,
+              SourceKindDto.nfs,
+              SourceKindDto.sftp,
             ]),
             group(SourcesStrings.groupMediaServer, const [
               SourceKindDto.openSubsonic,
               SourceKindDto.jellyfin,
               SourceKindDto.plex,
             ]),
-            const SizedBox(height: LekisSpacing.xl),
-            LanDiscoverySection(onPick: onDiscovered),
           ],
         ),
       ),
@@ -326,8 +332,21 @@ class _SourceFormState extends ConsumerState<SourceForm> {
   final _username = TextEditingController();
   final _secret = TextEditingController();
   final _alternates = TextEditingController();
+  final _port = TextEditingController();
+  final _passphrase = TextEditingController();
 
   bool _guest = false;
+
+  /// SFTP 用私钥登录。
+  bool _useKey = false;
+
+  /// 编辑时已保存的 SFTP 认证方式；切换方式后必须重新输入凭据。
+  bool _savedUseKey = false;
+
+  /// 「列出共享 / 导出」的结果；`null` 表示还没列过。
+  List<ShareDto>? _shares;
+  bool _loadingShares = false;
+  String? _sharesError;
   bool _obscure = true;
   bool _busy = false;
   bool _testing = false;
@@ -348,8 +367,10 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     final initial = existing == null
         ? widget.initial
         : SourceDraft.fromConfig(existing);
-    final ref = existing?.credentialRef?.trim() ?? '';
-    _credentialSaved = ref.isNotEmpty && core.hasCredential(credentialRef: ref);
+    final credentialRef = existing?.credentialRef?.trim() ?? '';
+    _credentialSaved =
+        credentialRef.isNotEmpty &&
+        ref.read(sourceActionsProvider).hasCredential(credentialRef);
     _replaceSecret = !_credentialSaved;
     if (initial == null) return;
     _name.text = initial.name;
@@ -359,6 +380,9 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     _url.text = initial.url;
     _username.text = initial.username;
     _guest = initial.guest;
+    _port.text = initial.port;
+    _useKey = initial.useKey;
+    _savedUseKey = initial.useKey;
     _alternates.text = initial.alternateAddresses.join('\n');
     _localPath = initial.kind == SourceKindDto.local && initial.path.isNotEmpty
         ? initial.path
@@ -368,7 +392,10 @@ class _SourceFormState extends ConsumerState<SourceForm> {
   @override
   void dispose() {
     _secret.clear();
+    _passphrase.clear();
     for (final c in [
+      _port,
+      _passphrase,
       _name,
       _host,
       _share,
@@ -409,16 +436,22 @@ class _SourceFormState extends ConsumerState<SourceForm> {
       (_kind != SourceKindDto.local || _localPath != null);
 
   /// 编辑时密码已经保存在核心：没点“替换密码”就不带任何 secret。
-  bool get _useTypedSecret => !_guest && (!_credentialSaved || _replaceSecret);
+  /// SFTP 换了认证方式（密码 ↔ 私钥）时旧凭据没法用，必须重新输入。
+  bool get _useTypedSecret =>
+      !_guest && (!_credentialSaved || _replaceSecret || _authModeChanged);
+
+  bool get _authModeChanged =>
+      _isEdit && _kind == SourceKindDto.sftp && _useKey != _savedUseKey;
 
   bool get _usesSecret => switch (_kind) {
-    SourceKindDto.local => false,
+    SourceKindDto.local || SourceKindDto.nfs => false,
     SourceKindDto.smb => !_guest,
     _ => true,
   };
 
   bool get _secretRequired => switch (_kind) {
     SourceKindDto.smb => !_guest,
+    SourceKindDto.sftp ||
     SourceKindDto.openSubsonic ||
     SourceKindDto.jellyfin ||
     SourceKindDto.emby ||
@@ -436,6 +469,9 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     username: _guest ? '' : _username.text,
     secret: _useTypedSecret ? _secret.text : '',
     guest: _guest,
+    port: _port.text,
+    useKey: _kind == SourceKindDto.sftp && _useKey,
+    keyPassphrase: _useTypedSecret && _useKey ? _passphrase.text : '',
     // 备用地址只对网络音源有意义；本地文件夹永远只有一个路径。
     alternateAddresses: _isNetwork
         ? _alternates.text
@@ -462,6 +498,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
         final existing = _existing!;
         await ref.read(sourceActionsProvider).update(existing, draft);
         _secret.clear();
+        _passphrase.clear();
         if (!mounted) return;
         showFeatureSnack(context, SourcesStrings.savedChanges);
         widget.onDone(existing.id?.toInt() ?? 0);
@@ -469,6 +506,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
       }
       final result = await ref.read(sourceActionsProvider).add(draft);
       _secret.clear();
+      _passphrase.clear();
       if (!mounted) return;
       final scanError = result.scanError;
       showFeatureSnack(
@@ -503,6 +541,118 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     } finally {
       draft.forgetSecret();
       if (mounted) setState(() => _testing = false);
+    }
+  }
+
+  /// 列出主机上的 SMB 共享 / NFS 导出，结果显示成可点的标签。
+  Future<void> _listShares() async {
+    final hostError = SourceValidators.host(_host.text);
+    final userError = _kind == SourceKindDto.smb && !_guest
+        ? SourceValidators.username(_username.text)
+        : null;
+    if (hostError != null || userError != null) {
+      setState(() => _sharesError = hostError ?? userError);
+      return;
+    }
+    final draft = _draft()
+      ..share = ''
+      ..path = '';
+    setState(() {
+      _loadingShares = true;
+      _sharesError = null;
+    });
+    try {
+      final shares = await ref
+          .read(sourceActionsProvider)
+          .listShares(draft, existing: _existing);
+      if (!mounted) return;
+      setState(() {
+        _shares = shares;
+        // 只有一个共享时直接选上，少点一下。
+        if (shares.length == 1 && _share.text.trim().isEmpty) {
+          _share.text = shares.single.name;
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(
+          () => _sharesError =
+              '${SourcesStrings.sharesFailed}：${describeCoreError(e)}',
+        );
+      }
+    } finally {
+      draft.forgetSecret();
+      if (mounted) setState(() => _loadingShares = false);
+    }
+  }
+
+  void _pickShare(String name) {
+    setState(() {
+      if (_share.text.trim() != name) _path.clear();
+      _share.text = name;
+    });
+  }
+
+  /// 浏览前要先有的字段；缺了就返回提示。
+  String? _browsePrerequisite() {
+    switch (_kind) {
+      case SourceKindDto.webDav:
+        return SourceValidators.httpUrl(_url.text) == null
+            ? null
+            : SourcesStrings.browseNeedsUrl;
+      case SourceKindDto.smb:
+        if (SourceValidators.host(_host.text) != null) {
+          return SourcesStrings.browseNeedsHost;
+        }
+        return _share.text.trim().isEmpty
+            ? SourcesStrings.browseNeedsShare
+            : null;
+      case SourceKindDto.nfs:
+        if (SourceValidators.host(_host.text) != null) {
+          return SourcesStrings.browseNeedsHost;
+        }
+        return SourceValidators.nfsExport(_share.text) == null
+            ? null
+            : SourcesStrings.browseNeedsExport;
+      default:
+        return SourceValidators.host(_host.text) == null
+            ? null
+            : SourcesStrings.browseNeedsHost;
+    }
+  }
+
+  /// 弹出远端文件夹浏览器。SMB / NFS / SFTP 选的是子目录；WebDAV 直接拼进地址。
+  Future<void> _browse() async {
+    final missing = _browsePrerequisite();
+    if (missing != null) {
+      setState(() => _error = missing);
+      return;
+    }
+    final webDav = _kind == SourceKindDto.webDav;
+    final base = _draft();
+    if (!webDav) base.path = '';
+    setState(() => _error = null);
+    final actions = ref.read(sourceActionsProvider);
+    final existing = _existing;
+    try {
+      final picked = await showRemoteFolderPicker(
+        context,
+        initialPath: webDav ? '' : _path.text,
+        load: (path) => actions.browse(base, path, existing: existing),
+      );
+      if (picked == null || !mounted) return;
+      setState(() {
+        if (webDav) {
+          if (picked.isNotEmpty) {
+            final encoded = picked.split('/').map(Uri.encodeComponent).join('/');
+            _url.text = '${normalizeHttpUrl(_url.text)}/$encoded';
+          }
+        } else {
+          _path.text = picked;
+        }
+      });
+    } finally {
+      base.forgetSecret();
     }
   }
 
@@ -658,7 +808,10 @@ class _SourceFormState extends ConsumerState<SourceForm> {
 
   /// 网络音源的进阶字段（备用地址）。默认收起，已有备用地址时展开。
   Widget _moreOptions(BuildContext context) {
-    final smb = _kind == SourceKindDto.smb;
+    final hostBased =
+        _kind == SourceKindDto.smb ||
+        _kind == SourceKindDto.nfs ||
+        _kind == SourceKindDto.sftp;
     return Theme(
       // 去掉 ExpansionTile 展开时上下出现的分隔线。
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -680,8 +833,8 @@ class _SourceFormState extends ConsumerState<SourceForm> {
             enableSuggestions: false,
             decoration: InputDecoration(
               labelText: SourcesStrings.fieldAlternates,
-              hintText: smb
-                  ? '${SourcesStrings.fieldAlternatesHint}\n100.64.0.2/music'
+              hintText: hostBased
+                  ? '${SourcesStrings.fieldAlternatesHint}\n${_alternateExample()}'
                   : '${SourcesStrings.fieldAlternatesHint}\nhttps://music.example.com',
               helperText: SourcesStrings.fieldAlternatesHelper,
               border: const OutlineInputBorder(),
@@ -692,9 +845,17 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     );
   }
 
+  String _alternateExample() => switch (_kind) {
+    SourceKindDto.nfs => 'nfs://100.64.0.2/volume1/music',
+    SourceKindDto.sftp => 'sftp://100.64.0.2:22/volume1/music',
+    _ => '100.64.0.2/music',
+  };
+
   List<Widget> _fields(BuildContext context) => switch (_kind) {
     SourceKindDto.local => _localFields(context),
     SourceKindDto.smb => _smbFields(),
+    SourceKindDto.nfs => _nfsFields(context),
+    SourceKindDto.sftp => _sftpFields(),
     SourceKindDto.webDav => [
       _text(
         controller: _url,
@@ -703,6 +864,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
         keyboard: TextInputType.url,
         validator: SourceValidators.httpUrl,
         autofocus: true,
+        suffix: _browseButton(),
       ),
       _gap,
       // WebDAV 允许匿名访问，账号密码都是可选的。
@@ -801,7 +963,10 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     ];
   }
 
-  Widget _savedCredentialTile() {
+  Widget _savedCredentialTile({
+    String notice = SourcesStrings.credentialSavedNotice,
+    String replaceLabel = SourcesStrings.replacePassword,
+  }) {
     final colors = context.lekisColors;
     final theme = Theme.of(context);
     return Container(
@@ -816,7 +981,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
           const SizedBox(width: LekisSpacing.md),
           Expanded(
             child: Text(
-              SourcesStrings.credentialSavedNotice,
+              notice,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colors.onSurfaceVariant,
               ),
@@ -830,7 +995,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
             onPressed: _busy || _testing
                 ? null
                 : () => setState(() => _replaceSecret = true),
-            child: const Text(SourcesStrings.replacePassword),
+            child: Text(replaceLabel),
           ),
         ],
       ),
@@ -839,6 +1004,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
 
   void _cancelReplaceSecret() {
     _secret.clear();
+    _passphrase.clear();
     setState(() => _replaceSecret = false);
   }
 
@@ -906,23 +1072,10 @@ class _SourceFormState extends ConsumerState<SourceForm> {
       hint: SourcesStrings.fieldHostHint,
       keyboard: TextInputType.url,
       validator: SourceValidators.host,
-      autofocus: true,
+      autofocus: _host.text.isEmpty,
     ),
     _gap,
-    _text(
-      controller: _share,
-      label: SourcesStrings.fieldShare,
-      hint: SourcesStrings.fieldShareHint,
-      validator: SourceValidators.share,
-    ),
-    _gap,
-    _text(
-      controller: _path,
-      label: SourcesStrings.fieldPath,
-      hint: SourcesStrings.fieldPathHint,
-      validator: SourceValidators.subPath,
-    ),
-    _gap,
+    // 先填账号，再列共享：枚举共享本身就要登录。
     SwitchListTile(
       contentPadding: EdgeInsets.zero,
       title: const Text(SourcesStrings.guest),
@@ -942,13 +1095,286 @@ class _SourceFormState extends ConsumerState<SourceForm> {
         label: SourcesStrings.fieldUsername,
         validator: SourceValidators.username,
         autofill: const [AutofillHints.username],
+        autofocus: _host.text.isNotEmpty,
       ),
       ..._credentialFields(
         label: SourcesStrings.fieldPassword,
         validator: SourceValidators.password,
       ),
     ],
+    _gap,
+    _text(
+      controller: _share,
+      label: SourcesStrings.fieldShare,
+      hint: SourcesStrings.fieldShareHint,
+      validator: SourceValidators.share,
+    ),
+    ..._sharePicker(
+      label: SourcesStrings.listShares,
+      hint: SourcesStrings.sharesHint,
+    ),
+    _gap,
+    _text(
+      controller: _path,
+      label: SourcesStrings.fieldPath,
+      hint: SourcesStrings.fieldPathHint,
+      validator: SourceValidators.subPath,
+      suffix: _browseButton(),
+    ),
   ];
+
+  List<Widget> _nfsFields(BuildContext context) => [
+    _text(
+      controller: _host,
+      label: SourcesStrings.fieldHost,
+      hint: SourcesStrings.fieldNfsHostHint,
+      keyboard: TextInputType.url,
+      validator: SourceValidators.host,
+      autofocus: _host.text.isEmpty,
+    ),
+    _gap,
+    _text(
+      controller: _share,
+      label: SourcesStrings.fieldExport,
+      hint: SourcesStrings.fieldExportHint,
+      validator: SourceValidators.nfsExport,
+    ),
+    ..._sharePicker(
+      label: SourcesStrings.listExports,
+      hint: SourcesStrings.exportsHint,
+    ),
+    _gap,
+    _text(
+      controller: _path,
+      label: SourcesStrings.fieldPath,
+      hint: SourcesStrings.fieldPathHint,
+      validator: SourceValidators.subPath,
+      suffix: _browseButton(),
+    ),
+    _gap,
+    Text(
+      SourcesStrings.nfsNotice,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        color: context.lekisColors.onSurfaceVariant,
+      ),
+    ),
+  ];
+
+  List<Widget> _sftpFields() => [
+    _text(
+      controller: _host,
+      label: SourcesStrings.fieldHost,
+      hint: SourcesStrings.fieldHostHint,
+      keyboard: TextInputType.url,
+      validator: SourceValidators.host,
+      autofocus: _host.text.isEmpty,
+    ),
+    _gap,
+    _text(
+      controller: _port,
+      label: SourcesStrings.fieldPort,
+      hint: SourcesStrings.fieldPortHint,
+      keyboard: TextInputType.number,
+      validator: SourceValidators.port,
+    ),
+    _gap,
+    _text(
+      controller: _username,
+      label: SourcesStrings.fieldUsername,
+      validator: SourceValidators.username,
+      autofill: const [AutofillHints.username],
+    ),
+    _gap,
+    Align(
+      alignment: Alignment.centerLeft,
+      child: SegmentedButton<bool>(
+        key: const ValueKey('sftp-auth-mode'),
+        segments: const [
+          ButtonSegment(
+            value: false,
+            icon: Icon(Icons.password),
+            label: Text(SourcesStrings.authPassword),
+          ),
+          ButtonSegment(
+            value: true,
+            icon: Icon(Icons.key),
+            label: Text(SourcesStrings.authKey),
+          ),
+        ],
+        selected: {_useKey},
+        onSelectionChanged: _busy || _testing
+            ? null
+            : (v) => setState(() {
+                _useKey = v.first;
+                _secret.clear();
+                _passphrase.clear();
+              }),
+      ),
+    ),
+    if (_useKey)
+      ..._keyFields()
+    else
+      ..._credentialFields(
+        label: SourcesStrings.fieldPassword,
+        validator: SourceValidators.password,
+      ),
+    _gap,
+    _text(
+      controller: _path,
+      label: SourcesStrings.fieldSftpPath,
+      hint: SourcesStrings.fieldSftpPathHint,
+      validator: SourceValidators.subPath,
+      suffix: _browseButton(),
+    ),
+  ];
+
+  /// SFTP 私钥：多行粘贴框 + 可选 passphrase。已保存且没要求替换时只显示状态。
+  List<Widget> _keyFields() {
+    if (_credentialSaved && !_replaceSecret && !_authModeChanged) {
+      return [
+        _gap,
+        _savedCredentialTile(
+          notice: SourcesStrings.keySavedNotice,
+          replaceLabel: SourcesStrings.replaceKey,
+        ),
+      ];
+    }
+    final enabled = !_busy && !_testing;
+    return [
+      _gap,
+      TextFormField(
+        key: const ValueKey('sftp-private-key'),
+        controller: _secret,
+        enabled: enabled,
+        minLines: 3,
+        maxLines: 6,
+        autocorrect: false,
+        enableSuggestions: false,
+        keyboardType: TextInputType.multiline,
+        validator: SourceValidators.privateKey,
+        style: const TextStyle(fontFamily: 'monospace'),
+        decoration: InputDecoration(
+          labelText: _credentialSaved
+              ? SourcesStrings.newPrivateKey
+              : SourcesStrings.fieldPrivateKey,
+          hintText: SourcesStrings.fieldPrivateKeyHint,
+          hintMaxLines: 3,
+          border: const OutlineInputBorder(),
+        ),
+      ),
+      _gap,
+      TextFormField(
+        controller: _passphrase,
+        enabled: enabled,
+        obscureText: _obscure,
+        autocorrect: false,
+        enableSuggestions: false,
+        keyboardType: TextInputType.visiblePassword,
+        decoration: InputDecoration(
+          labelText: SourcesStrings.fieldKeyPassphrase,
+          border: const OutlineInputBorder(),
+          suffixIcon: _obscureToggle(),
+        ),
+      ),
+      if (_credentialSaved && !_authModeChanged) ...[
+        const SizedBox(height: LekisSpacing.xs),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: _busy || _testing ? null : _cancelReplaceSecret,
+            child: const Text(SourcesStrings.keepKey),
+          ),
+        ),
+      ],
+    ];
+  }
+
+  /// 「列出共享 / 导出」按钮 + 结果标签。点标签就填进上面的输入框。
+  List<Widget> _sharePicker({required String label, required String hint}) {
+    final theme = Theme.of(context);
+    final colors = context.lekisColors;
+    final shares = _shares;
+    final sharesError = _sharesError;
+    final current = _share.text.trim();
+    return [
+      const SizedBox(height: LekisSpacing.sm),
+      Row(
+        children: [
+          OutlinedButton.icon(
+            key: const ValueKey('source-list-shares'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, LekisSizes.touchTargetMin),
+            ),
+            onPressed: _loadingShares || _busy || _testing ? null : _listShares,
+            icon: _loadingShares
+                ? const SizedBox.square(
+                    dimension: LekisSpacing.lg,
+                    child: CircularProgressIndicator(
+                      strokeWidth: LekisSpacing.xxs,
+                    ),
+                  )
+                : const Icon(Icons.list_alt),
+            label: Text(_loadingShares ? SourcesStrings.listingShares : label),
+          ),
+        ],
+      ),
+      const SizedBox(height: LekisSpacing.xs),
+      if (sharesError != null)
+        Text(
+          sharesError,
+          style: theme.textTheme.bodySmall?.copyWith(color: colors.danger),
+        )
+      else if (shares == null)
+        Text(
+          hint,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: colors.onSurfaceVariant,
+          ),
+        )
+      else if (shares.isEmpty)
+        Text(
+          SourcesStrings.noShares,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: colors.onSurfaceVariant,
+          ),
+        )
+      else
+        Wrap(
+          spacing: LekisSpacing.sm,
+          runSpacing: LekisSpacing.xs,
+          children: [
+            for (final share in shares)
+              Tooltip(
+                message: share.comment,
+                child: ChoiceChip(
+                  key: ValueKey('share:${share.name}'),
+                  avatar: const Icon(Icons.folder_shared_outlined),
+                  label: Text(share.name),
+                  selected: current == share.name,
+                  onSelected: _busy || _testing
+                      ? null
+                      : (_) => _pickShare(share.name),
+                ),
+              ),
+          ],
+        ),
+    ];
+  }
+
+  Widget _browseButton() => IconButton(
+    key: const ValueKey('source-browse-folders'),
+    tooltip: SourcesStrings.browseFolders,
+    onPressed: _busy || _testing ? null : _browse,
+    icon: const Icon(Icons.folder_open),
+  );
+
+  Widget _obscureToggle() => IconButton(
+    tooltip: _obscure ? SourcesStrings.showPassword : SourcesStrings.hidePassword,
+    onPressed: () => setState(() => _obscure = !_obscure),
+    icon: Icon(
+      _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+    ),
+  );
 
   Widget _text({
     required TextEditingController controller,
@@ -959,6 +1385,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     List<String>? autofill,
     TextInputAction action = TextInputAction.next,
     bool autofocus = false,
+    Widget? suffix,
   }) => TextFormField(
     controller: controller,
     enabled: !_busy && !_testing,
@@ -974,6 +1401,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
       labelText: label,
       hintText: hint,
       border: const OutlineInputBorder(),
+      suffixIcon: suffix,
     ),
   );
 
@@ -995,15 +1423,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
       labelText: label,
       hintText: hint,
       border: const OutlineInputBorder(),
-      suffixIcon: IconButton(
-        tooltip: _obscure
-            ? SourcesStrings.showPassword
-            : SourcesStrings.hidePassword,
-        onPressed: () => setState(() => _obscure = !_obscure),
-        icon: Icon(
-          _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-        ),
-      ),
+      suffixIcon: _obscureToggle(),
     ),
   );
 }

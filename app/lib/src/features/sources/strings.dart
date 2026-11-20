@@ -79,6 +79,8 @@ abstract final class SourcesStrings {
   static const kindOpenSubsonicHint = 'Navidrome、Gonic、Airsonic 等';
   static const kindJellyfinHint = '用 API 密钥连接 Jellyfin 服务器';
   static const kindPlexHint = '用 Plex Token 连接';
+  static const kindNfsHint = 'Linux NAS、群晖 / TrueNAS 的 NFS 导出';
+  static const kindSftpHint = '通过 SSH 访问 NAS 或服务器上的文件夹';
 
   // 添加流程
   static const chooseKind = '你的音乐放在哪里？';
@@ -100,8 +102,9 @@ abstract final class SourcesStrings {
   static const fieldAlternatesHint = '每行一个，例如 Tailscale 或外网地址';
   static const fieldAlternatesHelper = '主地址连不上时按顺序尝试';
   static const detailAlternate = '备用地址';
-  static const discoveryTitle = '局域网里的设备';
+  static const discoveryTitle = '在你的网络上发现';
   static const discoveryBody = '在同一网络里搜索 SMB、WebDAV 和 DLNA 设备。点一下结果就能预填表单。';
+  static const discoveryNothingYet = '没有发现设备。也可以在下面手动添加。';
   static const scanLan = '扫描局域网';
   static const scanningLan = '正在扫描…';
   static const scanAgain = '重新扫描';
@@ -109,7 +112,7 @@ abstract final class SourcesStrings {
   static const discoveryEmpty = '没有发现设备。确认 NAS 已开机、和这台设备在同一网络，或手动填写地址。';
   static const discoveryError = '扫描失败';
   static const discoveryDlnaNote = 'DLNA 媒体服务器，可能提供 SMB 共享';
-  static const discoveryPickHint = '点一下结果，继续填写账号和共享名';
+  static const discoveryPickHint = '点一下结果，填好账号就能选共享';
   static String discoveryFoundCount(int n) => '发现 $n 台设备';
   static const viaMdns = 'mDNS';
   static const viaWsDiscovery = 'WS-Discovery';
@@ -134,6 +137,44 @@ abstract final class SourcesStrings {
   static const fieldShareHint = '例如 music';
   static const fieldPath = '子文件夹（可选）';
   static const fieldPathHint = '例如 FLAC/古典';
+  static const fieldExport = '导出路径';
+  static const fieldExportHint = '例如 /volume1/music';
+  static const fieldNfsHostHint = '例如 192.168.1.10（需要 NFSv3）';
+  static const nfsNotice = 'NFS 以匿名方式连接，需要在 NAS 的 NFS 权限里允许这台设备的 IP。';
+  static const fieldPort = '端口（可选）';
+  static const fieldPortHint = '22';
+  static const fieldSftpPath = '文件夹（可选）';
+  static const fieldSftpPathHint = '例如 volume1/music，留空为根目录';
+  static const authPassword = '密码';
+  static const authKey = '私钥';
+  static const fieldPrivateKey = '私钥';
+  static const fieldPrivateKeyHint = '粘贴 OpenSSH 私钥（-----BEGIN OPENSSH PRIVATE KEY-----…），支持 Ed25519 / ECDSA';
+  static const fieldKeyPassphrase = '私钥密码（可选）';
+  static const newPrivateKey = '新私钥';
+  static const keySavedNotice = '私钥已保存，不需要重新粘贴。需要修改时点“替换私钥”。';
+  static const replaceKey = '替换私钥';
+  static const keepKey = '保留已保存的私钥';
+
+  // 共享列表 / 文件夹浏览
+  static const listShares = '列出共享';
+  static const listExports = '列出导出';
+  static const listingShares = '正在读取…';
+  static const sharesHint = '填好主机和账号（或打开访客）后，点“列出共享”直接选，不用手打。';
+  static const exportsHint = '填好主机后，点“列出导出”直接选。';
+  static const noShares = '服务器没有返回可用的共享，请手动填写。';
+  static const sharesFailed = '读取共享列表失败';
+  static const browseFolders = '浏览文件夹';
+  static const browseTitle = '选择文件夹';
+  static const browseRoot = '根目录';
+  static const browseUp = '上一级';
+  static const browseEmpty = '这里没有子文件夹';
+  static const browseFailed = '读取文件夹失败';
+  static const browseUseThis = '选这个文件夹';
+  static String browseAudioCount(int n) => n == 0 ? '这一层没有音乐文件' : '这一层有 $n 个音乐文件';
+  static const browseNeedsHost = '先填好主机地址';
+  static const browseNeedsShare = '先选好共享';
+  static const browseNeedsExport = '先填好导出路径';
+  static const browseNeedsUrl = '先填好地址';
   static const fieldUrl = '地址';
   static const fieldWebDavUrlHint = '例如 https://nas.local:5006/music';
   static const fieldServerUrlHint = '例如 http://192.168.1.10:4533';
@@ -157,6 +198,10 @@ abstract final class SourcesStrings {
   static const errHostRequired = '请填写主机地址';
   static const errHostInvalid = '主机地址里不能有空格或斜杠';
   static const errShareRequired = '请填写共享名';
+  static const errExportRequired = '请填写导出路径';
+  static const errPortInvalid = '端口需要是 1~65535 之间的数字';
+  static const errPrivateKeyRequired = '请粘贴私钥';
+  static const errPrivateKeyInvalid = '这看起来不是私钥（应包含 PRIVATE KEY）';
   static const errUrlRequired = '请填写地址';
   static const errUrlInvalid = '地址需要以 http:// 或 https:// 开头';
   static const errUsernameRequired = '请填写用户名';

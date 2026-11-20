@@ -2409,6 +2409,7 @@ dependencies = [
  "reqwest",
  "russh",
  "russh-sftp",
+ "serde_json",
  "smb2",
  "tokio",
  "tracing",

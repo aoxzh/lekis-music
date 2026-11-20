@@ -332,6 +332,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<RuleGroupDto> dco_decode_list_rule_group_dto(dynamic raw);
 
   @protected
+  List<ShareDto> dco_decode_list_share_dto(dynamic raw);
+
+  @protected
   List<SourceConfigDto> dco_decode_list_source_config_dto(dynamic raw);
 
   @protected
@@ -547,6 +550,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SearchResultsDto dco_decode_search_results_dto(dynamic raw);
 
   @protected
+  ShareDto dco_decode_share_dto(dynamic raw);
+
+  @protected
   ShuffleModeDto dco_decode_shuffle_mode_dto(dynamic raw);
 
   @protected
@@ -560,6 +566,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SourceKindDto dco_decode_source_kind_dto(dynamic raw);
+
+  @protected
+  SourceListingDto dco_decode_source_listing_dto(dynamic raw);
 
   @protected
   SyncReportDto dco_decode_sync_report_dto(dynamic raw);
@@ -1002,6 +1011,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<ShareDto> sse_decode_list_share_dto(SseDeserializer deserializer);
+
+  @protected
   List<SourceConfigDto> sse_decode_list_source_config_dto(
     SseDeserializer deserializer,
   );
@@ -1271,6 +1283,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SearchResultsDto sse_decode_search_results_dto(SseDeserializer deserializer);
 
   @protected
+  ShareDto sse_decode_share_dto(SseDeserializer deserializer);
+
+  @protected
   ShuffleModeDto sse_decode_shuffle_mode_dto(SseDeserializer deserializer);
 
   @protected
@@ -1284,6 +1299,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SourceKindDto sse_decode_source_kind_dto(SseDeserializer deserializer);
+
+  @protected
+  SourceListingDto sse_decode_source_listing_dto(SseDeserializer deserializer);
 
   @protected
   SyncReportDto sse_decode_sync_report_dto(SseDeserializer deserializer);
@@ -1841,6 +1859,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_share_dto(List<ShareDto> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_source_config_dto(
     List<SourceConfigDto> self,
     SseSerializer serializer,
@@ -2186,6 +2207,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_share_dto(ShareDto self, SseSerializer serializer);
+
+  @protected
   void sse_encode_shuffle_mode_dto(
     ShuffleModeDto self,
     SseSerializer serializer,
@@ -2205,6 +2229,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_source_kind_dto(SourceKindDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_source_listing_dto(
+    SourceListingDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_sync_report_dto(SyncReportDto self, SseSerializer serializer);

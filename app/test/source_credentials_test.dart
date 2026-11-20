@@ -225,6 +225,21 @@ class _FakeGateway implements SourceGateway {
   }
 
   @override
+  Future<List<ShareDto>> listShares(SourceConfigDto source) async {
+    calls.add('shares');
+    return const [];
+  }
+
+  @override
+  Future<SourceListingDto> browseSource(
+    SourceConfigDto source,
+    String path,
+  ) async {
+    calls.add('browse:$path');
+    return const SourceListingDto(folders: [], audioFiles: 0);
+  }
+
+  @override
   Future<void> setCredential(String credentialRef, String secret) async {
     calls.add('set:$credentialRef');
     credentials[credentialRef] = secret;

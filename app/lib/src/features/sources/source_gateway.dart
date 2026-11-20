@@ -9,6 +9,8 @@ abstract interface class SourceGateway {
   Future<void> updateSource(SourceConfigDto source);
   Future<void> removeSource(int sourceId);
   Future<void> testSource(SourceConfigDto source);
+  Future<List<ShareDto>> listShares(SourceConfigDto source);
+  Future<SourceListingDto> browseSource(SourceConfigDto source, String path);
   Future<void> setCredential(String credentialRef, String secret);
   Future<void> deleteCredential(String credentialRef);
   bool hasCredential(String credentialRef);
@@ -33,6 +35,14 @@ class CoreSourceGateway implements SourceGateway {
   @override
   Future<void> testSource(SourceConfigDto source) =>
       core.testSource(source: source);
+
+  @override
+  Future<List<ShareDto>> listShares(SourceConfigDto source) =>
+      core.listShares(source: source);
+
+  @override
+  Future<SourceListingDto> browseSource(SourceConfigDto source, String path) =>
+      core.browseSource(source: source, path: path);
 
   @override
   Future<void> setCredential(String credentialRef, String secret) =>

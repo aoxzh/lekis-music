@@ -218,8 +218,8 @@ class AddSourceResult {
 final sourceActionsProvider = Provider<SourceActions>(SourceActions.new);
 
 class SourceActions {
-  SourceActions(this._ref)
-    : _credentials = SourceCredentialService(const CoreSourceGateway());
+  SourceActions(this._ref, {SourceGateway gateway = const CoreSourceGateway()})
+    : _credentials = SourceCredentialService(gateway);
 
   final Ref _ref;
   final SourceCredentialService _credentials;
@@ -258,6 +258,23 @@ class SourceActions {
   /// 测试表单里的未保存配置；临时凭据测完即删。
   Future<void> testDraft(SourceDraft draft, {SourceConfigDto? existing}) =>
       _credentials.testDraft(draft, existing: existing);
+
+  /// 列出草稿主机上的 SMB 共享 / NFS 导出。临时凭据用完即删。
+  Future<List<ShareDto>> listShares(
+    SourceDraft draft, {
+    SourceConfigDto? existing,
+  }) => _credentials.listShares(draft, existing: existing);
+
+  /// 浏览草稿配置里 `path` 下的子文件夹。临时凭据用完即删。
+  Future<SourceListingDto> browse(
+    SourceDraft draft,
+    String path, {
+    SourceConfigDto? existing,
+  }) => _credentials.browse(draft, path, existing: existing);
+
+  /// 某个凭据引用是否已保存（编辑表单判断要不要重新输入密码）。
+  bool hasCredential(String credentialRef) =>
+      _credentials.hasCredential(credentialRef);
 
   /// 重新扫描一个音源。失败时抛出核心错误（同时记进运行时状态）。
   Future<void> rescan(int id) async {

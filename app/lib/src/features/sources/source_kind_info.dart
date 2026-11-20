@@ -24,6 +24,8 @@ extension SourceKindInfo on SourceKindDto {
     SourceKindDto.local => SourcesStrings.kindLocalHint,
     SourceKindDto.smb => SourcesStrings.kindSmbHint,
     SourceKindDto.webDav => SourcesStrings.kindWebDavHint,
+    SourceKindDto.nfs => SourcesStrings.kindNfsHint,
+    SourceKindDto.sftp => SourcesStrings.kindSftpHint,
     SourceKindDto.openSubsonic => SourcesStrings.kindOpenSubsonicHint,
     SourceKindDto.jellyfin => SourcesStrings.kindJellyfinHint,
     SourceKindDto.plex => SourcesStrings.kindPlexHint,
@@ -32,8 +34,10 @@ extension SourceKindInfo on SourceKindDto {
 
   IconData get icon => switch (this) {
     SourceKindDto.local => Icons.folder_outlined,
-    SourceKindDto.smb || SourceKindDto.nfs => Icons.lan_outlined,
-    SourceKindDto.webDav || SourceKindDto.sftp => Icons.cloud_outlined,
+    SourceKindDto.smb => Icons.lan_outlined,
+    SourceKindDto.nfs => Icons.storage_outlined,
+    SourceKindDto.webDav => Icons.cloud_outlined,
+    SourceKindDto.sftp => Icons.terminal,
     SourceKindDto.openSubsonic ||
     SourceKindDto.jellyfin ||
     SourceKindDto.emby ||

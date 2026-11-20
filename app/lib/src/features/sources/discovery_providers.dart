@@ -39,6 +39,16 @@ class LanDiscoveryState {
       hasScanned && !scanning && error == null && results.isEmpty;
 }
 
+/// 真正发起一次扫描的函数。单独做成 Provider，测试里可以换成假的。
+typedef LanScanner = Future<List<DiscoveredServiceDto>> Function();
+
+final lanScannerProvider = Provider<LanScanner>(
+  (ref) =>
+      () => withLanMulticastLock(
+        () => core.discoverLan(timeoutMs: lanDiscoveryTimeout.inMilliseconds),
+      ),
+);
+
 final lanDiscoveryProvider =
     NotifierProvider.autoDispose<LanDiscoveryNotifier, LanDiscoveryState>(
       LanDiscoveryNotifier.new,
@@ -62,9 +72,7 @@ class LanDiscoveryNotifier extends Notifier<LanDiscoveryState> {
     final run = ++_run;
     state = const LanDiscoveryState(scanning: true);
     try {
-      final found = await withLanMulticastLock(
-        () => core.discoverLan(timeoutMs: lanDiscoveryTimeout.inMilliseconds),
-      );
+      final found = await ref.read(lanScannerProvider)();
       if (_disposed || run != _run) return;
       state = LanDiscoveryState(
         hasScanned: true,
@@ -74,6 +82,12 @@ class LanDiscoveryNotifier extends Notifier<LanDiscoveryState> {
       if (_disposed || run != _run) return;
       state = LanDiscoveryState(hasScanned: true, error: e);
     }
+  }
+
+  /// 打开「添加音源」时自动扫一次：已经扫过或正在扫就什么都不做。
+  Future<void> ensureScanned() async {
+    if (_disposed || state.scanning || state.hasScanned) return;
+    await scan();
   }
 
   /// SMB / WebDAV 能直接预填表单，排在仅作提示的 DLNA 前面。

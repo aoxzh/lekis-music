@@ -99,6 +99,27 @@ pub async fn test_source(source: SourceConfigDto) -> Result<(), CoreError> {
     Ok(core().test_source(source.into()).await?)
 }
 
+/// 列出服务器上的 SMB 共享 / NFS 导出，供「添加音源」时点选。
+///
+/// 只用 `source.addresses[0]` 的主机部分（`smb://nas`、`nfs://nas` 即可），
+/// 用户名在 `options["username"]`，密码按 `credential_ref` 先存好（和 `test_source` 一样）。
+pub async fn list_shares(source: SourceConfigDto) -> Result<Vec<ShareDto>, CoreError> {
+    Ok(core()
+        .list_shares(source.into())
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// 浏览一个未保存的网络音源配置里 `path` 下的子文件夹（`/` 分隔，相对配置的根，空串是根）。
+pub async fn browse_source(
+    source: SourceConfigDto,
+    path: String,
+) -> Result<SourceListingDto, CoreError> {
+    Ok(core().browse_source(source.into(), path).await?.into())
+}
+
 /// 扫描局域网里的 SMB / WebDAV / DLNA 服务，`timeout_ms` 后返回。
 ///
 /// 一次性扫描，不注册任何服务。各协议的错误只记日志，不会让整次扫描失败。

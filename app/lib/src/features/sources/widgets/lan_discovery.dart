@@ -1,4 +1,4 @@
-// 「局域网里的设备」：扫描按钮 + 结果列表。
+// 「在你的网络上发现」：打开添加音源时自动扫描，结果放在本地文件夹下面。
 //
 // 结果只来自核心的真实发现。SMB / WebDAV 点一下会带着地址进入表单；
 // DLNA 只作为「这台机器可能有 SMB 共享」的提示。
@@ -14,160 +14,105 @@ import '../discovery_providers.dart';
 import '../strings.dart';
 import 'source_status.dart';
 
-class LanDiscoverySection extends ConsumerWidget {
+class LanDiscoverySection extends ConsumerStatefulWidget {
   const LanDiscoverySection({super.key, required this.onPick});
 
   /// 用户点了一条发现结果。调用方决定打开哪种表单。
   final ValueChanged<DiscoveredServiceDto> onPick;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(lanDiscoveryProvider);
-    final theme = Theme.of(context);
-    final colors = context.lekisColors;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: colors.outline),
-        borderRadius: BorderRadius.circular(LekisRadius.md),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(LekisSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.wifi_find_outlined, color: colors.onSurfaceVariant),
-                const SizedBox(width: LekisSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        SourcesStrings.discoveryTitle,
-                        style: theme.textTheme.titleSmall,
-                      ),
-                      const SizedBox(height: LekisSpacing.xs),
-                      Text(
-                        SourcesStrings.discoveryBody,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: LekisSpacing.md),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: _ScanButton(
-                state: state,
-                onScan: () => ref.read(lanDiscoveryProvider.notifier).scan(),
-              ),
-            ),
-            if (state.scanning) ...[
-              const SizedBox(height: LekisSpacing.md),
-              const LinearProgressIndicator(),
-              const SizedBox(height: LekisSpacing.sm),
-              Text(
-                SourcesStrings.discoveryScanningBody,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-            ] else if (state.error != null) ...[
-              const SizedBox(height: LekisSpacing.md),
-              Semantics(
-                liveRegion: true,
-                child: Text(
-                  '${SourcesStrings.discoveryError}：${describeCoreError(state.error!)}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.danger,
-                  ),
-                ),
-              ),
-            ] else if (state.isEmpty) ...[
-              const SizedBox(height: LekisSpacing.md),
-              Text(
-                SourcesStrings.discoveryEmpty,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-            ] else if (state.results.isNotEmpty) ...[
-              const SizedBox(height: LekisSpacing.md),
-              Text(
-                SourcesStrings.discoveryFoundCount(state.results.length),
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: LekisSpacing.xs),
-              Text(
-                SourcesStrings.discoveryPickHint,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: LekisSpacing.sm),
-              for (final service in state.results)
-                _DiscoveredTile(
-                  key: ValueKey(
-                    '${service.kind.name}:${service.host}:${service.port}:${service.path}',
-                  ),
-                  service: service,
-                  onTap: () => onPick(service),
-                ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
+  ConsumerState<LanDiscoverySection> createState() =>
+      _LanDiscoverySectionState();
 }
 
-class _ScanButton extends StatelessWidget {
-  const _ScanButton({required this.state, required this.onScan});
-
-  final LanDiscoveryState state;
-  final VoidCallback onScan;
+class _LanDiscoverySectionState extends ConsumerState<LanDiscoverySection> {
+  @override
+  void initState() {
+    super.initState();
+    // 打开「添加音源」就开始扫，不用用户去找按钮。Android 的组播锁由
+    // lanScannerProvider 在扫描期间持有。
+    Future.microtask(() {
+      if (mounted) ref.read(lanDiscoveryProvider.notifier).ensureScanned();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final scanning = state.scanning;
-    final label = scanning
-        ? SourcesStrings.scanningLan
-        : state.hasScanned
-        ? SourcesStrings.scanAgain
-        : SourcesStrings.scanLan;
-    final icon = scanning
-        ? const SizedBox.square(
-            dimension: LekisSpacing.lg,
-            child: CircularProgressIndicator(strokeWidth: LekisSpacing.xxs),
-          )
-        : Icon(state.hasScanned ? Icons.refresh : Icons.search);
-    final onPressed = scanning ? null : onScan;
-    if (state.hasScanned) {
-      return OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size(0, LekisSizes.touchTargetMin),
+    final state = ref.watch(lanDiscoveryProvider);
+    final theme = Theme.of(context);
+    final colors = context.lekisColors;
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: colors.onSurfaceVariant,
+    );
+
+    return Column(
+      key: const ValueKey('lan-discovery'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.wifi_find_outlined, color: colors.onSurfaceVariant),
+            const SizedBox(width: LekisSpacing.md),
+            Expanded(
+              child: Text(
+                SourcesStrings.discoveryTitle,
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+            if (state.scanning)
+              const Padding(
+                padding: EdgeInsets.all(LekisSpacing.md),
+                child: SizedBox.square(
+                  dimension: LekisSpacing.lg,
+                  child: CircularProgressIndicator(
+                    strokeWidth: LekisSpacing.xxs,
+                  ),
+                ),
+              )
+            else
+              IconButton(
+                key: const ValueKey('lan-discovery-rescan'),
+                tooltip: SourcesStrings.scanAgain,
+                onPressed: () => ref.read(lanDiscoveryProvider.notifier).scan(),
+                icon: const Icon(Icons.refresh),
+              ),
+          ],
         ),
-        onPressed: onPressed,
-        icon: icon,
-        label: Text(label),
-      );
-    }
-    return FilledButton.tonalIcon(
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(0, LekisSizes.touchTargetMin),
-      ),
-      onPressed: onPressed,
-      icon: icon,
-      label: Text(label),
+        if (state.scanning) ...[
+          const SizedBox(height: LekisSpacing.xs),
+          const LinearProgressIndicator(),
+          const SizedBox(height: LekisSpacing.sm),
+          Text(SourcesStrings.discoveryScanningBody, style: muted),
+        ] else if (state.error != null) ...[
+          const SizedBox(height: LekisSpacing.xs),
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              '${SourcesStrings.discoveryError}：${describeCoreError(state.error!)}',
+              style: theme.textTheme.bodySmall?.copyWith(color: colors.danger),
+            ),
+          ),
+        ] else if (state.isEmpty) ...[
+          const SizedBox(height: LekisSpacing.xs),
+          Text(SourcesStrings.discoveryNothingYet, style: muted),
+        ] else if (state.results.isNotEmpty) ...[
+          const SizedBox(height: LekisSpacing.xs),
+          Text(
+            '${SourcesStrings.discoveryFoundCount(state.results.length)} · '
+            '${SourcesStrings.discoveryPickHint}',
+            style: muted,
+          ),
+          const SizedBox(height: LekisSpacing.sm),
+          for (final service in state.results)
+            _DiscoveredTile(
+              key: ValueKey(
+                '${service.kind.name}:${service.host}:${service.port}:${service.path}',
+              ),
+              service: service,
+              onTap: () => widget.onPick(service),
+            ),
+        ],
+      ],
     );
   }
 }

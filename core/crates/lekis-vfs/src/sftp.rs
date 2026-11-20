@@ -31,6 +31,12 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::Mutex;
 
+/// 源配置 `options` 里表示认证方式的键。
+pub const AUTH_OPTION: &str = "auth";
+
+/// `options["auth"]` 取这个值时，凭据库里存的是私钥（见 [`SftpVfs::connect_with`]）。
+pub const AUTH_KEY: &str = "key";
+
 /// 默认 SFTP 端口（跑在 SSH 上）。
 const DEFAULT_PORT: u16 = 22;
 
@@ -70,8 +76,53 @@ pub struct SftpVfs {
     password: String,
     /// 私钥 passphrase（`open()` 参数优先）。
     key_passphrase: Option<String>,
+    /// 凭据库里直接存的私钥（OpenSSH / PEM 文本）。有它时优先于 `?key=` 和密码。
+    inline_key: Option<InlineKey>,
     /// 懒惰建立的会话。
     session: Mutex<Option<SftpConn>>,
+}
+
+/// 凭据库里存的私钥。刻意不实现 `Debug`。
+struct InlineKey {
+    /// 私钥文本。
+    pem: String,
+    /// 私钥的 passphrase。
+    passphrase: Option<String>,
+}
+
+impl InlineKey {
+    /// 解析凭据库里的私钥凭据。
+    ///
+    /// 界面写的是 JSON：`{"private_key": "...", "passphrase": "..."}`；
+    /// 不是 JSON 时把整个字符串当成私钥文本（没有 passphrase）。
+    fn parse(secret: &str) -> Option<Self> {
+        let trimmed = secret.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        if trimmed.starts_with('{') {
+            if let Ok(serde_json::Value::Object(map)) =
+                serde_json::from_str::<serde_json::Value>(trimmed)
+            {
+                let pem = map
+                    .get("private_key")
+                    .and_then(|v| v.as_str())
+                    .map(str::trim)
+                    .filter(|v| !v.is_empty())?
+                    .to_string();
+                let passphrase = map
+                    .get("passphrase")
+                    .and_then(|v| v.as_str())
+                    .filter(|v| !v.is_empty())
+                    .map(str::to_string);
+                return Some(Self { pem, passphrase });
+            }
+        }
+        Some(Self {
+            pem: trimmed.to_string(),
+            passphrase: None,
+        })
+    }
 }
 
 impl SftpVfs {
@@ -84,23 +135,38 @@ impl SftpVfs {
     /// 只做参数解析，**不发网络请求**（真正连接推迟到第一次读写），
     /// 这样源配置里地址写错也能先存下来，等实际访问时再报错。
     pub fn connect(url: &str, password: Option<String>) -> Result<Self> {
+        Self::connect_with(url, password, false)
+    }
+
+    /// 同 [`connect`](Self::connect)，`inline_key` 为真时 `secret` 是私钥凭据
+    /// （见 [`InlineKey::parse`]）而不是密码。
+    pub fn connect_with(url: &str, secret: Option<String>, inline_key: bool) -> Result<Self> {
         let target = parse_sftp_url(url)?;
-        let password = password
-            .filter(|p| !p.is_empty())
-            .or_else(|| target.password.clone())
-            .unwrap_or_default();
+        let (password, inline_key) = if inline_key {
+            let key = secret.as_deref().and_then(InlineKey::parse).ok_or_else(|| {
+                LekisError::new(ErrorCode::Auth, "SFTP: 选择了私钥登录，但没有保存私钥")
+            })?;
+            (target.password.clone().unwrap_or_default(), Some(key))
+        } else {
+            let password = secret
+                .filter(|p| !p.is_empty())
+                .or_else(|| target.password.clone())
+                .unwrap_or_default();
+            (password, None)
+        };
         let key_passphrase = target.key_passphrase.clone();
         tracing::debug!(
             target: "vfs::sftp",
             host = %target.host,
             port = target.port,
-            key_auth = target.key.is_some(),
+            key_auth = target.key.is_some() || inline_key.is_some(),
             "配置 SFTP 源（凭据不入日志）"
         );
         Ok(Self {
             target,
             password,
             key_passphrase,
+            inline_key,
             session: Mutex::new(None),
         })
     }
@@ -161,8 +227,19 @@ impl SftpVfs {
         .map_err(|e| ssh_err("连接 SSH 服务器失败", e))?;
 
         let user = self.user();
-        let auth = match self.target.key.as_deref() {
-            Some(key_path) => {
+        let auth = match (self.inline_key.as_ref(), self.target.key.as_deref()) {
+            (Some(inline), _) => {
+                let key = russh::keys::decode_secret_key(&inline.pem, inline.passphrase.as_deref())
+                    .map_err(|e| {
+                        LekisError::new(ErrorCode::Auth, format!("解析 SSH 私钥失败: {e}"))
+                    })?;
+                let key = russh::keys::PrivateKeyWithHashAlg::new(
+                    Arc::new(key),
+                    Some(russh::keys::HashAlg::Sha256),
+                );
+                handle.authenticate_publickey(&user, key).await
+            }
+            (None, Some(key_path)) => {
                 // TODO(sftp-rsa): rsa 类型的私钥需要 russh 的 `rsa` feature（额外拉
                 // `rsa`/`pkcs1` crate）。当前只用 ring，ed25519/ecdsa 私钥可用，
                 // RSA 私钥会在解析阶段报错。
@@ -176,7 +253,7 @@ impl SftpVfs {
                 );
                 handle.authenticate_publickey(&user, key).await
             }
-            None => handle.authenticate_password(&user, &self.password).await,
+            (None, None) => handle.authenticate_password(&user, &self.password).await,
         }
         .map_err(|e| ssh_err("SSH 认证请求失败", e))?;
         if !auth.success() {
@@ -582,6 +659,33 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
+
+    #[test]
+    fn inline_key_secret_parses_json_and_raw_text() {
+        let key = InlineKey::parse(r#"{"private_key":" KEY ","passphrase":"pp"}"#).expect("json");
+        assert_eq!(key.pem, "KEY");
+        assert_eq!(key.passphrase.as_deref(), Some("pp"));
+        let key = InlineKey::parse(r#"{"private_key":"KEY","passphrase":""}"#).expect("json");
+        assert!(key.passphrase.is_none());
+        let key = InlineKey::parse("-----BEGIN OPENSSH PRIVATE KEY-----\nabc").expect("raw");
+        assert!(key.pem.starts_with("-----BEGIN"));
+        assert!(key.passphrase.is_none());
+        assert!(InlineKey::parse("  ").is_none());
+        assert!(InlineKey::parse(r#"{"private_key":""}"#).is_none());
+    }
+
+    #[test]
+    fn key_auth_without_saved_key_is_an_auth_error() {
+        let err = match SftpVfs::connect_with("sftp://nas/music", None, true) {
+            Ok(_) => panic!("must fail"),
+            Err(e) => e,
+        };
+        assert_eq!(err.code, ErrorCode::Auth);
+        let vfs = SftpVfs::connect_with("sftp://nas/music", Some("KEY".into()), true)
+            .expect("key given");
+        assert!(vfs.inline_key.is_some());
+        assert!(vfs.password.is_empty(), "私钥不能被当成密码");
+    }
 
     #[test]
     fn parses_minimal_url() {
