@@ -4,16 +4,18 @@
 // * the track is continuous everywhere (the theme pins the 2023 look: no
 //   2024 gap, stop dot or tick marks), and only the geometry that genuinely
 //   differs per place (track height, thumb size, touch padding) is overridden;
-// * the slider is hosted in [SliderOverlayHost]. Material's Slider always
-//   wraps itself in an OverlayPortal for its value indicator; when its
-//   semantics change after the first snapshot, Flutter <= 3.50 can serialize
-//   the portal's semantics node without a parent (flutter#190357), and the
-//   desktop accessibility bridge then rejects every update ("N will not be in
-//   the tree and is not the new root"), freezing the accessibility tree and
-//   later crashing flutter_windows.dll. Hosting the portal in its own overlay
-//   keeps the node inside the slider's subtree. Drop the host once the stable
-//   SDK contains flutter#193372 (test/shell/semantics_tree_test.dart guards
-//   the invariant).
+// * the slider never puts Material's semantics on the accessibility tree; see
+//   [SliderOverlayHost]. Material's Slider always wraps itself in an
+//   OverlayPortal, and Flutter <= 3.50 sends the portal child's semantics
+//   node in ways the desktop accessibility bridge (ui::AXTree) rejects —
+//   as an orphan (flutter#190357) or, when the slider's semantics parent is
+//   rebuilt (the player bar's seek bar when a saved session is restored),
+//   moved to the new parent without an update of its own. Either way every
+//   later update fails and flutter_windows.dll eventually crashes
+//   (0xC0000005). LekisSlider therefore excludes the Material slider's
+//   semantics and describes itself with one plain slider node: value,
+//   increase / decrease and the label, which is everything Material's node
+//   carried. test/shell/semantics_tree_test.dart guards the invariant.
 
 import 'package:material_ui/material_ui.dart';
 
@@ -102,8 +104,44 @@ class LekisSlider extends StatelessWidget {
         child: slider,
       );
     }
-    return SliderOverlayHost(child: slider);
+    final enabled = onChanged != null && max > min;
+    final span = max - min;
+    final step = divisions != null && divisions! > 0
+        ? span / divisions!
+        : span * _adjustmentFraction(Theme.of(context).platform);
+    double clampValue(double v) => v.clamp(min, max).toDouble();
+    String describe(double v) =>
+        semanticFormatterCallback?.call(v) ??
+        '${(span > 0 ? (v - min) / span * 100 : 0).round()}%';
+    void nudge(double delta) {
+      final next = clampValue(value + delta);
+      onChangeStart?.call(value);
+      onChanged?.call(next);
+      onChangeEnd?.call(next);
+    }
+
+    return Semantics(
+      container: true,
+      slider: true,
+      enabled: enabled,
+      focusable: enabled,
+      label: semanticLabel ?? label,
+      value: describe(clampValue(value)),
+      increasedValue: describe(clampValue(value + step)),
+      decreasedValue: describe(clampValue(value - step)),
+      textDirection: Directionality.maybeOf(context),
+      onIncrease: enabled ? () => nudge(step) : null,
+      onDecrease: enabled ? () => nudge(-step) : null,
+      child: ExcludeSemantics(child: SliderOverlayHost(child: slider)),
+    );
   }
+
+  /// Same keyboard / screen-reader step as Material's slider.
+  static double _adjustmentFraction(TargetPlatform platform) =>
+      switch (platform) {
+        TargetPlatform.iOS || TargetPlatform.macOS => 0.1,
+        _ => 0.05,
+      };
 }
 
 /// Shared geometry for the sliders that sit in dense desktop rows.
