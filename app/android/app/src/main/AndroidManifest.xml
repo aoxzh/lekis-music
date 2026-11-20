@@ -16,12 +16,16 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- 明文 HTTP 只对「某些电台流」和「电台 logo」有意义，而这两条路径都不走 Java 网络栈：
+         电台流由 Rust reqwest 抓取（core/crates/lekis-playback/src/decode/url_source.rs），
+         logo 由 Flutter Image.network（dart:io）加载，Android 的 usesCleartextTraffic /
+         网络安全配置只约束 OkHttp、HttpURLConnection、WebView 等 Java 实现。因此保持
+         targetSdk 36 的默认值（禁止明文），不要为了电台放开整个应用的明文 HTTP。 -->
     <application
         android:label="Lekis"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:usesCleartextTraffic="true">
+        android:roundIcon="@mipmap/ic_launcher_round">
         <activity
             android:name=".MainActivity"
             android:exported="true"
