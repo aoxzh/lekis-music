@@ -559,8 +559,8 @@ where
                 }
             };
             out.push((name, meta));
-            if out.len() >= MAX_ENTRIES {
-                return Ok(out);
+            if out.len() > MAX_ENTRIES {
+                return Err(crate::too_many_entries(&"NFS", MAX_ENTRIES));
             }
         }
         // 页尾判断：`eof` 为真说明这是最后一页；否则用本页最后一个 cookie 继续问。
@@ -612,8 +612,8 @@ where
                     out.push(name);
                 }
             }
-            if out.len() >= MAX_ENTRIES {
-                return Ok(out);
+            if out.len() > MAX_ENTRIES {
+                return Err(crate::too_many_entries(&"NFS", MAX_ENTRIES));
             }
         }
         if eof || !advanced {

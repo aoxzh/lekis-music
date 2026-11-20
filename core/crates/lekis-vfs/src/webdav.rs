@@ -238,8 +238,7 @@ impl Vfs for WebDavVfs {
                 continue;
             }
             if out.len() >= MAX_ENTRIES {
-                tracing::warn!(target: "vfs::webdav", limit = MAX_ENTRIES, "目录项过多，已截断");
-                break;
+                return Err(crate::too_many_entries(dir, MAX_ENTRIES));
             }
             out.push(DirEntry {
                 meta: entry.meta(),
@@ -452,7 +451,8 @@ impl DavParser {
         }
         if name == "response" {
             if let Some(cur) = self.current.take() {
-                if !cur.href.is_empty() && self.entries.len() < MAX_ENTRIES {
+                // 多留两条（目录自己 + 1），让 list_dir 能发现超限而不是悄悄截断。
+                if !cur.href.is_empty() && self.entries.len() < MAX_ENTRIES + 2 {
                     self.entries.push(cur);
                 }
             }

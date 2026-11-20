@@ -163,6 +163,7 @@ impl Scanner {
         let mut report = ScanReport::default();
         let mut files = outcome.changed;
         let mut outcome_unchanged = outcome.unchanged;
+        let incomplete = outcome.incomplete;
 
         // 上次只用文件名兜底的文件（时长 0）不复用，再读一次标签：旧版扫描器
         // 读不了内嵌大封面的文件，升级后要靠这一步自愈。真读不出来的文件每次
@@ -250,6 +251,19 @@ impl Scanner {
             }
         }
         self.flush(&mut batch, &mut report).await?;
+
+        // 列不全的目录（网络抖动、条目太多）：里面已入库的文件这次没看到，
+        // 但不能当成已删除，否则一次读取失败就会清空整个文件夹的歌（连同播放记录）。
+        if !incomplete.is_empty() {
+            let kept = self
+                .library
+                .touch_files_under(
+                    source_id,
+                    incomplete.iter().map(|d| d.as_str().to_string()).collect(),
+                )
+                .await?;
+            tracing::warn!(target: "scanner", %source_id, dirs = incomplete.len(), kept, "kept files under directories that could not be listed");
+        }
 
         report.removed = self
             .library
@@ -743,6 +757,35 @@ mod tests {
             .unwrap();
         assert_eq!(report.added + report.updated + report.removed, 0);
         assert_eq!(reader.calls(), reads_after_first, "整个子树被剪掉");
+    }
+
+    /// 子目录这次列不出来（NAS 抖了一下、条目超限）：里面已入库的歌不能被当成已删除。
+    #[tokio::test]
+    async fn unlistable_subdirectory_keeps_its_tracks() {
+        let tmp = TempLibrary::new("unlistable");
+        let source_id = tmp.add_source().await;
+        let scanner = Scanner::new(tmp.library.clone(), Arc::new(CountingTagReader::new()));
+
+        let vfs = FakeVfs::local_like();
+        vfs.add_file("flaky/a.flac", 1, 10);
+        vfs.add_file("flaky/deeper/b.flac", 2, 20);
+        vfs.add_file("flaky_sibling/c.flac", 3, 30);
+        vfs.add_file("ok/d.flac", 4, 40);
+        scanner
+            .scan(source_id, Arc::new(vfs.clone()), noop_progress())
+            .await
+            .unwrap();
+        assert_eq!(tmp.library.track_count().await.unwrap(), 4);
+
+        // 被删掉的兄弟目录（名字恰好是 flaky 的前缀扩展）不能被误保留。
+        vfs.remove_file("flaky_sibling/c.flac");
+        vfs.set_list_error("flaky");
+        let report = scanner
+            .scan(source_id, Arc::new(vfs), noop_progress())
+            .await
+            .unwrap();
+        assert_eq!(report.removed, 1, "only the really deleted file goes");
+        assert_eq!(tmp.library.track_count().await.unwrap(), 3);
     }
 
     /// 测试用的计数进度回调用不到 `AtomicUsize`，这里保留一个编译期占位：

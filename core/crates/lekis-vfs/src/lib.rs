@@ -166,7 +166,10 @@ pub struct ShareInfo {
 ///
 /// 只看 `config.addresses` 的第一个地址的主机部分：SMB 地址可以不带共享名
 /// （`smb://nas`），NFS 地址可以不带导出路径（`nfs://nas`）。其他类型返回 `Unsupported`。
-pub async fn list_shares(config: &SourceConfig, password: Option<String>) -> Result<Vec<ShareInfo>> {
+pub async fn list_shares(
+    config: &SourceConfig,
+    password: Option<String>,
+) -> Result<Vec<ShareInfo>> {
     let raw = config
         .addresses
         .first()
@@ -210,6 +213,26 @@ fn with_username(address: &str, username: Option<&str>) -> String {
 }
 
 #[cfg(test)]
+mod address_secret_tests {
+    use super::address_has_secret;
+
+    #[test]
+    fn secrets_in_addresses_are_detected() {
+        assert!(address_has_secret("sftp://me:hunter2@nas/media"));
+        assert!(address_has_secret(
+            "sftp://me@nas/media?key=/k&key_passphrase=x"
+        ));
+        assert!(address_has_secret(
+            "https://dav.example/remote.php?Password=x"
+        ));
+        assert!(!address_has_secret("sftp://me@nas:2200/media?key=/k"));
+        assert!(!address_has_secret("smb://nas/music"));
+        assert!(!address_has_secret("C:\\Music"));
+        assert!(!address_has_secret("/storage/emulated/0/Music"));
+    }
+}
+
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod open_tests {
     use super::with_username;
@@ -242,6 +265,43 @@ pub const AUDIO_EXTENSIONS: &[&str] = &[
     "mp3", "m4a", "m4b", "aac", "alac", "flac", "wav", "aif", "aiff", "ogg", "oga", "opus", "ape",
     "wv", "tta", "dsf", "dff", "mka", "cue",
 ];
+
+/// 地址里带不带密码一类的秘密（`user:pass@`、`?key_passphrase=`、`?password=`……）。
+///
+/// 音源配置原样存在 `library.sqlite` 里，秘密只能放凭据库（`credential_ref`）。
+/// 核心保存音源前用它把关，防止手填 / 粘贴的地址把密码明文写进数据库。
+pub fn address_has_secret(address: &str) -> bool {
+    const SECRET_KEYS: &[&str] = &[
+        "key_passphrase",
+        "passphrase",
+        "password",
+        "passwd",
+        "pass",
+        "pwd",
+        "token",
+        "api_key",
+        "apikey",
+    ];
+    let Ok(url) = url::Url::parse(address.trim()) else {
+        return false;
+    };
+    if url.password().is_some_and(|p| !p.is_empty()) {
+        return true;
+    }
+    url.query_pairs()
+        .any(|(k, _)| SECRET_KEYS.contains(&k.to_ascii_lowercase().as_str()))
+}
+
+/// 一个目录里的条目超过上限（各后端的 `MAX_ENTRIES`）。
+///
+/// 不能悄悄截断：扫描器会把没列出来的文件当成已删除。返回错误后，扫描器把这个
+/// 目录当成"没列全"，保留里面已入库的文件。
+pub(crate) fn too_many_entries(dir: &dyn std::fmt::Display, limit: usize) -> LekisError {
+    LekisError::new(
+        lekis_types::ErrorCode::Unsupported,
+        format!("目录里的条目超过 {limit} 条，无法完整列出：{dir}"),
+    )
+}
 
 /// 判断路径是不是音频文件。
 pub fn is_audio_file(path: &VfsPath) -> bool {

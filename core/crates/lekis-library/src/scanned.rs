@@ -159,6 +159,38 @@ impl Library {
         .await
     }
 
+    /// 把 `dirs` 这些目录下（含子目录）的文件都标成"这次见过"，返回刷新的行数。
+    ///
+    /// 扫描时某些目录没能完整列出（读取失败、条目太多）：里面的文件不能被
+    /// [`Self::remove_unseen_files`] 当成已删除。
+    pub async fn touch_files_under(&self, source_id: SourceId, dirs: Vec<String>) -> Result<u64> {
+        if dirs.is_empty() {
+            return Ok(0);
+        }
+        self.write(move |conn| {
+            let tx = conn.transaction().db()?;
+            let now = now_ms();
+            let mut touched = 0u64;
+            {
+                // 用前缀比较而不是 LIKE：文件名里的 `%` / `_` 不会被当成通配符。
+                let mut stmt = tx
+                    .prepare_cached(
+                        "UPDATE file SET last_seen_at = ?3
+                         WHERE source_id = ?1
+                           AND substr(path, 1, length(?2)) = ?2",
+                    )
+                    .db()?;
+                for dir in &dirs {
+                    let prefix = format!("{}/", dir.trim_end_matches('/'));
+                    touched += stmt.execute(params![source_id.0, prefix, now]).db()? as u64;
+                }
+            }
+            tx.commit().db()?;
+            Ok(touched)
+        })
+        .await
+    }
+
     /// 这个音源里曲目时长为 0 的文件路径。
     ///
     /// 时长 0 基本就是标签没读出来、只用文件名兜底的文件（旧版扫描器读不了

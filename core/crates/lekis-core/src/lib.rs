@@ -282,6 +282,8 @@ impl LekisCore {
         logs::init();
         std::fs::create_dir_all(&config.data_dir)?;
         std::fs::create_dir_all(&config.cache_dir)?;
+        // SFTP 首次连接学到的主机密钥记在这里（TOFU），之后必须一致。
+        lekis_vfs::sftp::set_known_hosts_path(config.data_dir.join("ssh_known_hosts"));
         let device_id = config::load_or_create_device_id(&config.data_dir)?;
         tracing::info!(target: "core", %device_id, platform = ?config.platform, "starting lekis core");
 
@@ -427,6 +429,7 @@ impl LekisCore {
             if config.addresses.is_empty() {
                 return Err(LekisError::invalid("source must have at least one address"));
             }
+            reject_inline_secrets(&config)?;
             let mut stored = config.clone();
             let id = s.library.add_source(config).await?;
             stored.id = Some(id);
@@ -449,6 +452,7 @@ impl LekisCore {
             if config.addresses.is_empty() {
                 return Err(LekisError::invalid("source must have at least one address"));
             }
+            reject_inline_secrets(&config)?;
             s.library.update_source(config.clone()).await?;
             s.forget_source(id);
             s.register_vfs(&config);
@@ -2565,6 +2569,35 @@ fn take_embedded_secret(config: &mut SourceConfig) -> Option<String> {
             break;
         }
     }
+    // SFTP 私钥文件的 passphrase（`?key_passphrase=`）：同样搬进凭据库，
+    // SFTP 用私钥文件登录时把凭据当成 passphrase。
+    for address in &mut config.addresses {
+        let Ok(mut url) = url::Url::parse(address) else {
+            continue;
+        };
+        let mut found = None;
+        let kept: Vec<(String, String)> = url
+            .query_pairs()
+            .filter_map(|(k, v)| {
+                if matches!(k.as_ref(), "key_passphrase" | "passphrase") {
+                    found = Some(v.into_owned());
+                    None
+                } else {
+                    Some((k.into_owned(), v.into_owned()))
+                }
+            })
+            .collect();
+        let Some(passphrase) = found else { continue };
+        if kept.is_empty() {
+            url.set_query(None);
+        } else {
+            url.query_pairs_mut().clear().extend_pairs(kept);
+        }
+        *address = url.to_string();
+        if secret.is_none() && !passphrase.is_empty() {
+            secret = Some(passphrase);
+        }
+    }
     // 地址里已经有密码时也把 options 里的旧 token 清掉，避免数据库里残留明文。
     for key in ["api_key", "token"] {
         if let Some(value) = config.options.remove(key) {
@@ -3011,6 +3044,51 @@ mod tests {
             // 第二次读取不会再次迁移，也不会改坏已经干净的配置。
             let again = core.list_sources().await?;
             assert_eq!(again.len(), 2);
+
+            // SFTP 私钥文件的 passphrase 写在地址查询参数里：搬进凭据库，地址保留 key=。
+            let sftp = core
+                .services
+                .library
+                .add_source(SourceConfig {
+                    id: None,
+                    kind: SourceKind::Sftp,
+                    name: "box".into(),
+                    addresses: vec![
+                        "sftp://ao@box:2200/music?key=%2Fk%2Fid_ed25519&key_passphrase=pp-7jw"
+                            .into(),
+                    ],
+                    root_path: String::new(),
+                    credential_ref: None,
+                    options: Default::default(),
+                    enabled: true,
+                })
+                .await?;
+            let sources = core.list_sources().await?;
+            let sftp_cfg = sources.iter().find(|s| s.id == Some(sftp)).expect("sftp");
+            assert!(
+                !sftp_cfg.addresses[0].contains("pp-7jw"),
+                "{}",
+                sftp_cfg.addresses[0]
+            );
+            assert!(sftp_cfg.addresses[0].contains("key="));
+            let sftp_ref = sftp_cfg.credential_ref.as_deref().expect("sftp ref");
+            assert_eq!(credentials.get(sftp_ref).as_deref(), Some("pp-7jw"));
+
+            // 新保存的音源不能把秘密写进地址。
+            let err = core
+                .add_source(SourceConfig {
+                    id: None,
+                    kind: SourceKind::Sftp,
+                    name: "typed".into(),
+                    addresses: vec!["sftp://ao:hunter2@box/music".into()],
+                    root_path: String::new(),
+                    credential_ref: None,
+                    options: Default::default(),
+                    enabled: true,
+                })
+                .await
+                .unwrap_err();
+            assert_eq!(err.code, ErrorCode::InvalidArgument);
             Ok::<_, LekisError>(())
         })?;
         drop(core);
@@ -3426,4 +3504,19 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         Ok(())
     }
+}
+
+/// 保存音源前把关：地址里不能带密码一类的秘密（会原样进 `library.sqlite`）。
+/// 界面总是把秘密放进凭据库；这里防的是手填 / 粘贴的地址。
+fn reject_inline_secrets(config: &SourceConfig) -> Result<()> {
+    if config
+        .addresses
+        .iter()
+        .any(|a| lekis_vfs::address_has_secret(a))
+    {
+        return Err(LekisError::invalid(
+            "密码 / 私钥密码不能写在地址里，请填到对应的密码栏（会加密保存）",
+        ));
+    }
+    Ok(())
 }

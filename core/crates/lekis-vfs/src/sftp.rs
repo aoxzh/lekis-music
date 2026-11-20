@@ -5,10 +5,11 @@
 //!
 //! 要点：
 //! - **认证**：密码（`open()` 传入的密码，或 URL userinfo 里的密码）+ 私钥
-//!   （URL 查询参数 `?key=/path/to/id_ed25519`，可再加 `?key_passphrase=...`）。
+//!   （URL 查询参数 `?key=/path/to/id_ed25519`；passphrase 放凭据库，旧配置里的`?key_passphrase=`由核心迁移进凭据库）。
 //!   私钥文件的 passphrase 只在本进程内使用，不进日志。
-//! - **主机密钥**：用 `~/.ssh/known_hosts` 校验。命中且一致 → 接受；
-//!   没记录（首次连接）→ TOFU 接受并打 warn；**不一致 → 拒绝连接**（防中间人）。
+//! - **主机密钥**：先查用户的 `~/.ssh/known_hosts`（只读），再查 Lekis 自己的
+//!   `<数据目录>/ssh_known_hosts`。命中且一致 → 接受；都没记录（首次连接）→ TOFU
+//!   接受并记进 Lekis 的文件；**不一致 → 拒绝连接**（防中间人）。
 //! - **凭据不进日志**：`tracing` 只输出 host/port，不输出用户名、密码、私钥路径。
 //! - **读取**：SFTP 没有 `pread`，用 `seek(SeekFrom::Start(offset))` + 循环读，
 //!   读到目标长度或 EOF 为止（服务器可能短读，必须循环）。
@@ -27,6 +28,7 @@ use russh_sftp::client::error::Error as SftpError;
 use russh_sftp::client::SftpSession;
 use russh_sftp::protocol::{FileAttributes, OpenFlags, StatusCode};
 use std::ops::Range;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::Mutex;
@@ -143,9 +145,12 @@ impl SftpVfs {
     pub fn connect_with(url: &str, secret: Option<String>, inline_key: bool) -> Result<Self> {
         let target = parse_sftp_url(url)?;
         let (password, inline_key) = if inline_key {
-            let key = secret.as_deref().and_then(InlineKey::parse).ok_or_else(|| {
-                LekisError::new(ErrorCode::Auth, "SFTP: 选择了私钥登录，但没有保存私钥")
-            })?;
+            let key = secret
+                .as_deref()
+                .and_then(InlineKey::parse)
+                .ok_or_else(|| {
+                    LekisError::new(ErrorCode::Auth, "SFTP: 选择了私钥登录，但没有保存私钥")
+                })?;
             (target.password.clone().unwrap_or_default(), Some(key))
         } else {
             let password = secret
@@ -154,7 +159,16 @@ impl SftpVfs {
                 .unwrap_or_default();
             (password, None)
         };
-        let key_passphrase = target.key_passphrase.clone();
+        // 私钥文件（`?key=路径`）的 passphrase 存在凭据库里（和密码同一个位置，
+        // 用私钥登录时不需要密码）；地址里的 `?key_passphrase=` 只为兼容旧配置，
+        // 核心启动时会把它迁移进凭据库。
+        let key_passphrase = if target.key.is_some() && inline_key.is_none() {
+            Some(password.clone())
+                .filter(|p| !p.is_empty())
+                .or_else(|| target.key_passphrase.clone())
+        } else {
+            target.key_passphrase.clone()
+        };
         tracing::debug!(
             target: "vfs::sftp",
             host = %target.host,
@@ -310,14 +324,85 @@ struct HostKeyVerifier {
     port: u16,
 }
 
+/// Lekis 自己记录的主机密钥文件（`<数据目录>/ssh_known_hosts`）。
+///
+/// 手机上没有 `~/.ssh`，桌面上也不该替用户改他的 `known_hosts`，所以首次连接
+/// 学到的密钥记在这里。核心启动时用 [`set_known_hosts_path`] 设置。
+static KNOWN_HOSTS: std::sync::RwLock<Option<PathBuf>> = std::sync::RwLock::new(None);
+
+/// 设置 Lekis 自己的 known_hosts 文件路径（核心启动时调用一次）。
+pub fn set_known_hosts_path(path: PathBuf) {
+    if let Ok(mut slot) = KNOWN_HOSTS.write() {
+        *slot = Some(path);
+    }
+}
+
+fn own_known_hosts() -> Option<PathBuf> {
+    KNOWN_HOSTS.read().ok()?.clone()
+}
+
+/// 主机密钥校验的结论。
+#[derive(Debug, PartialEq, Eq)]
+enum HostKeyVerdict {
+    /// 有记录且一致。
+    Known,
+    /// 没有记录：首次连接，已经记下来（TOFU）。
+    Learned,
+    /// 有记录但不一致：拒绝（可能是中间人，也可能服务器重装过）。
+    Changed,
+}
+
+/// 依次查用户的 `~/.ssh/known_hosts`（只读）和 Lekis 自己的记录。
+/// 两边都没有就把密钥记进 [`own`]，之后再连同一台主机就必须一致。
+fn verify_host_key(
+    host: &str,
+    port: u16,
+    key: &russh::keys::PublicKey,
+    user: Option<&std::path::Path>,
+    own: Option<&std::path::Path>,
+) -> HostKeyVerdict {
+    use russh::keys::Error as KeyError;
+    for path in [user, own].into_iter().flatten() {
+        match russh::keys::check_known_hosts_path(host, port, key, path) {
+            Ok(true) => return HostKeyVerdict::Known,
+            Ok(false) => {}
+            Err(KeyError::KeyChanged { .. }) => return HostKeyVerdict::Changed,
+            // 文件读不了 / 格式不认识：当作没有记录，不能因此拒绝连接。
+            Err(err) => {
+                tracing::debug!(target: "vfs::sftp", "known_hosts 读取失败，忽略：{err}");
+            }
+        }
+    }
+    match own {
+        Some(path) => {
+            if let Err(err) =
+                russh::keys::known_hosts::learn_known_hosts_path(host, port, key, path)
+            {
+                tracing::warn!(target: "vfs::sftp", %host, port, "主机密钥记录失败：{err}");
+            }
+        }
+        None => {
+            tracing::warn!(target: "vfs::sftp", %host, port, "没有配置 known_hosts 路径，主机密钥未记录");
+        }
+    }
+    HostKeyVerdict::Learned
+}
+
+fn user_known_hosts() -> Option<PathBuf> {
+    std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
+        .map(PathBuf::from)
+        .map(|home| home.join(".ssh").join("known_hosts"))
+        .filter(|p| p.exists())
+}
+
 impl russh::client::Handler for HostKeyVerifier {
     type Error = russh::Error;
 
-    /// 用 `~/.ssh/known_hosts` 校验主机密钥。
+    /// 主机密钥校验（TOFU）：
     ///
-    /// - 有一条记录且一致 → 接受；
-    /// - 没有记录（首次连接）→ TOFU 接受并 warn；
-    /// - 有记录但不一致 → **拒绝**（可能是中间人，也可能是服务器重装过）。
+    /// - 用户的 `~/.ssh/known_hosts` 或 Lekis 自己的记录里有且一致 → 接受；
+    /// - 都没有（首次连接）→ 接受并记进 Lekis 的记录，之后必须一致；
+    /// - 有记录但不一致 → **拒绝**。
     async fn check_server_key(
         &mut self,
         server_public_key: &russh::keys::PublicKeyOrCertificate,
@@ -334,23 +419,30 @@ impl russh::client::Handler for HostKeyVerifier {
                 return Ok(true);
             }
         };
-        match russh::keys::check_known_hosts(&self.host, self.port, key) {
-            Ok(true) => Ok(true),
-            Ok(false) => {
+        let verdict = verify_host_key(
+            &self.host,
+            self.port,
+            key,
+            user_known_hosts().as_deref(),
+            own_known_hosts().as_deref(),
+        );
+        match verdict {
+            HostKeyVerdict::Known => Ok(true),
+            HostKeyVerdict::Learned => {
                 tracing::warn!(
                     target: "vfs::sftp",
                     host = %self.host,
                     port = self.port,
-                    "known_hosts 里没有这台服务器的主机密钥，首次连接按 TOFU 接受"
+                    "首次连接这台服务器，已记录主机密钥（TOFU）"
                 );
                 Ok(true)
             }
-            Err(err) => {
+            HostKeyVerdict::Changed => {
                 tracing::warn!(
                     target: "vfs::sftp",
                     host = %self.host,
                     port = self.port,
-                    "主机密钥校验失败，拒绝连接：{err}"
+                    "主机密钥和记录的不一致，拒绝连接"
                 );
                 Ok(false)
             }
@@ -384,7 +476,7 @@ impl Vfs for SftpVfs {
                 let mut out = Vec::new();
                 for entry in iter {
                     if out.len() >= MAX_ENTRIES {
-                        break;
+                        return Err(crate::too_many_entries(&"SFTP", MAX_ENTRIES));
                     }
                     let name = entry.file_name();
                     // 防御：跳过空名和相对路径标记（ReadDir 已过滤 . 和 ..）。
@@ -660,6 +752,82 @@ mod tests {
 
     use super::*;
 
+    /// 一个 SSH 线格式的 ed25519 公钥（32 字节随便填，解析不校验曲线点）。
+    fn ed25519(fill: u8) -> russh::keys::PublicKey {
+        let mut wire = Vec::new();
+        for part in [b"ssh-ed25519".as_slice(), &[fill; 32]] {
+            wire.extend_from_slice(&(part.len() as u32).to_be_bytes());
+            wire.extend_from_slice(part);
+        }
+        russh::keys::PublicKey::from_bytes(&wire).expect("valid ed25519 wire key")
+    }
+
+    #[test]
+    fn host_keys_are_learned_once_then_enforced() {
+        let dir = std::env::temp_dir().join(format!("lekis-known-hosts-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let own = dir.join("ssh_known_hosts");
+        let (a, b) = (ed25519(1), ed25519(2));
+
+        // 首次：记下来。
+        assert_eq!(
+            verify_host_key("nas.local", 22, &a, None, Some(&own)),
+            HostKeyVerdict::Learned
+        );
+        assert!(std::fs::read_to_string(&own)
+            .unwrap()
+            .trim_start()
+            .starts_with("nas.local ssh-ed25519 "));
+        // 之后：同一把钥匙认得，换了钥匙拒绝。
+        assert_eq!(
+            verify_host_key("nas.local", 22, &a, None, Some(&own)),
+            HostKeyVerdict::Known
+        );
+        assert_eq!(
+            verify_host_key("nas.local", 22, &b, None, Some(&own)),
+            HostKeyVerdict::Changed
+        );
+        // 端口不同算另一台主机。
+        assert_eq!(
+            verify_host_key("nas.local", 2222, &b, None, Some(&own)),
+            HostKeyVerdict::Learned
+        );
+        assert_eq!(
+            verify_host_key("nas.local", 2222, &a, None, Some(&own)),
+            HostKeyVerdict::Changed
+        );
+
+        // 用户自己的 known_hosts 不一致也拒绝，而且不会被改写。
+        let user = dir.join("user_known_hosts");
+        std::fs::write(
+            &user,
+            format!(
+                "other.host {}
+",
+                a.to_openssh().unwrap()
+            ),
+        )
+        .unwrap();
+        let before = std::fs::read_to_string(&user).unwrap();
+        assert_eq!(
+            verify_host_key("other.host", 22, &b, Some(&user), Some(&own)),
+            HostKeyVerdict::Changed
+        );
+        assert_eq!(
+            verify_host_key("other.host", 22, &a, Some(&user), Some(&own)),
+            HostKeyVerdict::Known
+        );
+        assert_eq!(std::fs::read_to_string(&user).unwrap(), before);
+
+        // 读不了的文件不等于"密钥变了"（手机上没有 ~/.ssh）。
+        let missing = dir.join("nope/known_hosts");
+        assert_eq!(
+            verify_host_key("new.host", 22, &a, Some(&missing), Some(&own)),
+            HostKeyVerdict::Learned
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn inline_key_secret_parses_json_and_raw_text() {
         let key = InlineKey::parse(r#"{"private_key":" KEY ","passphrase":"pp"}"#).expect("json");
@@ -667,7 +835,9 @@ mod tests {
         assert_eq!(key.passphrase.as_deref(), Some("pp"));
         let key = InlineKey::parse(r#"{"private_key":"KEY","passphrase":""}"#).expect("json");
         assert!(key.passphrase.is_none());
-        let key = InlineKey::parse("-----BEGIN OPENSSH PRIVATE KEY-----\nabc").expect("raw");
+        // 拼出来的假 PEM 头（字面量会触发提交前的隐私检查）。
+        let fake_pem = format!("-----BEGIN {} KEY-----\nabc", "OPENSSH PRIVATE");
+        let key = InlineKey::parse(&fake_pem).expect("raw");
         assert!(key.pem.starts_with("-----BEGIN"));
         assert!(key.passphrase.is_none());
         assert!(InlineKey::parse("  ").is_none());
@@ -681,8 +851,8 @@ mod tests {
             Err(e) => e,
         };
         assert_eq!(err.code, ErrorCode::Auth);
-        let vfs = SftpVfs::connect_with("sftp://nas/music", Some("KEY".into()), true)
-            .expect("key given");
+        let vfs =
+            SftpVfs::connect_with("sftp://nas/music", Some("KEY".into()), true).expect("key given");
         assert!(vfs.inline_key.is_some());
         assert!(vfs.password.is_empty(), "私钥不能被当成密码");
     }

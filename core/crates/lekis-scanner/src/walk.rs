@@ -42,6 +42,9 @@ pub struct WalkOutcome {
     ///
     /// 只在 `VfsCapabilities::reliable_dir_mtime` 为真时收集，否则为空。
     pub dirs: HashMap<String, i64>,
+    /// 没能完整列出的子目录（读取失败、条目太多）。这些目录下已经入库的文件
+    /// 这次看不见，但不能当成已删除。
+    pub incomplete: Vec<VfsPath>,
 }
 
 impl WalkOutcome {
@@ -102,6 +105,7 @@ pub async fn walk_source(vfs: &dyn Vfs, previous: Option<&PreviousScan>) -> Resu
                         error = %error,
                         "cannot list directory, skipping"
                     );
+                    outcome.incomplete.push(dir);
                 }
                 DirOutcome::Reused { dir, mtime_ms } => {
                     outcome.dirs.insert(dir.as_str().to_string(), mtime_ms);

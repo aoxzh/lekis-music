@@ -56,7 +56,9 @@ async fn main() {
         if visited > 50 {
             break;
         }
-        let Ok(list) = vfs.list_dir(&dir).await else { continue };
+        let Ok(list) = vfs.list_dir(&dir).await else {
+            continue;
+        };
         for e in list {
             match e.meta.kind {
                 EntryKind::File if is_audio_file(&e.path) => {
