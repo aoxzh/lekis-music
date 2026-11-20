@@ -36,7 +36,8 @@ abstract final class LekisRadius {
   static const double pill = 999;
 
   /// Floating mini player corners.
-  static const double miniPlayer = 12;
+  /// Floating mini player: a full capsule (half of its 56 dp height).
+  static const double miniPlayer = 28;
 
   /// Large artwork (Now Playing, detail headers) rounds its corners by this
   /// share of its side, so a cover keeps the same shape at every size.
@@ -50,7 +51,7 @@ abstract final class LekisRadius {
 abstract final class LekisSizes {
   static const double listArtwork = 48;
   static const double gridArtworkMin = 160;
-  static const double miniPlayerHeight = 68;
+  static const double miniPlayerHeight = 56;
 
   /// Gap between the floating mini player and the window edges / nav bar.
   static const double miniPlayerMargin = 8;
@@ -98,6 +99,9 @@ abstract final class LekisTabBarTokens {
   /// Widest a slot gets. The capsule hugs its five slots and centres
   /// instead of stretching across wide phones / tablets in portrait.
   static const double maxSlotWidth = 68;
+
+  /// Slot length of the vertical (side) capsule.
+  static const double verticalSlot = 60;
 
   /// Surface tint over the blurred backdrop. Low enough that content
   /// scrolling underneath shows through as colour.

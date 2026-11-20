@@ -309,15 +309,18 @@ class MiniPlayerFace extends ConsumerWidget {
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
 
     final Widget row = Padding(
+      // Capsule ends: keep the artwork and the last button inside the curve.
       padding: const EdgeInsets.only(
         left: LekisSpacing.sm,
-        right: LekisSpacing.xs,
+        right: LekisSpacing.sm,
       ),
       child: Row(
         children: [
           SizedBox.square(
             dimension: artSize,
-            child: const CurrentArtwork(radius: LekisRadius.artworkList),
+            child: const CurrentArtwork(
+              radius: LekisRadius.miniPlayer - LekisSpacing.sm,
+            ),
           ),
           const SizedBox(width: LekisSpacing.md),
           const Expanded(child: CurrentTrackText()),

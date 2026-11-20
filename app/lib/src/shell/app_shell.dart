@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'package:lekis/src/features/player/mini_player.dart';
+import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/player_bar.dart';
 import 'package:lekis/src/layout/window_size.dart';
 import 'package:lekis/src/theme/tokens.dart';
@@ -41,8 +42,10 @@ ShellChromeMode _chromeModeOf(BuildContext context) {
   return switch (context.widthClass) {
     // Phones and unfolded foldables / small tablets (< 840 dp) share the
     // floating glass tab bar; the rail is only for short windows.
-    WindowWidthClass.compact ||
-    WindowWidthClass.medium => ShellChromeMode.bottomBar,
+    // Phones: bottom capsule. Unfolded foldables / small tablets: icon
+    // capsule on the trailing edge with the mini player floating apart.
+    WindowWidthClass.compact => ShellChromeMode.bottomBar,
+    WindowWidthClass.medium => ShellChromeMode.sideTabs,
     _ => ShellChromeMode.sidebar,
   };
 }
@@ -145,6 +148,11 @@ class _AppShellState extends State<AppShell> {
           onSelected: _select,
           content: content,
         ),
+        ShellChromeMode.sideTabs => _SideTabsLayout(
+          current: _current,
+          onSelected: _select,
+          content: content,
+        ),
         ShellChromeMode.rail => _RailLayout(
           current: _current,
           onSelected: _select,
@@ -243,17 +251,103 @@ class _BottomBarLayout extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // On unfolded / tablet widths the card stays a comfortable reading
-          // width above the capsule instead of spanning the whole window.
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: LekisSizes.floatingMiniPlayerMaxWidth,
+          // A slim capsule exactly as wide as the tab capsule below it, with
+          // a gap between them: two stacked pills, not one crowded slab.
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: LekisSpacing.lg - LekisSizes.miniPlayerMargin,
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth:
+                      LekisTabBarTokens.maxSlotWidth *
+                          LekisDestination.values.length +
+                      LekisTabBarTokens.innerInset * 2 +
+                      LekisSizes.miniPlayerMargin * 2,
+                ),
+                child: const _OpensNowPlaying(child: MiniPlayer()),
               ),
-              child: const _OpensNowPlaying(child: MiniPlayer()),
             ),
           ),
           LekisTabBar(selected: current, onSelected: onSelected, style: style),
+        ],
+      ),
+    );
+  }
+}
+
+/// Unfolded foldables / small tablets: an icon-only glass capsule floats on
+/// the trailing edge, the slim mini player floats at the bottom centre of
+/// the content, and pages scroll under both.
+class _SideTabsLayout extends ConsumerWidget {
+  const _SideTabsLayout({
+    required this.current,
+    required this.onSelected,
+    required this.content,
+  });
+
+  final LekisDestination current;
+  final ValueChanged<LekisDestination> onSelected;
+  final Widget content;
+
+  /// Room the side capsule takes from the content (capsule + margins).
+  static const double sideExtent =
+      LekisTabBarTokens.height + LekisSpacing.md * 2;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final style = ref.watch(tabBarStyleProvider);
+    final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
+    final mq = MediaQuery.of(context);
+    final mini = hasTrack
+        ? LekisSizes.miniPlayerHeight + LekisSizes.miniPlayerMargin
+        : 0.0;
+    return Scaffold(
+      body: Stack(
+        children: [
+          Positioned.fill(
+            right: sideExtent,
+            child: MediaQuery(
+              // scrollEndPadding reads this: the last row clears the
+              // floating mini player.
+              data: mq.copyWith(
+                padding: mq.padding.copyWith(
+                  bottom: mq.padding.bottom + mini,
+                  right: 0,
+                ),
+              ),
+              child: content,
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: sideExtent,
+            bottom: 0,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: LekisSizes.floatingMiniPlayerMaxWidth,
+                ),
+                child: const _OpensNowPlaying(
+                  child: MiniPlayer(atBottomEdge: true),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            bottom: 0,
+            right: LekisSpacing.md + mq.padding.right,
+            child: Center(
+              child: LekisTabBar(
+                selected: current,
+                onSelected: onSelected,
+                style: style,
+                axis: Axis.vertical,
+              ),
+            ),
+          ),
         ],
       ),
     );

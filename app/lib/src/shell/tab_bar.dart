@@ -29,11 +29,16 @@ class LekisTabBar extends StatefulWidget {
     required this.selected,
     required this.onSelected,
     this.style = TabBarStyle.liquid,
+    this.axis = Axis.horizontal,
   });
 
   final LekisDestination selected;
   final ValueChanged<LekisDestination> onSelected;
   final TabBarStyle style;
+
+  /// Horizontal: the bottom capsule on phones. Vertical: an icon-only
+  /// capsule floating on the trailing edge of unfolded foldables / tablets.
+  final Axis axis;
 
   /// The moving selection indicator. Exposed for widget tests.
   static const Key selectionKey = ValueKey('lekis.tabbar.selection');
@@ -145,37 +150,44 @@ class _LekisTabBarState extends State<LekisTabBar>
     widget.onSelected(destination);
   }
 
+  bool get _vertical => widget.axis == Axis.vertical;
+
+  /// Thickness of the capsule across its axis.
+  static const double _thickness = LekisTabBarTokens.height;
+
   @override
   Widget build(BuildContext context) {
     final reduced = lekisReduceMotion(context);
+    final count = LekisDestination.values.length;
+    final bar = widget.style == TabBarStyle.flat
+        ? _flatBar(context, reduced)
+        : _liquidBar(context, reduced);
+    if (_vertical) {
+      return SizedBox(
+        width: _thickness,
+        height:
+            LekisTabBarTokens.verticalSlot * count +
+            LekisTabBarTokens.innerInset * 2,
+        child: bar,
+      );
+    }
     return SafeArea(
       top: false,
       left: false,
       right: false,
       minimum: const EdgeInsets.only(bottom: LekisSizes.miniPlayerMargin),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          LekisSpacing.lg,
-          LekisSpacing.xs,
-          LekisSpacing.lg,
-          0,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.lg),
         // A compact capsule centred under the content, not a full-width
         // strip: slots stay a thumb's width apart on any phone.
         child: Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(
               maxWidth:
-                  LekisTabBarTokens.maxSlotWidth *
-                      LekisDestination.values.length +
+                  LekisTabBarTokens.maxSlotWidth * count +
                   LekisTabBarTokens.innerInset * 2,
             ),
-            child: SizedBox(
-              height: LekisTabBarTokens.height,
-              child: widget.style == TabBarStyle.flat
-                  ? _flatBar(context, reduced)
-                  : _liquidBar(context, reduced),
-            ),
+            child: SizedBox(height: _thickness, child: bar),
           ),
         ),
       ),
@@ -247,7 +259,6 @@ class _LekisTabBarState extends State<LekisTabBar>
                   ),
                 ),
               ),
-              _SelectionGlow(animation: _position, color: colors.accent),
               _BarNoise(isDark: isDark),
               _slots(context, reduced),
             ],
@@ -289,9 +300,26 @@ class _LekisTabBarState extends State<LekisTabBar>
         ? LekisTabBarTokens.height - LekisSpacing.sm
         : LekisSizes.touchTargetMin;
 
+    final vertical = _vertical;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final slot = (constraints.maxWidth - inset * 2) / count;
+        final main = vertical ? constraints.maxHeight : constraints.maxWidth;
+        final slot = (main - inset * 2) / count;
+        final items = [
+          for (final destination in LekisDestination.values)
+            Expanded(
+              child: _TabItem(
+                key: LekisTabBar.tabKey(destination),
+                destination: destination,
+                selected: destination == widget.selected,
+                style: widget.style,
+                reducedMotion: reduced,
+                bounceTrigger: _taps[destination.index],
+                showLabel: !vertical,
+                onTap: () => _onTap(destination),
+              ),
+            ),
+        ];
         return Stack(
           fit: StackFit.expand,
           children: [
@@ -303,20 +331,26 @@ class _LekisTabBarState extends State<LekisTabBar>
                           .clamp(0.0, LekisTabBarTokens.maxPillStretch)
                           .toDouble()
                     : 0.0;
-                final width = (slot - pillInset * 2) * (1 + stretch);
-                final height = pillHeight - (liquid ? stretch * 6 : 0);
+                // Along the axis the bubble fills its slot (and stretches
+                // while travelling); across it, it fills the capsule.
+                final along = (slot - pillInset * 2) * (1 + stretch);
+                final across = pillHeight - (liquid ? stretch * 6 : 0);
                 final center = inset + (_position.value + 0.5) * slot;
                 final phase = _position.value % 1.0;
                 final direction = _position.velocity >= 0 ? 1.0 : -1.0;
                 final sweep = liquid && !reduced
                     ? math.sin(phase * math.pi) * 0.7 * direction
                     : 0.0;
+                final pillW = vertical ? across : along;
+                final pillH = vertical ? along : across;
 
                 return Positioned(
-                  left: center - width / 2,
-                  top: (LekisTabBarTokens.height - height) / 2,
-                  width: width,
-                  height: height,
+                  left: vertical
+                      ? (_thickness - pillW) / 2
+                      : center - pillW / 2,
+                  top: vertical ? center - pillH / 2 : (_thickness - pillH) / 2,
+                  width: pillW,
+                  height: pillH,
                   child: IgnorePointer(
                     child: Opacity(
                       opacity: reduced ? _reducedFade.value : 1,
@@ -324,7 +358,11 @@ class _LekisTabBarState extends State<LekisTabBar>
                         key: LekisTabBar.selectionKey,
                         clipBehavior: Clip.antiAlias,
                         decoration: liquid
-                            ? _liquidSelection(colors, isDark, height)
+                            ? _liquidSelection(
+                                colors,
+                                isDark,
+                                math.min(pillW, pillH),
+                              )
                             : BoxDecoration(
                                 color: colors.accentSoft,
                                 borderRadius: BorderRadius.circular(
@@ -341,25 +379,14 @@ class _LekisTabBarState extends State<LekisTabBar>
               },
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: inset),
+              padding: vertical
+                  ? const EdgeInsets.symmetric(vertical: inset)
+                  : const EdgeInsets.symmetric(horizontal: inset),
               child: Material(
                 type: MaterialType.transparency,
-                child: Row(
-                  children: [
-                    for (final destination in LekisDestination.values)
-                      Expanded(
-                        child: _TabItem(
-                          key: LekisTabBar.tabKey(destination),
-                          destination: destination,
-                          selected: destination == widget.selected,
-                          style: widget.style,
-                          reducedMotion: reduced,
-                          bounceTrigger: _taps[destination.index],
-                          onTap: () => _onTap(destination),
-                        ),
-                      ),
-                  ],
-                ),
+                child: vertical
+                    ? Column(children: items)
+                    : Row(children: items),
               ),
             ),
           ],
@@ -368,37 +395,22 @@ class _LekisTabBarState extends State<LekisTabBar>
     );
   }
 
+  /// The one selection indicator: a soft bubble behind the active tab
+  /// (Backdrop / CYL: 10 % white on dark, 6 % black on light, tinted a
+  /// little toward the accent). No border, glow or shadow: the icon colour
+  /// is the only other cue.
   BoxDecoration _liquidSelection(
     LekisColors colors,
     bool isDark,
-    double height,
+    double shortSide,
   ) {
+    final base = isDark ? Colors.white : Colors.black;
     return BoxDecoration(
-      borderRadius: BorderRadius.circular(height / 2),
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          Color.alphaBlend(
-            colors.accent.withValues(alpha: isDark ? 0.30 : 0.16),
-            colors.surfaceElevated,
-          ),
-          Color.alphaBlend(
-            colors.accent.withValues(alpha: isDark ? 0.18 : 0.08),
-            colors.surfaceVariant,
-          ),
-        ],
+      borderRadius: BorderRadius.circular(shortSide / 2),
+      color: Color.alphaBlend(
+        colors.accent.withValues(alpha: isDark ? 0.12 : 0.06),
+        base.withValues(alpha: isDark ? 0.10 : 0.06),
       ),
-      border: Border.all(
-        color: colors.accent.withValues(alpha: isDark ? 0.35 : 0.22),
-      ),
-      boxShadow: [
-        BoxShadow(
-          color: colors.accent.withValues(alpha: isDark ? 0.18 : 0.12),
-          blurRadius: 14,
-          spreadRadius: -2,
-        ),
-      ],
     );
   }
 }
@@ -412,6 +424,7 @@ class _TabItem extends StatelessWidget {
     required this.reducedMotion,
     required this.bounceTrigger,
     required this.onTap,
+    this.showLabel = true,
   });
 
   final LekisDestination destination;
@@ -420,6 +433,7 @@ class _TabItem extends StatelessWidget {
   final bool reducedMotion;
   final int bounceTrigger;
   final VoidCallback onTap;
+  final bool showLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -440,11 +454,14 @@ class _TabItem extends StatelessWidget {
       label: destination.label,
       onTap: onTap,
       excludeSemantics: true,
+      // No ripple / highlight box: the travelling bubble is the feedback;
+      // a second square flash on top of it read as double emphasis.
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(LekisRadius.lg),
-        splashColor: colors.accent.withValues(alpha: 0.10),
-        highlightColor: colors.accent.withValues(alpha: 0.05),
+        customBorder: const StadiumBorder(),
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: Colors.transparent,
+        hoverColor: colors.accent.withValues(alpha: 0.04),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -455,40 +472,41 @@ class _TabItem extends StatelessWidget {
               bounceTrigger: bounceTrigger,
               motion: liquid ? NavIconMotion.bounce : NavIconMotion.fadeScale,
             ),
-            const SizedBox(height: LekisTabBarTokens.iconGap),
-            SizedBox(
-              height: LekisTabBarTokens.labelHeight,
-              child: TweenAnimationBuilder<double>(
-                tween: Tween<double>(end: selected ? 1.0 : 0.0),
-                duration: labelDuration,
-                curve: liquid ? Curves.easeOut : Curves.easeOutCubic,
-                // Every tab keeps its label (like iOS 26 / LiquidBottomTabs):
-                // five icon-only slots read as sparse, scattered dots. The
-                // selected label just lifts into full strength.
-                builder: (context, t, child) => Opacity(
-                  opacity: 0.8 + 0.2 * t,
-                  child: Transform.translate(
-                    offset: Offset(
-                      0,
-                      liquid && !reducedMotion ? (1 - t) * 1.5 : 0,
+            if (showLabel) const SizedBox(height: LekisTabBarTokens.iconGap),
+            if (showLabel)
+              SizedBox(
+                height: LekisTabBarTokens.labelHeight,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween<double>(end: selected ? 1.0 : 0.0),
+                  duration: labelDuration,
+                  curve: liquid ? Curves.easeOut : Curves.easeOutCubic,
+                  // Every tab keeps its label (like iOS 26 / LiquidBottomTabs):
+                  // five icon-only slots read as sparse, scattered dots. The
+                  // selected label just lifts into full strength.
+                  builder: (context, t, child) => Opacity(
+                    opacity: 0.8 + 0.2 * t,
+                    child: Transform.translate(
+                      offset: Offset(
+                        0,
+                        liquid && !reducedMotion ? (1 - t) * 1.5 : 0,
+                      ),
+                      child: child,
                     ),
-                    child: child,
                   ),
-                ),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    destination.label,
-                    maxLines: 1,
-                    softWrap: false,
-                    style: text.labelSmall?.copyWith(
-                      color: labelColor,
-                      fontWeight: FontWeight.w600,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      destination.label,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: text.labelSmall?.copyWith(
+                        color: labelColor,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -520,52 +538,6 @@ class _SpecularSheen extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Soft accent light under the selection pill; it travels with the pill so
-/// the capsule picks up a little of the dynamic colour language.
-class _SelectionGlow extends StatelessWidget {
-  const _SelectionGlow({required this.animation, required this.color});
-
-  final Animation<double> animation;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return RepaintBoundary(
-      child: CustomPaint(
-        painter: _SelectionGlowPainter(animation: animation, color: color),
-        child: const SizedBox.expand(),
-      ),
-    );
-  }
-}
-
-class _SelectionGlowPainter extends CustomPainter {
-  _SelectionGlowPainter({required this.animation, required this.color})
-    : super(repaint: animation);
-
-  final Animation<double> animation;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final count = LekisDestination.values.length;
-    const inset = LekisTabBarTokens.innerInset;
-    final slot = (size.width - inset * 2) / count;
-    final center = Offset(
-      inset + (animation.value + 0.5) * slot,
-      size.height / 2,
-    );
-    final radius = size.height * 1.45;
-    final shader = RadialGradient(
-      colors: [color.withValues(alpha: 0.15), color.withValues(alpha: 0)],
-    ).createShader(Rect.fromCircle(center: center, radius: radius));
-    canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
-  }
-
-  @override
-  bool shouldRepaint(_SelectionGlowPainter old) => old.color != color;
 }
 
 /// Static film grain. Fixed seed, so it never shimmers while the pill moves.

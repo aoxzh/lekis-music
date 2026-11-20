@@ -10,7 +10,10 @@ enum ShellChromeMode {
   /// Phones: floating glass tab bar + mini player over the content.
   bottomBar,
 
-  /// Medium windows / short landscape: icon rail on the left.
+  /// Unfolded foldables / small tablets: icon capsule on the trailing edge.
+  sideTabs,
+
+  /// Short landscape windows: icon rail on the left.
   rail,
 
   /// Expanded windows: full sidebar + desktop player bar.
@@ -23,7 +26,8 @@ class ShellChrome extends InheritedWidget {
   final ShellChromeMode mode;
 
   /// The rail and sidebar already show the Lekis mark.
-  bool get showsBrandMark => mode != ShellChromeMode.bottomBar;
+  bool get showsBrandMark =>
+      mode == ShellChromeMode.rail || mode == ShellChromeMode.sidebar;
 
   /// Pages outside the shell (tests, routes pushed on the root navigator)
   /// behave as if on a phone.
@@ -32,7 +36,10 @@ class ShellChrome extends InheritedWidget {
       ShellChromeMode.bottomBar;
 
   static bool showsBrandMarkOf(BuildContext context) =>
-      modeOf(context) != ShellChromeMode.bottomBar;
+      switch (modeOf(context)) {
+        ShellChromeMode.rail || ShellChromeMode.sidebar => true,
+        _ => false,
+      };
 
   @override
   bool updateShouldNotify(ShellChrome oldWidget) => oldWidget.mode != mode;
