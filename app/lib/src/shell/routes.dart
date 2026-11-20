@@ -20,13 +20,12 @@ Future<void> openEnrichReview(BuildContext context) =>
     );
 
 /// Opens the offline downloads page inside the current tab.
-Future<void> openDownloads(BuildContext context) =>
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        settings: const RouteSettings(name: '/downloads'),
-        builder: (_) => const DownloadsPage(),
-      ),
-    );
+Future<void> openDownloads(BuildContext context) => Navigator.of(context).push(
+  MaterialPageRoute<void>(
+    settings: const RouteSettings(name: '/downloads'),
+    builder: (_) => const DownloadsPage(),
+  ),
+);
 
 /// Opens the local plugin manager inside the current tab.
 Future<void> openPlugins(BuildContext context) => Navigator.of(context).push(

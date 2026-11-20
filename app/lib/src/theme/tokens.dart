@@ -76,13 +76,33 @@ abstract final class LekisTabBarTokens {
   static const double labelHeight = 15;
 
   /// Horizontal padding between the capsule edge and the five slots.
-  static const double innerInset = 6;
+  static const double innerInset = 4;
 
   /// Gap between a slot edge and the selection pill.
   static const double pillInset = 3;
 
-  /// Backdrop blur radius of the capsule.
-  static const double blurSigma = 18;
+  /// Backdrop blur of the capsule where there is no lens (Skia backends):
+  /// frosted glass.
+  static const double blurSigma = 22;
+
+  /// Blur under the lens (CYL / Backdrop: 8 dp blur radius ≈ sigma 5).
+  static const double lensBlurSigma = 5;
+
+  /// Lens reach in from the rim and how far it bends content (24 / 24 dp).
+  static const double refractionHeight = 24;
+  static const double refractionAmount = 24;
+
+  /// Widest a slot gets. The capsule hugs its five slots and centres
+  /// instead of stretching across wide phones / tablets in portrait.
+  static const double maxSlotWidth = 68;
+
+  /// Surface tint over the blurred backdrop. Low enough that content
+  /// scrolling underneath shows through as colour.
+  static const double glassTintDark = 0.40;
+  static const double glassTintLight = 0.40;
+
+  /// Saturation boost applied to the backdrop before blurring (vibrancy).
+  static const double glassSaturation = 1.5;
 
   /// Opacity of the film grain laid over the capsule (keeps the gradient
   /// from banding on large soft areas, like Now Playing does).

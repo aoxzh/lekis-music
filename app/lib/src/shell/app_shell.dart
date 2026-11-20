@@ -19,6 +19,7 @@ import 'package:lekis/src/layout/window_size.dart';
 import 'destinations.dart';
 import 'now_playing_context.dart';
 import 'routes.dart';
+import 'shell_chrome.dart';
 import 'sidebar.dart';
 import 'tab_bar.dart';
 import 'tab_bar_style.dart';
@@ -32,14 +33,14 @@ export 'routes.dart'
         openPlugins,
         NowPlayingRoute;
 
-enum _ChromeMode { bottomBar, rail, sidebar }
-
-_ChromeMode _chromeModeOf(BuildContext context) {
-  if (context.heightClass == WindowHeightClass.compact) return _ChromeMode.rail;
+ShellChromeMode _chromeModeOf(BuildContext context) {
+  if (context.heightClass == WindowHeightClass.compact) {
+    return ShellChromeMode.rail;
+  }
   return switch (context.widthClass) {
-    WindowWidthClass.compact => _ChromeMode.bottomBar,
-    WindowWidthClass.medium => _ChromeMode.rail,
-    _ => _ChromeMode.sidebar,
+    WindowWidthClass.compact => ShellChromeMode.bottomBar,
+    WindowWidthClass.medium => ShellChromeMode.rail,
+    _ => ShellChromeMode.sidebar,
   };
 }
 
@@ -130,24 +131,26 @@ class _AppShellState extends State<AppShell> {
       ),
     );
 
+    final mode = _chromeModeOf(context);
+    final content = ShellChrome(mode: mode, child: tabs);
     return PopScope<Object?>(
       canPop: _current == LekisDestination.home && !tabCanPop,
       onPopInvokedWithResult: _onSystemBack,
-      child: switch (_chromeModeOf(context)) {
-        _ChromeMode.bottomBar => _BottomBarLayout(
+      child: switch (mode) {
+        ShellChromeMode.bottomBar => _BottomBarLayout(
           current: _current,
           onSelected: _select,
-          content: tabs,
+          content: content,
         ),
-        _ChromeMode.rail => _RailLayout(
+        ShellChromeMode.rail => _RailLayout(
           current: _current,
           onSelected: _select,
-          content: tabs,
+          content: content,
         ),
-        _ChromeMode.sidebar => _SidebarLayout(
+        ShellChromeMode.sidebar => _SidebarLayout(
           current: _current,
           onSelected: _select,
-          content: tabs,
+          content: content,
         ),
       },
     );
@@ -227,6 +230,11 @@ class _BottomBarLayout extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final style = ref.watch(tabBarStyleProvider);
     return Scaffold(
+      // The mini player and the glass tab bar float over the content: pages
+      // scroll underneath (that is what the glass blurs) and Scaffold adds
+      // the chrome height to MediaQuery.padding.bottom so the last item
+      // still scrolls clear (see scrollEndPadding).
+      extendBody: true,
       body: content,
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,

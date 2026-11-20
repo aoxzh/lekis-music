@@ -42,6 +42,7 @@ with each package. The Rust dependency graph is checked in CI with
 | QuickJS (inside rquickjs-sys) | MIT |
 | Cargokit (`app/rust_builder/cargokit`) | MIT |
 | Lekis rabbit mascot artwork (`app/app_icon.png`, launcher icons) | original project asset, MPL-2.0 |
+| Liquid glass lens shader (`app/shaders/liquid_glass_lens.frag`) and tab bar glass parameters — from Kyant's Backdrop / AndroidLiquidGlass (Copyright 2025 Kyant) via CYLTabBarController's Android port (ChenYilong) | Apache-2.0 (Backdrop), MIT (CYLTabBarController) |
 
 ## Fonts and icons
 

@@ -34,98 +34,100 @@ class LekisSidebar extends StatelessWidget {
         bottom: false,
         child: SizedBox(
           width: LekisSizes.desktopSidebarWidth,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  LekisSpacing.xl,
-                  LekisSpacing.lg,
-                  LekisSpacing.xl,
-                  LekisSpacing.xxl,
-                ),
-                child: Row(
-                  children: [
-                    const _MoonMark(size: 40),
-                    const SizedBox(width: LekisSpacing.md),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Lekis',
-                          style: text.titleLarge?.copyWith(
-                            color: scheme.onSurface,
-                            letterSpacing: -0.2,
+          child: _FillOrScroll(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    LekisSpacing.xl,
+                    LekisSpacing.lg,
+                    LekisSpacing.xl,
+                    LekisSpacing.xxl,
+                  ),
+                  child: Row(
+                    children: [
+                      const _MoonMark(size: 40),
+                      const SizedBox(width: LekisSpacing.md),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Lekis',
+                            style: text.titleLarge?.copyWith(
+                              color: scheme.onSurface,
+                              letterSpacing: -0.2,
+                            ),
                           ),
-                        ),
-                        Text(
-                          'LOCAL FIRST',
-                          style: text.labelSmall?.copyWith(
-                            color: colors.onSurfaceVariant,
-                            letterSpacing: 1.4,
-                            fontSize: 9,
+                          Text(
+                            'LOCAL FIRST',
+                            style: text.labelSmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                              letterSpacing: 1.4,
+                              fontSize: 9,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: LekisSpacing.xl,
-                ),
-                child: Text(
-                  '浏览',
-                  style: text.labelSmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    letterSpacing: 1.2,
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              const SizedBox(height: LekisSpacing.sm),
-              for (final d in LekisDestination.values)
-                if (d != LekisDestination.settings)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: LekisSpacing.md,
-                      vertical: 1,
-                    ),
-                    child: _SidebarItem(
-                      destination: d,
-                      selected: d == selected,
-                      onTap: () => onSelected(d),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: LekisSpacing.xl,
+                  ),
+                  child: Text(
+                    '浏览',
+                    style: text.labelSmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                      letterSpacing: 1.2,
                     ),
                   ),
-              const Spacer(),
-              Divider(color: colors.outline, height: 1),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: LekisSpacing.md,
-                  vertical: LekisSpacing.xs,
                 ),
-                child: _SidebarItem(
-                  destination: LekisDestination.settings,
-                  selected: selected == LekisDestination.settings,
-                  onTap: () => onSelected(LekisDestination.settings),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  LekisSpacing.xl,
-                  LekisSpacing.xs,
-                  LekisSpacing.xl,
-                  LekisSpacing.lg,
-                ),
-                child: Text(
-                  '本地优先 · 无账号',
-                  style: text.labelSmall?.copyWith(
-                    color: colors.onSurfaceVariant.withValues(alpha: 0.7),
+                const SizedBox(height: LekisSpacing.sm),
+                for (final d in LekisDestination.values)
+                  if (d != LekisDestination.settings)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: LekisSpacing.md,
+                        vertical: 1,
+                      ),
+                      child: _SidebarItem(
+                        destination: d,
+                        selected: d == selected,
+                        onTap: () => onSelected(d),
+                      ),
+                    ),
+                const Spacer(),
+                Divider(color: colors.outline, height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: LekisSpacing.md,
+                    vertical: LekisSpacing.xs,
+                  ),
+                  child: _SidebarItem(
+                    destination: LekisDestination.settings,
+                    selected: selected == LekisDestination.settings,
+                    onTap: () => onSelected(LekisDestination.settings),
                   ),
                 ),
-              ),
-            ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    LekisSpacing.xl,
+                    LekisSpacing.xs,
+                    LekisSpacing.xl,
+                    LekisSpacing.lg,
+                  ),
+                  child: Text(
+                    '本地优先 · 无账号',
+                    style: text.labelSmall?.copyWith(
+                      color: colors.onSurfaceVariant.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -154,34 +156,57 @@ class LekisNavRail extends StatelessWidget {
         bottom: false,
         child: SizedBox(
           width: 84,
-          child: Column(
-            children: [
-              const SizedBox(height: LekisSpacing.md),
-              const _MoonMark(size: 40),
-              const SizedBox(height: LekisSpacing.xl),
-              for (final d in LekisDestination.values)
-                if (d != LekisDestination.settings)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: LekisSpacing.xs),
-                    child: _RailItem(
-                      destination: d,
-                      selected: d == selected,
-                      onTap: () => onSelected(d),
+          // Short windows (phone landscape, split screen) scroll the rail
+          // instead of pushing Settings off the bottom edge.
+          child: _FillOrScroll(
+            child: Column(
+              children: [
+                const SizedBox(height: LekisSpacing.md),
+                const _MoonMark(size: 40),
+                const SizedBox(height: LekisSpacing.xl),
+                for (final d in LekisDestination.values)
+                  if (d != LekisDestination.settings)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: LekisSpacing.xs),
+                      child: _RailItem(
+                        destination: d,
+                        selected: d == selected,
+                        onTap: () => onSelected(d),
+                      ),
                     ),
-                  ),
-              const Spacer(),
-              _RailItem(
-                destination: LekisDestination.settings,
-                selected: selected == LekisDestination.settings,
-                onTap: () => onSelected(LekisDestination.settings),
-              ),
-              const SizedBox(height: LekisSpacing.md),
-            ],
+                const Spacer(),
+                _RailItem(
+                  destination: LekisDestination.settings,
+                  selected: selected == LekisDestination.settings,
+                  onTap: () => onSelected(LekisDestination.settings),
+                ),
+                const SizedBox(height: LekisSpacing.md),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Lays [child] out at least as tall as the viewport (so a Spacer inside
+/// still pushes items apart) and scrolls when it does not fit.
+class _FillOrScroll extends StatelessWidget {
+  const _FillOrScroll({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => SingleChildScrollView(
+      primary: false,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+        child: IntrinsicHeight(child: child),
+      ),
+    ),
+  );
 }
 
 class _MoonMark extends StatelessWidget {
@@ -190,8 +215,7 @@ class _MoonMark extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) =>
-      LekisBrandMark(size: size, glow: true);
+  Widget build(BuildContext context) => LekisBrandMark(size: size, glow: true);
 }
 
 class _SidebarItem extends StatelessWidget {

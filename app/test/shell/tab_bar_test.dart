@@ -6,6 +6,7 @@ import 'dart:ui' show Tristate;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lekis/src/widgets/liquid_glass.dart';
 import 'package:lekis/src/shell/destinations.dart';
 import 'package:lekis/src/shell/tab_bar.dart';
 import 'package:lekis/src/shell/tab_bar_style.dart';
@@ -129,7 +130,7 @@ void main() {
     await tester.pumpWidget(const _TabHarness(reducedMotion: false));
 
     expect(find.byKey(LekisTabBar.liquidSurfaceKey), findsOneWidget);
-    expect(find.byType(BackdropFilter), findsOneWidget);
+    expect(find.byType(LiquidGlass), findsOneWidget);
 
     await tester.pumpWidget(
       const _TabHarness(reducedMotion: false, style: TabBarStyle.flat),
@@ -137,7 +138,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(LekisTabBar.flatSurfaceKey), findsOneWidget);
-    expect(find.byType(BackdropFilter), findsNothing);
+    expect(find.byType(LiquidGlass), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -153,12 +154,12 @@ void main() {
         child: const _StyleProviderHarness(),
       ),
     );
-    expect(find.byType(BackdropFilter), findsOneWidget);
+    expect(find.byType(LiquidGlass), findsOneWidget);
 
     await container.read(tabBarStyleProvider.notifier).set(TabBarStyle.flat);
     await tester.pumpAndSettle();
 
-    expect(find.byType(BackdropFilter), findsNothing);
+    expect(find.byType(LiquidGlass), findsNothing);
     expect(find.byKey(LekisTabBar.flatSurfaceKey), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

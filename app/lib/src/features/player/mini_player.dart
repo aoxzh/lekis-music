@@ -10,6 +10,7 @@ import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/widgets/current_track.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/glass.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Share of the card width a horizontal swipe must cover to skip.
@@ -212,7 +213,7 @@ class _SwipeContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tint = NowPlayingTint.resolve(
-      ref.watch(currentArtworkProvider.select((a) => a.value?.palette)),
+      ref.watch(nowPlayingPaletteProvider(Theme.of(context).brightness)),
       Theme.of(context).colorScheme,
     );
     final hintColor = readableAccent(
@@ -281,21 +282,29 @@ class MiniPlayerFace extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.lekisColors;
     final palette = ref.watch(
-      currentArtworkProvider.select((a) => a.value?.palette),
+      nowPlayingPaletteProvider(Theme.of(context).brightness),
     );
     final tint = NowPlayingTint.resolve(palette, Theme.of(context).colorScheme);
     // floatingProtection: a low-opacity adaptive wash over the elevated
     // surface keeps the row readable without a shadow.
-    final surface = palette == null
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Same glass as the tab bar: a light tint over a saturated, blurred
+    // backdrop, so the card floats over scrolling content instead of
+    // covering it with a slab.
+    final glassAlpha = isDark
+        ? LekisTabBarTokens.glassTintDark + 0.12
+        : LekisTabBarTokens.glassTintLight + 0.12;
+    final opaque = palette == null
         ? colors.surfaceElevated
         : Color.alphaBlend(
             tint.primary.withValues(alpha: 0.14),
             colors.surfaceElevated,
           );
-    final rim = Theme.of(context).brightness == Brightness.dark
-        ? Colors.white.withValues(alpha: 0.07)
-        : colors.outline.withValues(alpha: 0.85);
-    final progressColor = readableAccent(tint.primary, surface);
+    final surface = opaque.withValues(alpha: glassAlpha);
+    final rim = isDark
+        ? Colors.white.withValues(alpha: 0.14)
+        : Colors.white.withValues(alpha: 0.75);
+    final progressColor = readableAccent(tint.primary, opaque);
     final artSize = LekisSizes.miniPlayerHeight - LekisSpacing.sm * 2;
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
 
@@ -323,7 +332,7 @@ class MiniPlayerFace extends ConsumerWidget {
       duration: reducedMotion ? Duration.zero : LekisMotion.backgroundCrossfade,
       builder: (context, color, child) {
         final base = color ?? surface;
-        return DecoratedBox(
+        final card = DecoratedBox(
           key: const ValueKey('mini-player.card'),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(LekisRadius.miniPlayer),
@@ -343,6 +352,13 @@ class MiniPlayerFace extends ConsumerWidget {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(LekisRadius.miniPlayer),
             child: Material(type: MaterialType.transparency, child: child),
+          ),
+        );
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(LekisRadius.miniPlayer),
+          child: BackdropFilter(
+            filter: lekisGlassFilter(LekisTabBarTokens.blurSigma),
+            child: card,
           ),
         );
       },

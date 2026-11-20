@@ -74,6 +74,11 @@ flutter:
   assets:
     - assets/brand/mark.png
 
+  # Liquid glass lens for the floating tab bar (Impeller only; see
+  # lib/src/widgets/liquid_glass.dart).
+  shaders:
+    - shaders/liquid_glass_lens.frag
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

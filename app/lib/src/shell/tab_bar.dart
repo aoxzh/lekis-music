@@ -13,10 +13,10 @@
 // jumps to the destination and uses a 150 ms fade.
 
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/physics.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/liquid_glass.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'destinations.dart';
@@ -160,11 +160,23 @@ class _LekisTabBarState extends State<LekisTabBar>
           LekisSpacing.lg,
           0,
         ),
-        child: SizedBox(
-          height: LekisTabBarTokens.height,
-          child: widget.style == TabBarStyle.flat
-              ? _flatBar(context, reduced)
-              : _liquidBar(context, reduced),
+        // A compact capsule centred under the content, not a full-width
+        // strip: slots stay a thumb's width apart on any phone.
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth:
+                  LekisTabBarTokens.maxSlotWidth *
+                      LekisDestination.values.length +
+                  LekisTabBarTokens.innerInset * 2,
+            ),
+            child: SizedBox(
+              height: LekisTabBarTokens.height,
+              child: widget.style == TabBarStyle.flat
+                  ? _flatBar(context, reduced)
+                  : _liquidBar(context, reduced),
+            ),
+          ),
         ),
       ),
     );
@@ -175,7 +187,14 @@ class _LekisTabBarState extends State<LekisTabBar>
     final scheme = Theme.of(context).colorScheme;
     final isDark = scheme.brightness == Brightness.dark;
     final radius = BorderRadius.circular(LekisTabBarTokens.height / 2);
-    final tint = colors.surfaceElevated.withValues(alpha: isDark ? 0.72 : 0.84);
+    // Glass only reads as glass when what is behind it shows through: keep
+    // the tint light, blur hard and boost saturation (vibrancy) so content
+    // scrolling underneath turns into soft colour, not a grey slab.
+    final tint = colors.surfaceElevated.withValues(
+      alpha: isDark
+          ? LekisTabBarTokens.glassTintDark
+          : LekisTabBarTokens.glassTintLight,
+    );
 
     return Semantics(
       container: true,
@@ -183,54 +202,55 @@ class _LekisTabBarState extends State<LekisTabBar>
       label: '主导航',
       child: Container(
         key: LekisTabBar.liquidSurfaceKey,
-        decoration: BoxDecoration(
-          borderRadius: radius,
-          boxShadow: [
-            BoxShadow(
-              color: colors.scrim.withValues(alpha: isDark ? 0.45 : 0.16),
-              blurRadius: 28,
-              offset: const Offset(0, 12),
-            ),
-            BoxShadow(
-              color: colors.accent.withValues(alpha: isDark ? 0.10 : 0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 6),
-            ),
-          ],
+        // Backdrop's default shadow, drawn outside the capsule only: under
+        // translucent glass a filled shadow would show through as a slab.
+        decoration: _OutsideShadowDecoration(radius: radius, isDark: isDark),
+        foregroundDecoration: _GlassRimDecoration(
+          radius: radius,
+          isDark: isDark,
         ),
-        foregroundDecoration: BoxDecoration(
-          borderRadius: radius,
-          border: Border.all(color: colors.outline.withValues(alpha: 0.9)),
-        ),
-        child: ClipRRect(
-          borderRadius: radius,
-          child: BackdropFilter(
-            filter: ImageFilter.blur(
-              sigmaX: LekisTabBarTokens.blurSigma,
-              sigmaY: LekisTabBarTokens.blurSigma,
-            ),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                ColoredBox(color: tint),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        colors.accent.withValues(alpha: isDark ? 0.12 : 0.07),
-                        Colors.transparent,
-                        colors.moon.withValues(alpha: isDark ? 0.07 : 0.045),
-                      ],
-                    ),
+        child: LiquidGlass(
+          radius: LekisTabBarTokens.height / 2,
+          enableLens: !reduced,
+          blurSigma: LekisTabBarTokens.lensBlurSigma,
+          fallbackBlurSigma: LekisTabBarTokens.blurSigma,
+          refractionHeight: LekisTabBarTokens.refractionHeight,
+          refractionAmount: LekisTabBarTokens.refractionAmount,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              ColoredBox(color: tint),
+              // Top-lit body: a little brighter at the top edge, a touch of
+              // accent / moonlight across the capsule.
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: isDark ? 0.07 : 0.30),
+                      Colors.white.withValues(alpha: 0),
+                    ],
                   ),
                 ),
-                _SelectionGlow(animation: _position, color: colors.accent),
-                _BarNoise(isDark: isDark),
-                _slots(context, reduced),
-              ],
-            ),
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      colors.accent.withValues(alpha: isDark ? 0.10 : 0.06),
+                      Colors.transparent,
+                      colors.moon.withValues(alpha: isDark ? 0.06 : 0.04),
+                    ],
+                  ),
+                ),
+              ),
+              _SelectionGlow(animation: _position, color: colors.accent),
+              _BarNoise(isDark: isDark),
+              _slots(context, reduced),
+            ],
           ),
         ),
       ),
@@ -442,12 +462,15 @@ class _TabItem extends StatelessWidget {
                 tween: Tween<double>(end: selected ? 1.0 : 0.0),
                 duration: labelDuration,
                 curve: liquid ? Curves.easeOut : Curves.easeOutCubic,
+                // Every tab keeps its label (like iOS 26 / LiquidBottomTabs):
+                // five icon-only slots read as sparse, scattered dots. The
+                // selected label just lifts into full strength.
                 builder: (context, t, child) => Opacity(
-                  opacity: t,
+                  opacity: 0.8 + 0.2 * t,
                   child: Transform.translate(
                     offset: Offset(
                       0,
-                      liquid && !reducedMotion ? (1 - t) * 4 : 0,
+                      liquid && !reducedMotion ? (1 - t) * 1.5 : 0,
                     ),
                     child: child,
                   ),
@@ -605,4 +628,92 @@ class _Speck {
   final double x;
   final double y;
   final double strength;
+}
+
+/// Glass edge: a bright specular rim along the top fading to a faint one at
+/// the bottom, the way light catches the lip of a glass capsule.
+class _GlassRimDecoration extends Decoration {
+  const _GlassRimDecoration({required this.radius, required this.isDark});
+
+  final BorderRadius radius;
+  final bool isDark;
+
+  @override
+  BoxPainter createBoxPainter([VoidCallback? onChanged]) =>
+      _GlassRimPainter(this);
+}
+
+class _GlassRimPainter extends BoxPainter {
+  _GlassRimPainter(this.decoration);
+
+  final _GlassRimDecoration decoration;
+
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
+    final size = configuration.size;
+    if (size == null) return;
+    final rect = (offset & size).deflate(0.5);
+    final rrect = decoration.radius.toRRect(rect);
+    final isDark = decoration.isDark;
+    // Backdrop's `Highlight.Default`: a thin rim, brightest where the edge
+    // faces 45° (top-left / bottom-right), added over the glass.
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..blendMode = BlendMode.plus
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Colors.white.withValues(alpha: isDark ? 0.42 : 0.70),
+          Colors.white.withValues(alpha: isDark ? 0.05 : 0.15),
+          Colors.white.withValues(alpha: isDark ? 0.05 : 0.15),
+          Colors.white.withValues(alpha: isDark ? 0.30 : 0.55),
+        ],
+        stops: const [0, 0.35, 0.65, 1],
+      ).createShader(rect);
+    canvas.drawRRect(rrect, paint);
+  }
+}
+
+/// Soft drop shadow (12 dp blur, 4 dp down) painted only outside [radius]'s
+/// rounded rectangle.
+class _OutsideShadowDecoration extends Decoration {
+  const _OutsideShadowDecoration({required this.radius, required this.isDark});
+
+  final BorderRadius radius;
+  final bool isDark;
+
+  @override
+  BoxPainter createBoxPainter([VoidCallback? onChanged]) =>
+      _OutsideShadowPainter(this);
+}
+
+class _OutsideShadowPainter extends BoxPainter {
+  _OutsideShadowPainter(this.decoration);
+
+  final _OutsideShadowDecoration decoration;
+
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
+    final size = configuration.size;
+    if (size == null) return;
+    final rrect = decoration.radius.toRRect(offset & size);
+    final outside = Path()
+      ..fillType = PathFillType.evenOdd
+      ..addRect((offset & size).inflate(48))
+      ..addRRect(rrect);
+    canvas
+      ..save()
+      ..clipPath(outside)
+      ..drawRRect(
+        rrect.shift(const Offset(0, 4)),
+        Paint()
+          ..color = Colors.black.withValues(
+            alpha: decoration.isDark ? 0.25 : 0.10,
+          )
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+      )
+      ..restore();
+  }
 }
