@@ -7,9 +7,46 @@
 //   至少 3:1，避免深色封面上的深色进度条看不见。
 
 import 'dart:math' as math;
+import 'dart:typed_data';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/library/widgets/artwork.dart';
+import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:material_ui/material_ui.dart';
+
+export 'package:lekis/src/features/library/widgets/artwork.dart'
+    show placeholderGradientColors;
+
+/// 占位封面对应的“调色板”，让背景 / 进度条跟着占位色走，而不是退回品牌紫。
+PaletteDto placeholderPalette(int seed, Brightness brightness) {
+  final (start, end) = placeholderGradientColors(seed, brightness);
+  final mid = Color.lerp(start, end, 0.5)!;
+  int rgb(Color c) => c.toARGB32() & 0xFFFFFF;
+  return PaletteDto(
+    primary: rgb(start),
+    secondary: rgb(end),
+    onPrimary: brightness == Brightness.dark ? 0xFFFFFF : 0x000000,
+    gradient: Uint32List.fromList([rgb(mid), rgb(start), rgb(end), rgb(mid)]),
+  );
+}
+
+/// 播放页实际使用的调色板：封面自带的调色板优先；当前曲目确实没有封面
+/// （界面上画的是占位渐变）时，用占位色推导；封面还在加载或有图但没算出
+/// 调色板时返回 null（退回主题色）。参数是主题明暗（占位色随之变化）。
+final nowPlayingPaletteProvider = Provider.family<PaletteDto?, Brightness>((
+  ref,
+  brightness,
+) {
+  final artwork = ref.watch(currentArtworkProvider);
+  final palette = artwork.value?.palette;
+  if (palette != null) return palette;
+  if (!artwork.hasValue || artwork.value != null) return null;
+  final trackId = ref.watch(currentTrackProvider.select((t) => t.value?.id));
+  if (trackId == null) return null;
+  // Same seed as NowPlayingArtwork / CurrentArtwork.
+  return placeholderPalette(trackId.hashCode, brightness);
+});
 
 /// WCAG 相对亮度对比度（1..21）。
 double contrastRatio(Color a, Color b) {

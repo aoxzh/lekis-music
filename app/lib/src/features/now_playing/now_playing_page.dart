@@ -16,7 +16,6 @@ import 'package:lekis/src/features/now_playing/now_playing_tint.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_panel.dart';
 import 'package:lekis/src/features/player/queue_view.dart';
-import 'package:lekis/src/features/player/widgets/current_track.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
 import 'package:lekis/src/layout/adaptive_two_pane.dart';
 import 'package:lekis/src/layout/fold.dart';
@@ -69,9 +68,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final palette = ref.watch(
-      currentArtworkProvider.select((a) => a.value?.palette),
-    );
+    final palette = ref.watch(nowPlayingPaletteProvider(theme.brightness));
     final lowPower = MediaQuery.disableAnimationsOf(context);
     final tint = NowPlayingTint.resolve(palette, theme.colorScheme);
     final fg = tint.foreground;
@@ -100,6 +97,13 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(foregroundColor: fg),
+      ),
+      // Menus and sheets opened from this page inherit the re-themed
+      // onSurface, so give them the matching protected scene colour.
+      popupMenuTheme: theme.popupMenuTheme.copyWith(color: tint.scene),
+      bottomSheetTheme: theme.bottomSheetTheme.copyWith(
+        backgroundColor: tint.scene,
+        modalBackgroundColor: tint.scene,
       ),
       // Widgets that reach for LekisColors.accent (shuffle / repeat selected)
       // follow the cover too, while staying on the protected scene colour.
@@ -296,14 +300,14 @@ class _NowPlayingLayoutState extends ConsumerState<_NowPlayingLayout>
     final landscapeish = size.width >= 600 && size.width >= size.height * 0.95;
     final desktopPanels = usesNowPlayingSidePanels(context);
 
-    Widget lyrics({bool compact = false}) => trackId == null
-        ? const SizedBox.shrink()
-        : LyricsView(
-            key: ValueKey('lyrics-$trackId'),
-            trackId: trackId,
-            compact: compact,
-            lowPower: widget.lowPower,
-          );
+    // Without a track the view shows its centred empty state instead of a
+    // blank pane.
+    Widget lyrics({bool compact = false}) => LyricsView(
+      key: ValueKey('lyrics-$trackId'),
+      trackId: trackId,
+      compact: compact,
+      lowPower: widget.lowPower,
+    );
 
     const artwork = Padding(
       padding: EdgeInsets.all(LekisSpacing.xl),
@@ -335,14 +339,13 @@ class _NowPlayingLayoutState extends ConsumerState<_NowPlayingLayout>
       child: mainPane(compact: compact),
     );
 
-    Widget controls() => Center(
+    // Vertically centred against the artwork next to it; the controls cap
+    // their own width so the seek bar never spans a wide window.
+    Widget controls() => const Center(
       child: SingleChildScrollView(
         primary: false,
-        padding: const EdgeInsets.symmetric(vertical: LekisSpacing.lg),
-        child: NowPlayingControls(
-          showLyricsToggle: true,
-          desktopPanels: desktopPanels,
-        ),
+        padding: EdgeInsets.symmetric(vertical: LekisSpacing.lg),
+        child: NowPlayingControls(),
       ),
     );
 
@@ -433,10 +436,7 @@ class _NowPlayingLayoutState extends ConsumerState<_NowPlayingLayout>
             first: Column(
               children: [
                 Expanded(child: artwork),
-                NowPlayingControls(
-                  showLyricsToggle: true,
-                  desktopPanels: desktopPanels,
-                ),
+                const NowPlayingControls(),
                 const SizedBox(height: LekisSpacing.xl),
               ],
             ),
@@ -481,10 +481,7 @@ class _NowPlayingLayoutState extends ConsumerState<_NowPlayingLayout>
             children: [
               topBar,
               Expanded(child: switcher(compact: true)),
-              NowPlayingControls(
-                showLyricsToggle: true,
-                desktopPanels: desktopPanels,
-              ),
+              const NowPlayingControls(),
               const SizedBox(height: LekisSpacing.lg),
             ],
           ),
@@ -596,81 +593,88 @@ class _TopBar extends ConsumerWidget {
         horizontal: LekisSpacing.xs,
         vertical: LekisSpacing.xs,
       ),
-      child: Row(
+      // The grabber is centred on the full bar width, not on the gap
+      // between the close button and the (wider) action group.
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          IconButton(
-            tooltip: '关闭',
-            constraints: const BoxConstraints(
-              minWidth: LekisSizes.touchTargetMin,
-              minHeight: LekisSizes.touchTargetMin,
-            ),
-            onPressed: onClose,
-            icon: const Icon(Icons.keyboard_arrow_down_rounded),
-          ),
-          Expanded(
-            child: Center(
-              // Grabber hint for swipe-down.
-              child: Container(
-                width: LekisSpacing.xxl + LekisSpacing.xs,
-                height: LekisSpacing.xs + LekisSpacing.xxs / 2,
-                decoration: BoxDecoration(
-                  color: fg.withValues(alpha: LekisType.lyricsInactiveOpacity),
-                  borderRadius: BorderRadius.circular(LekisRadius.pill),
-                ),
+          IgnorePointer(
+            // Grabber hint for swipe-down.
+            child: Container(
+              key: const ValueKey('now-playing.top-bar.grabber'),
+              width: LekisSpacing.xxl + LekisSpacing.xs,
+              height: LekisSpacing.xs + LekisSpacing.xxs / 2,
+              decoration: BoxDecoration(
+                color: fg.withValues(alpha: LekisType.lyricsInactiveOpacity),
+                borderRadius: BorderRadius.circular(LekisRadius.pill),
               ),
             ),
           ),
-          IconButton(
-            key: const ValueKey('now-playing.top-bar.wall'),
-            tooltip: pane == NowPlayingPane.wall ? '隐藏封面墙' : '封面墙',
-            isSelected: pane == NowPlayingPane.wall,
-            constraints: const BoxConstraints(
-              minWidth: LekisSizes.touchTargetMin,
-              minHeight: LekisSizes.touchTargetMin,
-            ),
-            onPressed: () => _toggle(ref, NowPlayingPane.wall),
-            icon: const Icon(Icons.grid_view_outlined),
-            selectedIcon: const Icon(Icons.grid_view_rounded),
-          ),
-          IconButton(
-            key: const ValueKey('now-playing.top-bar.lyrics'),
-            tooltip: pane == NowPlayingPane.lyrics ? '显示封面' : '显示歌词',
-            isSelected: pane == NowPlayingPane.lyrics,
-            constraints: const BoxConstraints(
-              minWidth: LekisSizes.touchTargetMin,
-              minHeight: LekisSizes.touchTargetMin,
-            ),
-            onPressed: hasTrack
-                ? () => _toggle(ref, NowPlayingPane.lyrics)
-                : null,
-            icon: const Icon(Icons.lyrics_outlined),
-            selectedIcon: const Icon(Icons.lyrics_rounded),
-          ),
-          IconButton(
-            key: const ValueKey('now-playing.top-bar.queue'),
-            tooltip: queueLength == 0 ? '播放队列' : '播放队列（$queueLength 首）',
-            isSelected: showQueueSelected,
-            constraints: const BoxConstraints(
-              minWidth: LekisSizes.touchTargetMin,
-              minHeight: LekisSizes.touchTargetMin,
-            ),
-            onPressed: hasTrack
-                ? () {
-                    if (desktopPanels) {
-                      _toggle(ref, NowPlayingPane.queue);
-                    } else {
-                      showQueueSheet(context);
-                    }
-                  }
-                : null,
-            icon: Badge.count(
-              key: const ValueKey('now-playing.top-bar.queue-badge'),
-              count: queueLength,
-              isLabelVisible: queueLength > 0,
-              backgroundColor: colors.accent,
-              textColor: colors.onAccent,
-              child: const Icon(Icons.queue_music_rounded),
-            ),
+          Row(
+            children: [
+              IconButton(
+                tooltip: '关闭',
+                constraints: const BoxConstraints(
+                  minWidth: LekisSizes.touchTargetMin,
+                  minHeight: LekisSizes.touchTargetMin,
+                ),
+                onPressed: onClose,
+                icon: const Icon(Icons.keyboard_arrow_down_rounded),
+              ),
+              const Spacer(),
+              IconButton(
+                key: const ValueKey('now-playing.top-bar.wall'),
+                tooltip: pane == NowPlayingPane.wall ? '隐藏封面墙' : '封面墙',
+                isSelected: pane == NowPlayingPane.wall,
+                constraints: const BoxConstraints(
+                  minWidth: LekisSizes.touchTargetMin,
+                  minHeight: LekisSizes.touchTargetMin,
+                ),
+                onPressed: () => _toggle(ref, NowPlayingPane.wall),
+                icon: const Icon(Icons.grid_view_outlined),
+                selectedIcon: const Icon(Icons.grid_view_rounded),
+              ),
+              IconButton(
+                key: const ValueKey('now-playing.top-bar.lyrics'),
+                tooltip: pane == NowPlayingPane.lyrics ? '显示封面' : '显示歌词',
+                isSelected: pane == NowPlayingPane.lyrics,
+                constraints: const BoxConstraints(
+                  minWidth: LekisSizes.touchTargetMin,
+                  minHeight: LekisSizes.touchTargetMin,
+                ),
+                onPressed: hasTrack
+                    ? () => _toggle(ref, NowPlayingPane.lyrics)
+                    : null,
+                icon: const Icon(Icons.lyrics_outlined),
+                selectedIcon: const Icon(Icons.lyrics_rounded),
+              ),
+              IconButton(
+                key: const ValueKey('now-playing.top-bar.queue'),
+                tooltip: queueLength == 0 ? '播放队列' : '播放队列（$queueLength 首）',
+                isSelected: showQueueSelected,
+                constraints: const BoxConstraints(
+                  minWidth: LekisSizes.touchTargetMin,
+                  minHeight: LekisSizes.touchTargetMin,
+                ),
+                onPressed: hasTrack
+                    ? () {
+                        if (desktopPanels) {
+                          _toggle(ref, NowPlayingPane.queue);
+                        } else {
+                          showQueueSheet(context);
+                        }
+                      }
+                    : null,
+                icon: Badge.count(
+                  key: const ValueKey('now-playing.top-bar.queue-badge'),
+                  count: queueLength,
+                  isLabelVisible: queueLength > 0,
+                  backgroundColor: colors.accent,
+                  textColor: colors.onAccent,
+                  child: const Icon(Icons.queue_music_rounded),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -678,126 +682,120 @@ class _TopBar extends ConsumerWidget {
   }
 }
 
-/// Title, seek bar, transport, volume and the lyrics / queue row.
-class NowPlayingControls extends ConsumerWidget {
-  const NowPlayingControls({
-    super.key,
-    required this.showLyricsToggle,
-    this.desktopPanels = false,
-  });
+/// Widest the controls column gets: beyond this the seek bar would stretch
+/// absurdly across wide windows (480 dp).
+const double nowPlayingControlsMaxWidth =
+    LekisSizes.desktopQueuePanelWidth * 1.5;
 
-  final bool showLyricsToggle;
+/// Below this column width the rating star moves into the “more” menu so the
+/// title keeps enough room.
+const double _inlineRatingMinWidth = LekisSizes.desktopQueuePanelWidth * 1.2;
 
-  /// True when the page has the third pane (so queue toggles it instead of
-  /// opening the compact bottom sheet).
-  final bool desktopPanels;
+/// Where the seek track (and its time labels) start inside [SeekBar]: the
+/// slider's overlay radius. The title block lines up with it.
+const double _seekTrackInset = LekisSizes.touchTargetMin / 2;
+
+/// Title block, seek bar, transport and (desktop) volume.
+///
+/// One alignment for the whole column, Apple Music style: the title /
+/// artist block is left-aligned on the seek track's start edge with the
+/// library actions trailing it on the same line; the seek bar spans the
+/// column and the transport sits centred under it. Lyrics and queue
+/// toggles live only in the top bar.
+class NowPlayingControls extends StatelessWidget {
+  const NowPlayingControls({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: nowPlayingControlsMaxWidth),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              // Trailing icons: their 48 dp targets end where the seek track
+              // ends, give or take the glyph inset.
+              padding: const EdgeInsetsDirectional.only(
+                start: _seekTrackInset,
+                end: _seekTrackInset - LekisSpacing.md,
+              ),
+              child: LayoutBuilder(
+                builder: (context, constraints) => Row(
+                  children: [
+                    const Expanded(child: _NowPlayingTitle()),
+                    const SizedBox(width: LekisSpacing.sm),
+                    NowPlayingLibraryActions(
+                      showRating: constraints.maxWidth >= _inlineRatingMinWidth,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: LekisSpacing.sm),
+            const SeekBar(),
+            const SizedBox(height: LekisSpacing.sm),
+            const Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: TransportControls(large: true),
+              ),
+            ),
+            if (!platformHasSystemVolume) ...[
+              const SizedBox(height: LekisSpacing.sm),
+              const Center(
+                child: VolumeControl(width: LekisSizes.desktopSidebarWidth),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Track title over “artist · album”, both single-line with ellipsis.
+class _NowPlayingTitle extends ConsumerWidget {
+  const _NowPlayingTitle();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final colors = context.lekisColors;
-    final pane = ref.watch(nowPlayingPaneProvider);
-    final showLyrics = pane == NowPlayingPane.lyrics;
-    final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
-    final queueLength = ref.watch(
-      playbackProvider.select((s) => s.queueLength),
-    );
-    return ConstrainedBox(
-      constraints: const BoxConstraints(
-        maxWidth: LekisSizes.desktopSidebarWidth * 2.5,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: CurrentTrackText(
-                titleStyle: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-                subtitleStyle: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-            const SizedBox(height: LekisSpacing.xs),
-            const NowPlayingLibraryActions(),
-            const SizedBox(height: LekisSpacing.xs),
-            const SeekBar(),
-            const SizedBox(height: LekisSpacing.sm),
-            const FittedBox(child: TransportControls(large: true)),
-            if (!platformHasSystemVolume) ...[
-              const SizedBox(height: LekisSpacing.sm),
-              const VolumeControl(width: LekisSizes.desktopSidebarWidth),
-            ],
-            const SizedBox(height: LekisSpacing.sm),
-            // bottomBarStyle 1 + iconSpacing 2: centred, tightly spaced
-            // secondary actions rather than spread to the window edges.
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (showLyricsToggle)
-                  IconButton(
-                    tooltip: showLyrics ? '显示封面' : '显示歌词',
-                    isSelected: showLyrics,
-                    constraints: const BoxConstraints(
-                      minWidth: LekisSizes.touchTargetMin,
-                      minHeight: LekisSizes.touchTargetMin,
-                    ),
-                    onPressed: hasTrack
-                        ? () {
-                            final notifier = ref.read(
-                              nowPlayingPaneProvider.notifier,
-                            );
-                            notifier.set(
-                              showLyrics
-                                  ? NowPlayingPane.cover
-                                  : NowPlayingPane.lyrics,
-                            );
-                          }
-                        : null,
-                    icon: const Icon(Icons.lyrics_outlined),
-                    selectedIcon: const Icon(Icons.lyrics_rounded),
-                  ),
-                const SizedBox(width: LekisSpacing.sm),
-                IconButton(
-                  tooltip: '播放队列',
-                  isSelected: desktopPanels && pane == NowPlayingPane.queue,
-                  constraints: const BoxConstraints(
-                    minWidth: LekisSizes.touchTargetMin,
-                    minHeight: LekisSizes.touchTargetMin,
-                  ),
-                  onPressed: hasTrack
-                      ? () {
-                          if (desktopPanels) {
-                            final notifier = ref.read(
-                              nowPlayingPaneProvider.notifier,
-                            );
-                            notifier.set(
-                              pane == NowPlayingPane.queue
-                                  ? NowPlayingPane.cover
-                                  : NowPlayingPane.queue,
-                            );
-                          } else {
-                            showQueueSheet(context);
-                          }
-                        }
-                      : null,
-                  icon: Badge.count(
-                    count: queueLength,
-                    isLabelVisible: queueLength > 0,
-                    backgroundColor: colors.accent,
-                    textColor: colors.onAccent,
-                    child: const Icon(Icons.queue_music_rounded),
-                  ),
-                ),
-              ],
-            ),
-          ],
+    final track = ref.watch(currentTrackProvider).value;
+    final artists = track?.artists.where((a) => a.isNotEmpty).join(' / ');
+    final album = track?.albumTitle;
+    final subtitle = track == null
+        ? null
+        : [
+            (artists == null || artists.isEmpty) ? '未知艺人' : artists,
+            if (album != null && album.isNotEmpty) album,
+          ].join(' · ');
+    return Column(
+      key: const ValueKey('now-playing.title'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          track?.title ?? '未在播放',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
         ),
-      ),
+        if (subtitle != null)
+          Text(
+            subtitle,
+            key: const ValueKey('now-playing.subtitle'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+      ],
     );
   }
 }

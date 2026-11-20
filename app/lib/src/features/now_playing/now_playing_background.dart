@@ -89,11 +89,13 @@ class _NowPlayingBackgroundState extends ConsumerState<NowPlayingBackground>
   @override
   Widget build(BuildContext context) {
     final artwork = ref.watch(currentArtworkProvider).value;
-    final colors = gradientColorsFor(artwork?.palette, context);
-    final tint = NowPlayingTint.resolve(
-      artwork?.palette,
-      Theme.of(context).colorScheme,
+    // Covers without artwork use the placeholder's deterministic colours, so
+    // the background matches the gradient tile instead of the brand accent.
+    final palette = ref.watch(
+      nowPlayingPaletteProvider(Theme.of(context).brightness),
     );
+    final colors = gradientColorsFor(palette, context);
+    final tint = NowPlayingTint.resolve(palette, Theme.of(context).colorScheme);
     final crossfade = widget.lowPower
         ? Duration.zero
         : LekisMotion.backgroundCrossfade;

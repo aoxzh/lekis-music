@@ -10,6 +10,9 @@ import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Lyrics for [trackId]: a word-by-word stage, plain text, or an empty state.
+///
+/// The searching / empty / error states are centred in the pane (a lyrics
+/// pane never shows up as a big blank area).
 class LyricsView extends ConsumerWidget {
   const LyricsView({
     super.key,
@@ -18,7 +21,8 @@ class LyricsView extends ConsumerWidget {
     this.lowPower = false,
   });
 
-  final int trackId;
+  /// `null` when nothing is playing yet.
+  final int? trackId;
 
   /// Smaller type for narrow windows.
   final bool compact;
@@ -28,6 +32,15 @@ class LyricsView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final trackId = this.trackId;
+    if (trackId == null) {
+      return const _Message(
+        key: ValueKey('idle'),
+        icon: Icons.lyrics_outlined,
+        title: '暂无歌词',
+        detail: '开始播放后会在这里显示歌词',
+      );
+    }
     final lyrics = ref.watch(lyricsProvider(trackId));
     final stageStyle = ref.watch(lyricsStageStyleProvider);
     final sparks = ref.watch(lyricsSparksProvider);
@@ -44,7 +57,9 @@ class LyricsView extends ConsumerWidget {
         onRetry: () => ref.invalidate(lyricsProvider(trackId)),
       ),
       data: (parsed) {
-        if (parsed == null) {
+        // Lyrics made only of blank / instrumental lines would render as an
+        // empty stage.
+        if (parsed == null || parsed.lines.every((l) => l.isInstrumental)) {
           return const _Message(
             key: ValueKey('empty'),
             icon: Icons.lyrics_outlined,
@@ -150,35 +165,19 @@ class _SearchingState extends State<_Searching> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final fg = theme.colorScheme.onSurface;
+    final fg = Theme.of(context).colorScheme.onSurface;
     return AnimatedOpacity(
       opacity: _visible ? 1 : 0,
       duration: LekisMotion.normal,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox.square(
-              dimension: LekisSpacing.xl,
-              child: CircularProgressIndicator(
-                strokeWidth: LekisSpacing.xxs,
-                color: fg.withValues(
-                  alpha: LekisType.lyricsInactiveOpacity * 2,
-                ),
-              ),
-            ),
-            const SizedBox(height: LekisSpacing.lg),
-            Text(
-              '正在查找歌词…',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: fg.withValues(
-                  alpha: LekisType.lyricsInactiveOpacity * 2,
-                ),
-              ),
-            ),
-          ],
+      child: _LyricsState(
+        leading: SizedBox.square(
+          dimension: LekisSpacing.xl,
+          child: CircularProgressIndicator(
+            strokeWidth: LekisSpacing.xxs,
+            color: fg.withValues(alpha: LekisType.lyricsInactiveOpacity * 2),
+          ),
         ),
+        title: '正在查找歌词…',
       ),
     );
   }
@@ -200,6 +199,43 @@ class _Message extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fg = Theme.of(context).colorScheme.onSurface;
+    return _LyricsState(
+      leading: Icon(
+        icon,
+        size: LekisSpacing.xxxl,
+        color: fg.withValues(alpha: LekisType.lyricsInactiveOpacity),
+      ),
+      title: title,
+      detail: detail,
+      action: onRetry == null
+          ? null
+          : TextButton(
+              style: TextButton.styleFrom(foregroundColor: fg),
+              onPressed: onRetry,
+              child: const Text('重试'),
+            ),
+    );
+  }
+}
+
+/// Shared layout of the searching / empty / error states: a 48 dp leading
+/// slot, a title and optional detail and action, centred in the pane.
+class _LyricsState extends StatelessWidget {
+  const _LyricsState({
+    required this.leading,
+    required this.title,
+    this.detail,
+    this.action,
+  });
+
+  final Widget leading;
+  final String title;
+  final String? detail;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final fg = theme.colorScheme.onSurface;
     final muted = fg.withValues(alpha: LekisType.lyricsInactiveOpacity * 2);
@@ -210,10 +246,9 @@ class _Message extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: LekisSpacing.xxxl,
-              color: fg.withValues(alpha: LekisType.lyricsInactiveOpacity),
+            SizedBox.square(
+              dimension: LekisSpacing.xxxl,
+              child: Center(child: leading),
             ),
             const SizedBox(height: LekisSpacing.md),
             Text(
@@ -231,13 +266,9 @@ class _Message extends StatelessWidget {
                 ),
               ),
             ],
-            if (onRetry != null) ...[
+            if (action != null) ...[
               const SizedBox(height: LekisSpacing.md),
-              TextButton(
-                style: TextButton.styleFrom(foregroundColor: fg),
-                onPressed: onRetry,
-                child: const Text('重试'),
-              ),
+              action!,
             ],
           ],
         ),

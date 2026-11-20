@@ -361,7 +361,11 @@ class _SeekBarState extends ConsumerState<SeekBar> {
       children: [
         slider,
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.lg),
+          // Same inset as the slider's overlay radius, so the times line up
+          // with the track ends (and with the Now Playing title above).
+          padding: const EdgeInsets.symmetric(
+            horizontal: LekisSizes.touchTargetMin / 2,
+          ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [elapsed, remaining],
