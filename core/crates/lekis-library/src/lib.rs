@@ -8,6 +8,7 @@
 
 mod artwork;
 mod browse;
+mod connect_lookup;
 mod db;
 mod enrich_queue;
 mod folders;

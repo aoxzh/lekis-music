@@ -68,6 +68,8 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream", "gzip", "brotli", "deflate"] }
 quick-xml = "0.42"
 mdns-sd = "0.13"
+# 「在其他设备上播放」（CST-*）配对：X25519 密钥交换、HMAC-SHA256、安全随机数。rustls 已经带进来了。
+ring = "0.17"
 smb2 = "0.43"
 nfs3_client = "0.9"
 russh = { version = "0.65", default-features = false, features = ["ring"] }

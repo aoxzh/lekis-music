@@ -24,6 +24,11 @@ serde_json.workspace = true
 # 局域网发现（mDNS / DNS-SD）与 DLNA 设备描述读取。
 mdns-sd.workspace = true
 reqwest.workspace = true
+# 「在其他设备上播放」（CST-*）：配对密钥交换与消息认证、封面传输编码。
+ring.workspace = true
+base64.workspace = true
+hex.workspace = true
+futures-util.workspace = true
 # 把旧版本塞在地址 userinfo 里的密码迁回凭据库（SRC-15）。
 url.workspace = true
 # 播客 RSS / Atom / OPML 解析（SRC-12）。

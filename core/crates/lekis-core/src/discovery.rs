@@ -193,7 +193,7 @@ async fn collect_mdns(
 }
 
 /// 优先私有 IPv4，其次任意 IPv4，最后 IPv6（带方括号由调用方处理）。
-fn pick_address(addrs: impl Iterator<Item = IpAddr>) -> Option<String> {
+pub(crate) fn pick_address(addrs: impl Iterator<Item = IpAddr>) -> Option<String> {
     let addrs: Vec<IpAddr> = addrs.collect();
     let v4 = |private: bool| {
         addrs.iter().find_map(|a| match a {

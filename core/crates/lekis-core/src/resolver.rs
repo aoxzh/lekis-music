@@ -33,6 +33,8 @@ pub(crate) struct Resolver {
     credentials: Arc<dyn crate::CredentialStore>,
     /// `playback.replaygain` 的当前值（启动时和每次设置时由 core 写入，避免每首歌查一次库）。
     replaygain_mode: std::sync::RwLock<ReplayGainMode>,
+    /// 「在其他设备上播放」推过来的远端曲目（CST-03）。
+    connect: Arc<crate::connect::media::RemoteMediaRegistry>,
 }
 
 /// ReplayGain 补偿方式（PLY-03，设置项 `playback.replaygain`）。
@@ -79,7 +81,13 @@ impl Resolver {
             servers: Mutex::new(HashMap::new()),
             credentials,
             replaygain_mode: std::sync::RwLock::new(ReplayGainMode::default()),
+            connect: Arc::default(),
         }
+    }
+
+    /// 远端曲目登记表。
+    pub(crate) fn connect(&self) -> &crate::connect::media::RemoteMediaRegistry {
+        &self.connect
     }
 
     /// 更新 ReplayGain 模式（下一首开始生效）。
@@ -113,7 +121,28 @@ impl Resolver {
         }
     }
 
-    async fn resolve(&self, track_id: TrackId) -> Result<MediaSource> {
+    pub(crate) async fn resolve(&self, track_id: TrackId) -> Result<MediaSource> {
+        // CST-03：别的设备推过来的曲目（同一音源上的路径，或者对方的局域网流）。
+        if let Some(media_id) = lekis_types::ConnectMediaId::from_track_id(track_id) {
+            let media = self.connect.get(media_id).ok_or_else(|| {
+                LekisError::not_found(format!("remote media {track_id} expired"))
+            })?;
+            let location = match media.location {
+                crate::connect::media::RemoteLocation::Vfs { source_id, path } => {
+                    MediaLocation::Vfs { source_id, path }
+                }
+                crate::connect::media::RemoteLocation::Url { url } => MediaLocation::Url {
+                    url,
+                    headers: Vec::new(),
+                },
+            };
+            return Ok(MediaSource {
+                track_id,
+                location,
+                duration_hint_ms: media.track.duration_ms,
+                gain_db: None,
+            });
+        }
         // SRC-11：网络电台用负数的合成 TrackId，直接打开保存的流地址。
         // 不要求曲目扫描，也没有时长；播放器会把它当成不可 seek 的直播流。
         if let Some(station_id) = lekis_types::RadioStationId::from_track_id(track_id) {

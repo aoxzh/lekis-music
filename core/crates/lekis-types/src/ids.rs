@@ -58,8 +58,32 @@ impl PodcastEpisodeId {
 
     /// 从合成曲目 ID 还原单集 ID；其他曲目返回 `None`。
     pub fn from_track_id(track_id: TrackId) -> Option<Self> {
-        (track_id.0 <= -PODCAST_EPISODE_TRACK_OFFSET)
+        (track_id.0 <= -PODCAST_EPISODE_TRACK_OFFSET && track_id.0 > -CONNECT_MEDIA_TRACK_OFFSET)
             .then(|| Self(-track_id.0 - PODCAST_EPISODE_TRACK_OFFSET))
+            .filter(|id| id.0 > 0)
+    }
+}
+
+/// 「在其他设备上播放」收到的远端曲目合成 `TrackId` 的偏移量（`-(2^50 + n)`）。
+///
+/// 这些曲目不在本机资料库里（同一音源上的路径、或者控制端推过来的局域网流），
+/// 元数据只存在内存里，重启后失效。单集占用 `-(2^40 ..2^50)`，互不重叠。
+pub const CONNECT_MEDIA_TRACK_OFFSET: i64 = 1 << 50;
+
+/// 远端曲目的本机临时编号（见 [`CONNECT_MEDIA_TRACK_OFFSET`]）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct ConnectMediaId(pub i64);
+
+impl ConnectMediaId {
+    /// 在播放队列里使用的合成曲目 ID。
+    pub fn track_id(self) -> TrackId {
+        TrackId(-(CONNECT_MEDIA_TRACK_OFFSET + self.0))
+    }
+
+    /// 从合成曲目 ID 还原；其他曲目返回 `None`。
+    pub fn from_track_id(track_id: TrackId) -> Option<Self> {
+        (track_id.0 <= -CONNECT_MEDIA_TRACK_OFFSET)
+            .then(|| Self(-track_id.0 - CONNECT_MEDIA_TRACK_OFFSET))
             .filter(|id| id.0 > 0)
     }
 }
@@ -144,6 +168,17 @@ mod tests {
         assert_eq!(RadioStationId::from_track_id(track), None);
         assert_eq!(PodcastEpisodeId::from_track_id(TrackId(-7)), None);
         assert_eq!(PodcastEpisodeId::from_track_id(TrackId(7)), None);
+    }
+
+    #[test]
+    fn connect_media_ids_do_not_overlap_podcasts() {
+        let media = ConnectMediaId(3);
+        let track = media.track_id();
+        assert_eq!(ConnectMediaId::from_track_id(track), Some(media));
+        assert_eq!(PodcastEpisodeId::from_track_id(track), None);
+        assert_eq!(RadioStationId::from_track_id(track), None);
+        let episode = PodcastEpisodeId(3).track_id();
+        assert_eq!(ConnectMediaId::from_track_id(episode), None);
     }
 
     #[test]

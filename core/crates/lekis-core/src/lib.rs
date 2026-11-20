@@ -12,6 +12,7 @@
 
 mod artwork_local;
 pub mod config;
+pub mod connect;
 pub mod discovery;
 mod enrich;
 pub mod equalizer;
@@ -116,6 +117,8 @@ struct Services {
     plugins: Arc<plugins::PluginManager>,
     /// 10 段均衡器参数（PLY-04）；和播放引擎共享，设置后立即生效。
     eq: Arc<EqControl>,
+    /// 「在其他设备上播放」/ 遥控（CST-01~06）。
+    connect: connect::ConnectHub,
 }
 
 impl Services {
@@ -312,6 +315,7 @@ impl LekisCore {
             &config.data_dir,
             library.clone(),
         ));
+        let connect = connect::ConnectHub::new(&config.data_dir, platform.credentials.clone());
 
         let services = Arc::new(Services {
             config,
@@ -333,6 +337,7 @@ impl LekisCore {
             downloads: std::sync::Mutex::new(std::collections::HashMap::new()),
             plugins,
             eq,
+            connect,
         });
 
         // 启动时：让播放相关设置生效，并给文件系统源预先登记 VFS（不发网络请求）。

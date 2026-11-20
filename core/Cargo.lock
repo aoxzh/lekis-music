@@ -2226,7 +2226,10 @@ name = "lekis-core"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "base64 0.22.1",
  "bytes",
+ "futures-util",
+ "hex",
  "image",
  "lekis-enrich",
  "lekis-library",
@@ -2240,6 +2243,7 @@ dependencies = [
  "mdns-sd",
  "quick-xml",
  "reqwest",
+ "ring",
  "serde",
  "serde_json",
  "tokio",
