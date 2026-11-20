@@ -45,6 +45,8 @@ dependencies:
   audio_service: ^0.18.19
   audio_session: ^0.2.4
   permission_handler: ^13.0.2
+  tray_manager: ^0.9.0
+  window_manager: ^0.7.0
 
 dev_dependencies:
   flutter_test:
@@ -73,6 +75,7 @@ flutter:
   # The rabbit mascot is the same artwork as the launcher icon.
   assets:
     - assets/brand/mark.png
+    - assets/brand/tray_icon.ico
 
   # Liquid glass lens for the floating tab bar (Impeller only; see
   # lib/src/widgets/liquid_glass.dart).

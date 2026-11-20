@@ -47,6 +47,14 @@ abstract final class SettingsStrings {
   static const lyricsSparks = '火花';
   static const lyricsSparksHint = '唱到每个字时飞出细小的光点，最后一句更明显';
 
+  static const system = '系统';
+  static const desktopTrayEnabled = '显示托盘图标';
+  static const desktopTrayEnabledHint =
+      '在 Windows 通知区域显示 Lekis，可右键控制播放，双击恢复窗口。';
+  static const desktopTrayCloseToTray = '关闭窗口时最小化到托盘';
+  static const desktopTrayCloseToTrayHint = '点关闭按钮只隐藏窗口，音乐继续播放；请从托盘菜单退出以结束进程。';
+  static const desktopTrayNeedsIcon = '先启用托盘图标，隐藏窗口后才有入口恢复。';
+
   static const library = '资料库';
   static const sources = '音源';
   static const sourcesHint = '管理本地文件夹、NAS 和媒体服务器';
