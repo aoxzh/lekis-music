@@ -1,11 +1,12 @@
 // Shared navigation motion: one icon bounce language for the floating tab
 // bar, the icon rail and the desktop sidebar.
 
-import 'package:flutter/services.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'destinations.dart';
+
+export '../platform/ui_profile.dart' show lekisSelectionHaptic;
 
 /// Foreground for an active destination.
 ///
@@ -22,11 +23,6 @@ Color lekisNavForeground(BuildContext context) {
     );
   }
   return colors.accent;
-}
-
-/// Selection haptic. A no-op on platforms without a haptic channel.
-void lekisSelectionHaptic() {
-  HapticFeedback.selectionClick();
 }
 
 /// Whether this frame should use the calm 150 ms fallback instead of

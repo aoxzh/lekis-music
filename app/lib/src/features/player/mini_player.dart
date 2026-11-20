@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/physics.dart';
 import 'package:flutter/semantics.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/now_playing/now_playing_route.dart';
 import 'package:lekis/src/features/now_playing/now_playing_tint.dart';
@@ -13,6 +12,7 @@ import 'package:lekis/src/shell/tab_bar_style.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/liquid_glass.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:lekis/src/platform/ui_profile.dart';
 
 /// Share of the card width a horizontal swipe must cover to skip.
 const double _skipFraction = 0.25;
@@ -121,7 +121,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer>
       _springTo(0, v, animate: !reducedMotion);
       return;
     }
-    HapticFeedback.selectionClick();
+    lekisSelectionHaptic();
     final actions = ref.read(playerActionsProvider);
     dx < 0 ? actions.next() : actions.previous();
     if (reducedMotion) {
@@ -285,7 +285,7 @@ class MiniPlayerFace extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.lekisColors;
-    final flat = ref.watch(tabBarStyleProvider) == TabBarStyle.flat;
+    final flat = ref.watch(tabBarStyleProvider).resolved == TabBarStyle.flat;
     final tint = NowPlayingTint.resolve(
       ref.watch(nowPlayingPaletteProvider(Theme.of(context).brightness)),
       Theme.of(context).colorScheme,

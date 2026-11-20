@@ -16,6 +16,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../platform/ui_profile.dart';
 import '../theme/tokens.dart';
 import 'glass.dart';
 
@@ -254,7 +255,8 @@ class LekisGlassCapsule extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.lekisColors;
     final shape = BorderRadius.circular(radius);
-    if (flat) {
+    // Desktop profiles have no glass: always the flat opaque surface.
+    if (flat || !UiProfile.current.supportsGlass) {
       return DecoratedBox(
         decoration: BoxDecoration(
           color: colors.surfaceElevated,

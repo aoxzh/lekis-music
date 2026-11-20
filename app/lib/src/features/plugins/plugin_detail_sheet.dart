@@ -2,6 +2,7 @@
 
 import 'package:material_ui/material_ui.dart';
 
+import '../../platform/ui_profile.dart';
 import '../../rust/api/core.dart' as core;
 import '../../rust/api/dto.dart';
 import '../../theme/tokens.dart';
@@ -10,19 +11,37 @@ import '../sources/common.dart';
 import 'plugin_format.dart';
 import 'strings.dart';
 
+/// Mobile: a tall bottom sheet. Desktop: a centred dialog.
 Future<void> showPluginDetailSheet(
   BuildContext context,
   PluginInfoDto plugin,
-) => showModalBottomSheet<void>(
-  context: context,
-  isScrollControlled: true,
-  useSafeArea: true,
-  showDragHandle: true,
-  builder: (_) => FractionallySizedBox(
-    heightFactor: 0.92,
-    child: _PluginDetailSheet(plugin: plugin),
-  ),
-);
+) => UiProfile.current.prefersSheets
+    ? showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (_) => FractionallySizedBox(
+          heightFactor: 0.92,
+          child: _PluginDetailSheet(plugin: plugin),
+        ),
+      )
+    : showDialog<void>(
+        context: context,
+        builder: (context) => Dialog(
+          clipBehavior: Clip.antiAlias,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 560,
+              maxHeight: MediaQuery.sizeOf(context).height * 0.8,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.only(top: LekisSpacing.lg),
+              child: _PluginDetailSheet(plugin: plugin),
+            ),
+          ),
+        ),
+      );
 
 class _PluginDetailSheet extends StatefulWidget {
   const _PluginDetailSheet({required this.plugin});
@@ -135,7 +154,9 @@ class _PluginDetailSheetState extends State<_PluginDetailSheet> {
             if (plugin.error != null)
               Text(
                 PluginStrings.invalidManifest,
-                style: theme.textTheme.bodyMedium?.copyWith(color: colors.danger),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.danger,
+                ),
               )
             else
               FutureBuilder<List<PluginSettingDto>>(
@@ -222,8 +243,7 @@ class _SettingsEditorState extends State<_SettingsEditor> {
     };
     _selections = {
       for (final setting in widget.settings)
-        if (setting.kind == 'select')
-          setting.key: _selectionValue(setting),
+        if (setting.kind == 'select') setting.key: _selectionValue(setting),
     };
   }
 
@@ -441,10 +461,7 @@ class _DetailTable extends StatelessWidget {
           vertical: LekisSpacing.md,
         ),
         child: Table(
-          columnWidths: const {
-            0: IntrinsicColumnWidth(),
-            1: FlexColumnWidth(),
-          },
+          columnWidths: const {0: IntrinsicColumnWidth(), 1: FlexColumnWidth()},
           children: [
             for (final (label, value) in rows)
               TableRow(

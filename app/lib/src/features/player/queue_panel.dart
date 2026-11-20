@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/layout/window_size.dart';
+import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
@@ -626,6 +627,8 @@ Future<void> showQueueSidePanel(BuildContext context) {
   );
 }
 
-/// True on expanded / wide windows, where the queue is a side panel.
+/// True on expanded / wide windows and on desktop (which has no bottom
+/// sheets), where the queue is a side panel.
 bool usesQueueSidePanel(BuildContext context) =>
+    !UiProfile.current.prefersSheets ||
     context.widthClass >= WindowWidthClass.expanded;

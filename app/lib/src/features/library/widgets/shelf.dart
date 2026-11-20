@@ -1,9 +1,9 @@
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/gestures.dart';
 import 'package:lekis/src/features/library/widgets/album_card.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
+import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -154,14 +154,7 @@ class _ArtworkShelfState extends State<ArtworkShelf> {
 
 /// Whether the current platform expects a pointer (desktop) rather than a
 /// finger. Touch platforms rely on the horizontal swipe.
-bool _usesPointer() => switch (defaultTargetPlatform) {
-  TargetPlatform.android ||
-  TargetPlatform.iOS ||
-  TargetPlatform.fuchsia => false,
-  TargetPlatform.windows ||
-  TargetPlatform.macOS ||
-  TargetPlatform.linux => true,
-};
+bool _usesPointer() => UiProfile.current.pointerFirst;
 
 /// Smallest / largest shelf card side.
 const double shelfCardMin = LekisSizes.gridArtworkMin * 0.75;

@@ -3,6 +3,11 @@
 // and footer buttons either way. Editors (lyrics, tags, ...) build a
 // [LekisPanel] and open it with [showLekisPanel].
 //
+// Desktop profiles (see [UiProfile.prefersSheets]) never get bottom sheets:
+// [showLekisPanel] is always a dialog there, even in a narrow window, and
+// [showLekisSheet] opens the same content in a centred dialog. Nothing on
+// desktop blurs its backdrop.
+//
 // The panel keeps the theme of the place it was opened from, so an editor
 // opened over the Now Playing artwork uses the on-media (dark glass) variant
 // instead of a white Material dialog, while the same editor opened from the
@@ -11,6 +16,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../layout/window_size.dart';
+import '../platform/ui_profile.dart';
 import '../theme/tokens.dart';
 import 'glass.dart';
 
@@ -37,7 +43,8 @@ Future<T?> showLekisPanel<T>(
   );
   final glass = theme.extension<LekisSurfaceStyle>()?.onMedia ?? false;
 
-  if (context.widthClass == WindowWidthClass.compact) {
+  if (context.widthClass == WindowWidthClass.compact &&
+      UiProfile.current.prefersSheets) {
     return showModalBottomSheet<T>(
       context: context,
       useRootNavigator: true,
@@ -67,11 +74,14 @@ Future<T?> showLekisPanel<T>(
   );
 }
 
-/// Opens [builder] as a modal bottom sheet that always stays a sheet, for the
-/// surfaces that belong at the bottom of the window on every size (playback
-/// queue, rating, add to playlist). Same rules as [showLekisPanel]: the
-/// caller's theme is kept (so over artwork it is dark glass) and on media the
-/// sheet paints its own glass instead of an opaque bar.
+/// Opens [builder] as a modal bottom sheet that always stays a sheet on
+/// mobile, for the surfaces that belong at the bottom of the window on every
+/// phone / tablet size (playback queue, rating, add to playlist). Same rules
+/// as [showLekisPanel]: the caller's theme is kept (so over artwork it is
+/// dark glass) and on media the sheet paints its own glass instead of an
+/// opaque bar.
+///
+/// Desktop profiles show the same content in a centred dialog instead.
 Future<T?> showLekisSheet<T>(
   BuildContext context, {
   required WidgetBuilder builder,
@@ -79,6 +89,14 @@ Future<T?> showLekisSheet<T>(
   bool isDismissible = true,
   bool showDragHandle = true,
 }) {
+  if (!UiProfile.current.prefersSheets) {
+    return _showSheetAsDialog<T>(
+      context,
+      builder: builder,
+      heightFactor: heightFactor,
+      isDismissible: isDismissible,
+    );
+  }
   final theme = Theme.of(context);
   final glass = theme.extension<LekisSurfaceStyle>()?.onMedia ?? false;
   final grabber = showDragHandle && glass;
@@ -127,6 +145,57 @@ Future<T?> showLekisSheet<T>(
   );
 }
 
+/// Width of a sheet's content when it opens as a desktop dialog.
+const double lekisSheetDialogWidth = 480;
+
+/// Desktop stand-in for [showLekisSheet]: the sheet's content in a centred,
+/// opaque dialog. [heightFactor] is applied to the window height (`null`
+/// sizes to the content). Escape and a click outside close it.
+Future<T?> _showSheetAsDialog<T>(
+  BuildContext context, {
+  required WidgetBuilder builder,
+  required double? heightFactor,
+  required bool isDismissible,
+}) {
+  final theme = Theme.of(context);
+  return showDialog<T>(
+    context: context,
+    useRootNavigator: true,
+    barrierDismissible: isDismissible,
+    barrierColor: theme.dialogTheme.barrierColor,
+    builder: (context) {
+      final height = MediaQuery.sizeOf(context).height;
+      Widget content = Padding(
+        // Sheet content assumes a drag handle above it; give the dialog the
+        // same breathing room at the top instead.
+        padding: const EdgeInsets.only(top: LekisSpacing.xl),
+        child: Builder(builder: builder),
+      );
+      if (heightFactor != null) {
+        content = SizedBox(
+          height: (height - LekisSpacing.xl * 2) * heightFactor.clamp(0, 1),
+          child: content,
+        );
+      }
+      return Theme(
+        data: theme,
+        child: Dialog(
+          key: const ValueKey('lekis-sheet.dialog'),
+          insetPadding: const EdgeInsets.all(LekisSpacing.xl),
+          clipBehavior: Clip.antiAlias,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: lekisSheetDialogWidth,
+              maxHeight: height * 0.88,
+            ),
+            child: content,
+          ),
+        ),
+      );
+    },
+  );
+}
+
 /// Drag handle of a glass sheet: same size and colour as the framework's,
 /// painted inside the glass instead of in a transparent strip above it.
 class SheetGrabber extends StatelessWidget {
@@ -168,22 +237,27 @@ class _PanelGlass extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final surface = context.lekisSurface;
+    // A Material, not a coloured DecoratedBox: ListTile paints its ink on
+    // the nearest Material, and a plain box in between hides it (the
+    // framework asserts on that in debug builds).
+    final panel = Material(
+      color: surface.panel,
+      shape: RoundedRectangleBorder(
+        borderRadius: radius,
+        side: BorderSide(color: surface.panelBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: child,
+    );
+    // Desktop: an opaque panel (the on-media theme is opaque there too).
+    if (!UiProfile.current.supportsGlass || surface.blurSigma <= 0) {
+      return panel;
+    }
     return ClipRRect(
       borderRadius: radius,
       child: BackdropFilter(
         filter: lekisGlassFilter(surface.blurSigma),
-        // A Material, not a coloured DecoratedBox: ListTile paints its ink
-        // on the nearest Material, and a plain box in between hides it (the
-        // framework asserts on that in debug builds).
-        child: Material(
-          color: surface.panel,
-          shape: RoundedRectangleBorder(
-            borderRadius: radius,
-            side: BorderSide(color: surface.panelBorder),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: child,
-        ),
+        child: panel,
       ),
     );
   }
@@ -360,7 +434,11 @@ class LekisPanel extends StatelessWidget {
                 ? const BorderRadius.vertical(
                     top: Radius.circular(LekisRadius.panel),
                   )
-                : BorderRadius.circular(LekisRadius.panel),
+                : BorderRadius.circular(
+                    UiProfile.current.isDesktop
+                        ? LekisRadius.sm
+                        : LekisRadius.panel,
+                  ),
             child: child,
           )
         : child;

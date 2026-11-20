@@ -1,9 +1,9 @@
 // Windows-only settings for the notification-area icon and close behaviour.
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../platform/ui_profile.dart';
 import '../sources/common.dart';
 import 'desktop_tray_settings.dart';
 import 'strings.dart';
@@ -12,8 +12,7 @@ import 'widgets/settings_widgets.dart';
 class DesktopTraySettingsSection extends ConsumerWidget {
   const DesktopTraySettingsSection({super.key});
 
-  static bool get isSupported =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+  static bool get isSupported => UiProfile.current.supportsTray;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

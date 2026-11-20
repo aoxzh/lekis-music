@@ -9,6 +9,9 @@ abstract final class SettingsStrings {
   static const groupMore = '更多';
   static const playbackHint = '输出设备、无缝播放、均衡器、睡眠定时';
   static const appearanceHint = '主题和标签栏';
+  static const appearanceHintDesktop = '浅色、深色或纯黑主题';
+  static const searchHint = '查找设置';
+  static const searchEmpty = '没有匹配的设置';
   static const lyrics = '歌词';
   static const lyricsHint = '歌词样式和舞台效果';
   static const organize = '整理资料库';

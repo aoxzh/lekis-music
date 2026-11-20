@@ -123,7 +123,7 @@ class _LekisTabBarState extends State<LekisTabBar>
     }
 
     _reducedFade.value = 1;
-    if (widget.style == TabBarStyle.flat) {
+    if (widget.style.resolved == TabBarStyle.flat) {
       _position.animateTo(
         target,
         duration: LekisMotion.navFlat,
@@ -159,7 +159,7 @@ class _LekisTabBarState extends State<LekisTabBar>
   Widget build(BuildContext context) {
     final reduced = lekisReduceMotion(context);
     final count = LekisDestination.values.length;
-    final bar = widget.style == TabBarStyle.flat
+    final bar = widget.style.resolved == TabBarStyle.flat
         ? _flatBar(context, reduced)
         : _liquidBar(context, reduced);
     if (_vertical) {
@@ -226,7 +226,7 @@ class _LekisTabBarState extends State<LekisTabBar>
     final colors = context.lekisColors;
     final scheme = Theme.of(context).colorScheme;
     final isDark = scheme.brightness == Brightness.dark;
-    final liquid = widget.style == TabBarStyle.liquid;
+    final liquid = widget.style.resolved == TabBarStyle.liquid;
     final count = LekisDestination.values.length;
     const inset = LekisTabBarTokens.innerInset;
     final pillInset = liquid ? LekisTabBarTokens.pillInset : LekisSpacing.sm;
@@ -246,7 +246,7 @@ class _LekisTabBarState extends State<LekisTabBar>
                 key: LekisTabBar.tabKey(destination),
                 destination: destination,
                 selected: destination == widget.selected,
-                style: widget.style,
+                style: widget.style.resolved,
                 reducedMotion: reduced,
                 bounceTrigger: _taps[destination.index],
                 showLabel: !vertical,

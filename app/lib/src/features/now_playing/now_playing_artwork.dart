@@ -1,6 +1,5 @@
 import 'package:flutter/physics.dart';
 import 'package:flutter/semantics.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/now_playing/now_playing_layout.dart';
@@ -9,6 +8,7 @@ import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_view.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:lekis/src/platform/ui_profile.dart';
 
 /// Artwork shrinks a little when paused.
 const double _pausedScale = 0.92;
@@ -127,7 +127,7 @@ class _NowPlayingArtworkState extends ConsumerState<NowPlayingArtwork>
     }
     // 向左滑 = 下一首（新封面从右侧进入），向右滑 = 上一首。
     _direction = dx < 0 ? 1 : -1;
-    HapticFeedback.selectionClick();
+    lekisSelectionHaptic();
     final actions = ref.read(playerActionsProvider);
     dx < 0 ? actions.next() : actions.previous();
     // The deck itself performs the outgoing / incoming slide; the card

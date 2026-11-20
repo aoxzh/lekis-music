@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/album_detail_page.dart';
 import 'package:lekis/src/features/library/artist_detail_page.dart';
@@ -10,6 +9,7 @@ import 'package:lekis/src/features/library/widgets/shelf.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/search/search_providers.dart';
+import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
@@ -27,10 +27,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     text: ref.read(searchQueryProvider),
   );
 
-  bool get _isDesktop =>
-      defaultTargetPlatform == TargetPlatform.windows ||
-      defaultTargetPlatform == TargetPlatform.linux ||
-      defaultTargetPlatform == TargetPlatform.macOS;
+  bool get _isDesktop => UiProfile.current.pointerFirst;
 
   @override
   void dispose() {
@@ -77,10 +74,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
     Widget body;
     if (query.trim().isEmpty) {
-      body = const _Hint(
-        text: '搜索你的资料库',
-        message: '输入歌名、专辑、艺人，或直接输入拼音。',
-      );
+      body = const _Hint(text: '搜索你的资料库', message: '输入歌名、专辑、艺人，或直接输入拼音。');
     } else {
       final data = results.value;
       if (data == null) {
@@ -93,10 +87,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       } else if (data.tracks.isEmpty &&
           data.albums.isEmpty &&
           data.artists.isEmpty) {
-        body = _Hint(
-          text: '没有找到“${query.trim()}”',
-          message: '换一个关键词，或检查一下拼写。',
-        );
+        body = _Hint(text: '没有找到“${query.trim()}”', message: '换一个关键词，或检查一下拼写。');
       } else {
         body = _Results(results: data, stale: results.isLoading);
       }

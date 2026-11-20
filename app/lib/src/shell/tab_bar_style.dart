@@ -1,11 +1,16 @@
 // Bottom tab bar appearance: liquid glass (default) or flat.
 //
+// The choice only exists on mobile. Desktop profiles have no glass, so the
+// setting is hidden there and [TabBarStyleResolve.resolved] always yields
+// flat (a saved `liquid`, e.g. from a restored backup, is ignored).
+//
 // The preference is stored in the core settings store so it survives
 // restarts. The app restores it before the first frame; a failed read or an
 // unknown value falls back to liquid glass.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../platform/ui_profile.dart';
 import '../rust/api/core.dart' as core;
 
 /// Core setting key for the tab bar style.
@@ -23,6 +28,13 @@ enum TabBarStyle {
     (style) => style.storageValue == value,
     orElse: () => TabBarStyle.liquid,
   );
+}
+
+extension TabBarStyleResolve on TabBarStyle {
+  /// The style actually drawn on this device: flat wherever the profile
+  /// has no glass materials.
+  TabBarStyle get resolved =>
+      UiProfile.current.offersTabBarStyle ? this : TabBarStyle.flat;
 }
 
 /// Live tab bar style. Defaults to liquid glass until restored.

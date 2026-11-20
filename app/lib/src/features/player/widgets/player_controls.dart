@@ -4,15 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart'
     show formatDuration;
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/lekis_slider.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Whether the platform has its own hardware/system volume UI.
-bool get platformHasSystemVolume =>
-    defaultTargetPlatform == TargetPlatform.android ||
-    defaultTargetPlatform == TargetPlatform.iOS;
+bool get platformHasSystemVolume => UiProfile.current.hasSystemVolume;
 
 const BoxConstraints _touchTarget = BoxConstraints(
   minWidth: LekisSizes.touchTargetMin,
@@ -127,7 +126,9 @@ class PlayPauseButton extends ConsumerWidget {
         IgnorePointer(
           child: SizedBox.square(
             dimension: (size ?? LekisSpacing.xl) + LekisSpacing.xl,
-            child: const CircularProgressIndicator(strokeWidth: LekisSpacing.xxs),
+            child: const CircularProgressIndicator(
+              strokeWidth: LekisSpacing.xxs,
+            ),
           ),
         ),
       ],

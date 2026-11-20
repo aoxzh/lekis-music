@@ -115,6 +115,90 @@ class TrackTile extends ConsumerWidget {
       );
     }
 
+    void onMenu(_TrackMenuAction action) {
+      switch (action) {
+        case _TrackMenuAction.addToPlaylist:
+          showAddToPlaylistSheet(
+            context,
+            trackId: track.id,
+            trackTitle: track.title,
+          );
+        case _TrackMenuAction.rate:
+          showTrackRatingSheet(context, trackId: track.id, title: track.title);
+        case _TrackMenuAction.editTags:
+          showTrackTagEditor(
+            context,
+            trackId: track.id,
+            trackTitle: track.title,
+          );
+        case _TrackMenuAction.download:
+          runDownloadMenuAction(context, ref, track.id, downloadState);
+      }
+    }
+
+    List<PopupMenuEntry<_TrackMenuAction>> menuItems() => [
+      const PopupMenuItem(
+        value: _TrackMenuAction.addToPlaylist,
+        child: ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.playlist_add_rounded),
+          title: Text('添加到歌单'),
+        ),
+      ),
+      const PopupMenuItem(
+        value: _TrackMenuAction.rate,
+        child: ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.star_outline_rounded),
+          title: Text('评分'),
+        ),
+      ),
+      const PopupMenuItem(
+        value: _TrackMenuAction.editTags,
+        child: ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.edit_note_rounded),
+          title: Text('编辑标签'),
+        ),
+      ),
+      PopupMenuItem(
+        value: _TrackMenuAction.download,
+        child: ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(
+            downloadState == null
+                ? Icons.download_for_offline_outlined
+                : downloadState == OfflineStateDto.ready
+                ? Icons.delete_outline_rounded
+                : downloadState == OfflineStateDto.failed
+                ? Icons.refresh_rounded
+                : Icons.download_done_rounded,
+          ),
+          title: Text(downloadMenuLabel(downloadState)),
+        ),
+      ),
+    ];
+
+    // Right-click (mouse, trackpad, stylus button) opens the same menu at
+    // the pointer, like every desktop music app.
+    Future<void> openContextMenu(Offset position) async {
+      final overlay =
+          Overlay.of(context).context.findRenderObject()! as RenderBox;
+      final action = await showMenu<_TrackMenuAction>(
+        context: context,
+        position: RelativeRect.fromRect(
+          position & Size.zero,
+          Offset.zero & overlay.size,
+        ),
+        items: menuItems(),
+      );
+      if (action != null && context.mounted) onMenu(action);
+    }
+
     return Semantics(
       button: true,
       selected: selected,
@@ -123,6 +207,8 @@ class TrackTile extends ConsumerWidget {
         child: InkWell(
           onTap: onTap,
           onLongPress: onLongPress,
+          onSecondaryTapUp: (details) =>
+              openContextMenu(details.globalPosition),
           borderRadius: BorderRadius.circular(LekisRadius.sm),
           child: ColoredBox(
             color: selected ? colors.accentSoft : Colors.transparent,
@@ -178,81 +264,8 @@ class TrackTile extends ConsumerWidget {
                       icon: const Icon(Icons.more_horiz_rounded, size: 20),
                       iconSize: 20,
                       padding: EdgeInsets.zero,
-                      onSelected: (action) {
-                        switch (action) {
-                          case _TrackMenuAction.addToPlaylist:
-                            showAddToPlaylistSheet(
-                              context,
-                              trackId: track.id,
-                              trackTitle: track.title,
-                            );
-                          case _TrackMenuAction.rate:
-                            showTrackRatingSheet(
-                              context,
-                              trackId: track.id,
-                              title: track.title,
-                            );
-                          case _TrackMenuAction.editTags:
-                            showTrackTagEditor(
-                              context,
-                              trackId: track.id,
-                              trackTitle: track.title,
-                            );
-                          case _TrackMenuAction.download:
-                            runDownloadMenuAction(
-                              context,
-                              ref,
-                              track.id,
-                              downloadState,
-                            );
-                        }
-                      },
-                      itemBuilder: (_) => [
-                        const PopupMenuItem(
-                          value: _TrackMenuAction.addToPlaylist,
-                          child: ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(Icons.playlist_add_rounded),
-                            title: Text('添加到歌单'),
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: _TrackMenuAction.rate,
-                          child: ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(Icons.star_outline_rounded),
-                            title: Text('评分'),
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: _TrackMenuAction.editTags,
-                          child: ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(Icons.edit_note_rounded),
-                            title: Text('编辑标签'),
-                          ),
-                        ),
-                        PopupMenuItem(
-                          value: _TrackMenuAction.download,
-                          child: ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(
-                              downloadState == null
-                                  ? Icons.download_for_offline_outlined
-                                  : downloadState == OfflineStateDto.ready
-                                  ? Icons.delete_outline_rounded
-                                  : downloadState == OfflineStateDto.failed
-                                  ? Icons.refresh_rounded
-                                  : Icons.download_done_rounded,
-                            ),
-                            title: Text(downloadMenuLabel(downloadState)),
-                          ),
-                        ),
-                      ],
+                      onSelected: onMenu,
+                      itemBuilder: (_) => menuItems(),
                     ),
                     const SizedBox(width: LekisSpacing.xs),
                     Text(

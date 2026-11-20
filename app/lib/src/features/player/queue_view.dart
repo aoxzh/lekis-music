@@ -141,8 +141,9 @@ class QueueList extends ConsumerWidget {
   }
 }
 
-/// Opens the queue: a right-hand side panel on expanded / wide windows, the
-/// familiar bottom sheet on medium / compact ones.
+/// Opens the queue: a right-hand side panel on expanded / wide windows and
+/// on every desktop window, the familiar bottom sheet on medium / compact
+/// phones and tablets.
 Future<void> showQueueSheet(BuildContext context) {
   if (usesQueueSidePanel(context)) return showQueueSidePanel(context);
   return _showQueueBottomSheet(context);

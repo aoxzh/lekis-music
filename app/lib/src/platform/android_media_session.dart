@@ -131,7 +131,8 @@ class LekisAudioHandler extends BaseAudioHandler with SeekHandler {
             case AudioInterruptionType.pause:
             case AudioInterruptionType.unknown:
               if (_isPlaying(_state)) {
-                _pausedByInterruption = event.type == AudioInterruptionType.pause;
+                _pausedByInterruption =
+                    event.type == AudioInterruptionType.pause;
                 _safe(core.pause);
               }
           }
@@ -216,11 +217,13 @@ class LekisAudioHandler extends BaseAudioHandler with SeekHandler {
     final playing = _isPlaying(_state);
     final processing = switch (_state) {
       PlaybackStateDto.idle =>
-        _trackId == null ? AudioProcessingState.idle : AudioProcessingState.ready,
+        _trackId == null
+            ? AudioProcessingState.idle
+            : AudioProcessingState.ready,
       PlaybackStateDto.loading => AudioProcessingState.loading,
       PlaybackStateDto.buffering => AudioProcessingState.buffering,
-      PlaybackStateDto.playing || PlaybackStateDto.paused =>
-        AudioProcessingState.ready,
+      PlaybackStateDto.playing ||
+      PlaybackStateDto.paused => AudioProcessingState.ready,
       PlaybackStateDto.ended => AudioProcessingState.completed,
     };
     // copyWith 不能改 updateTime，所以整个重建。

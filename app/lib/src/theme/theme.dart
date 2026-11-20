@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../platform/ui_profile.dart';
 import 'tokens.dart';
 
 export 'tokens.dart';
@@ -140,14 +141,17 @@ ThemeData lekisOnMediaTheme({
   // The fill of a glass panel before its translucency: a touch of the
   // foreground over the protected scene colour.
   final panelFill = Color.alphaBlend(fg(0.06), scene);
+  // Desktop profiles have no glass: the same tinted panels, fully opaque and
+  // without backdrop blur.
+  final glass = UiProfile.current.supportsGlass;
   // Panels sit on blurred artwork, so they can be fairly translucent. Menus
   // and other surfaces that cannot blur the backdrop get a denser fill: at
   // 0.86 the page's big lyric lines ghosted straight through them.
-  final panel = panelFill.withValues(alpha: 0.92);
+  final panel = panelFill.withValues(alpha: glass ? 0.92 : 1);
   final palette = lightForeground ? LekisColors.dark : LekisColors.light;
   final colors = palette.copyWith(
     surfaceVariant: fg(0.10),
-    surfaceElevated: panelFill.withValues(alpha: 0.95),
+    surfaceElevated: panelFill.withValues(alpha: glass ? 0.95 : 1),
     onSurfaceVariant: fg(0.70),
     outline: fg(0.16),
     accent: accent,
@@ -167,7 +171,7 @@ ThemeData lekisOnMediaTheme({
       onMedia: true,
       panel: panel,
       panelBorder: fg(0.14),
-      blurSigma: 24,
+      blurSigma: glass ? 24 : 0,
     ),
     // Transport and pane toggles stay full-strength foreground on artwork.
     iconForeground: foreground,
@@ -239,8 +243,14 @@ ThemeData _buildTheme({
   final panelSide = onMedia
       ? BorderSide(color: surfaceStyle.panelBorder)
       : (isDark ? BorderSide(color: colors.outline) : BorderSide.none);
+  // Desktop surfaces use the tighter Fluent radii; mobile keeps the soft
+  // panel curves.
+  final desktop = UiProfile.current.isDesktop;
+  final panelRadius = desktop ? LekisRadius.sm : LekisRadius.panel;
   final menuShape = RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(LekisRadius.md),
+    borderRadius: BorderRadius.circular(
+      desktop ? LekisRadius.sm : LekisRadius.md,
+    ),
     side: panelSide,
   );
   const buttonSize = Size(0, LekisSizes.buttonHeight);
@@ -702,7 +712,7 @@ ThemeData _buildTheme({
       ),
       shape: RoundedRectangleBorder(
         side: panelSide,
-        borderRadius: BorderRadius.circular(LekisRadius.panel),
+        borderRadius: BorderRadius.circular(panelRadius),
       ),
     ),
     // On artwork the snack bar is one more dark glass pill, not a white slab
@@ -740,7 +750,8 @@ ThemeData _buildTheme({
         TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
       },
     ),
-    visualDensity: VisualDensity.standard,
-    materialTapTargetSize: MaterialTapTargetSize.padded,
+    // Touch density on mobile, mouse density on desktop.
+    visualDensity: UiProfile.current.visualDensity,
+    materialTapTargetSize: UiProfile.current.tapTargetSize,
   );
 }

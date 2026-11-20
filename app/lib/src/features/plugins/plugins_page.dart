@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../platform/ui_profile.dart';
 import '../../rust/api/core.dart' as core;
 import '../../rust/api/dto.dart';
 import '../../rust/api/error.dart';
@@ -90,54 +91,64 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
   }
 
   Future<void> _chooseInstall() async {
-    final choice = await showModalBottomSheet<_InstallChoice>(
-      context: context,
-      useSafeArea: true,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                LekisSpacing.lg,
-                LekisSpacing.lg,
-                LekisSpacing.lg,
-                LekisSpacing.sm,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    PluginStrings.install,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: LekisSpacing.xs),
-                  Text(
-                    PluginStrings.installHint,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: context.lekisColors.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
+    // Mobile: a bottom sheet. Desktop: the same two choices in a dialog.
+    Widget chooser(BuildContext context) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              LekisSpacing.lg,
+              LekisSpacing.lg,
+              LekisSpacing.lg,
+              LekisSpacing.sm,
             ),
-            SettingsTile(
-              icon: Icons.folder_open_outlined,
-              title: PluginStrings.installFolder,
-              onTap: () =>
-                  Navigator.of(context).pop(_InstallChoice.folder),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  PluginStrings.install,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: LekisSpacing.xs),
+                Text(
+                  PluginStrings.installHint,
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: context.lekisColors.onSurfaceVariant),
+                ),
+              ],
             ),
-            SettingsTile(
-              icon: Icons.folder_zip_outlined,
-              title: PluginStrings.installZip,
-              onTap: () => Navigator.of(context).pop(_InstallChoice.zip),
-            ),
-            const SizedBox(height: LekisSpacing.sm),
-          ],
-        ),
+          ),
+          SettingsTile(
+            icon: Icons.folder_open_outlined,
+            title: PluginStrings.installFolder,
+            onTap: () => Navigator.of(context).pop(_InstallChoice.folder),
+          ),
+          SettingsTile(
+            icon: Icons.folder_zip_outlined,
+            title: PluginStrings.installZip,
+            onTap: () => Navigator.of(context).pop(_InstallChoice.zip),
+          ),
+          const SizedBox(height: LekisSpacing.sm),
+        ],
       ),
     );
+    final choice = UiProfile.current.prefersSheets
+        ? await showModalBottomSheet<_InstallChoice>(
+            context: context,
+            useSafeArea: true,
+            builder: chooser,
+          )
+        : await showDialog<_InstallChoice>(
+            context: context,
+            builder: (context) => Dialog(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: chooser(context),
+              ),
+            ),
+          );
     if (!mounted) return;
     switch (choice) {
       case _InstallChoice.folder:
@@ -197,10 +208,7 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
     try {
       final plugin = await ref.read(pluginListProvider.notifier).install(path);
       if (mounted) {
-        showFeatureSnack(
-          context,
-          '${PluginStrings.installed}：${plugin.name}',
-        );
+        showFeatureSnack(context, '${PluginStrings.installed}：${plugin.name}');
       }
     } catch (error) {
       _showInstallError(error);
@@ -366,8 +374,7 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
                                 key: ValueKey(plugin.id),
                                 plugin: plugin,
                                 busy: _busy.contains(plugin.id),
-                                onToggle: (enabled) =>
-                                    _toggle(plugin, enabled),
+                                onToggle: (enabled) => _toggle(plugin, enabled),
                                 onRemove: () => _remove(plugin),
                                 onOpen: () =>
                                     showPluginDetailSheet(context, plugin),
