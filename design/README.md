@@ -6,6 +6,6 @@
 |---|---|
 | Flutter（所有平台） | [`app/lib/src/theme/tokens.dart`](../app/lib/src/theme/tokens.dart) |
 
-现在是手动同步：改 `tokens.json` 的 PR 必须同时改 `tokens.dart`。冻结的 `apps/` 里的 `Tokens.kt` / `Tokens.xaml` 不再同步。
+现在是手动同步：改 `tokens.json` 的 PR 必须同时改 `tokens.dart`。
 
 视觉方向（月夜靛紫 + 月光金、内容第一、借鉴哪些产品）见 [docs/DESIGN.md](../docs/DESIGN.md)。

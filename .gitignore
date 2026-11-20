@@ -9,32 +9,18 @@ Thumbs.db
 
 # Rust
 core/target/
-apps/linux/target/
 **/*.rs.bk
 
-# Android
-apps/android/.gradle/
-apps/android/build/
-apps/android/**/build/
-apps/android/local.properties
-apps/android/captures/
-apps/android/.externalNativeBuild/
-apps/android/.cxx/
-# 由 tools/build-android-core.sh 生成
-apps/android/core/bridge/src/main/jniLibs/
-# 由 tools/gen-bindings.sh 生成
-apps/android/core/bridge/src/main/kotlin/uniffi/
+# Android 签名：keystore 和密码只放在仓库外 / CI secrets 里
+key.properties
+*.jks
+*.keystore
 
-# Windows / .NET
-apps/windows/**/bin/
-apps/windows/**/obj/
-apps/windows/.vs/
+# Windows
 *.user
-# 由 tools/build-windows-core.ps1 生成
-apps/windows/src/Lekis.Core.Interop/native/
-# 由 tools/gen-bindings.sh 生成
-apps/windows/src/Lekis.Core.Interop/Generated/*
-!apps/windows/src/Lekis.Core.Interop/Generated/README.md
+
+# 发布产物（tools/package-windows.ps1）
+dist/
 
 # JS（插件 SDK）
 node_modules/

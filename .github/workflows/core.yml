@@ -1,7 +1,7 @@
 name: core
 
 # Rust 核心：格式、静态检查、测试、文档、依赖审计。
-# 只在 core/ 和 plugin-sdk/ 变动时触发，平台层的 CI 各自独立（android.yml / windows.yml / linux.yml）。
+# 只在 core/ 和 plugin-sdk/ 变动时触发；Flutter 客户端的构建见 app.yml，发布见 release.yml。
 
 on:
   push:
@@ -55,7 +55,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: core
-      - run: cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets --exclude uniffi-bindgen -- -D warnings
+      - run: cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings
 
   test:
     name: test (${{ matrix.os }})
@@ -76,7 +76,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: core
-      - run: cargo test --manifest-path core/Cargo.toml --workspace --exclude uniffi-bindgen --no-fail-fast
+      - run: cargo test --manifest-path core/Cargo.toml --workspace --no-fail-fast
 
   docs:
     name: rustdoc
@@ -95,7 +95,7 @@ jobs:
         with:
           workspaces: core
       # missing_docs 是 warn 级别的 lint，这里提升成 error，保证公开 API 都有文档。
-      - run: cargo doc --manifest-path core/Cargo.toml --workspace --exclude uniffi-bindgen --no-deps
+      - run: cargo doc --manifest-path core/Cargo.toml --workspace --no-deps
 
   deny:
     name: dependency audit
@@ -107,35 +107,3 @@ jobs:
           manifest-path: core/Cargo.toml
           command: check advisories bans licenses sources
           arguments: --all-features
-
-  # FFI 层要能被 UniFFI 生成 Kotlin / C# 绑定；绑定生成失败说明导出接口坏了。
-  uniffi:
-    name: uniffi bindings
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install system deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            pkg-config libasound2-dev libssl-dev
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: core
-      # FFI 接口一旦写坏，绑定生成会失败，平台层就一起废了，所以这里必须严格。
-      - name: Build cdylib
-        run: cargo build --manifest-path core/Cargo.toml -p lekis-ffi
-
-      - name: Generate Kotlin bindings
-        run: |
-          mkdir -p /tmp/bindings
-          cargo run --manifest-path core/Cargo.toml -q -p uniffi-bindgen -- \
-            generate --library core/target/debug/liblekis_ffi.so \
-            --language kotlin --out-dir /tmp/bindings --no-format
-          test -n "$(find /tmp/bindings -name '*.kt' -print -quit)"
-
-      - name: Check exported symbols
-        run: |
-          # 符号表里必须有 uniffi 的入口点，否则 cdylib 里根本没导出接口。
-          nm -D core/target/debug/liblekis_ffi.so | grep -q uniffi

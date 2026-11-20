@@ -23,7 +23,7 @@
 ```
 feat(scanner): 支持 NAS 共享索引的增量校验 (LIB-05)
 fix(playback): 修复 AAC 无缝播放时编码器延迟没有去掉的问题 (PLY-01)
-refactor(ffi): 把 TrackDto 拆成列表用和详情用两种
+refactor(bridge): 把 TrackDto 拆成列表用和详情用两种
 ```
 
 核心用 crate 名：`types` `vfs` `library` `scanner` `providers` `enrich` `playback` `sync` `plugin` `core` `bridge` `node`；Flutter 端用功能模块名：`app` `shell` `library` `now-playing` `lyrics` `player` `playlists` `sources` `settings` `plugins` `offline` `ui` 等；其他：`android` `windows`（平台工程）`plugin-sdk` `design` `tools` `build` `ci` `docs`。
@@ -32,7 +32,7 @@ refactor(ffi): 把 TrackDto 拆成列表用和详情用两种
 
 - 一个 PR 只做一件事。超过 800 行（不含生成代码和测试数据）要拆分。
 - 必须通过 CI：`cargo fmt`、`cargo clippy -D warnings`、`cargo test`、`cargo deny`（`core.yml`），以及 `flutter analyze`、`flutter test`、Android arm64 release 构建（`app.yml`）。
-- 改了 `lekis-bridge/src/api/`：同一个 PR 里必须重新生成 Dart 绑定（`cd app && flutter_rust_bridge_codegen generate`）并提交 `app/lib/src/rust/` 和 `lekis-bridge/src/frb_generated.rs`。冻结的 `lekis-ffi` 不再加接口。
+- 改了 `lekis-bridge/src/api/`：同一个 PR 里必须重新生成 Dart 绑定（`cd app && flutter_rust_bridge_codegen generate`）并提交 `app/lib/src/rust/` 和 `lekis-bridge/src/frb_generated.rs`。
 - 改了数据库表结构：**只能新增迁移文件**，不能修改已经合入的迁移文件。
 - 改了插件接口（`plugin-sdk/`）：按语义化版本处理，破坏性变更需要 ADR。
 - 改了设计 Token：同步更新 `app/lib/src/theme/tokens.dart`。

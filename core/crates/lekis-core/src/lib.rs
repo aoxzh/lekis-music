@@ -1,6 +1,6 @@
 //! Lekis 核心门面。
 //!
-//! 平台层（通过 lekis-ffi）、Linux GTK 应用和 lekis-node 都只和 [`LekisCore`] 打交道。
+//! Flutter 客户端（通过 lekis-bridge）和 lekis-node 都只和 [`LekisCore`] 打交道。
 //! 它负责：
 //! - 拥有唯一的 tokio 运行时（或者借用宿主的运行时，见 [`LekisCore::with_runtime`]）；
 //! - 组装资料库、扫描器、播放引擎、补全、同步、插件；

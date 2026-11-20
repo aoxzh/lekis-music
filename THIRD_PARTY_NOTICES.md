@@ -11,7 +11,6 @@ with each package. The Rust dependency graph is checked in CI with
 | Component | License |
 |---|---|
 | symphonia | MPL-2.0 |
-| uniffi | MPL-2.0 |
 | cpal, ciborium, russh, russh-sftp | Apache-2.0 |
 | tokio, tracing, tracing-subscriber, tower, axum, pinyin, quick-xml, rubato, rusqlite, rquickjs, souvlaki, wasapi | MIT |
 | ringbuf | MIT OR Apache-2.0 |

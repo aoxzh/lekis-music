@@ -1,7 +1,7 @@
 //! 由平台实现、注入核心的能力（ARCHITECTURE.md 第 2 节第 6 条）。
 //!
-//! 新增平台能力的步骤：在这里加 trait → 在 lekis-ffi 里加对应的 callback interface 和适配器 →
-//! Android（`core/bridge`）和 Windows（`Lekis.Core.Interop`）实现它。
+//! 新增平台能力的步骤：在这里加 trait → 在 lekis-bridge 的 `src/api/` 里导出对应的接口和适配器 →
+//! Dart 侧（`app/lib/src/platform/`）实现它。
 
 use lekis_types::Result;
 use std::collections::HashMap;

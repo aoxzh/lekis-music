@@ -95,8 +95,8 @@ jobs:
           set -euo pipefail
           apk=app/build/app/outputs/flutter-apk/app-release.apk
           test -f "$apk"
-          unzip -l "$apk" | grep -q 'lib/arm64-v8a/liblekis_ffi.so' \
-            || { echo '::error::APK is missing lib/arm64-v8a/liblekis_ffi.so'; exit 1; }
+          unzip -l "$apk" | grep -q 'lib/arm64-v8a/liblekis_bridge.so' \
+            || { echo '::error::APK is missing lib/arm64-v8a/liblekis_bridge.so'; exit 1; }
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

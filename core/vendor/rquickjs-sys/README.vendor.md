@@ -21,7 +21,7 @@ aarch64-unknown-linux-gnu   loongarch64-*                powerpc64-*
 riscv64*                    wasm32-*                     x86_64-{apple-darwin,pc-windows-gnu,pc-windows-msvc,unknown-linux-*}
 ```
 
-所以 `cargo ndk ... build -p lekis-ffi` 会在编译 `rquickjs-sys` 时报：
+所以 `cargo ndk ... build -p lekis-bridge` 会在编译 `rquickjs-sys` 时报：
 
 ```
 error: couldn't find file `.../rquickjs-sys-0.14.0/src/bindings/aarch64-linux-android.rs`

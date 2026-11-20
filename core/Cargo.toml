@@ -11,10 +11,8 @@ members = [
   "crates/lekis-sync",
   "crates/lekis-plugin-host",
   "crates/lekis-core",
-  "crates/lekis-ffi",
   "crates/lekis-bridge",
   "bins/lekis-node",
-  "bins/uniffi-bindgen",
 ]
 
 [workspace.package]
@@ -90,7 +88,6 @@ ferrous-opencc = "0.4"
 notify = "8"
 image = { version = "0.25", default-features = false, features = ["webp", "jpeg", "png"] }
 rquickjs = "0.14"
-uniffi = "0.28"
 axum = "0.8"
 anyhow = "1"
 
