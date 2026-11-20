@@ -10,6 +10,9 @@ import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/shell/tab_bar_style.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'strings.dart';
+import 'widgets/settings_widgets.dart';
+
 const _backupKeys = [
   SettingKeys.gapless,
   SettingKeys.replayGain,
@@ -21,22 +24,31 @@ const _backupKeys = [
   'ui.lyrics_sparks',
 ];
 
+TextStyle? _monospace(BuildContext context) {
+  final theme = Theme.of(context);
+  return theme.textTheme.bodySmall?.copyWith(
+    fontFamily: 'monospace',
+    color: theme.colorScheme.onSurface,
+  );
+}
+
 class SettingsBackupSection extends ConsumerWidget {
   const SettingsBackupSection({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Column(
+    return SettingsSection(
+      title: SettingsStrings.backup,
       children: [
-        ListTile(
-          leading: const Icon(Icons.upload_file_outlined),
-          title: const Text('导出设置'),
+        SettingsTile(
+          icon: Icons.upload_file_outlined,
+          title: '导出设置',
           subtitle: const Text('生成 JSON 并复制到剪贴板（不含密码和播放历史）'),
           onTap: () => _export(context),
         ),
-        ListTile(
-          leading: const Icon(Icons.download_outlined),
-          title: const Text('导入设置'),
+        SettingsTile(
+          icon: Icons.download_outlined,
+          title: '导入设置',
           subtitle: const Text('粘贴之前导出的 JSON，覆盖当前设置'),
           onTap: () => _import(context, ref),
         ),
@@ -60,7 +72,7 @@ class SettingsBackupSection extends ConsumerWidget {
         content: SingleChildScrollView(
           child: SelectableText(
             text,
-            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+            style: _monospace(context),
           ),
         ),
         actions: [
@@ -84,7 +96,7 @@ class SettingsBackupSection extends ConsumerWidget {
           autofocus: true,
           minLines: 8,
           maxLines: 14,
-          style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+          style: _monospace(context),
           decoration: const InputDecoration(
             hintText: '粘贴导出的 JSON',
             border: OutlineInputBorder(),

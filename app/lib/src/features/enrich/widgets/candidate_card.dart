@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../rust/api/dto.dart';
 import '../../../theme/tokens.dart';
+import '../../settings/widgets/settings_widgets.dart';
 import '../../sources/common.dart';
 import '../enrich_models.dart';
 import '../enrich_providers.dart';
@@ -26,14 +27,8 @@ class CandidateCard extends ConsumerWidget {
     final track = current.value?.track;
     final percent = (candidate.score * 100).round();
 
-    return Card(
-      elevation: 0,
-      color: colors.surfaceElevated,
-      margin: const EdgeInsets.only(bottom: LekisSpacing.md),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(LekisRadius.lg),
-        side: BorderSide(color: colors.outline),
-      ),
+    return DecoratedBox(
+      decoration: settingsPanelDecoration(context),
       child: Padding(
         padding: const EdgeInsets.all(LekisSpacing.lg),
         child: Column(

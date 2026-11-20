@@ -93,7 +93,6 @@ class _StyleChoice extends StatelessWidget {
           borderRadius: radius,
           border: Border.all(
             color: selected ? colors.accent : colors.outline,
-            width: selected ? 1.5 : 1,
           ),
         ),
         child: Material(
@@ -124,7 +123,7 @@ class _StyleChoice extends StatelessWidget {
                       if (selected)
                         Icon(
                           Icons.check_circle_rounded,
-                          size: 18,
+                          size: LekisSpacing.lg,
                           color: colors.accent,
                         ),
                     ],
@@ -148,6 +147,12 @@ class _StyleChoice extends StatelessWidget {
   }
 }
 
+/// The preview bar is the real bar at half height.
+const double _miniBarHeight = LekisTabBarTokens.height / 2;
+
+/// Selection pill inside the preview bar.
+const double _miniPillSize = _miniBarHeight - LekisSpacing.sm;
+
 /// A tiny five-slot bar: enough to show the material difference at a glance.
 class _MiniTabBar extends StatelessWidget {
   const _MiniTabBar({required this.style});
@@ -158,10 +163,10 @@ class _MiniTabBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.lekisColors;
     final liquid = style == TabBarStyle.liquid;
-    final radius = BorderRadius.circular(18);
+    final radius = BorderRadius.circular(LekisRadius.pill);
 
     return SizedBox(
-      height: 36,
+      height: _miniBarHeight,
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: radius,
@@ -188,8 +193,8 @@ class _MiniTabBar extends StatelessWidget {
               ? [
                   BoxShadow(
                     color: colors.accent.withValues(alpha: 0.12),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
+                    blurRadius: LekisSpacing.sm,
+                    offset: const Offset(0, LekisSpacing.xxs),
                   ),
                 ]
               : null,
@@ -204,8 +209,8 @@ class _MiniTabBar extends StatelessWidget {
                 children: [
                   for (var i = 0; i < 5; i++)
                     Container(
-                      width: 4,
-                      height: 4,
+                      width: LekisSpacing.xs,
+                      height: LekisSpacing.xs,
                       decoration: BoxDecoration(
                         color: colors.onSurfaceVariant.withValues(alpha: 0.45),
                         shape: BoxShape.circle,
@@ -216,10 +221,12 @@ class _MiniTabBar extends StatelessWidget {
               Align(
                 alignment: const Alignment(-0.5, 0),
                 child: Container(
-                  width: 26,
-                  height: 26,
+                  width: _miniPillSize,
+                  height: _miniPillSize,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(liquid ? 13 : 6),
+                    borderRadius: BorderRadius.circular(
+                      liquid ? LekisRadius.pill : LekisRadius.xs,
+                    ),
                     color: liquid ? null : colors.accentSoft,
                     gradient: liquid
                         ? LinearGradient(
@@ -243,15 +250,15 @@ class _MiniTabBar extends StatelessWidget {
                         ? [
                             BoxShadow(
                               color: colors.accent.withValues(alpha: 0.18),
-                              blurRadius: 8,
+                              blurRadius: LekisSpacing.sm,
                             ),
                           ]
                         : null,
                   ),
                   child: Center(
                     child: Container(
-                      width: 4,
-                      height: 4,
+                      width: LekisSpacing.xs,
+                      height: LekisSpacing.xs,
                       decoration: BoxDecoration(
                         color: colors.accent,
                         shape: BoxShape.circle,

@@ -71,6 +71,7 @@ abstract final class SettingsStrings {
   static const scrobbleLastFm = 'Last.fm';
   static const scrobbleListenBrainz = 'ListenBrainz';
   static const scrobbleLibreFm = 'Libre.fm';
+  static const scrobbleAccount = '账号与凭据';
   static const scrobbleUsername = '用户名';
   static const scrobbleApiKey = 'API key';
   static const scrobbleApiSecret = 'API secret';

@@ -1,4 +1,4 @@
-// 设置页：播放、外观、资料库、关于。
+// 设置页：播放、外观、资料库、听歌记录、备份、关于。
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,139 +22,25 @@ import 'settings_providers.dart';
 import 'strings.dart';
 import 'tab_bar_style_picker.dart';
 import 'theme_preference.dart';
+import 'widgets/settings_widgets.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text(SettingsStrings.title)),
-    body: Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: featureMaxContentWidth),
-        child: ListView(
-          padding: EdgeInsets.symmetric(
-            horizontal: context.featureGutter,
-            vertical: LekisSpacing.lg,
-          ),
-          children: const [
-            _Section(
-              title: SettingsStrings.playback,
-              child: _PlaybackSection(),
-            ),
-            _Section(
-              title: SettingsStrings.appearance,
-              child: _AppearanceSection(),
-            ),
-            _Section(title: SettingsStrings.library, child: _LibrarySection()),
-            _Section(
-              title: SettingsStrings.plugins,
-              child: PluginsSettingsTile(),
-            ),
-            _Section(
-              title: SettingsStrings.scrobbling,
-              child: _ScrobbleSection(),
-            ),
-            _Section(
-              title: SettingsStrings.backup,
-              child: SettingsBackupSection(),
-            ),
-            _Section(
-              title: SettingsStrings.diagnostics,
-              child: _DiagnosticsTile(),
-            ),
-            _Section(title: SettingsStrings.about, child: _AboutSection()),
-          ],
-        ),
-      ),
+  Widget build(BuildContext context) => const SettingsScaffold(
+    title: SettingsStrings.title,
+    body: SettingsListView(
+      children: [
+        _PlaybackSection(),
+        _AppearanceSection(),
+        _LibrarySection(),
+        _ScrobbleSection(),
+        SettingsBackupSection(),
+        _AboutSection(),
+      ],
     ),
   );
-}
-
-class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.child});
-
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.lekisColors;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: LekisSpacing.xl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(
-              left: LekisSpacing.lg,
-              bottom: LekisSpacing.sm,
-            ),
-            child: Semantics(
-              header: true,
-              child: Text(
-                title,
-                style: Theme.of(context).textTheme.labelLarge
-                    ?.copyWith(color: colors.accent),
-              ),
-            ),
-          ),
-          Card(
-            elevation: 0,
-            margin: EdgeInsets.zero,
-            color: colors.surfaceVariant,
-            clipBehavior: Clip.antiAlias,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(LekisRadius.lg),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: LekisSpacing.sm),
-              child: child,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 设置行里放在标题下面的控件（分段按钮等）。
-class _BlockTile extends StatelessWidget {
-  const _BlockTile({required this.title, required this.child, this.hint});
-
-  final String title;
-  final String? hint;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = context.lekisColors;
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: LekisSpacing.lg,
-        vertical: LekisSpacing.md,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: theme.textTheme.bodyLarge),
-          const SizedBox(height: LekisSpacing.sm),
-          SizedBox(width: double.infinity, child: child),
-          if (hint != null) ...[
-            const SizedBox(height: LekisSpacing.sm),
-            Text(
-              hint!,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
 }
 
 Future<void> _guard(
@@ -189,61 +75,54 @@ class _PlaybackSection extends ConsumerWidget {
       ref.watch(settingProvider(SettingKeys.replayGain)).value,
     );
     final colors = context.lekisColors;
+    final text = Theme.of(context).textTheme;
     final error = output.error;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return SettingsSection(
+      title: SettingsStrings.playback,
       children: [
-        ListTile(
-          minTileHeight: LekisSizes.touchTargetMin,
-          title: const Text(SettingsStrings.outputDevice),
-          subtitle: error != null
+        SettingsBlockTile(
+          icon: Icons.speaker_outlined,
+          title: SettingsStrings.outputDevice,
+          trailing: IconButton(
+            tooltip: SettingsStrings.refreshDevices,
+            onPressed: notifier.refresh,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+          child: error != null
               ? Text(
                   describeCoreError(error),
-                  style: TextStyle(color: colors.danger),
+                  style: text.bodySmall?.copyWith(color: colors.danger),
                 )
               : output.devices.isEmpty
-              ? const Text(SettingsStrings.noDevices)
-              : null,
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (output.devices.isNotEmpty)
-                Flexible(
-                  child: DropdownButton<String?>(
-                    value: output.selectedDeviceId,
-                    isDense: false,
-                    underline: const SizedBox.shrink(),
-                    borderRadius: BorderRadius.circular(LekisRadius.md),
-                    onChanged: (id) =>
-                        _guard(context, () => notifier.selectDevice(id)),
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text(SettingsStrings.systemDefault),
-                      ),
-                      for (final d in output.devices)
-                        DropdownMenuItem<String?>(
-                          value: d.id,
-                          child: Text(
-                            d.isDefault
-                                ? SettingsStrings.defaultSuffix(d.name)
-                                : d.name,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+              ? Text(SettingsStrings.noDevices, style: text.bodySmall)
+              : DropdownButton<String?>(
+                  value: output.selectedDeviceId,
+                  isExpanded: true,
+                  underline: const SizedBox.shrink(),
+                  borderRadius: BorderRadius.circular(LekisRadius.md),
+                  onChanged: (id) =>
+                      _guard(context, () => notifier.selectDevice(id)),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text(SettingsStrings.systemDefault),
+                    ),
+                    for (final d in output.devices)
+                      DropdownMenuItem<String?>(
+                        value: d.id,
+                        child: Text(
+                          d.isDefault
+                              ? SettingsStrings.defaultSuffix(d.name)
+                              : d.name,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
-              IconButton(
-                tooltip: SettingsStrings.refreshDevices,
-                onPressed: notifier.refresh,
-                icon: const Icon(Icons.refresh),
-              ),
-            ],
-          ),
         ),
-        _BlockTile(
+        SettingsBlockTile(
+          icon: Icons.graphic_eq_rounded,
           title: SettingsStrings.outputMode,
           hint: output.mode == OutputModeDto.exclusive
               ? SettingsStrings.modeExclusiveHint
@@ -270,9 +149,10 @@ class _PlaybackSection extends ConsumerWidget {
                 _guard(context, () => notifier.setMode(s.first)),
           ),
         ),
-        SwitchListTile(
-          title: const Text(SettingsStrings.gapless),
-          subtitle: const Text(SettingsStrings.gaplessHint),
+        SettingsSwitchTile(
+          icon: Icons.linear_scale_rounded,
+          title: SettingsStrings.gapless,
+          subtitle: SettingsStrings.gaplessHint,
           value: gapless.value != 'false',
           onChanged: gapless.isLoading
               ? null
@@ -283,7 +163,8 @@ class _PlaybackSection extends ConsumerWidget {
                       .set(v ? 'true' : 'false'),
                 ),
         ),
-        _BlockTile(
+        SettingsBlockTile(
+          icon: Icons.equalizer_rounded,
           title: SettingsStrings.replayGain,
           hint: SettingsStrings.replayGainHint,
           child: SegmentedButton<ReplayGainMode>(
@@ -311,7 +192,8 @@ class _PlaybackSection extends ConsumerWidget {
             ),
           ),
         ),
-        _BlockTile(
+        SettingsBlockTile(
+          icon: Icons.bedtime_outlined,
           title: SettingsStrings.sleepTimer,
           hint: SettingsStrings.sleepTimerHint,
           child: Wrap(
@@ -346,10 +228,11 @@ class _AppearanceSection extends ConsumerWidget {
     final tabBarStyle = ref.watch(tabBarStyleProvider);
     final stage = ref.watch(lyricsStageStyleProvider);
     final sparks = ref.watch(lyricsSparksProvider);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return SettingsSection(
+      title: SettingsStrings.appearance,
       children: [
-        _BlockTile(
+        SettingsBlockTile(
+          icon: Icons.palette_outlined,
           title: SettingsStrings.theme,
           hint: SettingsStrings.themeOledHint,
           child: SegmentedButton<ThemePreference>(
@@ -381,12 +264,8 @@ class _AppearanceSection extends ConsumerWidget {
                 _guard(context, () => setThemePreference(ref, s.first)),
           ),
         ),
-        const Divider(
-          indent: LekisSpacing.lg,
-          endIndent: LekisSpacing.lg,
-          height: 1,
-        ),
-        _BlockTile(
+        SettingsBlockTile(
+          icon: Icons.space_dashboard_outlined,
           title: SettingsStrings.tabBarStyle,
           hint: SettingsStrings.tabBarStyleHint,
           child: TabBarStylePicker(
@@ -397,7 +276,8 @@ class _AppearanceSection extends ConsumerWidget {
             ),
           ),
         ),
-        _BlockTile(
+        SettingsBlockTile(
+          icon: Icons.lyrics_outlined,
           title: SettingsStrings.lyricsStage,
           hint: SettingsStrings.lyricsStageHint,
           child: LyricsStageStyleSelector(
@@ -410,9 +290,10 @@ class _AppearanceSection extends ConsumerWidget {
             ),
           ),
         ),
-        SwitchListTile(
-          title: const Text(SettingsStrings.lyricsSparks),
-          subtitle: const Text(SettingsStrings.lyricsSparksHint),
+        SettingsSwitchTile(
+          icon: Icons.auto_awesome_outlined,
+          title: SettingsStrings.lyricsSparks,
+          subtitle: SettingsStrings.lyricsSparksHint,
           value: sparks,
           onChanged: (on) => _guard(
             context,
@@ -427,7 +308,7 @@ class _AppearanceSection extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// 资料库
+// 资料库（含插件入口）
 // ---------------------------------------------------------------------------
 
 class _LibrarySection extends ConsumerWidget {
@@ -437,20 +318,19 @@ class _LibrarySection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pending = ref.watch(enrichPendingCountProvider);
     final downloads = ref.watch(downloadsSummaryProvider);
-    return Column(
+    return SettingsSection(
+      title: SettingsStrings.library,
       children: [
-        ListTile(
-          minTileHeight: LekisSizes.touchTargetMin,
-          leading: const Icon(Icons.storage_outlined),
-          title: const Text(SettingsStrings.sources),
+        SettingsTile(
+          icon: Icons.storage_outlined,
+          title: SettingsStrings.sources,
           subtitle: const Text(SettingsStrings.sourcesHint),
-          trailing: const Icon(Icons.chevron_right),
+          chevron: true,
           onTap: () => AppShell.select(context, LekisDestination.sources),
         ),
-        ListTile(
-          minTileHeight: LekisSizes.touchTargetMin,
-          leading: const Icon(Icons.download_for_offline_outlined),
-          title: const Text(SettingsStrings.downloads),
+        SettingsTile(
+          icon: Icons.download_for_offline_outlined,
+          title: SettingsStrings.downloads,
           subtitle: Text(
             downloads.readyCount > 0 || downloads.activeCount > 0
                 ? SettingsStrings.downloadsSummary(
@@ -460,63 +340,31 @@ class _LibrarySection extends ConsumerWidget {
                   )
                 : SettingsStrings.downloadsHint,
           ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (downloads.activeCount > 0) ...[
-                const SizedBox.square(
-                  dimension: 16,
+          trailing: downloads.activeCount > 0
+              ? const SizedBox.square(
+                  dimension: LekisSpacing.lg,
                   child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                const SizedBox(width: LekisSpacing.sm),
-              ],
-              const Icon(Icons.chevron_right),
-            ],
-          ),
+                )
+              : null,
+          chevron: true,
           onTap: () => openDownloads(context),
         ),
-        ListTile(
-          minTileHeight: LekisSizes.touchTargetMin,
-          leading: const Icon(Icons.auto_fix_high_outlined),
-          title: const Text(SettingsStrings.enrichReview),
+        SettingsTile(
+          icon: Icons.auto_fix_high_outlined,
+          title: SettingsStrings.enrichReview,
           subtitle: Text(
             pending != null && pending > 0
                 ? SettingsStrings.pendingCount(pending)
                 : SettingsStrings.enrichReviewHint,
           ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (pending != null && pending > 0) Badge.count(count: pending),
-              const SizedBox(width: LekisSpacing.sm),
-              const Icon(Icons.chevron_right),
-            ],
-          ),
+          trailing: pending != null && pending > 0
+              ? Badge.count(count: pending)
+              : null,
+          chevron: true,
           onTap: () => openEnrichReview(context),
         ),
+        const PluginsSettingsTile(),
       ],
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// 诊断（SET-03）
-// ---------------------------------------------------------------------------
-
-class _DiagnosticsTile extends StatelessWidget {
-  const _DiagnosticsTile();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      minTileHeight: LekisSizes.touchTargetMin,
-      leading: const Icon(Icons.receipt_long_outlined),
-      title: const Text(SettingsStrings.diagnosticLogs),
-      subtitle: const Text(SettingsStrings.diagnosticLogsHint),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => const DiagnosticLogsPage()),
-      ),
     );
   }
 }
@@ -540,12 +388,11 @@ class PluginsSettingsTile extends ConsumerWidget {
         : count == 0
         ? SettingsStrings.pluginsEmpty
         : SettingsStrings.pluginsInstalled(count);
-    return ListTile(
-      minTileHeight: LekisSizes.touchTargetMin,
-      leading: const Icon(Icons.extension_outlined),
-      title: const Text(SettingsStrings.plugins),
+    return SettingsTile(
+      icon: Icons.extension_outlined,
+      title: SettingsStrings.plugins,
       subtitle: Text(subtitle),
-      trailing: const Icon(Icons.chevron_right),
+      chevron: true,
       onTap: () => openPlugins(context),
     );
   }
@@ -689,9 +536,15 @@ class _ScrobbleSectionState extends ConsumerState<_ScrobbleSection> {
     final colors = context.lekisColors;
     final theme = Theme.of(context);
     if (settings == null) {
-      return const Padding(
-        padding: EdgeInsets.all(LekisSpacing.lg),
-        child: Text(SettingsStrings.unavailable),
+      return const SettingsSection(
+        title: SettingsStrings.scrobbling,
+        children: [
+          SettingsTile(
+            icon: Icons.history_rounded,
+            title: SettingsStrings.scrobbleEnable,
+            subtitle: Text(SettingsStrings.unavailable),
+          ),
+        ],
       );
     }
     if (!_loaded) {
@@ -704,23 +557,24 @@ class _ScrobbleSectionState extends ConsumerState<_ScrobbleSection> {
     }
 
     final lastFmFamily = _service != 'listenbrainz';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return SettingsSection(
+      title: SettingsStrings.scrobbling,
       children: [
-        SwitchListTile(
-          title: const Text(SettingsStrings.scrobbleEnable),
-          subtitle: const Text(SettingsStrings.scrobbleEnableHint),
+        SettingsSwitchTile(
+          icon: Icons.history_rounded,
+          title: SettingsStrings.scrobbleEnable,
+          subtitle: SettingsStrings.scrobbleEnableHint,
           value: _enabled,
           onChanged: (value) async {
             setState(() => _enabled = value);
             await _save();
           },
         ),
-        _BlockTile(
+        SettingsTile(
+          icon: Icons.cloud_outlined,
           title: SettingsStrings.scrobbleService,
-          child: DropdownButton<String>(
+          trailing: DropdownButton<String>(
             value: _service,
-            isExpanded: true,
             underline: const SizedBox.shrink(),
             borderRadius: BorderRadius.circular(LekisRadius.md),
             items: const [
@@ -744,67 +598,64 @@ class _ScrobbleSectionState extends ConsumerState<_ScrobbleSection> {
             },
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: LekisSpacing.lg,
-            vertical: LekisSpacing.xs,
-          ),
-          child: TextFormField(
-            controller: _username,
-            decoration: const InputDecoration(
-              labelText: SettingsStrings.scrobbleUsername,
-              isDense: true,
-            ),
-            textInputAction: TextInputAction.next,
+        SettingsBlockTile(
+          icon: Icons.key_outlined,
+          title: SettingsStrings.scrobbleAccount,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: _username,
+                decoration: const InputDecoration(
+                  labelText: SettingsStrings.scrobbleUsername,
+                  isDense: true,
+                ),
+                textInputAction: TextInputAction.next,
+              ),
+              if (lastFmFamily) ...[
+                _SecretField(
+                  controller: _apiKey,
+                  label: SettingsStrings.scrobbleApiKey,
+                  saved: settings.hasApiKey,
+                ),
+                _SecretField(
+                  controller: _apiSecret,
+                  label: SettingsStrings.scrobbleApiSecret,
+                  saved: settings.hasApiSecret,
+                ),
+                _SecretField(
+                  controller: _sessionKey,
+                  label: SettingsStrings.scrobbleSessionKey,
+                  saved: settings.hasSessionKey,
+                ),
+              ] else
+                _SecretField(
+                  controller: _userToken,
+                  label: SettingsStrings.scrobbleUserToken,
+                  saved: settings.hasUserToken,
+                ),
+            ],
           ),
         ),
-        if (lastFmFamily) ...[
-          _SecretField(
-            controller: _apiKey,
-            label: SettingsStrings.scrobbleApiKey,
-            saved: settings.hasApiKey,
-          ),
-          _SecretField(
-            controller: _apiSecret,
-            label: SettingsStrings.scrobbleApiSecret,
-            saved: settings.hasApiSecret,
-          ),
-          _SecretField(
-            controller: _sessionKey,
-            label: SettingsStrings.scrobbleSessionKey,
-            saved: settings.hasSessionKey,
-          ),
-        ] else
-          _SecretField(
-            controller: _userToken,
-            label: SettingsStrings.scrobbleUserToken,
-            saved: settings.hasUserToken,
-          ),
-        SwitchListTile(
-          title: const Text(SettingsStrings.scrobbleNowPlaying),
-          subtitle: const Text(SettingsStrings.scrobbleNowPlayingHint),
+        SettingsSwitchTile(
+          icon: Icons.podcasts_rounded,
+          title: SettingsStrings.scrobbleNowPlaying,
+          subtitle: SettingsStrings.scrobbleNowPlayingHint,
           value: _nowPlaying,
           onChanged: (value) async {
             setState(() => _nowPlaying = value);
             await _save();
           },
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: LekisSpacing.lg,
-            vertical: LekisSpacing.xs,
-          ),
-          child: Text(
-            _statusText(status),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: status?.lastError != null ? colors.danger : colors.onSurfaceVariant,
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: LekisSpacing.lg,
-            vertical: LekisSpacing.sm,
+        SettingsBlockTile(
+          icon: status?.lastError != null
+              ? Icons.error_outline_rounded
+              : Icons.check_circle_outline_rounded,
+          title: _statusText(status),
+          titleStyle: theme.textTheme.bodyMedium?.copyWith(
+            color: status?.lastError != null
+                ? colors.danger
+                : colors.onSurfaceVariant,
           ),
           child: Wrap(
             spacing: LekisSpacing.sm,
@@ -817,9 +668,8 @@ class _ScrobbleSectionState extends ConsumerState<_ScrobbleSection> {
               OutlinedButton(
                 onPressed: state.testing ? null : _test,
                 child: state.testing
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
+                    ? const SizedBox.square(
+                        dimension: LekisSpacing.lg,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Text(SettingsStrings.scrobbleTest),
@@ -849,10 +699,7 @@ class _SecretField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(
-      horizontal: LekisSpacing.lg,
-      vertical: LekisSpacing.xs,
-    ),
+    padding: const EdgeInsets.only(top: LekisSpacing.sm),
     child: TextFormField(
       controller: controller,
       obscureText: true,
@@ -869,7 +716,7 @@ class _SecretField extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// 关于
+// 关于（含诊断日志，SET-03）
 // ---------------------------------------------------------------------------
 
 class _AboutSection extends ConsumerWidget {
@@ -879,16 +726,17 @@ class _AboutSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final info = ref.watch(aboutInfoProvider);
     final deviceId = info.deviceId;
-    return Column(
+    return SettingsSection(
+      title: SettingsStrings.about,
       children: [
-        ListTile(
-          minTileHeight: LekisSizes.touchTargetMin,
-          title: const Text(SettingsStrings.coreVersion),
+        SettingsTile(
+          icon: Icons.memory_outlined,
+          title: SettingsStrings.coreVersion,
           trailing: Text(info.coreVersion ?? SettingsStrings.unavailable),
         ),
-        ListTile(
-          minTileHeight: LekisSizes.touchTargetMin,
-          title: const Text(SettingsStrings.deviceId),
+        SettingsTile(
+          icon: Icons.fingerprint_rounded,
+          title: SettingsStrings.deviceId,
           subtitle: SelectableText(deviceId ?? SettingsStrings.unavailable),
           trailing: deviceId == null
               ? null
@@ -902,6 +750,17 @@ class _AboutSection extends ConsumerWidget {
                     }
                   },
                 ),
+        ),
+        SettingsTile(
+          icon: Icons.receipt_long_outlined,
+          title: SettingsStrings.diagnosticLogs,
+          subtitle: const Text(SettingsStrings.diagnosticLogsHint),
+          chevron: true,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const DiagnosticLogsPage(),
+            ),
+          ),
         ),
       ],
     );

@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../rust/api/core.dart' as core;
 import '../../rust/api/dto.dart';
 import '../../theme/tokens.dart';
+import '../settings/widgets/settings_widgets.dart';
 import '../sources/common.dart';
 import 'plugin_format.dart';
 import 'strings.dart';
@@ -16,6 +17,7 @@ Future<void> showPluginDetailSheet(
   context: context,
   isScrollControlled: true,
   useSafeArea: true,
+  showDragHandle: true,
   builder: (_) => FractionallySizedBox(
     heightFactor: 0.92,
     child: _PluginDetailSheet(plugin: plugin),
@@ -57,24 +59,13 @@ class _PluginDetailSheetState extends State<_PluginDetailSheet> {
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
           context.featureGutter,
-          LekisSpacing.sm,
+          0,
           context.featureGutter,
           LekisSpacing.xl,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colors.outline,
-                  borderRadius: BorderRadius.circular(LekisRadius.pill),
-                ),
-              ),
-            ),
-            const SizedBox(height: LekisSpacing.md),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -121,29 +112,26 @@ class _PluginDetailSheetState extends State<_PluginDetailSheet> {
               _ErrorBox(message: plugin.error!),
             ],
             const SizedBox(height: LekisSpacing.lg),
-            _DetailRow(label: PluginStrings.kind, value: pluginKindsLabel(plugin.kinds)),
-            _DetailRow(label: PluginStrings.runtime, value: pluginRuntimeLabel(plugin.runtime)),
-            if (plugin.entry != null && plugin.entry!.isNotEmpty)
-              _DetailRow(label: PluginStrings.entry, value: plugin.entry!),
-            if (plugin.author != null && plugin.author!.isNotEmpty)
-              _DetailRow(label: PluginStrings.author, value: plugin.author!),
-            if (plugin.homepage != null && plugin.homepage!.isNotEmpty)
-              _DetailRow(label: PluginStrings.homepage, value: plugin.homepage!),
-            _DetailRow(label: PluginStrings.directory, value: plugin.directory),
-            const SizedBox(height: LekisSpacing.md),
-            Text(PluginStrings.permissions, style: theme.textTheme.titleMedium),
-            const SizedBox(height: LekisSpacing.xs),
-            Text(
-              pluginPermissionSummary(plugin.permissions),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
+            const SettingsSectionHeader(PluginStrings.info),
+            _DetailTable(
+              rows: [
+                (PluginStrings.kind, pluginKindsLabel(plugin.kinds)),
+                (PluginStrings.runtime, pluginRuntimeLabel(plugin.runtime)),
+                if (plugin.entry != null && plugin.entry!.isNotEmpty)
+                  (PluginStrings.entry, plugin.entry!),
+                if (plugin.author != null && plugin.author!.isNotEmpty)
+                  (PluginStrings.author, plugin.author!),
+                if (plugin.homepage != null && plugin.homepage!.isNotEmpty)
+                  (PluginStrings.homepage, plugin.homepage!),
+                (PluginStrings.directory, plugin.directory),
+                (
+                  PluginStrings.permissions,
+                  pluginPermissionSummary(plugin.permissions),
+                ),
+              ],
             ),
-            const SizedBox(height: LekisSpacing.lg),
-            Divider(color: colors.outline, height: 1),
-            const SizedBox(height: LekisSpacing.lg),
-            Text(PluginStrings.settings, style: theme.textTheme.titleMedium),
-            const SizedBox(height: LekisSpacing.sm),
+            const SizedBox(height: LekisSpacing.xl),
+            const SettingsSectionHeader(PluginStrings.settings),
             if (plugin.error != null)
               Text(
                 PluginStrings.invalidManifest,
@@ -393,9 +381,8 @@ class _SettingsEditorState extends State<_SettingsEditor> {
           child: FilledButton.icon(
             onPressed: _saving ? null : _save,
             icon: _saving
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
+                ? const SizedBox.square(
+                    dimension: LekisSpacing.lg,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.save_outlined),
@@ -437,34 +424,51 @@ class _InfoChip extends StatelessWidget {
   }
 }
 
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
+/// 插件信息：标签列按内容自适应宽度，放在与设置页相同的分组面板里。
+class _DetailTable extends StatelessWidget {
+  const _DetailTable({required this.rows});
 
-  final String label;
-  final String value;
+  final List<(String, String)> rows;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = context.lekisColors;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: LekisSpacing.xs),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 76,
-            child: Text(
-              label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
+    return DecoratedBox(
+      decoration: settingsPanelDecoration(context),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: LekisSpacing.lg,
+          vertical: LekisSpacing.md,
+        ),
+        child: Table(
+          columnWidths: const {
+            0: IntrinsicColumnWidth(),
+            1: FlexColumnWidth(),
+          },
+          children: [
+            for (final (label, value) in rows)
+              TableRow(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      right: LekisSpacing.lg,
+                      bottom: LekisSpacing.xs,
+                    ),
+                    child: Text(label, style: theme.textTheme.bodySmall),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: LekisSpacing.xs),
+                    child: SelectableText(
+                      value,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ),
-          Expanded(
-            child: SelectableText(value, style: theme.textTheme.bodySmall),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -489,7 +493,7 @@ class _ErrorBox extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.error_outline, color: colors.danger, size: 20),
+          Icon(Icons.error_outline, color: colors.danger),
           const SizedBox(width: LekisSpacing.sm),
           Expanded(
             child: Column(

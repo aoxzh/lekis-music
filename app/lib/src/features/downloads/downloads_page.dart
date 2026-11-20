@@ -7,7 +7,7 @@ import 'package:lekis/src/features/downloads/downloads_providers.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
-import 'package:lekis/src/features/sources/common.dart' hide describeCoreError;
+import 'package:lekis/src/features/settings/widgets/settings_widgets.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
@@ -74,59 +74,57 @@ class DownloadsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(downloadsProvider);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('下载'),
-        actions: [
-          PopupMenuButton<String>(
-            tooltip: '批量下载',
-            onSelected: (value) {
-              switch (value) {
-                case 'loved':
-                  _downloadLoved(context, ref);
-                case 'most-played':
-                  _downloadMostPlayed(context, ref);
-              }
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
-                value: 'loved',
-                child: ListTile(
-                  leading: Icon(Icons.favorite_outline),
-                  title: Text('下载收藏'),
-                ),
+    return SettingsScaffold(
+      title: '下载',
+      actions: [
+        PopupMenuButton<String>(
+          tooltip: '批量下载',
+          onSelected: (value) {
+            switch (value) {
+              case 'loved':
+                _downloadLoved(context, ref);
+              case 'most-played':
+                _downloadMostPlayed(context, ref);
+            }
+          },
+          itemBuilder: (_) => const [
+            PopupMenuItem(
+              value: 'loved',
+              child: ListTile(
+                leading: Icon(Icons.favorite_outline),
+                title: Text('下载收藏'),
               ),
-              PopupMenuItem(
-                value: 'most-played',
-                child: ListTile(
-                  leading: Icon(Icons.trending_up_rounded),
-                  title: Text('下载最常听 50 首'),
-                ),
+            ),
+            PopupMenuItem(
+              value: 'most-played',
+              child: ListTile(
+                leading: Icon(Icons.trending_up_rounded),
+                title: Text('下载最常听 50 首'),
               ),
-            ],
-          ),
-          IconButton(
-            tooltip: '刷新',
-            onPressed: () =>
-                ref.read(downloadsProvider.notifier).refresh(),
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        top: false,
-        child: switch (async) {
-          AsyncData(:final value) => _DownloadsBody(state: value),
-          AsyncError(:final error) => LoadErrorView(
-            error: error,
-            onRetry: () => ref.read(downloadsProvider.notifier).refresh(),
-          ),
-          _ => const Center(child: CircularProgressIndicator()),
-        },
-      ),
+            ),
+          ],
+        ),
+        IconButton(
+          tooltip: '刷新',
+          onPressed: () => ref.read(downloadsProvider.notifier).refresh(),
+          icon: const Icon(Icons.refresh_rounded),
+        ),
+      ],
+      body: switch (async) {
+        AsyncData(:final value) => _DownloadsBody(state: value),
+        AsyncError(:final error) => LoadErrorView(
+          error: error,
+          onRetry: () => ref.read(downloadsProvider.notifier).refresh(),
+        ),
+        _ => const Center(child: CircularProgressIndicator()),
+      },
     );
   }
 }
+
+/// 封面行的分隔线起点：与封面右侧的文字对齐。
+const double _artworkTextInset =
+    LekisSpacing.lg + LekisSizes.listArtwork + LekisSpacing.md;
 
 class _DownloadsBody extends ConsumerWidget {
   const _DownloadsBody({required this.state});
@@ -135,7 +133,6 @@ class _DownloadsBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final gutter = context.featureGutter;
     if (state.isEmpty) {
       return RefreshIndicator(
         onRefresh: () => ref.read(downloadsProvider.notifier).refresh(),
@@ -156,33 +153,26 @@ class _DownloadsBody extends ConsumerWidget {
       );
     }
 
+    Widget section(String title, List<DownloadEntry> entries) =>
+        SettingsSliverSection(
+          title: title,
+          itemCount: entries.length,
+          dividerIndent: _artworkTextInset,
+          itemBuilder: (_, i) => _DownloadTile(
+            key: ValueKey(entries[i].trackId),
+            entry: entries[i],
+          ),
+        );
+
     return RefreshIndicator(
       onRefresh: () => ref.read(downloadsProvider.notifier).refresh(),
-      child: ListView(
+      child: SettingsScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.fromLTRB(
-          gutter,
-          LekisSpacing.lg,
-          gutter,
-          LekisSpacing.xxxl,
-        ),
-        children: [
-          _SummaryCard(state: state),
-          if (state.active.isNotEmpty) ...[
-            const _SectionHeader('下载队列'),
-            for (final entry in state.active)
-              _DownloadTile(key: ValueKey(entry.trackId), entry: entry),
-          ],
-          if (state.failed.isNotEmpty) ...[
-            const _SectionHeader('失败'),
-            for (final entry in state.failed)
-              _DownloadTile(key: ValueKey(entry.trackId), entry: entry),
-          ],
-          if (state.ready.isNotEmpty) ...[
-            const _SectionHeader('已下载'),
-            for (final entry in state.ready)
-              _DownloadTile(key: ValueKey(entry.trackId), entry: entry),
-          ],
+        slivers: [
+          SliverToBoxAdapter(child: _SummaryCard(state: state)),
+          if (state.active.isNotEmpty) section('下载队列', state.active),
+          if (state.failed.isNotEmpty) section('失败', state.failed),
+          if (state.ready.isNotEmpty) section('已下载', state.ready),
         ],
       ),
     );
@@ -196,84 +186,20 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = context.lekisColors;
     final active = state.active.where((e) => e.isActive).length;
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: LekisSpacing.lg),
-      color: colors.surfaceVariant,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(LekisRadius.lg),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(LekisSpacing.lg),
-        child: Row(
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: colors.accentSoft,
-                borderRadius: BorderRadius.circular(LekisRadius.md),
-              ),
-              child: Icon(
-                Icons.offline_pin_rounded,
-                color: colors.accent,
-                size: 26,
-              ),
-            ),
-            const SizedBox(width: LekisSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '已下载 ${state.readyCount} 首',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: LekisSpacing.xxs),
-                  Text(
-                    '共 ${formatBytes(state.totalBytes)}'
-                    '${active > 0 ? ' · $active 首正在下载' : ''}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.title);
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.lekisColors;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        LekisSpacing.sm,
-        LekisSpacing.md,
-        LekisSpacing.sm,
-        LekisSpacing.xs,
-      ),
-      child: Semantics(
-        header: true,
-        child: Text(
-          title,
-          style: Theme.of(context).textTheme.labelLarge
-              ?.copyWith(color: colors.accent),
-        ),
+      padding: const EdgeInsets.only(bottom: LekisSpacing.xl),
+      child: SettingsGroup(
+        children: [
+          SettingsTile(
+            icon: Icons.offline_pin_outlined,
+            title: '已下载 ${state.readyCount} 首',
+            subtitle: Text(
+              '共 ${formatBytes(state.totalBytes)}'
+              '${active > 0 ? ' · $active 首正在下载' : ''}',
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -325,97 +251,115 @@ class _DownloadTile extends ConsumerWidget {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
     final track = entry.track;
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: LekisSpacing.sm,
-        vertical: LekisSpacing.xs,
-      ),
-      leading: SizedBox.square(
-        dimension: LekisSizes.listArtwork,
-        child: track == null
-            ? Icon(Icons.music_note_rounded, color: colors.onSurfaceVariant)
-            : TrackArtwork(
-                trackId: track.id,
-                hasArtwork: track.artworkId != null,
-                placeholderLabel: track.title,
-              ),
-      ),
-      title: Text(
-        entry.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: theme.textTheme.bodyLarge?.copyWith(
-          fontWeight: entry.isReady ? FontWeight.w500 : FontWeight.w600,
+    final actions = <Widget>[
+      if (entry.isReady || entry.isActive)
+        IconButton(
+          tooltip: entry.isActive ? '取消下载' : '播放已下载',
+          onPressed: entry.isActive
+              ? () => ref
+                    .read(downloadsProvider.notifier)
+                    .removeDownload(entry.trackId)
+              : () => ref
+                    .read(downloadsProvider.notifier)
+                    .playDownloaded(entry.trackId),
+          icon: Icon(
+            entry.isActive ? Icons.close_rounded : Icons.play_arrow_rounded,
+          ),
         ),
+      if (entry.isFailed || entry.isQueued)
+        IconButton(
+          tooltip: entry.isQueued ? '开始下载' : '重试',
+          onPressed: () =>
+              ref.read(downloadsProvider.notifier).retry(entry.trackId),
+          icon: const Icon(Icons.refresh_rounded),
+        ),
+      if (!entry.isActive)
+        IconButton(
+          tooltip: '删除下载',
+          onPressed: () => _remove(context, ref),
+          icon: const Icon(Icons.delete_outline_rounded),
+        ),
+    ];
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: LekisSpacing.lg,
+        vertical: LekisSpacing.sm,
       ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          if (entry.subtitle.isNotEmpty)
-            Text(
-              entry.subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: colors.onSurfaceVariant),
-            ),
-          const SizedBox(height: LekisSpacing.xxs),
-          Text(
-            entry.statusText,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: entry.isFailed ? colors.danger : colors.onSurfaceVariant,
+          SizedBox.square(
+            dimension: LekisSizes.listArtwork,
+            child: track == null
+                ? Icon(Icons.music_note_rounded, color: colors.onSurfaceVariant)
+                : TrackArtwork(
+                    trackId: track.id,
+                    hasArtwork: track.artworkId != null,
+                    placeholderLabel: track.title,
+                  ),
+          ),
+          const SizedBox(width: LekisSpacing.md),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: entry.isReady
+                        ? FontWeight.w500
+                        : FontWeight.w600,
+                  ),
+                ),
+                if (entry.subtitle.isNotEmpty)
+                  Text(
+                    entry.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                Text(
+                  entry.statusText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: entry.isFailed
+                        ? colors.danger
+                        : colors.onSurfaceVariant,
+                  ),
+                ),
+                if (entry.isActive) ...[
+                  const SizedBox(height: LekisSpacing.xs),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(LekisRadius.pill),
+                    child: LinearProgressIndicator(
+                      value: entry.progress,
+                      minHeight: LekisSpacing.xxs,
+                      color: colors.accent,
+                      backgroundColor: colors.outline,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-          if (entry.isActive) ...[
-            const SizedBox(height: LekisSpacing.xs),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(LekisRadius.pill),
-              child: LinearProgressIndicator(
-                value: entry.progress,
-                minHeight: 3,
-                color: colors.accent,
-                backgroundColor: colors.outline.withValues(alpha: 0.3),
+          if (actions.isNotEmpty) ...[
+            const SizedBox(width: LekisSpacing.sm),
+            // 最后一个按钮的图标与面板右侧的文字边距对齐。
+            Transform.translate(
+              offset: const Offset(LekisSpacing.md, 0),
+              child: IconButtonTheme(
+                data: IconButtonThemeData(
+                  style: IconButton.styleFrom(
+                    foregroundColor: colors.onSurfaceVariant,
+                  ),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: actions),
               ),
             ),
           ],
-        ],
-      ),
-      isThreeLine: true,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (entry.isReady || entry.isActive)
-            IconButton(
-              tooltip: entry.isActive ? '取消下载' : '播放已下载',
-              onPressed: entry.isActive
-                  ? () => ref
-                        .read(downloadsProvider.notifier)
-                        .removeDownload(entry.trackId)
-                  : () => ref
-                        .read(downloadsProvider.notifier)
-                        .playDownloaded(entry.trackId),
-              icon: Icon(
-                entry.isActive
-                    ? Icons.close_rounded
-                    : Icons.play_arrow_rounded,
-              ),
-            ),
-          if (entry.isFailed || entry.isQueued)
-            IconButton(
-              tooltip: entry.isQueued ? '开始下载' : '重试',
-              onPressed: () => ref
-                  .read(downloadsProvider.notifier)
-                  .retry(entry.trackId),
-              icon: const Icon(Icons.refresh_rounded),
-            ),
-          if (!entry.isActive)
-            IconButton(
-              tooltip: '删除下载',
-              onPressed: () => _remove(context, ref),
-              icon: const Icon(Icons.delete_outline_rounded),
-            ),
         ],
       ),
     );

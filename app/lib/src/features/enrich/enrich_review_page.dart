@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../theme/tokens.dart';
+import '../library/widgets/empty_state.dart';
+import '../settings/widgets/settings_widgets.dart';
 import '../sources/common.dart';
 import 'enrich_providers.dart';
 import 'strings.dart';
@@ -18,35 +20,28 @@ class EnrichReviewPage extends ConsumerWidget {
     final count = ref.watch(enrichPendingCountProvider) ?? queue.value?.length;
     final hasItems = (queue.value?.isNotEmpty ?? false);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          count == null || count == 0
-              ? EnrichStrings.title
-              : EnrichStrings.titleWithCount(count),
-        ),
-        actions: [
-          if (hasItems)
-            Padding(
-              padding: EdgeInsets.only(right: context.featureGutter),
-              child: FilledButton.tonalIcon(
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, LekisSizes.touchTargetMin),
-                ),
-                onPressed: () => _acceptAll(context, ref, count ?? 0),
-                icon: const Icon(Icons.done_all),
-                label: const Text(EnrichStrings.acceptAll),
-              ),
+    return SettingsScaffold(
+      title: count == null || count == 0
+          ? EnrichStrings.title
+          : EnrichStrings.titleWithCount(count),
+      actions: [
+        if (hasItems)
+          FilledButton.tonalIcon(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, LekisSizes.touchTargetMin),
             ),
-        ],
-      ),
+            onPressed: () => _acceptAll(context, ref, count ?? 0),
+            icon: const Icon(Icons.done_all),
+            label: const Text(EnrichStrings.acceptAll),
+          ),
+      ],
       body: queue.when(
         skipLoadingOnReload: true,
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => _Empty(
+        error: (e, _) => LekisEmptyState(
           icon: Icons.error_outline,
           title: EnrichStrings.loadFailed,
-          body: describeCoreError(e),
+          message: describeCoreError(e),
           action: TextButton.icon(
             onPressed: () => ref.read(enrichQueueProvider.notifier).reload(),
             icon: const Icon(Icons.refresh),
@@ -54,26 +49,23 @@ class EnrichReviewPage extends ConsumerWidget {
           ),
         ),
         data: (list) => list.isEmpty
-            ? const _Empty(
+            ? const LekisEmptyState(
                 icon: Icons.task_alt,
                 title: EnrichStrings.emptyTitle,
-                body: EnrichStrings.emptyBody,
+                message: EnrichStrings.emptyBody,
               )
-            : Align(
-                alignment: Alignment.topCenter,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: featureMaxContentWidth,
-                  ),
-                  child: ListView.builder(
-                    padding: EdgeInsets.all(context.featureGutter),
+            : SettingsScrollView(
+                slivers: [
+                  SliverList.separated(
                     itemCount: list.length,
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(height: LekisSpacing.md),
                     itemBuilder: (_, i) => CandidateCard(
                       key: ValueKey(list[i].id),
                       candidate: list[i],
                     ),
                   ),
-                ),
+                ],
               ),
       ),
     );
@@ -107,59 +99,5 @@ class EnrichReviewPage extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) showFeatureSnack(context, describeCoreError(e));
     }
-  }
-}
-
-class _Empty extends StatelessWidget {
-  const _Empty({
-    required this.icon,
-    required this.title,
-    required this.body,
-    this.action,
-  });
-
-  final IconData icon;
-  final String title;
-  final String body;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = context.lekisColors;
-    return Center(
-      child: SingleChildScrollView(
-        padding: EdgeInsets.all(context.featureGutter),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: featureMaxContentWidth / 2,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: LekisSizes.listArtwork, color: colors.accent),
-              const SizedBox(height: LekisSpacing.lg),
-              Text(
-                title,
-                style: theme.textTheme.titleLarge,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: LekisSpacing.sm),
-              Text(
-                body,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-              if (action != null) ...[
-                const SizedBox(height: LekisSpacing.lg),
-                action!,
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }

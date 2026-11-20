@@ -11,6 +11,8 @@ import '../../rust/api/core.dart' as core;
 import '../../rust/api/dto.dart';
 import '../../rust/api/error.dart';
 import '../../theme/tokens.dart';
+import '../library/widgets/empty_state.dart';
+import '../settings/widgets/settings_widgets.dart';
 import '../sources/common.dart';
 import 'plugin_detail_sheet.dart';
 import 'plugin_format.dart';
@@ -98,9 +100,9 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                LekisSpacing.xl,
                 LekisSpacing.lg,
-                LekisSpacing.xl,
+                LekisSpacing.lg,
+                LekisSpacing.lg,
                 LekisSpacing.sm,
               ),
               child: Column(
@@ -120,17 +122,15 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
                 ],
               ),
             ),
-            ListTile(
-              minTileHeight: LekisSizes.touchTargetMin,
-              leading: const Icon(Icons.folder_open_outlined),
-              title: const Text(PluginStrings.installFolder),
+            SettingsTile(
+              icon: Icons.folder_open_outlined,
+              title: PluginStrings.installFolder,
               onTap: () =>
                   Navigator.of(context).pop(_InstallChoice.folder),
             ),
-            ListTile(
-              minTileHeight: LekisSizes.touchTargetMin,
-              leading: const Icon(Icons.folder_zip_outlined),
-              title: const Text(PluginStrings.installZip),
+            SettingsTile(
+              icon: Icons.folder_zip_outlined,
+              title: PluginStrings.installZip,
               onTap: () => Navigator.of(context).pop(_InstallChoice.zip),
             ),
             const SizedBox(height: LekisSpacing.sm),
@@ -294,77 +294,89 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
   @override
   Widget build(BuildContext context) {
     final plugins = ref.watch(pluginListProvider);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(PluginStrings.title),
-        actions: [
-          IconButton(
-            tooltip: PluginStrings.refresh,
-            onPressed: plugins.isLoading
-                ? null
-                : () => ref.read(pluginListProvider.notifier).reload(),
-            icon: const Icon(Icons.refresh),
-          ),
-          IconButton(
-            tooltip: PluginStrings.pluginDir,
-            onPressed: _showDirectory,
-            icon: const Icon(Icons.folder_outlined),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: LekisSpacing.sm),
-            child: IconButton.filledTonal(
-              tooltip: PluginStrings.install,
-              onPressed: _installing ? null : _chooseInstall,
-              icon: const Icon(Icons.add),
-            ),
-          ),
-        ],
-      ),
+    return SettingsScaffold(
+      title: PluginStrings.title,
+      actions: [
+        IconButton(
+          tooltip: PluginStrings.refresh,
+          onPressed: plugins.isLoading
+              ? null
+              : () => ref.read(pluginListProvider.notifier).reload(),
+          icon: const Icon(Icons.refresh_rounded),
+        ),
+        IconButton(
+          tooltip: PluginStrings.pluginDir,
+          onPressed: _showDirectory,
+          icon: const Icon(Icons.folder_outlined),
+        ),
+        IconButton.filledTonal(
+          tooltip: PluginStrings.install,
+          onPressed: _installing ? null : _chooseInstall,
+          icon: const Icon(Icons.add),
+        ),
+      ],
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (_installing) const LinearProgressIndicator(minHeight: 2),
+          if (_installing)
+            const LinearProgressIndicator(minHeight: LekisSpacing.xxs),
           Expanded(
             child: plugins.when(
               skipLoadingOnReload: true,
-              loading: () =>
-                  const Center(child: CircularProgressIndicator()),
-              error: (error, _) => _ErrorState(
-                message: PluginStrings.loadFailed,
-                detail: describeCoreError(error),
-                onRetry: () =>
-                    ref.read(pluginListProvider.notifier).reload(),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, _) => LekisEmptyState(
+                icon: Icons.error_outline,
+                title: PluginStrings.loadFailed,
+                message: describeCoreError(error),
+                action: FilledButton.tonalIcon(
+                  onPressed: () =>
+                      ref.read(pluginListProvider.notifier).reload(),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text(PluginStrings.retry),
+                ),
               ),
               data: (list) => list.isEmpty
-                  ? _EmptyState(
-                      installing: _installing,
-                      onInstallFolder: _installFolder,
-                      onInstallZip: _installZip,
-                    )
-                  : Align(
-                      alignment: Alignment.topCenter,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          maxWidth: featureMaxContentWidth,
-                        ),
-                        child: ListView.separated(
-                          padding: EdgeInsets.all(context.featureGutter),
-                          itemCount: list.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: LekisSpacing.sm),
-                          itemBuilder: (_, index) {
-                            final plugin = list[index];
-                            return _PluginCard(
-                              plugin: plugin,
-                              busy: _busy.contains(plugin.id),
-                              onToggle: (enabled) =>
-                                  _toggle(plugin, enabled),
-                              onRemove: () => _remove(plugin),
-                              onOpen: () =>
-                                  showPluginDetailSheet(context, plugin),
-                            );
-                          },
-                        ),
+                  ? LekisEmptyState(
+                      icon: Icons.extension_outlined,
+                      title: PluginStrings.emptyTitle,
+                      message: PluginStrings.emptyHint,
+                      action: Wrap(
+                        spacing: LekisSpacing.sm,
+                        runSpacing: LekisSpacing.sm,
+                        alignment: WrapAlignment.center,
+                        children: [
+                          FilledButton.icon(
+                            onPressed: _installing ? null : _installZip,
+                            icon: const Icon(Icons.folder_zip_outlined),
+                            label: const Text(PluginStrings.installZip),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _installing ? null : _installFolder,
+                            icon: const Icon(Icons.folder_open_outlined),
+                            label: const Text(PluginStrings.installFolder),
+                          ),
+                        ],
                       ),
+                    )
+                  : SettingsListView(
+                      children: [
+                        SettingsSection(
+                          title: PluginStrings.manageTitle,
+                          children: [
+                            for (final plugin in list)
+                              _PluginRow(
+                                key: ValueKey(plugin.id),
+                                plugin: plugin,
+                                busy: _busy.contains(plugin.id),
+                                onToggle: (enabled) =>
+                                    _toggle(plugin, enabled),
+                                onRemove: () => _remove(plugin),
+                                onOpen: () =>
+                                    showPluginDetailSheet(context, plugin),
+                              ),
+                          ],
+                        ),
+                      ],
                     ),
             ),
           ),
@@ -374,8 +386,11 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
   }
 }
 
-class _PluginCard extends StatelessWidget {
-  const _PluginCard({
+/// 一个插件占分组里的一行：名称、版本 / 类型、ID、权限或清单错误；
+/// 右侧是启用开关和移除按钮。点整行打开详情与设置。
+class _PluginRow extends StatelessWidget {
+  const _PluginRow({
+    super.key,
     required this.plugin,
     required this.busy,
     required this.onToggle,
@@ -394,119 +409,91 @@ class _PluginCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
     final hasError = plugin.error != null;
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      color: colors.surfaceVariant,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(LekisRadius.lg),
-      ),
-      child: InkWell(
-        onTap: onOpen,
-        child: Padding(
-          padding: const EdgeInsets.all(LekisSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
+    return InkWell(
+      onTap: onOpen,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: LekisSpacing.lg,
+          vertical: LekisSpacing.md,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SettingsLeadingIcon(
+              hasError ? Icons.error_outline : Icons.extension_outlined,
+              color: hasError ? colors.danger : null,
+            ),
+            const SizedBox(width: LekisSpacing.lg),
+            Expanded(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: hasError
-                          ? colors.danger.withValues(alpha: 0.12)
-                          : colors.accentSoft,
-                      borderRadius: BorderRadius.circular(LekisRadius.md),
-                    ),
-                    child: Icon(
-                      hasError
-                          ? Icons.error_outline
-                          : Icons.extension_outlined,
-                      color: hasError ? colors.danger : colors.accent,
-                    ),
-                  ),
-                  const SizedBox(width: LekisSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                plugin.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.titleMedium,
-                              ),
-                            ),
-                            if (hasError) ...[
-                              const SizedBox(width: LekisSpacing.xs),
-                              Text(
-                                PluginStrings.manifestError,
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: colors.danger,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: LekisSpacing.xxs),
-                        Text(
-                          pluginSummaryLine(plugin),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colors.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: LekisSpacing.xxs),
-                        Text(
-                          plugin.id,
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          plugin.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colors.onSurfaceVariant,
+                          style: theme.textTheme.bodyLarge,
+                        ),
+                      ),
+                      if (hasError) ...[
+                        const SizedBox(width: LekisSpacing.xs),
+                        Text(
+                          PluginStrings.manifestError,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: colors.danger,
                           ),
                         ),
                       ],
-                    ),
+                    ],
                   ),
-                  const SizedBox(width: LekisSpacing.sm),
-                  if (busy)
-                    const Padding(
-                      padding: EdgeInsets.all(LekisSpacing.md),
-                      child: SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    )
+                  const SizedBox(height: LekisSpacing.xxs),
+                  Text(
+                    pluginSummaryLine(plugin),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  Text(
+                    plugin.id,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: LekisSpacing.xs),
+                  if (hasError)
+                    _InlineError(message: plugin.error!)
                   else
-                    Switch(
-                      value: plugin.enabled,
-                      onChanged: hasError ? null : onToggle,
+                    Text(
+                      pluginPermissionSummary(plugin.permissions),
+                      style: theme.textTheme.bodySmall,
                     ),
-                  IconButton(
-                    tooltip: PluginStrings.remove,
-                    onPressed: busy ? null : onRemove,
-                    icon: const Icon(Icons.delete_outline),
-                  ),
                 ],
               ),
-              const SizedBox(height: LekisSpacing.sm),
-              if (hasError)
-                _InlineError(message: plugin.error!)
-              else
-                Text(
-                  pluginPermissionSummary(plugin.permissions),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                  ),
+            ),
+            const SizedBox(width: LekisSpacing.sm),
+            if (busy)
+              const Padding(
+                padding: EdgeInsets.all(LekisSpacing.md),
+                child: SizedBox.square(
+                  dimension: LekisSpacing.lg,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
-            ],
-          ),
+              )
+            else
+              Switch(
+                value: plugin.enabled,
+                onChanged: hasError ? null : onToggle,
+              ),
+            settingsAlignTrailing(
+              IconButton(
+                tooltip: PluginStrings.remove,
+                onPressed: busy ? null : onRemove,
+                color: colors.onSurfaceVariant,
+                icon: const Icon(Icons.delete_outline_rounded),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -523,6 +510,7 @@ class _InlineError extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(LekisSpacing.sm),
       decoration: BoxDecoration(
         color: colors.danger.withValues(alpha: 0.08),
@@ -533,120 +521,6 @@ class _InlineError extends StatelessWidget {
         maxLines: 4,
         overflow: TextOverflow.ellipsis,
         style: theme.textTheme.bodySmall?.copyWith(color: colors.danger),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({
-    required this.installing,
-    required this.onInstallFolder,
-    required this.onInstallZip,
-  });
-
-  final bool installing;
-  final VoidCallback onInstallFolder;
-  final VoidCallback onInstallZip;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = context.lekisColors;
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: featureMaxContentWidth),
-        child: ListView(
-          padding: EdgeInsets.all(context.featureGutter),
-          children: [
-            const SizedBox(height: LekisSpacing.xxl),
-            Icon(
-              Icons.extension_outlined,
-              size: 56,
-              color: colors.onSurfaceVariant,
-            ),
-            const SizedBox(height: LekisSpacing.md),
-            Text(
-              PluginStrings.emptyTitle,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleLarge,
-            ),
-            const SizedBox(height: LekisSpacing.sm),
-            Text(
-              PluginStrings.emptyHint,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: LekisSpacing.xl),
-            Center(
-              child: Wrap(
-                spacing: LekisSpacing.sm,
-                runSpacing: LekisSpacing.sm,
-                alignment: WrapAlignment.center,
-                children: [
-                  FilledButton.icon(
-                    onPressed: installing ? null : onInstallZip,
-                    icon: const Icon(Icons.folder_zip_outlined),
-                    label: const Text(PluginStrings.installZip),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: installing ? null : onInstallFolder,
-                    icon: const Icon(Icons.folder_open_outlined),
-                    label: const Text(PluginStrings.installFolder),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({
-    required this.message,
-    required this.detail,
-    required this.onRetry,
-  });
-
-  final String message;
-  final String detail;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = context.lekisColors;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(LekisSpacing.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 48, color: colors.danger),
-            const SizedBox(height: LekisSpacing.md),
-            Text(message, style: theme.textTheme.titleMedium),
-            const SizedBox(height: LekisSpacing.xs),
-            Text(
-              detail,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: LekisSpacing.md),
-            FilledButton.tonalIcon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text(PluginStrings.retry),
-            ),
-          ],
-        ),
       ),
     );
   }
