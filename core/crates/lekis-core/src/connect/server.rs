@@ -223,9 +223,28 @@ async fn session(
         name,
         platform,
     };
-    let authenticated = match &key {
-        Some(key) => authenticate(&peer, key, &mut incoming, out).await?,
-        None => pair(s, &peer, &mut incoming, out).await?,
+    // Dispatch on what the controller actually sends, not only on whether a
+    // key is stored here: if the controller lost its key (reinstall, cleared
+    // data) while this side kept one, it starts pairing again. Re-pairing
+    // still needs the code shown on this screen, and replaces the old key.
+    let authenticated = match expect(&mut incoming, HANDSHAKE_TIMEOUT).await? {
+        Msg::Auth { mac } => match &key {
+            Some(key) => authenticate(&peer, key, &mac, out).await,
+            None => {
+                deny(out, DenyReason::Protocol).await;
+                false
+            }
+        },
+        Msg::PairStart { public_key } => {
+            if key.is_some() {
+                tracing::info!(target: "connect", peer = %peer.device_id, "controller lost its key; pairing again");
+            }
+            pair(s, &peer, public_key, &mut incoming, out).await?
+        }
+        _ => {
+            deny(out, DenyReason::Protocol).await;
+            false
+        }
     };
     if !authenticated {
         return Ok(());
@@ -238,26 +257,17 @@ async fn session(
     result
 }
 
-/// 已经配对过：校验控制端的 `Auth`，回 `AuthOk`。
-async fn authenticate(
-    peer: &Peer,
-    key: &[u8],
-    incoming: &mut mpsc::Receiver<Result<Msg>>,
-    out: &mpsc::Sender<Msg>,
-) -> Result<bool> {
-    let Msg::Auth { mac } = expect(incoming, HANDSHAKE_TIMEOUT).await? else {
-        deny(out, DenyReason::Protocol).await;
-        return Ok(false);
-    };
-    if !crypto::mac_eq(&crypto::auth_mac(key, "c", &peer.transcript), &mac) {
+/// 已经配对过：校验控制端 `Auth` 里的 [mac]，回 `AuthOk`。
+async fn authenticate(peer: &Peer, key: &[u8], mac: &str, out: &mpsc::Sender<Msg>) -> bool {
+    if !crypto::mac_eq(&crypto::auth_mac(key, "c", &peer.transcript), mac) {
         tracing::info!(target: "connect", peer = %peer.device_id, "control authentication failed");
         deny(out, DenyReason::AuthFailed).await;
-        return Ok(false);
+        return false;
     }
     let reply = Msg::AuthOk {
         mac: crypto::auth_mac(key, "s", &peer.transcript),
     };
-    Ok(out.send(reply).await.is_ok())
+    out.send(reply).await.is_ok()
 }
 
 /// 配对进行中（被控端这一半）的临时材料。
@@ -276,6 +286,7 @@ struct Pairing {
 async fn pair(
     s: &Services,
     peer: &Peer,
+    public_key: String,
     incoming: &mut mpsc::Receiver<Result<Msg>>,
     out: &mpsc::Sender<Msg>,
 ) -> Result<bool> {
@@ -283,10 +294,6 @@ async fn pair(
         deny(out, DenyReason::RateLimited).await;
         return Ok(false);
     }
-    let Msg::PairStart { public_key } = expect(incoming, HANDSHAKE_TIMEOUT).await? else {
-        deny(out, DenyReason::Protocol).await;
-        return Ok(false);
-    };
     let eph = Ephemeral::generate()?;
     let server_public = eph.public_hex.clone();
     let code = crypto::pairing_code()?;
@@ -699,6 +706,68 @@ mod tests {
                 .expect("device")
                 .paired
         );
+
+        rt.block_on(client.connect_stop()).expect("stop client");
+        rt.block_on(server.connect_stop()).expect("stop server");
+    }
+
+    /// 控制端丢了密钥（重装 / 清数据 / 在控制端上"忘记"），被控端还记着：
+    /// 控制端重新发起配对必须能成功（仍然要输入新的配对码），而不是被当成
+    /// 协议错误拒掉——真机上 Fold5 → Windows 就卡在这里。
+    #[test]
+    fn controller_that_lost_its_key_can_pair_again() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let server = core("server-repair");
+        let client = core("client-repair");
+        let events = Arc::new(Events(Mutex::new(Vec::new())));
+        server.add_connect_listener(events.clone());
+        let opts = || ConnectStartOptions {
+            port: Some(0),
+            mdns: false,
+        };
+        let port = rt.block_on(server.connect_start(opts())).expect("listen");
+        rt.block_on(client.connect_start(opts())).expect("client listen");
+        let device_id = rt
+            .block_on(client.connect_add_device("127.0.0.1".into(), port))
+            .expect("probe")
+            .device_id;
+
+        let pair_once = |events: &Events| {
+            if let Ok(mut list) = events.0.lock() {
+                list.clear();
+            }
+            let start = rt
+                .block_on(client.connect_pair(device_id.clone()))
+                .expect("pair start");
+            assert_eq!(start, PairStart::NeedsCode);
+            let code = wait_for_code(events, Duration::from_secs(5)).expect("pairing code");
+            rt.block_on(client.connect_pair_confirm(device_id.clone(), code))
+                .expect("pair confirm");
+        };
+        pair_once(&events);
+
+        // Only the controller forgets; the server still holds its key.
+        rt.block_on(client.connect_forget(device_id.clone()))
+            .expect("forget");
+        assert!(
+            !device_named(&client.connect_devices(), &device_id)
+                .expect("device")
+                .paired
+        );
+
+        // Pairing again shows a new code and succeeds.
+        pair_once(&events);
+        rt.block_on(client.connect_remote_state(device_id.clone()))
+            .expect("controls after re-pairing");
+
+        // And the fresh key is the one that authenticates from now on.
+        rt.block_on(client.connect_disconnect(device_id.clone()))
+            .expect("disconnect");
+        rt.block_on(client.connect_remote_state(device_id.clone()))
+            .expect("reconnect with the new key");
 
         rt.block_on(client.connect_stop()).expect("stop client");
         rt.block_on(server.connect_stop()).expect("stop server");

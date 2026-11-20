@@ -364,7 +364,13 @@ async fn load_settings(s: &Services) -> ConnectSettings {
         .await
         .ok()
         .flatten()
-        .filter(|n| !n.trim().is_empty())
+        // Early Android builds saved the hostname "localhost" (what Android
+        // reports for every app) as the name; treat that as never set so the
+        // platform's better default shows up instead.
+        .filter(|n| {
+            let n = n.trim();
+            !n.is_empty() && !n.eq_ignore_ascii_case("localhost")
+        })
         .unwrap_or_else(|| s.config.device_name.clone());
     let allow = s
         .library
