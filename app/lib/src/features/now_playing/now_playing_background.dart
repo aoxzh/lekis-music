@@ -6,6 +6,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
+import 'package:lekis/src/features/now_playing/now_playing_route.dart';
 import 'package:lekis/src/features/now_playing/now_playing_tint.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/rust/api/dto.dart';
@@ -43,7 +44,8 @@ const double _blurSource = 64;
 ///    [LekisNowPlaying.gradientOpacity];
 /// 3. a top-bar protection gradient only – the reference `modern` style has
 ///    `backgroundProtection = 0`, so the cover is not dimmed globally;
-/// 4. a faint static grain against banding in the soft gradients.
+/// 4. a faint static grain against banding in the soft gradients (plain
+///    source-over, see [_GrainState._make]).
 ///
 /// [lowPower] (reduce-motion / battery saver) freezes the gradient at its
 /// first frame and drops the cross-fade, so nothing is redrawn per frame.
@@ -64,20 +66,30 @@ class _NowPlayingBackgroundState extends ConsumerState<NowPlayingBackground>
     duration: LekisNowPlaying.gradientCycle,
   );
 
+  /// False while the Now Playing route is still opening / closing.
+  bool _settled = true;
+
+  /// The gradient drifts only when it can be seen at rest: not in
+  /// low-power mode and not while the page flies in or out.
+  void _syncCycle() {
+    if (widget.lowPower || !_settled) {
+      _cycle.stop();
+    } else if (!_cycle.isAnimating) {
+      _cycle.repeat();
+    }
+  }
+
   @override
-  void initState() {
-    super.initState();
-    if (!widget.lowPower) _cycle.repeat();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _settled = NowPlayingMotion.settledOf(context);
+    _syncCycle();
   }
 
   @override
   void didUpdateWidget(covariant NowPlayingBackground old) {
     super.didUpdateWidget(old);
-    if (widget.lowPower) {
-      _cycle.stop();
-    } else if (!_cycle.isAnimating) {
-      _cycle.repeat();
-    }
+    _syncCycle();
   }
 
   @override
@@ -175,7 +187,9 @@ class _NowPlayingBackgroundState extends ConsumerState<NowPlayingBackground>
                 ),
               ),
             ),
-          const RepaintBoundary(child: _Grain()),
+          // Grain fades in only at rest: a full-window textured draw per
+          // frame is noticeable on Windows while the page is flying.
+          if (_settled) const RepaintBoundary(child: _Grain()),
         ],
       ),
     );
@@ -222,7 +236,8 @@ class _BlurredArtwork extends StatelessWidget {
   }
 }
 
-/// Static film grain blended with overlay (keeps average brightness).
+/// Static film grain: light and dark specks drawn source-over (keeps
+/// average brightness, no framebuffer read-back).
 class _Grain extends StatefulWidget {
   const _Grain();
 
@@ -239,12 +254,22 @@ class _GrainState extends State<_Grain> {
     const n = 128;
     final rnd = math.Random(7);
     final px = Uint8List(n * n * 4);
+    // Baked for plain source-over: each pixel is white (lighten) or black
+    // (darken) with an alpha of twice its distance from mid-grey. Drawn at
+    // [LekisNowPlaying.noiseOpacity] this nudges mid-tones by the same
+    // ±3 % the old overlay-blended grey grain did, but without overlay: that
+    // is an advanced blend that reads the framebuffer back, and over the
+    // whole window it cost ~18 ms of raster per frame on Windows.
     for (var i = 0; i < n * n; i++) {
-      final v = 64 + rnd.nextInt(128);
-      px[i * 4] = v;
-      px[i * 4 + 1] = v;
-      px[i * 4 + 2] = v;
-      px[i * 4 + 3] = 255;
+      final d = rnd.nextInt(128) - 64; // same spread as the old 64..191 grey
+      final c = d >= 0 ? 255 : 0;
+      final a = (d.abs() * 2 * 255 / 128).round().clamp(0, 255);
+      // Premultiplied: colour channels scaled by alpha.
+      final pc = (c * a / 255).round();
+      px[i * 4] = pc;
+      px[i * 4 + 1] = pc;
+      px[i * 4 + 2] = pc;
+      px[i * 4 + 3] = a;
     }
     final done = Completer<ui.Image>();
     ui.decodeImageFromPixels(px, n, n, ui.PixelFormat.rgba8888, done.complete);
@@ -287,8 +312,7 @@ class _GrainPainter extends CustomPainter {
           Matrix4.identity().storage,
         )
         ..color = const Color(0xFFFFFFFF)
-            .withValues(alpha: LekisNowPlaying.noiseOpacity)
-        ..blendMode = BlendMode.overlay,
+            .withValues(alpha: LekisNowPlaying.noiseOpacity),
     );
   }
 

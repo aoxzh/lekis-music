@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'dev/perf_probe.dart';
 import 'features/player/playback_session.dart';
 import 'features/player/widgets/player_controls.dart';
 import 'shell/app_shell.dart';
@@ -30,7 +31,7 @@ class LekisApp extends ConsumerWidget {
       themeAnimationDuration: LekisMotion.normal,
       scrollBehavior: const _LekisScrollBehavior(),
       // 空格播放/暂停、媒体键等快捷键在整个应用里生效。
-      home: const PlayerShortcuts(child: AppShell()),
+      home: const PerfProbe(child: PlayerShortcuts(child: AppShell())),
     );
   }
 }

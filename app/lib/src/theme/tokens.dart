@@ -525,7 +525,7 @@ abstract final class LekisNowPlaying {
   /// Opacity of the palette gradient drifting over the blurred artwork.
   static const double gradientOpacity = 0.55;
 
-  /// Opacity of the overlay-blended grain laid over the soft gradients
+  /// Opacity of the source-over grain laid over the soft gradients
   /// (stops banding on large smooth areas).
   static const double noiseOpacity = 0.12;
 

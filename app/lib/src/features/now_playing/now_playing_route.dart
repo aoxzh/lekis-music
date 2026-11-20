@@ -219,7 +219,9 @@ class _ContainerTransform extends AnimatedWidget {
     final size = MediaQuery.sizeOf(context);
     final colors = context.lekisColors;
     final t = _t.value.clamp(0.0, 1.0);
-    final settled = t >= 1;
+    // The spring stops within its tolerance (value can end at 0.999), so
+    // "settled" follows the route's status, not the exact value.
+    final settled = t >= 1 || _t.status == AnimationStatus.completed;
 
     final resolved = NowPlayingOrigin.resolve();
     final face = resolved?.$2;
@@ -231,64 +233,94 @@ class _ContainerTransform extends AnimatedWidget {
           size.width - LekisSizes.miniPlayerMargin * 2,
           LekisSizes.miniPlayerHeight,
         );
-    final bounds = Rect.lerp(origin, Offset.zero & size, t)!;
-    final radius = lerpDouble(LekisRadius.miniPlayer, 0, t)!;
+    final bounds = settled
+        ? Offset.zero & size
+        : Rect.lerp(origin, Offset.zero & size, t)!;
+    final radius = settled ? 0.0 : lerpDouble(LekisRadius.miniPlayer, 0, t)!;
     // The page fades in over the first part; the origin face fades out
     // faster, so the two never read as stacked.
     final pageOpacity = const Interval(0.05, 0.5).transform(t);
     final faceOpacity = 1 - const Interval(0, 0.3).transform(t);
 
-    return Stack(
-      children: [
-        // Dims what is underneath as the page takes over.
-        Positioned.fill(
-          child: IgnorePointer(
-            child: ColoredBox(
-              color: colors.scrim.withValues(alpha: colors.scrim.a * t),
+    return NowPlayingMotion(
+      settled: settled,
+      child: Stack(
+        children: [
+          // Dims what is underneath as the page takes over.
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ColoredBox(
+                color: colors.scrim.withValues(alpha: colors.scrim.a * t),
+              ),
             ),
           ),
-        ),
-        Positioned.fromRect(
-          rect: bounds,
-          child: ClipRRect(
-            clipBehavior: settled ? Clip.none : Clip.antiAlias,
-            borderRadius: BorderRadius.circular(radius),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                // Kept in the tree when settled so the page never moves.
-                ColoredBox(
-                  color: settled
-                      ? const Color(0x00000000)
-                      : colors.surfaceElevated,
-                ),
-                OverflowBox(
-                  alignment: Alignment.topCenter,
-                  minWidth: size.width,
-                  maxWidth: size.width,
-                  minHeight: size.height,
-                  maxHeight: size.height,
-                  child: Opacity(opacity: pageOpacity, child: child),
-                ),
-                if (face != null && faceOpacity > 0)
-                  Align(
+          Positioned.fromRect(
+            rect: bounds,
+            child: ClipRRect(
+              clipBehavior: settled ? Clip.none : Clip.antiAlias,
+              borderRadius: BorderRadius.circular(radius),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Kept in the tree when settled so the page never moves.
+                  ColoredBox(
+                    color: settled
+                        ? const Color(0x00000000)
+                        : colors.surfaceElevated,
+                  ),
+                  OverflowBox(
                     alignment: Alignment.topCenter,
-                    child: SizedBox(
-                      width: origin.width,
-                      height: origin.height,
-                      child: IgnorePointer(
-                        child: Opacity(
-                          opacity: faceOpacity,
-                          child: face(context),
+                    minWidth: size.width,
+                    maxWidth: size.width,
+                    minHeight: size.height,
+                    maxHeight: size.height,
+                    child: Opacity(opacity: pageOpacity, child: child),
+                  ),
+                  if (face != null && faceOpacity > 0)
+                    Align(
+                      alignment: Alignment.topCenter,
+                      child: SizedBox(
+                        width: origin.width,
+                        height: origin.height,
+                        child: IgnorePointer(
+                          child: Opacity(
+                            opacity: faceOpacity,
+                            child: face(context),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
+}
+
+/// Whether Now Playing is at rest (fully open) or still flying in / out.
+///
+/// While the container transform runs, the page is redrawn every frame
+/// inside an opacity layer and a clip, on top of the shell. Costly
+/// decoration nobody can see mid-flight (the drifting gradient, the grain,
+/// per-line lyric blur) checks [settledOf] and waits until the page has
+/// settled. Outside a [NowPlayingRoute] (the desktop side panel) it is
+/// always settled.
+class NowPlayingMotion extends InheritedWidget {
+  const NowPlayingMotion({
+    super.key,
+    required this.settled,
+    required super.child,
+  });
+
+  final bool settled;
+
+  static bool settledOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<NowPlayingMotion>()?.settled ??
+      true;
+
+  @override
+  bool updateShouldNotify(NowPlayingMotion old) => old.settled != settled;
 }

@@ -21,6 +21,7 @@ import 'package:flutter/physics.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
+import 'package:lekis/src/features/now_playing/now_playing_route.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
@@ -236,7 +237,12 @@ class _ClassicLyricsState extends ConsumerState<ClassicLyrics>
     }
 
     final actions = ref.read(playerActionsProvider);
-    final blurOn = !widget.lowPower && !_userScrolling;
+    // No depth blur while Now Playing is still flying in / out: every
+    // blurred line is an offscreen layer re-rendered each frame.
+    final blurOn =
+        !widget.lowPower &&
+        !_userScrolling &&
+        NowPlayingMotion.settledOf(context);
 
     return LayoutBuilder(
       builder: (context, constraints) {
