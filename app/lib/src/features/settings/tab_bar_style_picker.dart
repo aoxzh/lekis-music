@@ -91,9 +91,7 @@ class _StyleChoice extends StatelessWidget {
               ? colors.accentSoft.withValues(alpha: 0.55)
               : scheme.surface,
           borderRadius: radius,
-          border: Border.all(
-            color: selected ? colors.accent : colors.outline,
-          ),
+          border: Border.all(color: selected ? colors.accent : colors.outline),
         ),
         child: Material(
           type: MaterialType.transparency,

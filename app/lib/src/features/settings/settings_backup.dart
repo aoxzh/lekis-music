@@ -70,10 +70,7 @@ class SettingsBackupSection extends ConsumerWidget {
       builder: (context) => AlertDialog(
         title: const Text('设置已复制'),
         content: SingleChildScrollView(
-          child: SelectableText(
-            text,
-            style: _monospace(context),
-          ),
+          child: SelectableText(text, style: _monospace(context)),
         ),
         actions: [
           TextButton(
@@ -142,14 +139,12 @@ class SettingsBackupSection extends ConsumerWidget {
             .set(TabBarStyle.fromStorage(tab));
       }
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已导入 $applied 项设置')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('已导入 $applied 项设置')));
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('导入失败：$e')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('导入失败：$e')));
     }
   }
 }

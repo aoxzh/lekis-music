@@ -63,7 +63,12 @@ void main() {
     final gutter = pageGutterOf(context);
     expect(tester.getTopLeft(find.text('设置')).dx, gutter);
     // 分组左边缘与标题对齐，小节标题也在同一条线上。
-    expect(tester.getTopLeft(find.byType(SettingsGroup)).dx, gutter);
+    // Flat rows bleed by their own inset so the row content lands on the
+    // gutter while the ripple spans the row.
+    expect(
+      tester.getTopLeft(find.byType(SettingsGroup)).dx,
+      gutter - settingsRowInset,
+    );
     expect(tester.getTopLeft(find.text('播放')).dx, gutter);
     expect(
       tester.getSize(find.byKey(_rowKey)).height,
@@ -104,8 +109,8 @@ void main() {
     final context = tester.element(find.byType(SettingsListView));
     final gutter = pageGutterOf(context);
     final group = tester.getRect(find.byType(SettingsGroup));
-    expect(group.left, gutter);
-    expect(group.width, featureMaxContentWidth);
+    expect(group.left, gutter - settingsRowInset);
+    expect(group.width, featureMaxContentWidth + settingsRowInset * 2);
   });
 
   testWidgets('switch rows toggle from anywhere on the row', (tester) async {

@@ -14,6 +14,9 @@ import '../../sources/common.dart';
 /// 行首图标占的宽度（也是图标尺寸）。
 const double _iconSlot = LekisSpacing.xl;
 
+/// 行自身的左右内边距（水波纹铺满整行，内容仍落在页边距上）。
+const double settingsRowInset = LekisSpacing.lg;
+
 /// 行内文字相对分组左边缘的起点；分隔线从这里开始。
 const double settingsTextInset = LekisSpacing.lg + _iconSlot + LekisSpacing.lg;
 
@@ -21,9 +24,8 @@ const double settingsTextInset = LekisSpacing.lg + _iconSlot + LekisSpacing.lg;
 BoxDecoration settingsPanelDecoration(BuildContext context) {
   final colors = context.lekisColors;
   return BoxDecoration(
-    color: colors.surfaceElevated,
-    borderRadius: BorderRadius.circular(LekisRadius.lg),
-    border: Border.all(color: colors.outline),
+    color: colors.surfaceVariant.withValues(alpha: 0.5),
+    borderRadius: BorderRadius.circular(LekisRadius.md),
   );
 }
 
@@ -52,9 +54,7 @@ class SettingsPageHeader extends StatelessWidget {
         LekisSpacing.md,
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          minHeight: LekisSizes.touchTargetMin,
-        ),
+        constraints: const BoxConstraints(minHeight: LekisSizes.touchTargetMin),
         child: Row(
           children: [
             if (canPop) ...[
@@ -113,8 +113,17 @@ class SettingsScaffold extends StatelessWidget {
 /// 设置内容的左右边距：页面边距；宽窗口里限制内容宽度并靠左对齐在标题下方。
 /// 底部留出迷你播放器 / 浮动标签栏的空间。
 EdgeInsets settingsContentPadding(BuildContext context, double maxWidth) {
-  final gutter = pageGutterOf(context);
-  final right = math.max(gutter, maxWidth - gutter - featureMaxContentWidth);
+  // Rows are flat (no card) and carry their own 16dp inner padding so the
+  // ripple spans the row; pull the list out by that much so icons, section
+  // headers and the page title all start on the page gutter.
+  final gutter = pageGutterOf(context) - settingsRowInset;
+  final right = math.max(
+    gutter,
+    maxWidth -
+        pageGutterOf(context) -
+        featureMaxContentWidth -
+        settingsRowInset,
+  );
   return EdgeInsets.fromLTRB(
     gutter,
     LekisSpacing.sm,
@@ -170,13 +179,24 @@ class SettingsSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: LekisSpacing.sm),
+    padding: const EdgeInsets.fromLTRB(
+      settingsRowInset,
+      LekisSpacing.sm,
+      settingsRowInset,
+      LekisSpacing.xs,
+    ),
     child: Row(
       children: [
         Expanded(
           child: Semantics(
             header: true,
-            child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: context.lekisColors.onSurfaceVariant,
+                letterSpacing: 0.4,
+              ),
+            ),
           ),
         ),
         ?trailing,
@@ -185,7 +205,7 @@ class SettingsSectionHeader extends StatelessWidget {
   );
 }
 
-/// 一组可能很长的行（sliver）：小标题 + 圆角面板，按需构建。
+/// 一组可能很长的行（sliver）：小标题 + 平铺的行，按需构建。
 ///
 /// 面板里每行自带透明 Material，水波纹画在面板之上。
 class SettingsSliverSection extends StatelessWidget {
@@ -206,24 +226,20 @@ class SettingsSliverSection extends StatelessWidget {
   Widget build(BuildContext context) => SliverMainAxisGroup(
     slivers: [
       SliverToBoxAdapter(child: SettingsSectionHeader(title)),
-      DecoratedSliver(
-        decoration: settingsPanelDecoration(context),
-        sliver: SliverList.separated(
-          itemCount: itemCount,
-          itemBuilder: (context, i) => Material(
-            type: MaterialType.transparency,
-            child: itemBuilder(context, i),
-          ),
-          separatorBuilder: (_, _) =>
-              Divider(height: 1, indent: dividerIndent),
+      SliverList.separated(
+        itemCount: itemCount,
+        itemBuilder: (context, i) => Material(
+          type: MaterialType.transparency,
+          child: itemBuilder(context, i),
         ),
+        separatorBuilder: (_, _) => Divider(height: 1, indent: dividerIndent),
       ),
       const SliverToBoxAdapter(child: SizedBox(height: LekisSpacing.xl)),
     ],
   );
 }
 
-/// 一组设置：小标题 + 圆角分组面板。
+/// 一组设置：小标题 + 平铺的行。
 class SettingsSection extends StatelessWidget {
   const SettingsSection({
     super.key,
@@ -249,7 +265,7 @@ class SettingsSection extends StatelessWidget {
   );
 }
 
-/// 圆角分组面板，行与行之间是从文字起点开始的 1px 分隔线。
+/// 平铺的一组行，行与行之间是从文字起点开始的 1px 分隔线。
 class SettingsGroup extends StatelessWidget {
   const SettingsGroup({
     super.key,
@@ -264,14 +280,10 @@ class SettingsGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.lekisColors;
+    // Flat rows on the page background, hairline dividers between them —
+    // no card, so Settings reads like the rest of the app's lists.
     return Material(
-      color: colors.surfaceElevated,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(LekisRadius.lg),
-        side: BorderSide(color: colors.outline),
-      ),
+      type: MaterialType.transparency,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -351,9 +363,7 @@ class SettingsTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          minHeight: LekisSizes.touchTargetMin,
-        ),
+        constraints: const BoxConstraints(minHeight: LekisSizes.touchTargetMin),
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: LekisSpacing.lg,

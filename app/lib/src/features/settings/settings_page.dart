@@ -757,9 +757,7 @@ class _AboutSection extends ConsumerWidget {
           subtitle: const Text(SettingsStrings.diagnosticLogsHint),
           chevron: true,
           onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => const DiagnosticLogsPage(),
-            ),
+            MaterialPageRoute<void>(builder: (_) => const DiagnosticLogsPage()),
           ),
         ),
       ],

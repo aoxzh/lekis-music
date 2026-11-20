@@ -43,9 +43,8 @@ class _DiagnosticLogsPageState extends State<DiagnosticLogsPage> {
   Future<void> _copy() async {
     await Clipboard.setData(ClipboardData(text: _lines.join('\n')));
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('日志已复制')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('日志已复制')));
   }
 
   @override
@@ -75,9 +74,8 @@ class _DiagnosticLogsPageState extends State<DiagnosticLogsPage> {
           ? Center(
               child: Text(
                 '暂无日志',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: context.lekisColors.onSurfaceVariant,
-                ),
+                style: Theme.of(context).textTheme.bodyMedium
+                    ?.copyWith(color: context.lekisColors.onSurfaceVariant),
               ),
             )
           : _LogPanel(lines: _lines),
