@@ -18,6 +18,7 @@ class SourceDraft {
     this.username = '',
     this.secret = '',
     this.guest = false,
+    this.alternateAddresses = const [],
   });
 
   /// 从一条局域网发现结果建一个预填草稿。
@@ -64,6 +65,7 @@ class SourceDraft {
           path: segments.skip(1).join('/'),
           username: user,
           guest: user.isEmpty,
+          alternateAddresses: config.addresses.skip(1).toList(growable: false),
         );
       case SourceKindDto.webDav ||
           SourceKindDto.openSubsonic ||
@@ -77,9 +79,15 @@ class SourceDraft {
           name: config.name,
           url: displayAddress(address),
           username: user,
+          alternateAddresses: config.addresses.skip(1).toList(growable: false),
         );
       default:
-        return SourceDraft(kind: config.kind, name: config.name, url: address);
+        return SourceDraft(
+          kind: config.kind,
+          name: config.name,
+          url: address,
+          alternateAddresses: config.addresses.skip(1).toList(growable: false),
+        );
     }
   }
 
@@ -105,6 +113,12 @@ class SourceDraft {
 
   /// SMB 访客模式（不需要账号）。
   bool guest;
+
+  /// 备用地址（家里 NAS / Tailscale / 外网）。按顺序尝试，失败自动切下一个。
+  final List<String> alternateAddresses;
+
+  /// 本地文件夹只有一个路径，其他音源可以配置备用地址。
+  bool get supportsAlternateAddresses => kind != SourceKindDto.local;
 
   /// 这个源需不需要凭据。WebDAV 允许匿名，所以用户名是开关。
   bool get usesCredential => switch (kind) {
@@ -147,16 +161,37 @@ class SourceDraft {
         address = url.trim();
     }
     final ref = (credentialRef ?? '').trim();
+    final addresses = <String>[address];
+    for (final raw in alternateAddresses) {
+      final extra = _normalizeAlternate(raw);
+      if (extra.isNotEmpty && extra != address && !addresses.contains(extra)) {
+        addresses.add(extra);
+      }
+    }
     return SourceConfigDto(
       id: id,
       kind: kind,
       name: name.trim().isEmpty ? defaultName() : name.trim(),
-      addresses: [address],
+      addresses: addresses,
       rootPath: '',
       credentialRef: ref.isEmpty ? null : ref,
       options: options,
       enabled: true,
     );
+  }
+
+  String _normalizeAlternate(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return value;
+    return switch (kind) {
+      SourceKindDto.webDav ||
+      SourceKindDto.openSubsonic ||
+      SourceKindDto.jellyfin ||
+      SourceKindDto.emby ||
+      SourceKindDto.plex => normalizeHttpUrl(value),
+      SourceKindDto.smb => value.contains('://') ? value : 'smb://$value',
+      _ => value,
+    };
   }
 
   /// 用户没填名称时的默认名：文件夹名 / 共享名 / 主机名。

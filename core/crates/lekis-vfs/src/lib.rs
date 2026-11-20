@@ -9,6 +9,7 @@
 //! - 写入只用于 `.lekis/` 目录（共享索引、同步日志），并且要能在只读共享上降级
 //!   （[`VfsCapabilities::writable`]）。
 
+pub mod failover;
 pub mod local;
 pub mod nfs;
 pub mod partial;
@@ -102,13 +103,35 @@ pub trait Vfs: Send + Sync {
 /// （UI 推荐这样做：地址里不放任何凭据，密码按 `credential_ref` 存进钥匙串）。
 /// 地址里已经带用户名时以地址为准。
 pub fn open(config: &SourceConfig, password: Option<String>) -> Result<Arc<dyn Vfs>> {
-    let raw = config
-        .addresses
-        .first()
-        .ok_or_else(|| LekisError::invalid("source has no address"))?;
-    let address = with_username(raw, config.options.get("username").map(String::as_str));
-    let address = address.as_str();
-    let vfs: Arc<dyn Vfs> = match config.kind {
+    if config.addresses.is_empty() {
+        return Err(LekisError::invalid("source has no address"));
+    }
+    let mut backends: Vec<Arc<dyn Vfs>> = Vec::new();
+    let mut last_error = None;
+    for raw in &config.addresses {
+        let address = with_username(raw, config.options.get("username").map(String::as_str));
+        match build_backend(config.kind, &address, password.clone()) {
+            Ok(vfs) => backends.push(vfs),
+            Err(e) => last_error = Some(e),
+        }
+    }
+    if backends.is_empty() {
+        return Err(
+            last_error.unwrap_or_else(|| LekisError::invalid("source has no usable address"))
+        );
+    }
+    if backends.len() == 1 {
+        return Ok(backends.remove(0));
+    }
+    Ok(Arc::new(failover::FailoverVfs::new(backends)?))
+}
+
+fn build_backend(
+    kind: SourceKind,
+    address: &str,
+    password: Option<String>,
+) -> Result<Arc<dyn Vfs>> {
+    let vfs: Arc<dyn Vfs> = match kind {
         SourceKind::Local => Arc::new(local::LocalVfs::new(address)?),
         SourceKind::Smb => Arc::new(smb::SmbVfs::connect(address, password)?),
         SourceKind::WebDav => Arc::new(webdav::WebDavVfs::new(address, password)?),
@@ -165,7 +188,10 @@ mod open_tests {
             "https://a%20b@nas:5006/dav"
         );
         assert_eq!(with_username("smb://nas/music", None), "smb://nas/music");
-        assert_eq!(with_username("smb://nas/music", Some("  ")), "smb://nas/music");
+        assert_eq!(
+            with_username("smb://nas/music", Some("  ")),
+            "smb://nas/music"
+        );
         assert_eq!(with_username("C:\\Music", Some("ao")), "C:\\Music");
     }
 }
