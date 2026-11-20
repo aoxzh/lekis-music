@@ -14,6 +14,7 @@ import 'package:lekis/src/features/playlists/playlists_view.dart';
 import 'package:lekis/src/layout/adaptive_two_pane.dart';
 import 'package:lekis/src/layout/fold.dart';
 import 'package:lekis/src/rust/api/dto.dart';
+import 'package:lekis/src/shell/routes.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -104,6 +105,12 @@ class LibraryPage extends ConsumerWidget {
               ),
               if (segment == LibrarySegment.albums)
                 const _SortMenu(target: _SortTarget.albums),
+              if (segment == LibrarySegment.albums)
+                IconButton(
+                  tooltip: '封面流',
+                  onPressed: () => openCoverFlow(context),
+                  icon: const Icon(Icons.view_carousel_rounded),
+                ),
               if (segment == LibrarySegment.songs)
                 const _SortMenu(target: _SortTarget.songs),
             ],
@@ -177,8 +184,7 @@ class _AlbumsSegment extends ConsumerWidget {
           ? null
           : selected != null
           ? _ClosablePane(
-              onClose: () =>
-                  ref.read(selectedAlbumProvider.notifier).set(null),
+              onClose: () => ref.read(selectedAlbumProvider.notifier).set(null),
               child: AlbumDetailView(
                 key: ValueKey(selected),
                 albumId: selected,

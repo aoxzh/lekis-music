@@ -7,6 +7,7 @@ import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 class _AddResult {
@@ -28,15 +29,11 @@ Future<void> showAddToPlaylistSheet(
   String? trackTitle,
 }) async {
   final messenger = ScaffoldMessenger.of(context);
-  final result = await showModalBottomSheet<_AddResult>(
-    context: context,
-    showDragHandle: true,
-    isScrollControlled: true,
-    useSafeArea: true,
-    builder: (_) => FractionallySizedBox(
-      heightFactor: 0.72,
-      child: AddToPlaylistSheet(trackId: trackId, trackTitle: trackTitle),
-    ),
+  final result = await showLekisSheet<_AddResult>(
+    context,
+    heightFactor: 0.72,
+    builder: (_) =>
+        AddToPlaylistSheet(trackId: trackId, trackTitle: trackTitle),
   );
   if (result == null) return;
   messenger
@@ -195,16 +192,11 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
                   LekisSpacing.xl,
                   LekisSpacing.sm,
                 ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: LekisSpacing.md,
-                    vertical: LekisSpacing.sm,
+                child: Text(
+                  _notice!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
                   ),
-                  decoration: BoxDecoration(
-                    color: colors.accentSoft,
-                    borderRadius: BorderRadius.circular(LekisRadius.sm),
-                  ),
-                  child: Text(_notice!, style: theme.textTheme.bodySmall),
                 ),
               ),
             const Divider(height: 1),

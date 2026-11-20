@@ -8,6 +8,7 @@ import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_panel.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 class QueueList extends ConsumerWidget {
@@ -151,38 +152,34 @@ Future<void> _showQueueBottomSheet(BuildContext context) {
   final length = ProviderScope.containerOf(context)
       .read(playbackProvider)
       .queueLength;
-  return showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    isScrollControlled: true,
-    builder: (context) => FractionallySizedBox(
-      heightFactor: 0.62,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              LekisSpacing.xl,
-              0,
-              LekisSpacing.xl,
-              LekisSpacing.sm,
-            ),
-            child: Row(
-              children: [
-                Text('播放队列', style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(width: LekisSpacing.sm),
-                Text(
-                  '$length 首',
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: context.lekisColors.onSurfaceVariant),
-                ),
-              ],
-            ),
+  return showLekisSheet<void>(
+    context,
+    heightFactor: 0.62,
+    builder: (context) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            LekisSpacing.xl,
+            0,
+            LekisSpacing.xl,
+            LekisSpacing.sm,
           ),
-          const Divider(height: 1),
-          const Expanded(child: QueueList()),
-        ],
-      ),
+          child: Row(
+            children: [
+              Text('播放队列', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(width: LekisSpacing.sm),
+              Text(
+                '$length 首',
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: context.lekisColors.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        const Expanded(child: QueueList()),
+      ],
     ),
   );
 }

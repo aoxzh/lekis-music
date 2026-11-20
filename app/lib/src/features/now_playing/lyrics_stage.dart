@@ -1964,32 +1964,15 @@ class _ManualChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final fg = theme.colorScheme.onSurface;
-    return Material(
-      color: fg.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(LekisRadius.pill),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(LekisRadius.pill),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: LekisSpacing.md,
-            vertical: LekisSpacing.sm,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.my_location_rounded, size: 14, color: fg),
-              const SizedBox(width: LekisSpacing.xs),
-              Text(
-                '回到当前',
-                style: theme.textTheme.labelSmall?.copyWith(color: fg),
-              ),
-            ],
-          ),
-        ),
-      ),
+    final fg = Theme.of(context).colorScheme.onSurface;
+    // Same pill as every other chip: the chip theme owns the fill, shape and
+    // label style; the button only adds the glyph.
+    return ActionChip(
+      avatar: Icon(Icons.my_location_rounded, size: LekisSpacing.lg),
+      label: Text('回到当前', style: TextStyle(color: fg)),
+      onPressed: onTap,
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
   }
 }

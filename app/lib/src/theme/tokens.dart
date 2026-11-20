@@ -35,6 +35,12 @@ abstract final class LekisRadius {
   static const double artworkNowPlaying = 18;
   static const double pill = 999;
 
+  /// Text / filled / outlined buttons (not a Material stadium).
+  static const double button = 14;
+
+  /// Dialogs, sheets and editor panels.
+  static const double panel = xl;
+
   /// Floating mini player corners.
   /// Floating mini player: a full capsule (half of its 56 dp height).
   static const double miniPlayer = 28;
@@ -67,6 +73,16 @@ abstract final class LekisSizes {
   /// Minimum cover side in the Now Playing cover wall.
   static const double coverWallTileMin = 120;
   static const double touchTargetMin = 48;
+
+  /// Visual height of text / filled / outlined buttons. The tap target is
+  /// still padded to [touchTargetMin].
+  static const double buttonHeight = 40;
+
+  /// Height of [LekisSegmentedControl] (and themed segmented buttons).
+  static const double segmentedHeight = 36;
+
+  /// Count badge on icons (queue, pending items).
+  static const double badgeHeight = 16;
 }
 
 /// Floating bottom tab bar metrics.
@@ -280,6 +296,70 @@ class LekisColors extends ThemeExtension<LekisColors> {
   }
 }
 
+/// Which surface family a subtree sits on.
+///
+/// * app (default): the opaque 月夜 palette of regular pages.
+/// * on-media: content laid over artwork (Now Playing, lyrics, cover wall).
+///   Panels are translucent dark / light glass, text and controls are
+///   white- (or ink-) alpha, the accent follows the now-playing tint. Every
+///   dialog, sheet and menu opened from such a subtree keeps this variant so
+///   nothing opaque and white pops over the artwork.
+@immutable
+class LekisSurfaceStyle extends ThemeExtension<LekisSurfaceStyle> {
+  const LekisSurfaceStyle({
+    required this.onMedia,
+    required this.panel,
+    required this.panelBorder,
+    this.blurSigma = 0,
+  });
+
+  /// Regular pages: opaque panels, no backdrop blur.
+  static const LekisSurfaceStyle app = LekisSurfaceStyle(
+    onMedia: false,
+    panel: Color(0x00000000),
+    panelBorder: Color(0x00000000),
+  );
+
+  /// Whether this subtree is laid over artwork.
+  final bool onMedia;
+
+  /// Glass fill of dialogs / sheets / menus on media.
+  final Color panel;
+
+  /// 1 px rim of those panels.
+  final Color panelBorder;
+
+  /// Backdrop blur under panels on media (0 = none).
+  final double blurSigma;
+
+  @override
+  LekisSurfaceStyle copyWith({
+    bool? onMedia,
+    Color? panel,
+    Color? panelBorder,
+    double? blurSigma,
+  }) => LekisSurfaceStyle(
+    onMedia: onMedia ?? this.onMedia,
+    panel: panel ?? this.panel,
+    panelBorder: panelBorder ?? this.panelBorder,
+    blurSigma: blurSigma ?? this.blurSigma,
+  );
+
+  @override
+  LekisSurfaceStyle lerp(
+    covariant ThemeExtension<LekisSurfaceStyle>? other,
+    double t,
+  ) {
+    if (other is! LekisSurfaceStyle) return this;
+    return LekisSurfaceStyle(
+      onMedia: t < 0.5 ? onMedia : other.onMedia,
+      panel: Color.lerp(panel, other.panel, t)!,
+      panelBorder: Color.lerp(panelBorder, other.panelBorder, t)!,
+      blurSigma: lerpDouble(blurSigma, other.blurSigma, t)!,
+    );
+  }
+}
+
 extension LekisThemeX on BuildContext {
   /// Lekis extension colors of the current theme.
   LekisColors get lekisColors =>
@@ -287,6 +367,13 @@ extension LekisThemeX on BuildContext {
       (Theme.of(this).brightness == Brightness.dark
           ? LekisColors.dark
           : LekisColors.light);
+
+  /// Surface family of the current theme (app or on-media).
+  LekisSurfaceStyle get lekisSurface =>
+      Theme.of(this).extension<LekisSurfaceStyle>() ?? LekisSurfaceStyle.app;
+
+  /// Whether this subtree sits on artwork (see [LekisSurfaceStyle]).
+  bool get onMedia => lekisSurface.onMedia;
 }
 
 /// Raw palette values from design/tokens.json. Prefer [ColorScheme] or

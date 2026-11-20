@@ -113,20 +113,32 @@ class _QueuePanelState extends ConsumerState<QueuePanel> {
       playbackProvider.select((s) => s.queueIndex),
     );
     final list = ref.watch(queueListProvider);
-    final panelColor = Color.alphaBlend(
-      colors.surfaceElevated.withValues(alpha: 0.92),
-      theme.colorScheme.surface,
-    );
+    // Over artwork the page behind is already blurred: the panel is the
+    // theme's translucent glass fill with its rim, not an opaque sheet.
+    final surface = context.lekisSurface;
+    final panelColor = surface.onMedia
+        ? surface.panel
+        : Color.alphaBlend(
+            colors.surfaceElevated.withValues(alpha: 0.92),
+            theme.colorScheme.surface,
+          );
+    final rim = surface.onMedia ? surface.panelBorder : colors.outline;
+    // Embedded panes only need the seam to the content on their left; the
+    // modal side panel separates from the artwork on every edge it has.
+    final Border? border;
+    if (widget.embedded) {
+      border = Border(left: BorderSide(color: rim));
+    } else if (surface.onMedia) {
+      border = Border.fromBorderSide(BorderSide(color: rim));
+    } else {
+      border = null;
+    }
 
     return Material(
       key: const ValueKey('queue-panel'),
       color: panelColor,
       child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: widget.embedded
-              ? Border(left: BorderSide(color: colors.outline))
-              : null,
-        ),
+        decoration: BoxDecoration(border: border),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -298,25 +310,11 @@ class _CountBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.lekisColors;
-    return Container(
+    // Material's badge follows the theme (accent pill, tabular label), so the
+    // header count matches the queue toggle on the artwork.
+    return Badge(
       key: const ValueKey('queue-panel.count'),
-      padding: const EdgeInsets.symmetric(
-        horizontal: LekisSpacing.sm,
-        vertical: LekisSpacing.xxs,
-      ),
-      decoration: BoxDecoration(
-        color: colors.accentSoft,
-        borderRadius: BorderRadius.circular(LekisRadius.pill),
-      ),
-      child: Text(
-        '$count',
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: colors.accent,
-          fontWeight: FontWeight.w600,
-          fontFeatures: const [FontFeature.tabularFigures()],
-        ),
-      ),
+      label: Text('$count'),
     );
   }
 }
@@ -581,22 +579,29 @@ class _QueueEmpty extends StatelessWidget {
 /// Slide-in right-hand queue for wide windows (player bar, long press, ...).
 Future<void> showQueueSidePanel(BuildContext context) {
   final reduceMotion = MediaQuery.disableAnimationsOf(context);
+  // `showGeneralDialog` does not capture inherited themes, so the panel would
+  // fall back to the app's opaque palette over the Now Playing artwork. Keep
+  // the caller's theme (on-media glass over artwork) around the page.
+  final theme = Theme.of(context);
   return showGeneralDialog<void>(
     context: context,
     barrierDismissible: true,
     barrierLabel: '关闭播放队列',
     barrierColor: context.lekisColors.scrim,
     transitionDuration: reduceMotion ? Duration.zero : LekisMotion.normal,
-    pageBuilder: (context, _, _) => Align(
-      alignment: Alignment.centerRight,
-      child: SafeArea(
-        left: false,
-        child: SizedBox(
-          width: QueuePanel.width,
-          height: double.infinity,
-          child: QueuePanel(
-            embedded: false,
-            onClose: () => Navigator.of(context).maybePop(),
+    pageBuilder: (context, _, _) => Theme(
+      data: theme,
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: SafeArea(
+          left: false,
+          child: SizedBox(
+            width: QueuePanel.width,
+            height: double.infinity,
+            child: QueuePanel(
+              embedded: false,
+              onClose: () => Navigator.of(context).maybePop(),
+            ),
           ),
         ),
       ),

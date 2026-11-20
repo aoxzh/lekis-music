@@ -3,6 +3,9 @@ import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/library/album_detail_page.dart';
+import 'package:lekis/src/features/library/artist_detail_page.dart';
+import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/now_playing/cover_wall.dart';
 import 'package:lekis/src/features/now_playing/lyrics_view.dart';
@@ -71,54 +74,19 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     final palette = ref.watch(nowPlayingPaletteProvider(theme.brightness));
     final lowPower = MediaQuery.disableAnimationsOf(context);
     final tint = NowPlayingTint.resolve(palette, theme.colorScheme);
-    final fg = tint.foreground;
-    final fgMuted = fg.withValues(alpha: 0.72);
     final lightForeground = tint.isLight;
 
-    // Re-theme the page for the artwork-driven background. Text stays a
-    // contrast-checked near-black / near-white; the cover's primary colour
-    // is only used on small controls (play button, seek bar).
-    final themed = theme.copyWith(
-      colorScheme: theme.colorScheme.copyWith(
-        onSurface: fg,
-        onSurfaceVariant: fgMuted,
-        primary: tint.primary,
-        onPrimary: tint.onPrimary,
-      ),
-      iconTheme: theme.iconTheme.copyWith(color: fg),
-      textTheme: theme.textTheme.apply(bodyColor: fg, displayColor: fg),
-      sliderTheme: theme.sliderTheme.copyWith(
-        activeTrackColor: tint.primary,
-        thumbColor: tint.primary,
-        inactiveTrackColor: fg.withValues(
-          alpha: LekisType.lyricsInactiveOpacity,
-        ),
-        overlayColor: tint.primary.withValues(alpha: 0.12),
-      ),
-      iconButtonTheme: IconButtonThemeData(
-        style: IconButton.styleFrom(foregroundColor: fg),
-      ),
-      // Menus and sheets opened from this page inherit the re-themed
-      // onSurface, so give them the matching protected scene colour.
-      popupMenuTheme: theme.popupMenuTheme.copyWith(color: tint.scene),
-      bottomSheetTheme: theme.bottomSheetTheme.copyWith(
-        backgroundColor: tint.scene,
-        modalBackgroundColor: tint.scene,
-      ),
-      // Widgets that reach for LekisColors.accent (shuffle / repeat selected)
-      // follow the cover too, while staying on the protected scene colour.
-      extensions: [
-        context.lekisColors.copyWith(
-          accent: tint.primary,
-          onAccent: tint.onPrimary,
-          accentSoft: Color.alphaBlend(
-            tint.primary.withValues(alpha: 0.22),
-            tint.scene,
-          ),
-          onSurfaceVariant: fgMuted,
-          outline: fg.withValues(alpha: 0.24),
-        ),
-      ],
+    // One re-theme for the whole page and for everything opened from it:
+    // dialogs, sheets and menus capture this theme, so an editor opened over
+    // the artwork is the same dark glass as the page instead of a white
+    // Material dialog. Text stays a contrast-checked near-black / near-white;
+    // the cover's colour only drives the accent (play button, seek bar,
+    // badges).
+    final themed = lekisOnMediaTheme(
+      scene: tint.scene,
+      foreground: tint.foreground,
+      accent: tint.primary,
+      onAccent: tint.onPrimary,
     );
 
     return Theme(
@@ -138,14 +106,28 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
               child: Semantics(
                 namesRoute: true,
                 label: '正在播放',
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      NowPlayingBackground(lowPower: lowPower),
-                      _NowPlayingLayout(lowPower: lowPower, onClose: _close),
-                    ],
+                // SnackBars raised from this page (library actions, downloads,
+                // add to playlist) must land on the opaque Now Playing route,
+                // not on the shell's Scaffold behind it: give the page its own
+                // messenger. The Scaffold stays transparent and never resizes
+                // for the keyboard, so the layout is unchanged.
+                child: ScaffoldMessenger(
+                  child: Scaffold(
+                    backgroundColor: Colors.transparent,
+                    resizeToAvoidBottomInset: false,
+                    body: Material(
+                      type: MaterialType.transparency,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          NowPlayingBackground(lowPower: lowPower),
+                          _NowPlayingLayout(
+                            lowPower: lowPower,
+                            onClose: _close,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -559,9 +541,14 @@ class _Split extends StatelessWidget {
   }
 }
 
-/// Close button and swipe-down grabber. The pane toggles (lyrics, cover
-/// wall, queue) are not up here: like Apple Music they sit in a row under
-/// the transport, where the thumb / pointer already is.
+/// Close button (the down chevron doubles as the swipe-down hint). The pane
+/// toggles (lyrics, cover wall, queue) are not up here: like Apple Music
+/// they sit in a row under the transport, where the thumb / pointer already
+/// is.
+///
+/// No centred grabber pill: it repeated the chevron, and on Samsung
+/// foldables / tablets it sat directly under the system's multi-window
+/// handle at the top centre of the screen.
 class _TopBar extends StatelessWidget {
   const _TopBar({required this.onClose});
 
@@ -569,36 +556,19 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = Theme.of(context).colorScheme.onSurface;
     return Padding(
       padding: const EdgeInsets.all(LekisSpacing.xs),
-      // The grabber is centred on the full bar width.
-      child: Stack(
-        alignment: Alignment.center,
+      child: Row(
         children: [
-          IgnorePointer(
-            // Grabber hint for swipe-down.
-            child: Container(
-              key: const ValueKey('now-playing.top-bar.grabber'),
-              width: LekisSpacing.xxl + LekisSpacing.xs,
-              height: LekisSpacing.xs + LekisSpacing.xxs / 2,
-              decoration: BoxDecoration(
-                color: fg.withValues(alpha: LekisType.lyricsInactiveOpacity),
-                borderRadius: BorderRadius.circular(LekisRadius.pill),
-              ),
+          IconButton(
+            key: const ValueKey('now-playing.top-bar.close'),
+            tooltip: '关闭',
+            constraints: const BoxConstraints(
+              minWidth: LekisSizes.touchTargetMin,
+              minHeight: LekisSizes.touchTargetMin,
             ),
-          ),
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: IconButton(
-              tooltip: '关闭',
-              constraints: const BoxConstraints(
-                minWidth: LekisSizes.touchTargetMin,
-                minHeight: LekisSizes.touchTargetMin,
-              ),
-              onPressed: onClose,
-              icon: const Icon(Icons.keyboard_arrow_down_rounded),
-            ),
+            onPressed: onClose,
+            icon: const Icon(Icons.keyboard_arrow_down_rounded),
           ),
         ],
       ),
@@ -626,8 +596,6 @@ class NowPlayingActions extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.lekisColors;
-    final fg = Theme.of(context).colorScheme.onSurface;
     final desktopPanels = usesNowPlayingSidePanels(context);
     final pane = ref.watch(nowPlayingPaneProvider);
     final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
@@ -652,10 +620,6 @@ class NowPlayingActions extends ConsumerWidget {
         constraints: const BoxConstraints(
           minWidth: LekisSizes.touchTargetMin,
           minHeight: LekisSizes.touchTargetMin,
-        ),
-        // Selected: a soft filled disc, like Apple Music's lyrics button.
-        style: IconButton.styleFrom(
-          backgroundColor: selected ? fg.withValues(alpha: 0.16) : null,
         ),
         onPressed: onPressed,
         icon: wrap(icon),
@@ -687,6 +651,8 @@ class NowPlayingActions extends ConsumerWidget {
         ),
         action(
           key: queueKey,
+          // No count badge: the number on the icon read as a sticker on the
+          // artwork. The queue itself shows the count in its header.
           tooltip: queueLength == 0 ? '播放队列' : '播放队列（$queueLength 首）',
           selected: desktopPanels && pane == NowPlayingPane.queue,
           icon: Icons.queue_music_rounded,
@@ -700,13 +666,6 @@ class NowPlayingActions extends ConsumerWidget {
                   }
                 }
               : null,
-          decorate: (icon) => Badge.count(
-            count: queueLength,
-            isLabelVisible: queueLength > 0,
-            backgroundColor: colors.accent,
-            textColor: colors.onAccent,
-            child: icon,
-          ),
         ),
       ],
     );
@@ -796,6 +755,11 @@ class NowPlayingControls extends StatelessWidget {
 }
 
 /// Track title over “artist · album”, both single-line with ellipsis.
+///
+/// The artist and the album are links: tapping them opens the artist / album
+/// page, the way the same line behaves in Apple Music and Spotify (the track
+/// only carries the album id and the artist names, so the artist id is
+/// resolved by name).
 class _NowPlayingTitle extends ConsumerWidget {
   const _NowPlayingTitle();
 
@@ -803,14 +767,14 @@ class _NowPlayingTitle extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final track = ref.watch(currentTrackProvider).value;
-    final artists = track?.artists.where((a) => a.isNotEmpty).join(' / ');
+    final artistNames = track?.artists.where((a) => a.isNotEmpty).join(' / ');
     final album = track?.albumTitle;
-    final subtitle = track == null
-        ? null
-        : [
-            (artists == null || artists.isEmpty) ? '未知艺人' : artists,
-            if (album != null && album.isNotEmpty) album,
-          ].join(' · ');
+    final albumId = track?.albumId;
+    final hasArtist = artistNames != null && artistNames.isNotEmpty;
+    final hasAlbum = album != null && album.isNotEmpty;
+    final subtitleStyle = theme.textTheme.bodyLarge?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
     return Column(
       key: const ValueKey('now-playing.title'),
       mainAxisSize: MainAxisSize.min,
@@ -824,17 +788,115 @@ class _NowPlayingTitle extends ConsumerWidget {
             fontWeight: FontWeight.w700,
           ),
         ),
-        if (subtitle != null)
-          Text(
-            subtitle,
-            key: const ValueKey('now-playing.subtitle'),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+        if (track != null)
+          LayoutBuilder(
+            // The artist keeps its natural width (a name cut down to one
+            // character is useless as a link) and is capped at 45%; the album
+            // takes the rest of the line and ellipsises.
+            builder: (context, constraints) => Row(
+              key: const ValueKey('now-playing.subtitle'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (hasArtist)
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: constraints.maxWidth * 0.45,
+                    ),
+                    child: _SubtitleLink(
+                      label: artistNames,
+                      style: subtitleStyle,
+                      semanticsLabel: '查看艺人 $artistNames',
+                      onTap: () => _openArtist(context, ref, artistNames),
+                    ),
+                  )
+                else
+                  Flexible(child: Text('未知艺人', style: subtitleStyle)),
+                if (hasArtist && hasAlbum) Text(' · ', style: subtitleStyle),
+                if (hasAlbum)
+                  Flexible(
+                    child: albumId == null
+                        ? Text(
+                            album,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: subtitleStyle,
+                          )
+                        : _SubtitleLink(
+                            label: album,
+                            style: subtitleStyle,
+                            semanticsLabel: '查看专辑 $album',
+                            onTap: () => Navigator.of(context)
+                                .push(AlbumDetailPage.route(albumId.toInt())),
+                          ),
+                  ),
+              ],
             ),
           ),
       ],
+    );
+  }
+
+  /// 艺人名 → 艺人 id → 艺人页；解析不到时给一句提示，而不是静默无反应。
+  Future<void> _openArtist(
+    BuildContext context,
+    WidgetRef ref,
+    String names,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final first = names.split(' / ').first.trim();
+    final id = await ref.read(artistIdForNameProvider(first).future);
+    if (!context.mounted) return;
+    if (id == null) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('资料库里没有这位艺人')));
+      return;
+    }
+    await navigator.push(ArtistDetailPage.route(id));
+  }
+}
+
+/// A single tappable piece of the artist · album line.
+///
+/// Understated (same muted colour as the rest of the line, a faint underline)
+/// so the subtitle still reads as one sentence, not as two buttons.
+class _SubtitleLink extends StatelessWidget {
+  const _SubtitleLink({
+    required this.label,
+    required this.style,
+    required this.onTap,
+    required this.semanticsLabel,
+  });
+
+  final String label;
+  final TextStyle? style;
+  final VoidCallback onTap;
+  final String semanticsLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        style?.color ?? Theme.of(context).colorScheme.onSurfaceVariant;
+    return Semantics(
+      link: true,
+      label: semanticsLabel,
+      excludeSemantics: true,
+      button: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(LekisRadius.xs),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: style?.copyWith(
+            decoration: TextDecoration.underline,
+            decorationColor: color.withValues(alpha: 0.35),
+            decorationStyle: TextDecorationStyle.solid,
+          ),
+        ),
+      ),
     );
   }
 }

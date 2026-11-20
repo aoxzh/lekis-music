@@ -6,6 +6,7 @@ import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/rust/api/error.dart';
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// 弹窗问歌单名；取消或空名字返回 `null`。
@@ -16,18 +17,20 @@ Future<String?> askPlaylistName(
   String confirm = '确定',
 }) async {
   final controller = TextEditingController(text: initial);
-  final result = await showDialog<String>(
-    context: context,
-    builder: (context) {
+  final result = await showLekisPanel<String>(
+    context,
+    dismissible: false,
+    builder: (_) {
       String? error;
       return StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: Text(title),
-          content: TextField(
+        builder: (context, setState) => LekisPanel(
+          title: title,
+          error: error,
+          body: TextField(
             controller: controller,
             autofocus: true,
             textInputAction: TextInputAction.done,
-            decoration: InputDecoration(labelText: '歌单名称', errorText: error),
+            decoration: const InputDecoration(labelText: '歌单名称'),
             onSubmitted: (_) {
               final name = controller.text.trim();
               if (name.isEmpty) {

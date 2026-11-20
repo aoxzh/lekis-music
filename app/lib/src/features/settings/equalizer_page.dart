@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../rust/api/dto.dart';
 import '../../theme/tokens.dart';
+import '../../widgets/lekis_slider.dart';
 import '../sources/common.dart';
 import 'equalizer_providers.dart';
 import 'settings_providers.dart';
@@ -171,7 +172,7 @@ class _EqualizerBody extends ConsumerWidget {
                   color: colors.accent,
                 ),
               ),
-              child: Slider(
+              child: LekisSlider(
                 key: const Key('equalizer-preamp-slider'),
                 value: state.preampDb,
                 min: equalizerMinGainDb,
@@ -304,28 +305,18 @@ class _BandSlider extends StatelessWidget {
             width: 40,
             child: RotatedBox(
               quarterTurns: 3,
-              child: SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  trackHeight: 3,
-                  thumbShape: const RoundSliderThumbShape(
-                    enabledThumbRadius: 7,
-                  ),
-                  overlayShape: const RoundSliderOverlayShape(
-                    overlayRadius: 14,
-                  ),
-                ),
-                child: Slider(
-                  key: Key('equalizer-band-$index'),
-                  value: value,
-                  min: equalizerMinGainDb,
-                  max: equalizerMaxGainDb,
-                  divisions: 48,
-                  label: '$label Hz ${_dbLabel(value)}',
-                  semanticFormatterCallback: (value) =>
-                      '$label Hz ${_dbLabel(value)}',
-                  onChanged: onChanged,
-                  onChangeEnd: onChangeEnd,
-                ),
+              child: LekisSlider(
+                key: Key('equalizer-band-$index'),
+                value: value,
+                min: equalizerMinGainDb,
+                max: equalizerMaxGainDb,
+                divisions: 48,
+                label: '$label Hz ${_dbLabel(value)}',
+                semanticFormatterCallback: (value) =>
+                    '$label Hz ${_dbLabel(value)}',
+                onChanged: onChanged,
+                onChangeEnd: onChangeEnd,
+                trackHeight: LekisSliderGeometry.track,
               ),
             ),
           ),

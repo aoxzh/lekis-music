@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/gestures.dart';
 import 'package:lekis/src/features/library/widgets/album_card.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
@@ -9,9 +10,10 @@ import 'package:material_ui/material_ui.dart';
 /// A titled, horizontally scrolling row of artwork cards.
 ///
 /// Cards are sized by [shelfCardWidth] (several per row, the next one
-/// peeking). When the row overflows, mouse users get previous/next page
-/// buttons (a vertical wheel does not scroll horizontal lists); the list
-/// also accepts mouse drags.
+/// peeking). When the row overflows, pointer platforms get previous/next
+/// page buttons (a vertical wheel does not scroll horizontal lists; touch
+/// users swipe instead and should not see desktop arrows). The list also
+/// accepts mouse drags.
 class ArtworkShelf extends StatefulWidget {
   const ArtworkShelf({
     super.key,
@@ -104,8 +106,9 @@ class _ArtworkShelfState extends State<ArtworkShelf> {
                   ),
                 ),
                 ?widget.trailing,
-                // Paging buttons only when there is somewhere to page to.
-                if (overflows) ...[
+                // Paging buttons only when there is somewhere to page to and
+                // a pointer to click them; phones / tablets swipe the row.
+                if (overflows && _usesPointer()) ...[
                   IconButton(
                     tooltip: '上一页',
                     onPressed: () => _page(-1),
@@ -148,6 +151,17 @@ class _ArtworkShelfState extends State<ArtworkShelf> {
     );
   }
 }
+
+/// Whether the current platform expects a pointer (desktop) rather than a
+/// finger. Touch platforms rely on the horizontal swipe.
+bool _usesPointer() => switch (defaultTargetPlatform) {
+  TargetPlatform.android ||
+  TargetPlatform.iOS ||
+  TargetPlatform.fuchsia => false,
+  TargetPlatform.windows ||
+  TargetPlatform.macOS ||
+  TargetPlatform.linux => true,
+};
 
 /// Smallest / largest shelf card side.
 const double shelfCardMin = LekisSizes.gridArtworkMin * 0.75;

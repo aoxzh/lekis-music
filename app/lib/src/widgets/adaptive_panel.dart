@@ -2,11 +2,17 @@
 // bottom sheet on phones, with the same header, body padding, field styles
 // and footer buttons either way. Editors (lyrics, tags, ...) build a
 // [LekisPanel] and open it with [showLekisPanel].
+//
+// The panel keeps the theme of the place it was opened from, so an editor
+// opened over the Now Playing artwork uses the on-media (dark glass) variant
+// instead of a white Material dialog, while the same editor opened from the
+// library uses the regular page theme.
 
 import 'package:material_ui/material_ui.dart';
 
 import '../layout/window_size.dart';
 import '../theme/tokens.dart';
+import 'glass.dart';
 
 /// Widest an editor dialog gets.
 const double lekisPanelMaxWidth = 620;
@@ -14,20 +20,22 @@ const double lekisPanelMaxWidth = 620;
 /// Opens [builder] as a dialog (medium windows and up) or a bottom sheet
 /// (compact windows). [dismissible] controls tapping outside / dragging the
 /// sheet down; editors with unsaved input pass `false`.
-///
-/// Always uses the app's base theme, even when opened from a re-themed
-/// subtree such as Now Playing, so editors look the same everywhere.
 Future<T?> showLekisPanel<T>(
   BuildContext context, {
   required WidgetBuilder builder,
   bool dismissible = true,
 }) {
-  final navigator = Navigator.of(context, rootNavigator: true);
-  final base = Theme.of(navigator.context);
+  // The calling subtree's theme: on-media when this panel was opened from
+  // Now Playing. Nothing here may force the app theme back on.
+  final theme = Theme.of(context);
   Widget themed(BuildContext context, bool sheet) => Theme(
-    data: base,
-    child: _LekisPanelMode(sheet: sheet, child: Builder(builder: builder)),
+    data: theme,
+    child: _LekisPanelMode(
+      sheet: sheet,
+      child: Builder(builder: builder),
+    ),
   );
+  final glass = theme.extension<LekisSurfaceStyle>()?.onMedia ?? false;
 
   if (context.widthClass == WindowWidthClass.compact) {
     return showModalBottomSheet<T>(
@@ -35,10 +43,18 @@ Future<T?> showLekisPanel<T>(
       useRootNavigator: true,
       isScrollControlled: true,
       useSafeArea: true,
-      showDragHandle: true,
+      // On media the handle is drawn inside the glass (see [LekisPanel]): the
+      // framework's handle sits above the sheet's own background, which is
+      // transparent there, so it floated over an unblurred band of artwork.
+      showDragHandle: !glass,
       isDismissible: dismissible,
       enableDrag: dismissible,
-      backgroundColor: base.bottomSheetTheme.backgroundColor,
+      // The panel paints its own glass on media; a bar of opaque colour
+      // behind it would read as a white strip.
+      backgroundColor: glass
+          ? Colors.transparent
+          : theme.bottomSheetTheme.backgroundColor,
+      barrierColor: theme.bottomSheetTheme.modalBarrierColor,
       builder: (context) => themed(context, true),
     );
   }
@@ -46,8 +62,131 @@ Future<T?> showLekisPanel<T>(
     context: context,
     useRootNavigator: true,
     barrierDismissible: dismissible,
+    barrierColor: theme.dialogTheme.barrierColor,
     builder: (context) => themed(context, false),
   );
+}
+
+/// Opens [builder] as a modal bottom sheet that always stays a sheet, for the
+/// surfaces that belong at the bottom of the window on every size (playback
+/// queue, rating, add to playlist). Same rules as [showLekisPanel]: the
+/// caller's theme is kept (so over artwork it is dark glass) and on media the
+/// sheet paints its own glass instead of an opaque bar.
+Future<T?> showLekisSheet<T>(
+  BuildContext context, {
+  required WidgetBuilder builder,
+  double? heightFactor = 0.62,
+  bool isDismissible = true,
+  bool showDragHandle = true,
+}) {
+  final theme = Theme.of(context);
+  final glass = theme.extension<LekisSurfaceStyle>()?.onMedia ?? false;
+  final grabber = showDragHandle && glass;
+  Widget framed(BuildContext context) {
+    Widget content = SafeArea(top: false, child: Builder(builder: builder));
+    // The handle belongs to the sheet, so it is inside the sized content:
+    // `heightFactor` still describes the whole sheet, and the glass covers
+    // the handle instead of leaving a transparent strip above it.
+    if (grabber) {
+      content = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SheetGrabber(),
+          Flexible(child: content),
+        ],
+      );
+    }
+    if (heightFactor != null) {
+      content = FractionallySizedBox(
+        heightFactor: heightFactor,
+        child: content,
+      );
+    }
+    if (!glass) return content;
+    return _PanelGlass(
+      radius: const BorderRadius.vertical(
+        top: Radius.circular(LekisRadius.panel),
+      ),
+      child: content,
+    );
+  }
+
+  return showModalBottomSheet<T>(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: showDragHandle && !glass,
+    isDismissible: isDismissible,
+    enableDrag: isDismissible,
+    backgroundColor: glass
+        ? Colors.transparent
+        : theme.bottomSheetTheme.backgroundColor,
+    barrierColor: theme.bottomSheetTheme.modalBarrierColor,
+    builder: (context) => Theme(data: theme, child: framed(context)),
+  );
+}
+
+/// Drag handle of a glass sheet: same size and colour as the framework's,
+/// painted inside the glass instead of in a transparent strip above it.
+class SheetGrabber extends StatelessWidget {
+  const SheetGrabber({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final size =
+        theme.bottomSheetTheme.dragHandleSize ??
+        const Size(LekisSpacing.xxl + LekisSpacing.xs, LekisSpacing.xs);
+    final color =
+        theme.bottomSheetTheme.dragHandleColor ??
+        theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4);
+    return SizedBox(
+      key: const ValueKey('lekis-sheet.grabber'),
+      height: LekisSpacing.lg,
+      child: Center(
+        child: Container(
+          width: size.width,
+          height: size.height,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(LekisRadius.pill),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Background, rim and backdrop blur of a panel opened over artwork.
+class _PanelGlass extends StatelessWidget {
+  const _PanelGlass({required this.child, required this.radius});
+
+  final Widget child;
+  final BorderRadius radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = context.lekisSurface;
+    return ClipRRect(
+      borderRadius: radius,
+      child: BackdropFilter(
+        filter: lekisGlassFilter(surface.blurSigma),
+        // A Material, not a coloured DecoratedBox: ListTile paints its ink
+        // on the nearest Material, and a plain box in between hides it (the
+        // framework asserts on that in debug builds).
+        child: Material(
+          color: surface.panel,
+          shape: RoundedRectangleBorder(
+            borderRadius: radius,
+            side: BorderSide(color: surface.panelBorder),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: child,
+        ),
+      ),
+    );
+  }
 }
 
 class _LekisPanelMode extends InheritedWidget {
@@ -212,25 +351,57 @@ class LekisPanel extends StatelessWidget {
       ],
     );
 
+    final onMedia = context.onMedia;
+    // On artwork the panel paints its own dark glass; on regular pages the
+    // theme's dialog / sheet surface does the job.
+    Widget frame(Widget child, {required bool sheet}) => onMedia
+        ? _PanelGlass(
+            radius: sheet
+                ? const BorderRadius.vertical(
+                    top: Radius.circular(LekisRadius.panel),
+                  )
+                : BorderRadius.circular(LekisRadius.panel),
+            child: child,
+          )
+        : child;
+
     if (sheet) {
       return Padding(
         // Keep the footer above the keyboard.
         padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: media.size.height * 0.92),
-          child: SafeArea(top: false, child: column),
+          child: SafeArea(
+            top: false,
+            child: frame(
+              onMedia
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SheetGrabber(),
+                        Flexible(child: column),
+                      ],
+                    )
+                  : column,
+              sheet: true,
+            ),
+          ),
         ),
       );
     }
     return Dialog(
       insetPadding: const EdgeInsets.all(LekisSpacing.xl),
       clipBehavior: Clip.antiAlias,
+      // The glass frame is the whole surface on artwork.
+      backgroundColor: onMedia ? Colors.transparent : null,
+      elevation: onMedia ? 0 : null,
+      shadowColor: onMedia ? Colors.transparent : null,
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: lekisPanelMaxWidth,
           maxHeight: media.size.height * 0.88,
         ),
-        child: column,
+        child: frame(column, sheet: false),
       ),
     );
   }

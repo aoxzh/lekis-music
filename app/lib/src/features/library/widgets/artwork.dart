@@ -35,48 +35,61 @@ class ArtworkImage extends StatelessWidget {
     final r = radius ?? LekisRadius.artworkList;
     return AspectRatio(
       aspectRatio: 1,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(r),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final h = hash;
-            if (h == null) {
-              return ArtworkPlaceholder(
-                icon: placeholderIcon,
-                seed: placeholderSeed,
-                label: placeholderLabel,
+      child: DecoratedBox(
+        position: DecorationPosition.foreground,
+        // A hairline rim: white covers need an edge on the light surface,
+        // dark covers need one on the dark surface, and on-media panels get
+        // the foreground-alpha rim from the theme's outline. Square copies
+        // (the blurred background, hero washes) skip it.
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(r),
+          border: r > 0
+              ? Border.all(color: Theme.of(context).colorScheme.outline)
+              : null,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(r),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final h = hash;
+              if (h == null) {
+                return ArtworkPlaceholder(
+                  icon: placeholderIcon,
+                  seed: placeholderSeed,
+                  label: placeholderLabel,
+                );
+              }
+              final logical = constraints.biggest.shortestSide.isFinite
+                  ? constraints.biggest.shortestSide
+                  : LekisSizes.listArtwork;
+              final px = logical * MediaQuery.devicePixelRatioOf(context);
+              final bucket = artworkBucketFor(px);
+              final decodeWidth = px.ceil().clamp(1, bucket);
+              Widget placeholder(BuildContext _, Object _, StackTrace? _) =>
+                  ArtworkPlaceholder(icon: placeholderIcon);
+              return Image.file(
+                File(artworkFilePath(h, bucket)),
+                key: ValueKey('$h@$bucket'),
+                fit: BoxFit.cover,
+                cacheWidth: decodeWidth,
+                gaplessPlayback: true,
+                filterQuality: FilterQuality.medium,
+                frameBuilder: _fadeIn,
+                // Smaller buckets may not be generated yet → fall back to the
+                // always-present large one, still decoded at small size.
+                errorBuilder: bucket == artworkFallbackWidth
+                    ? placeholder
+                    : (_, _, _) => Image.file(
+                        File(artworkFilePath(h, artworkFallbackWidth)),
+                        fit: BoxFit.cover,
+                        cacheWidth: decodeWidth,
+                        gaplessPlayback: true,
+                        frameBuilder: _fadeIn,
+                        errorBuilder: placeholder,
+                      ),
               );
-            }
-            final logical = constraints.biggest.shortestSide.isFinite
-                ? constraints.biggest.shortestSide
-                : LekisSizes.listArtwork;
-            final px = logical * MediaQuery.devicePixelRatioOf(context);
-            final bucket = artworkBucketFor(px);
-            final decodeWidth = px.ceil().clamp(1, bucket);
-            Widget placeholder(BuildContext _, Object _, StackTrace? _) =>
-                ArtworkPlaceholder(icon: placeholderIcon);
-            return Image.file(
-              File(artworkFilePath(h, bucket)),
-              key: ValueKey('$h@$bucket'),
-              fit: BoxFit.cover,
-              cacheWidth: decodeWidth,
-              gaplessPlayback: true,
-              filterQuality: FilterQuality.medium,
-              frameBuilder: _fadeIn,
-              // Smaller buckets may not be generated yet → fall back to the
-              // always-present large one, still decoded at small size.
-              errorBuilder: bucket == artworkFallbackWidth
-                  ? placeholder
-                  : (_, _, _) => Image.file(
-                      File(artworkFilePath(h, artworkFallbackWidth)),
-                      fit: BoxFit.cover,
-                      cacheWidth: decodeWidth,
-                      gaplessPlayback: true,
-                      frameBuilder: _fadeIn,
-                      errorBuilder: placeholder,
-                    ),
-            );
-          },
+            },
+          ),
         ),
       ),
     );
@@ -121,8 +134,14 @@ class ArtworkImage extends StatelessWidget {
 class ArtworkPlaceholder extends StatelessWidget {
   /// Initial letter size as a share of the tile side, and its opacity: a
   /// quiet watermark, not a headline, at any tile size.
-  static const double _initialScale = 0.3;
-  static const double _initialOpacity = 0.5;
+  static const double _initialScale = 0.26;
+  static const double _initialOpacity = 0.42;
+
+  /// On tiles at least this large, draw the music / album glyph instead of
+  /// an initial: a 48 dp character blown up to a grid or hero cover reads as
+  /// a poster, not as missing artwork.
+  static const double _initialMaxSide = LekisSizes.listArtwork * 2;
+  static const double _iconScale = 0.26;
 
   const ArtworkPlaceholder({
     super.key,
@@ -181,7 +200,7 @@ class ArtworkPlaceholder extends StatelessWidget {
                 ),
               ),
               Center(
-                child: initial != null
+                child: initial != null && side < _initialMaxSide
                     ? Text(
                         initial,
                         style: TextStyle(
@@ -193,7 +212,7 @@ class ArtworkPlaceholder extends StatelessWidget {
                       )
                     : Icon(
                         icon,
-                        size: side * 0.34,
+                        size: side * _iconScale,
                         color: fg.withValues(alpha: 0.55),
                       ),
               ),

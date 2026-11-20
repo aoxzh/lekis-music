@@ -439,6 +439,28 @@ final albumProvider = FutureProvider.autoDispose.family<AlbumDto, int>((
   return core.getAlbum(albumId: id);
 });
 
+/// 按名字找艺人的 id：先在搜索结果里找同名的（含别名），找不到返回 `null`。
+///
+/// 曲目 DTO 只带艺人名、不带 id，播放页上点艺人名时用它解析一次；走搜索而
+/// 不是全量艺人列表，库里艺人很多时也不用把整张表拉下来。
+final artistIdForNameProvider = FutureProvider.autoDispose.family<int?, String>(
+  (ref, name) async {
+    final query = name.trim();
+    if (query.isEmpty) return null;
+    ref.invalidateOnCatalogChange();
+    ref.cacheFor(const Duration(minutes: 5));
+    final results = await core.search(text: query, limit: 20);
+    final wanted = query.toLowerCase();
+    for (final artist in results.artists) {
+      if (artist.name.toLowerCase() == wanted ||
+          artist.aliases.any((alias) => alias.toLowerCase() == wanted)) {
+        return artist.id.toInt();
+      }
+    }
+    return null;
+  },
+);
+
 final albumTracksProvider = FutureProvider.autoDispose
     .family<List<TrackRowDto>, int>((ref, id) async {
       ref.invalidateOnCatalogChange();

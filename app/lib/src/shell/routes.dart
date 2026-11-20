@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'package:lekis/src/features/downloads/downloads_page.dart';
 import 'package:lekis/src/features/enrich/enrich_review_page.dart';
+import 'package:lekis/src/features/library/cover_flow_page.dart';
 import 'package:lekis/src/features/plugins/plugins_page.dart';
 import 'package:lekis/src/features/podcasts/podcast_detail_page.dart';
 
@@ -35,6 +36,10 @@ Future<void> openPlugins(BuildContext context) => Navigator.of(context).push(
     builder: (_) => const PluginsPage(),
   ),
 );
+
+/// Opens the Cover Flow album browser inside the current tab.
+Future<void> openCoverFlow(BuildContext context) =>
+    Navigator.of(context).push(CoverFlowPage.route());
 
 /// Opens one podcast (already in the local library) inside the current tab.
 Future<void> openPodcast(BuildContext context, int podcastId) =>

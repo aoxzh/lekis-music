@@ -8,6 +8,7 @@ import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/downloads/downloads_providers.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
+import 'package:lekis/src/features/now_playing/lyrics_editor_sheet.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/rust/api/dto.dart';
@@ -19,7 +20,7 @@ const BoxConstraints _touchTarget = BoxConstraints(
   minHeight: LekisSizes.touchTargetMin,
 );
 
-enum _MoreAction { rate, download, addToPlaylist }
+enum _MoreAction { rate, download, addToPlaylist, editLyrics }
 
 class NowPlayingLibraryActions extends ConsumerWidget {
   const NowPlayingLibraryActions({super.key, this.showRating = true});
@@ -137,6 +138,8 @@ class _MoreButton extends ConsumerWidget {
               trackId: track.id,
               trackTitle: track.title,
             );
+          case _MoreAction.editLyrics:
+            showLyricsEditor(context, ref, track.id);
         }
       },
       itemBuilder: (_) => [
@@ -161,6 +164,12 @@ class _MoreButton extends ConsumerWidget {
         PopupMenuItem(
           value: _MoreAction.addToPlaylist,
           child: item(Icons.playlist_add_rounded, '添加到歌单'),
+        ),
+        // Editors live in the menu, not as a floating button over the lyrics
+        // (iOS 26 puts them with the rest of the lyric controls).
+        PopupMenuItem(
+          value: _MoreAction.editLyrics,
+          child: item(Icons.edit_note_rounded, '编辑歌词'),
         ),
       ],
     );

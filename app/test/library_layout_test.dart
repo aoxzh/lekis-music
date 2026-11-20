@@ -1,5 +1,6 @@
 // Density rules for Home shelves, the album grid and song rows.
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lekis/src/features/home/home_page.dart' show greetingFor;
 import 'package:lekis/src/features/library/albums_view.dart';
@@ -59,18 +60,27 @@ void main() {
     expect(greetingFor(DateTime(2026, 1, 1, 2)), '夜深了');
   });
 
-  testWidgets('shelf hides paging buttons when every card fits', (
+  testWidgets('shelf pages with arrows only where a pointer exists', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(829, 700);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
 
     await tester.pumpWidget(_shelf(1));
     expect(find.byTooltip('下一页'), findsNothing);
     final card = tester.getSize(find.byKey(const ValueKey('card-0')));
     expect(card.width, lessThanOrEqualTo(shelfCardMax));
 
+    // Touch: an overflowing shelf relies on the swipe, no arrows.
+    await tester.pumpWidget(_shelf(30));
+    expect(find.byTooltip('上一页'), findsNothing);
+    expect(find.byTooltip('下一页'), findsNothing);
+
+    // Pointer: the same shelf gets the page buttons.
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     await tester.pumpWidget(_shelf(30));
     expect(find.byTooltip('上一页'), findsOneWidget);
     expect(find.byTooltip('下一页'), findsOneWidget);

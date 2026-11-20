@@ -5,6 +5,7 @@ import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:lekis/src/widgets/adaptive_panel.dart';
+import 'package:lekis/src/widgets/lekis_slider.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Opens the lyrics editor: a dialog on wide windows, a bottom sheet on
@@ -191,12 +192,13 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
                 Row(
                   children: [
                     Expanded(
-                      child: Slider(
+                      child: LekisSlider(
                         value: _offset.toDouble(),
                         min: -5000,
                         max: 5000,
                         divisions: 100,
                         label: _offsetLabel,
+                        semanticFormatterCallback: (_) => _offsetLabel,
                         onChanged: _saving
                             ? null
                             : (v) => setState(() => _offset = v.round()),

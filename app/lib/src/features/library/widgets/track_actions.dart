@@ -5,6 +5,7 @@ import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 void _showActionFailure(BuildContext context, String message) {
@@ -120,10 +121,10 @@ Future<void> showTrackRatingSheet(
   BuildContext context, {
   required int trackId,
   String? title,
-}) => showModalBottomSheet<void>(
-  context: context,
-  showDragHandle: true,
-  useSafeArea: true,
+}) => showLekisSheet<void>(
+  context,
+  // Content-sized: the sheet hugs the title line and the stars.
+  heightFactor: null,
   builder: (_) => _RatingSheet(trackId: trackId, title: title),
 );
 
@@ -176,7 +177,12 @@ class _RatingSheetState extends ConsumerState<_RatingSheet> {
               ),
             const SizedBox(height: LekisSpacing.lg),
             if (snapshot.connectionState == ConnectionState.waiting)
-              const Center(child: CircularProgressIndicator())
+              // The sheet sizes to its content, so keep the loading state at
+              // the height of the star row instead of filling the window.
+              const SizedBox(
+                height: LekisSizes.touchTargetMin,
+                child: Center(child: CircularProgressIndicator()),
+              )
             else if (snapshot.hasError)
               Text(
                 '加载失败：${describeCoreError(snapshot.error!)}',

@@ -2,8 +2,9 @@
 // * lyrics / queue toggles exist once, in the row under the transport
 //   (Apple Music style), not in the top bar;
 // * the library actions stay on the title line (no five inline stars);
-// * the title has an “artist · album” line;
-// * the grabber is centred on the full width;
+// * the title has a tappable “artist · album” line (links to both pages);
+// * the queue toggle carries no count badge;
+// * the only swipe-down hint is the leading chevron (no centred grabber);
 // * the controls column is capped and vertically centred against the cover;
 // * an open lyrics pane without lyrics shows its centred empty state;
 // * covers without artwork tint the page from the placeholder colours.
@@ -43,6 +44,7 @@ final _track = TrackDto(
   uid: 'track-7',
   title: 'Lekis Stage Preview',
   artists: const ['月兔'],
+  albumId: 3,
   albumTitle: '夜航',
   durationMs: BigInt.from(60000),
   genres: const [],
@@ -131,14 +133,41 @@ void main() {
     expect(actions.center.dy, closeTo(title.center.dy, title.height / 2));
     expect(actions.left, greaterThanOrEqualTo(title.right));
 
-    // Artist · album line.
-    expect(find.text('月兔 · 夜航'), findsOneWidget);
-
-    // Grabber centred on the full width.
-    final grabber = tester.getCenter(
-      find.byKey(const ValueKey('now-playing.top-bar.grabber')),
+    // Artist · album line: two links, separated by “ · ”.
+    final subtitle = find.byKey(const ValueKey('now-playing.subtitle'));
+    expect(
+      find.descendant(of: subtitle, matching: find.text('月兔')),
+      findsOneWidget,
     );
-    expect(grabber.dx, closeTo(829 / 2, 0.5));
+    expect(
+      find.descendant(of: subtitle, matching: find.text('夜航')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: subtitle, matching: find.byType(InkWell)),
+      findsNWidgets(2),
+    );
+
+    // No count badge on the queue toggle (it read as a sticker on the cover).
+    expect(
+      find.descendant(
+        of: find.byKey(NowPlayingActions.queueKey),
+        matching: find.byType(Badge),
+      ),
+      findsNothing,
+    );
+
+    // One swipe-down hint only: the leading chevron. No centred grabber pill
+    // (it duplicated the chevron and collided with Samsung's top-centre
+    // multi-window handle).
+    expect(
+      find.byKey(const ValueKey('now-playing.top-bar.grabber')),
+      findsNothing,
+    );
+    final close = tester.getRect(
+      find.byKey(const ValueKey('now-playing.top-bar.close')),
+    );
+    expect(close.left, lessThan(829 / 4));
 
     // Controls: capped width, vertically centred against the cover.
     final controls = tester.getRect(find.byType(NowPlayingControls));
@@ -151,6 +180,8 @@ void main() {
     expect(find.text('评分'), findsOneWidget);
     expect(find.text('下载'), findsOneWidget);
     expect(find.text('添加到歌单'), findsOneWidget);
+    // The lyrics editor lives here, not as a floating button over the lyrics.
+    expect(find.text('编辑歌词'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

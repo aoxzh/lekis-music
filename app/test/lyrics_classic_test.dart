@@ -179,8 +179,9 @@ void main() {
     double alphaOf(String text) =>
         tester.widget<Text>(find.text(text)).style!.color!.a;
     expect(alphaOf('second'), closeTo(1, 0.01));
-    expect(alphaOf('third'), closeTo(0.55, 0.01));
-    expect(alphaOf('first'), closeTo(0.4, 0.01));
+    // 邻句提亮过（0.55/0.4 → 0.62/0.45）：亮封面下远处歌词原来会糊掉。
+    expect(alphaOf('third'), closeTo(0.62, 0.01));
+    expect(alphaOf('first'), closeTo(0.45, 0.01));
     expect(find.byType(AnimatedOpacity), findsNothing);
     expect(tester.takeException(), isNull);
   });

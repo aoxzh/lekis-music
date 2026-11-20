@@ -119,6 +119,62 @@ TextTheme _textTheme(Color onSurface, Color onSurfaceVariant) {
   );
 }
 
+/// The on-media variant of the theme, for content laid over artwork (Now
+/// Playing, lyrics, cover wall) and everything opened from it.
+///
+/// Same component vocabulary as the app theme, different materials:
+/// translucent [scene]-tinted glass panels, [foreground]-alpha text and
+/// controls, and the now-playing tint as the accent (play button, seek bar,
+/// badges, primary buttons). Toggles and segmented selections use a
+/// foreground-alpha disc instead of the accent so they read as part of the
+/// artwork rather than as coloured stickers.
+ThemeData lekisOnMediaTheme({
+  required Color scene,
+  required Color foreground,
+  required Color accent,
+  required Color onAccent,
+}) {
+  final lightForeground = foreground.computeLuminance() > 0.5;
+  final brightness = lightForeground ? Brightness.dark : Brightness.light;
+  Color fg(double alpha) => foreground.withValues(alpha: alpha);
+  // The fill of a glass panel before its translucency: a touch of the
+  // foreground over the protected scene colour.
+  final panelFill = Color.alphaBlend(fg(0.06), scene);
+  // Panels sit on blurred artwork, so they can be fairly translucent. Menus
+  // and other surfaces that cannot blur the backdrop get a denser fill: at
+  // 0.86 the page's big lyric lines ghosted straight through them.
+  final panel = panelFill.withValues(alpha: 0.92);
+  final palette = lightForeground ? LekisColors.dark : LekisColors.light;
+  final colors = palette.copyWith(
+    surfaceVariant: fg(0.10),
+    surfaceElevated: panelFill.withValues(alpha: 0.95),
+    onSurfaceVariant: fg(0.70),
+    outline: fg(0.16),
+    accent: accent,
+    onAccent: onAccent,
+    accentSoft: fg(0.16),
+    scrim: const Color(0x66000000),
+  );
+  return _buildTheme(
+    brightness: brightness,
+    background: scene,
+    surface: panel,
+    onBackground: foreground,
+    onSurface: foreground,
+    colors: colors,
+    inverseText: scene,
+    surfaceStyle: LekisSurfaceStyle(
+      onMedia: true,
+      panel: panel,
+      panelBorder: fg(0.14),
+      blurSigma: 24,
+    ),
+    // Transport and pane toggles stay full-strength foreground on artwork.
+    iconForeground: foreground,
+    selectedForeground: foreground,
+  );
+}
+
 ThemeData _buildTheme({
   required Brightness brightness,
   required Color background,
@@ -126,8 +182,15 @@ ThemeData _buildTheme({
   required Color onBackground,
   required Color onSurface,
   required LekisColors colors,
+  Color? inverseText,
+  LekisSurfaceStyle surfaceStyle = LekisSurfaceStyle.app,
+  Color? iconForeground,
+  Color? selectedForeground,
 }) {
   final isDark = brightness == Brightness.dark;
+  final onMedia = surfaceStyle.onMedia;
+  final inverseInk = inverseText ?? surface;
+  final selectedFg = selectedForeground ?? colors.accent;
   final scheme = ColorScheme(
     brightness: brightness,
     primary: colors.accent,
@@ -137,7 +200,7 @@ ThemeData _buildTheme({
     secondary: colors.aurora,
     onSecondary: isDark ? background : onSurface,
     secondaryContainer: colors.accentSoft,
-    onSecondaryContainer: onSurface,
+    onSecondaryContainer: onMedia ? onSurface : colors.accent,
     tertiary: colors.moon,
     onTertiary: colors.onAccent,
     error: colors.danger,
@@ -157,7 +220,7 @@ ThemeData _buildTheme({
     scrim: colors.scrim,
     shadow: colors.scrim,
     inverseSurface: onSurface,
-    onInverseSurface: surface,
+    onInverseSurface: inverseInk,
     inversePrimary: isDark ? LekisPalette.lightAccent : LekisPalette.darkAccent,
     surfaceTint: Colors.transparent,
   );
@@ -167,24 +230,119 @@ ThemeData _buildTheme({
       ? SystemUiOverlayStyle.light
       : SystemUiOverlayStyle.dark;
 
+  // ---- Shared shapes ------------------------------------------------------
+  final buttonShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(LekisRadius.button),
+  );
+  final fieldRadius = BorderRadius.circular(LekisRadius.md);
+  // Panels separate from the page by a 1 px rim, not by shadow stacks.
+  final panelSide = onMedia
+      ? BorderSide(color: surfaceStyle.panelBorder)
+      : (isDark ? BorderSide(color: colors.outline) : BorderSide.none);
+  final menuShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(LekisRadius.md),
+    side: panelSide,
+  );
+  const buttonSize = Size(0, LekisSizes.buttonHeight);
+  const buttonPadding = EdgeInsets.symmetric(
+    horizontal: LekisSpacing.lg + LekisSpacing.xs,
+  );
+  const buttonIconSize = LekisSpacing.lg + LekisSpacing.xxs;
+  final disabledFg = onSurface.withValues(alpha: 0.38);
+  final disabledBg = onSurface.withValues(alpha: 0.08);
+  WidgetStateProperty<Color?> overlayOn(Color color) =>
+      WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.pressed)) {
+          return color.withValues(alpha: 0.12);
+        }
+        if (states.contains(WidgetState.hovered)) {
+          return color.withValues(alpha: 0.08);
+        }
+        if (states.contains(WidgetState.focused)) {
+          return color.withValues(alpha: 0.12);
+        }
+        return null;
+      });
+
+  OutlineInputBorder fieldBorder([BorderSide side = BorderSide.none]) =>
+      OutlineInputBorder(borderRadius: fieldRadius, borderSide: side);
+
+  // One field style everywhere: filled, no stroke at rest, a 1.5 px ring in
+  // the selected colour when focused.
+  final inputTheme = InputDecorationTheme(
+    filled: true,
+    fillColor: colors.surfaceVariant,
+    hoverColor: onSurface.withValues(alpha: 0.04),
+    labelStyle: textTheme.bodyLarge!.copyWith(color: colors.onSurfaceVariant),
+    floatingLabelStyle: WidgetStateTextStyle.resolveWith(
+      (states) => textTheme.bodyMedium!.copyWith(
+        color: states.contains(WidgetState.error)
+            ? colors.danger
+            : states.contains(WidgetState.focused)
+            ? selectedFg
+            : colors.onSurfaceVariant,
+      ),
+    ),
+    hintStyle: textTheme.bodyLarge!.copyWith(
+      color: colors.onSurfaceVariant.withValues(
+        alpha: colors.onSurfaceVariant.a * 0.75,
+      ),
+    ),
+    helperStyle: textTheme.bodySmall,
+    errorStyle: textTheme.bodySmall!.copyWith(color: colors.danger),
+    prefixIconColor: colors.onSurfaceVariant,
+    suffixIconColor: colors.onSurfaceVariant,
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: LekisSpacing.lg,
+      vertical: LekisSpacing.md,
+    ),
+    border: fieldBorder(),
+    enabledBorder: fieldBorder(),
+    disabledBorder: fieldBorder(),
+    focusedBorder: fieldBorder(BorderSide(color: selectedFg, width: 1.5)),
+    errorBorder: fieldBorder(BorderSide(color: colors.danger)),
+    focusedErrorBorder: fieldBorder(
+      BorderSide(color: colors.danger, width: 1.5),
+    ),
+  );
+
+  final menuStyle = MenuStyle(
+    backgroundColor: WidgetStatePropertyAll(colors.surfaceElevated),
+    surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+    shadowColor: WidgetStatePropertyAll(
+      onMedia ? Colors.transparent : colors.scrim,
+    ),
+    elevation: WidgetStatePropertyAll(onMedia ? 0 : 3),
+    shape: WidgetStatePropertyAll(menuShape),
+    padding: const WidgetStatePropertyAll(
+      EdgeInsets.symmetric(vertical: LekisSpacing.xs),
+    ),
+  );
+
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
     colorScheme: scheme,
-    scaffoldBackgroundColor: background,
+    scaffoldBackgroundColor: onMedia ? Colors.transparent : background,
     canvasColor: background,
     textTheme: textTheme,
     fontFamily: _SystemFonts.family,
     fontFamilyFallback: _SystemFonts.fallback,
-    extensions: [colors],
+    extensions: [colors, surfaceStyle],
+    iconTheme: IconThemeData(color: iconForeground ?? onSurface),
     dividerTheme: DividerThemeData(
       color: colors.outline,
       thickness: 1,
       space: 1,
     ),
     splashFactory: InkSparkle.splashFactory,
+    textSelectionTheme: TextSelectionThemeData(
+      cursorColor: selectedFg,
+      selectionColor: selectedFg.withValues(alpha: 0.28),
+      selectionHandleColor: selectedFg,
+    ),
     appBarTheme: AppBarTheme(
-      backgroundColor: background,
+      backgroundColor: onMedia ? Colors.transparent : background,
       foregroundColor: onSurface,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
@@ -231,17 +389,38 @@ ThemeData _buildTheme({
       ),
       labelType: NavigationRailLabelType.all,
     ),
+    tabBarTheme: TabBarThemeData(
+      labelColor: selectedFg,
+      unselectedLabelColor: colors.onSurfaceVariant,
+      labelStyle: textTheme.labelLarge,
+      unselectedLabelStyle: textTheme.labelLarge,
+      indicatorColor: selectedFg,
+      indicatorSize: TabBarIndicatorSize.label,
+      dividerColor: colors.outline,
+      overlayColor: overlayOn(onSurface),
+    ),
     listTileTheme: ListTileThemeData(
       iconColor: colors.onSurfaceVariant,
       textColor: onSurface,
+      selectedColor: selectedFg,
+      selectedTileColor: colors.accentSoft,
       titleTextStyle: textTheme.bodyLarge,
       subtitleTextStyle: textTheme.bodySmall,
+      leadingAndTrailingTextStyle: textTheme.bodySmall,
       contentPadding: const EdgeInsets.symmetric(
         horizontal: LekisSpacing.pageGutter,
       ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(LekisRadius.md),
       ),
+    ),
+    expansionTileTheme: ExpansionTileThemeData(
+      iconColor: colors.onSurfaceVariant,
+      collapsedIconColor: colors.onSurfaceVariant,
+      textColor: onSurface,
+      collapsedTextColor: onSurface,
+      shape: const Border(),
+      collapsedShape: const Border(),
     ),
     cardTheme: CardThemeData(
       color: colors.surfaceElevated,
@@ -253,30 +432,84 @@ ThemeData _buildTheme({
         side: BorderSide(color: colors.outline),
       ),
     ),
+    // ---- Buttons: one height, one corner, one type style. --------------
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        minimumSize: const Size(0, LekisSizes.touchTargetMin),
-        padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.xl),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        minimumSize: buttonSize,
+        padding: buttonPadding,
+        shape: buttonShape,
         textStyle: textTheme.labelLarge,
+        iconSize: buttonIconSize,
+        disabledBackgroundColor: disabledBg,
+        disabledForegroundColor: disabledFg,
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size(0, LekisSizes.touchTargetMin),
-        padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.xl),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        minimumSize: buttonSize,
+        padding: buttonPadding,
+        shape: buttonShape,
+        foregroundColor: onSurface,
+        disabledForegroundColor: disabledFg,
         side: BorderSide(color: colors.outline),
         textStyle: textTheme.labelLarge,
+        iconSize: buttonIconSize,
       ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        minimumSize: buttonSize,
+        padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.md),
+        shape: buttonShape,
+        foregroundColor: selectedFg,
+        disabledForegroundColor: disabledFg,
+        textStyle: textTheme.labelLarge,
+        iconSize: buttonIconSize,
+      ),
+    ),
+    // Icon buttons: plain glyphs; a toggle that is on gets a soft disc
+    // (accentSoft) and the selected colour. Same rule in the player bar, on
+    // Now Playing and in every page toolbar.
+    iconButtonTheme: IconButtonThemeData(
+      style: ButtonStyle(
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) return null;
+          if (states.contains(WidgetState.selected)) return selectedFg;
+          return iconForeground;
+        }),
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (states) =>
+              states.contains(WidgetState.selected) ? colors.accentSoft : null,
+        ),
+        overlayColor: overlayOn(onSurface),
+      ),
+    ),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: colors.accent,
+      foregroundColor: colors.onAccent,
+      elevation: 0,
+      focusElevation: 0,
+      hoverElevation: 2,
+      highlightElevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(LekisRadius.lg),
+      ),
+      extendedTextStyle: textTheme.labelLarge,
     ),
     segmentedButtonTheme: SegmentedButtonThemeData(
       style: ButtonStyle(
         visualDensity: VisualDensity.compact,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        minimumSize: const WidgetStatePropertyAll(
+          Size(0, LekisSizes.segmentedHeight),
+        ),
         side: WidgetStatePropertyAll(BorderSide(color: colors.outline)),
+        // One corner for labelled controls (the same 14 as buttons); pills
+        // are reserved for chips.
         shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(LekisRadius.button),
+          ),
         ),
         backgroundColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)
@@ -285,72 +518,167 @@ ThemeData _buildTheme({
         ),
         foregroundColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)
-              ? colors.accent
+              ? selectedFg
               : colors.onSurfaceVariant,
         ),
-        textStyle: WidgetStatePropertyAll(textTheme.labelMedium),
+        textStyle: WidgetStatePropertyAll(textTheme.labelLarge),
       ),
     ),
     chipTheme: ChipThemeData(
       backgroundColor: colors.surfaceVariant,
       selectedColor: colors.accentSoft,
+      disabledColor: disabledBg,
       side: BorderSide.none,
       shape: const StadiumBorder(),
-      labelStyle: textTheme.labelMedium,
+      showCheckmark: false,
+      checkmarkColor: selectedFg,
+      labelStyle: WidgetStateTextStyle.resolveWith(
+        (states) => textTheme.labelMedium!.copyWith(
+          color: states.contains(WidgetState.selected) ? selectedFg : onSurface,
+        ),
+      ),
+      iconTheme: IconThemeData(
+        color: colors.onSurfaceVariant,
+        size: LekisSpacing.lg,
+      ),
       padding: const EdgeInsets.symmetric(
-        horizontal: LekisSpacing.md,
+        horizontal: LekisSpacing.sm,
         vertical: LekisSpacing.xs,
       ),
     ),
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(textStyle: textTheme.labelLarge),
+    // Count badges: small accent pill, never Material's default red.
+    badgeTheme: BadgeThemeData(
+      backgroundColor: colors.accent,
+      textColor: colors.onAccent,
+      smallSize: LekisSpacing.sm - LekisSpacing.xxs,
+      largeSize: LekisSizes.badgeHeight,
+      textStyle: textTheme.labelSmall!.copyWith(
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0,
+        fontFeatures: LekisText.tabularFigures,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.xs),
     ),
-    iconButtonTheme: IconButtonThemeData(
-      style: IconButton.styleFrom(
-        foregroundColor: colors.onSurfaceVariant,
-        highlightColor: colors.accentSoft,
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? colors.onAccent
+            : colors.onSurfaceVariant,
+      ),
+      trackColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? colors.accent
+            : colors.surfaceVariant,
+      ),
+      trackOutlineColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? Colors.transparent
+            : colors.outline,
+      ),
+      overlayColor: overlayOn(colors.accent),
+    ),
+    checkboxTheme: CheckboxThemeData(
+      fillColor: WidgetStateProperty.resolveWith(
+        (states) =>
+            states.contains(WidgetState.selected) ? colors.accent : null,
+      ),
+      checkColor: WidgetStatePropertyAll(colors.onAccent),
+      side: BorderSide(color: colors.onSurfaceVariant, width: 1.5),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(LekisRadius.xs),
       ),
     ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: colors.surfaceVariant,
-      hintStyle: textTheme.bodyLarge!.copyWith(color: colors.onSurfaceVariant),
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: LekisSpacing.lg,
-        vertical: LekisSpacing.md,
+    radioTheme: RadioThemeData(
+      fillColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? colors.accent
+            : colors.onSurfaceVariant,
       ),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(LekisRadius.md),
-        borderSide: BorderSide.none,
-      ),
+    ),
+    inputDecorationTheme: inputTheme,
+    dropdownMenuTheme: DropdownMenuThemeData(
+      textStyle: textTheme.bodyLarge,
+      inputDecorationTheme: inputTheme,
+      menuStyle: menuStyle,
+    ),
+    menuTheme: MenuThemeData(style: menuStyle),
+    popupMenuTheme: PopupMenuThemeData(
+      color: colors.surfaceElevated,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: onMedia ? Colors.transparent : colors.scrim,
+      elevation: onMedia ? 0 : 3,
+      shape: menuShape,
+      textStyle: textTheme.bodyLarge,
+      labelTextStyle: WidgetStatePropertyAll(textTheme.bodyLarge),
+      iconColor: colors.onSurfaceVariant,
+      menuPadding: const EdgeInsets.symmetric(vertical: LekisSpacing.xs),
     ),
     searchBarTheme: SearchBarThemeData(
       backgroundColor: WidgetStatePropertyAll(colors.surfaceVariant),
       surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
       elevation: const WidgetStatePropertyAll(0),
       shape: const WidgetStatePropertyAll(StadiumBorder()),
+      textStyle: WidgetStatePropertyAll(textTheme.bodyLarge),
+      hintStyle: WidgetStatePropertyAll(inputTheme.hintStyle),
     ),
+    // Classic continuous track everywhere: no 2024 gap, stop dot or ticks.
     sliderTheme: SliderThemeData(
-      trackHeight: 3,
+      // Pinned: the framework default flips to the 2024 look later.
+      // ignore: deprecated_member_use
+      year2023: true,
+      trackHeight: LekisSpacing.xs,
       activeTrackColor: colors.accent,
-      inactiveTrackColor: colors.surfaceVariant,
+      inactiveTrackColor: onMedia
+          ? onSurface.withValues(alpha: 0.24)
+          : colors.outline,
+      disabledActiveTrackColor: disabledFg,
+      disabledInactiveTrackColor: disabledBg,
       thumbColor: colors.accent,
-      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-      overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+      disabledThumbColor: disabledFg,
+      tickMarkShape: SliderTickMarkShape.noTickMark,
+      thumbShape: const RoundSliderThumbShape(
+        enabledThumbRadius: LekisSpacing.xs + LekisSpacing.xxs,
+      ),
+      overlayShape: const RoundSliderOverlayShape(
+        overlayRadius: LekisSpacing.lg,
+      ),
       overlayColor: colors.accent.withValues(alpha: 0.12),
+      showValueIndicator: ShowValueIndicator.onDrag,
+      valueIndicatorColor: onSurface,
+      valueIndicatorTextStyle: textTheme.labelMedium!.copyWith(
+        color: inverseInk,
+      ),
     ),
     progressIndicatorTheme: ProgressIndicatorThemeData(
+      // ignore: deprecated_member_use
+      year2023: true,
       color: colors.accent,
-      linearTrackColor: colors.surfaceVariant,
+      linearTrackColor: onMedia
+          ? onSurface.withValues(alpha: 0.16)
+          : colors.surfaceVariant,
+      circularTrackColor: Colors.transparent,
     ),
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: colors.surfaceElevated,
+      modalBackgroundColor: colors.surfaceElevated,
       surfaceTintColor: Colors.transparent,
       modalBarrierColor: colors.scrim,
+      elevation: 0,
+      modalElevation: 0,
       showDragHandle: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(LekisRadius.xl),
+      dragHandleColor: colors.onSurfaceVariant.withValues(
+        alpha: colors.onSurfaceVariant.a * 0.5,
+      ),
+      dragHandleSize: const Size(
+        LekisSpacing.xxl + LekisSpacing.xs,
+        LekisSpacing.xs,
+      ),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        side: panelSide,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(LekisRadius.panel),
         ),
       ),
     ),
@@ -358,23 +686,50 @@ ThemeData _buildTheme({
       backgroundColor: colors.surfaceElevated,
       surfaceTintColor: Colors.transparent,
       barrierColor: colors.scrim,
+      elevation: onMedia ? 0 : 6,
+      shadowColor: onMedia ? Colors.transparent : colors.scrim,
+      clipBehavior: Clip.antiAlias,
+      titleTextStyle: textTheme.titleLarge,
+      contentTextStyle: textTheme.bodyMedium!.copyWith(
+        color: colors.onSurfaceVariant,
+        height: 1.5,
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(
+        LekisSpacing.xl,
+        0,
+        LekisSpacing.xl,
+        LekisSpacing.lg,
+      ),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(LekisRadius.xl),
+        side: panelSide,
+        borderRadius: BorderRadius.circular(LekisRadius.panel),
       ),
     ),
+    // On artwork the snack bar is one more dark glass pill, not a white slab
+    // across the bottom of the screen.
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      backgroundColor: onSurface,
-      contentTextStyle: textTheme.bodyMedium!.copyWith(color: surface),
+      backgroundColor: onMedia ? surfaceStyle.panel : onSurface,
+      contentTextStyle: textTheme.bodyMedium!.copyWith(
+        color: onMedia ? onSurface : inverseInk,
+      ),
+      actionTextColor: onMedia ? colors.accent : scheme.inversePrimary,
+      closeIconColor: onMedia ? colors.onSurfaceVariant : inverseInk,
+      elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(LekisRadius.md),
+        side: onMedia
+            ? BorderSide(color: surfaceStyle.panelBorder)
+            : BorderSide.none,
       ),
     ),
     tooltipTheme: TooltipThemeData(
       decoration: BoxDecoration(
-        color: colors.surfaceElevated,
+        color: onMedia ? surfaceStyle.panel : colors.surfaceElevated,
         borderRadius: BorderRadius.circular(LekisRadius.sm),
-        border: Border.all(color: colors.outline),
+        border: Border.all(
+          color: onMedia ? surfaceStyle.panelBorder : colors.outline,
+        ),
       ),
       textStyle: textTheme.bodySmall!.copyWith(color: onSurface),
     ),

@@ -246,6 +246,13 @@ class TrackShelf extends ConsumerWidget {
       itemBuilder: (context, i) {
         final t = tracks[i];
         final artist = t.artistLine.trim();
+        // Every card keeps the second line: a missing artist reads as
+        // "unknown" instead of leaving a ragged gap in the shelf.
+        final subtitle = artist.isEmpty
+            ? '未知艺人'
+            : artist == t.title
+            ? null
+            : artist;
         return ArtworkCardFrame(
           onTap: () =>
               ref.read(playerActionsProvider).playRows(tracks, start: i),
@@ -256,7 +263,7 @@ class TrackShelf extends ConsumerWidget {
             placeholderLabel: t.title,
           ),
           title: t.title,
-          subtitle: artist.isEmpty || artist == t.title ? null : artist,
+          subtitle: subtitle,
           semanticLabel: artist.isEmpty || artist == t.title
               ? '播放 ${t.title}'
               : '播放 ${t.title}，$artist',
@@ -274,9 +281,10 @@ class TrackShelf extends ConsumerWidget {
 class _ResumeHero extends ConsumerWidget {
   const _ResumeHero();
 
-  /// Artwork side on narrow cards / on wider cards.
+  /// Artwork side on narrow cards / on wider cards. Kept small enough that
+  /// the first shelf stays visible above the floating mini player.
   static const double _artCompact = LekisSizes.listArtwork * 2;
-  static const double _artWide = LekisSizes.gridArtworkMin * 0.75;
+  static const double _artWide = LekisSizes.gridArtworkMin * 0.7;
 
   /// Cards narrower than this use the smaller artwork and padding.
   static const double _compactBelow = LekisSizes.gridArtworkMin * 3.5;
@@ -305,6 +313,7 @@ class _ResumeHero extends ConsumerWidget {
         final compact = constraints.maxWidth < _compactBelow;
         final artSize = compact ? _artCompact : _artWide;
         final pad = compact ? LekisSpacing.md : LekisSpacing.lg;
+        final gap = compact ? LekisSpacing.sm : LekisSpacing.md;
 
         final info = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -336,13 +345,7 @@ class _ResumeHero extends ConsumerWidget {
                 ),
               ),
             const SizedBox(height: LekisSpacing.sm),
-            const Row(
-              children: [
-                PlayPauseButton(filled: true),
-                SizedBox(width: LekisSpacing.md),
-                Expanded(child: _ResumeProgress()),
-              ],
-            ),
+            const _ResumeProgress(),
           ],
         );
 
@@ -391,6 +394,10 @@ class _ResumeHero extends ConsumerWidget {
                         ),
                         SizedBox(width: pad),
                         Expanded(child: info),
+                        SizedBox(width: gap),
+                        // The transport fills the far end of the card on wide
+                        // windows instead of leaving the right half empty.
+                        const PlayPauseButton(filled: true),
                       ],
                     ),
                   ),

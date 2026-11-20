@@ -6,6 +6,7 @@ import 'package:lekis/src/features/library/widgets/track_tile.dart'
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/lekis_slider.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Whether the platform has its own hardware/system volume UI.
@@ -100,9 +101,9 @@ class PlayPauseButton extends ConsumerWidget {
         ? IconButton.filled(
             tooltip: tooltip,
             onPressed: onPressed,
-            // Explicit colors: a page-level iconButtonTheme (Now Playing sets
-            // foregroundColor = primary) would otherwise paint the icon the
-            // same color as the filled background.
+            // Filled play button: the accent disc comes from the variant, but
+            // the icon must be onPrimary (the theme's plain icon colour would
+            // sit on the filled disc and disappear in the light theme).
             style: IconButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.primary,
               foregroundColor: Theme.of(context).colorScheme.onPrimary,
@@ -126,7 +127,7 @@ class PlayPauseButton extends ConsumerWidget {
         IgnorePointer(
           child: SizedBox.square(
             dimension: (size ?? LekisSpacing.xl) + LekisSpacing.xl,
-            child: const CircularProgressIndicator(strokeWidth: 2),
+            child: const CircularProgressIndicator(strokeWidth: LekisSpacing.xxs),
           ),
         ),
       ],
@@ -176,16 +177,15 @@ class ShuffleButton extends ConsumerWidget {
     final on = ref.watch(
       playbackProvider.select((s) => s.shuffle != ShuffleModeDto.off),
     );
+    // Same on/off rule as [RepeatButton]: the theme paints the disc and the
+    // selected colour, the widget only swaps the glyph.
     return IconButton(
       tooltip: on ? '关闭随机播放' : '随机播放',
       isSelected: on,
       constraints: _touchTarget,
       onPressed: ref.read(playerActionsProvider).toggleShuffle,
       icon: const Icon(Icons.shuffle_rounded),
-      selectedIcon: Icon(
-        Icons.shuffle_on_rounded,
-        color: context.lekisColors.accent,
-      ),
+      selectedIcon: const Icon(Icons.shuffle_on_rounded),
     );
   }
 }
@@ -196,23 +196,31 @@ class RepeatButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(playbackProvider.select((s) => s.repeat));
-    final accent = context.lekisColors.accent;
-    final (icon, tip) = switch (mode) {
-      RepeatModeDto.off => (const Icon(Icons.repeat_rounded), '列表循环'),
+    final on = mode != RepeatModeDto.off;
+    final (icon, selectedIcon, tip) = switch (mode) {
+      RepeatModeDto.off => (
+        Icons.repeat_rounded,
+        Icons.repeat_on_rounded,
+        '列表循环',
+      ),
       RepeatModeDto.all => (
-        Icon(Icons.repeat_on_rounded, color: accent),
+        Icons.repeat_on_rounded,
+        Icons.repeat_one_on_rounded,
         '单曲循环',
       ),
       RepeatModeDto.one => (
-        Icon(Icons.repeat_one_on_rounded, color: accent),
+        Icons.repeat_one_on_rounded,
+        Icons.repeat_rounded,
         '关闭循环',
       ),
     };
     return IconButton(
       tooltip: tip,
+      isSelected: on,
       constraints: _touchTarget,
       onPressed: ref.read(playerActionsProvider).cycleRepeat,
-      icon: icon,
+      icon: Icon(icon),
+      selectedIcon: Icon(selectedIcon),
     );
   }
 }
@@ -288,40 +296,27 @@ class _SeekBarState extends ConsumerState<SeekBar> {
       fontFeatures: LekisText.tabularFigures,
     );
 
-    final slider = SliderTheme(
-      data: SliderTheme.of(context).copyWith(
-        trackHeight: LekisSpacing.xs,
-        // In the desktop bar the slider shares its row with nothing else, so
-        // it must fit the bar height instead of claiming the 48 dp touch
-        // target it uses on phones. With a non-null padding the slider sizes
-        // itself from the thumb instead of the overlay, which keeps the whole
-        // row at ~16 dp and inside the 88 dp bar next to the transport row.
-        padding: widget.inlineTimes ? EdgeInsets.zero : null,
-        overlayShape: RoundSliderOverlayShape(
-          overlayRadius: widget.inlineTimes
-              ? LekisSpacing.md
-              : LekisSizes.touchTargetMin / 2,
-        ),
-        thumbShape: RoundSliderThumbShape(
-          enabledThumbRadius: _dragMs != null
-              ? LekisSpacing.sm
-              : LekisSpacing.xs + LekisSpacing.xxs,
-        ),
-      ),
-      child: Slider(
-        value: shown,
-        max: duration > 0 ? duration.toDouble() : 1,
-        semanticFormatterCallback: (v) =>
-            '${formatDuration(v.round())} / ${formatDuration(duration)}',
-        onChangeStart: duration > 0 ? (v) => setState(() => _dragMs = v) : null,
-        onChanged: duration > 0 ? (v) => setState(() => _dragMs = v) : null,
-        onChangeEnd: duration > 0
-            ? (v) {
-                ref.read(playerActionsProvider).seek(v.round());
-                setState(() => _dragMs = null);
-              }
-            : null,
-      ),
+    final slider = LekisSlider(
+      value: shown,
+      max: duration > 0 ? duration.toDouble() : 1,
+      semanticFormatterCallback: (v) =>
+          '${formatDuration(v.round())} / ${formatDuration(duration)}',
+      onChangeStart: duration > 0 ? (v) => setState(() => _dragMs = v) : null,
+      onChanged: duration > 0 ? (v) => setState(() => _dragMs = v) : null,
+      onChangeEnd: duration > 0
+          ? (v) {
+              ref.read(playerActionsProvider).seek(v.round());
+              setState(() => _dragMs = null);
+            }
+          : null,
+      trackHeight: LekisSliderGeometry.track,
+      thumbRadius: _dragMs != null
+          ? LekisSliderGeometry.thumbDragging
+          : LekisSliderGeometry.thumb,
+      overlayRadius: widget.inlineTimes
+          ? LekisSliderGeometry.overlayDense
+          : LekisSliderGeometry.overlay,
+      dense: widget.inlineTimes,
     );
 
     final elapsed = Text(formatDuration(shown.round()), style: timeStyle);
@@ -440,14 +435,11 @@ class _VolumeControlState extends ConsumerState<VolumeControl> {
         if (widget.showSlider)
           SizedBox(
             width: widget.width ?? LekisSizes.gridArtworkMin * 0.75,
-            child: SliderTheme(
-              data: SliderTheme.of(context)
-                  .copyWith(trackHeight: LekisSpacing.xs),
-              child: Slider(
-                value: volume.clamp(0.0, 1.0),
-                semanticFormatterCallback: (v) => '音量 ${(v * 100).round()}%',
-                onChanged: actions.setVolume,
-              ),
+            child: LekisSlider(
+              value: volume.clamp(0.0, 1.0),
+              semanticFormatterCallback: (v) => '音量 ${(v * 100).round()}%',
+              onChanged: actions.setVolume,
+              trackHeight: LekisSliderGeometry.track,
             ),
           ),
       ],

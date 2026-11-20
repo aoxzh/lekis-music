@@ -48,12 +48,13 @@ const double _maxLineWidth = 680;
 const double _compactMaxLineWidth = 560;
 
 /// Opacity for a line [distance] lines away from the active one
-/// (negative = already sung).
+/// (negative = already sung). The far lines stay clearly below the active
+/// one but readable: at 0.3 they disappeared into a bright cover.
 double _lineOpacity(int distance) => switch (distance) {
   0 => 1,
-  1 => 0.55,
-  -1 => 0.4,
-  _ => LekisType.lyricsInactiveOpacity * 0.85,
+  1 => 0.62,
+  -1 => 0.45,
+  _ => 0.38,
 };
 
 /// Blur for a line [distance] lines away: neighbours stay sharp, the rest
