@@ -1,3 +1,4 @@
+pub mod connect;
 pub mod core;
 pub mod dto;
 pub mod error;

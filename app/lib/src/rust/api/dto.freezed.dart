@@ -13,6 +13,1349 @@ part of 'dto.dart';
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
+mixin _$ConnectEventDto {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ConnectEventDto);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'ConnectEventDto()';
+}
+
+
+}
+
+/// @nodoc
+class $ConnectEventDtoCopyWith<$Res>  {
+$ConnectEventDtoCopyWith(ConnectEventDto _, $Res Function(ConnectEventDto) __);
+}
+
+
+/// Adds pattern-matching-related methods to [ConnectEventDto].
+extension ConnectEventDtoPatterns on ConnectEventDto {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( ConnectEventDto_DevicesChanged value)?  devicesChanged,TResult Function( ConnectEventDto_PairingCode value)?  pairingCode,TResult Function( ConnectEventDto_PairingFinished value)?  pairingFinished,TResult Function( ConnectEventDto_RemoteState value)?  remoteState,TResult Function( ConnectEventDto_SessionClosed value)?  sessionClosed,TResult Function( ConnectEventDto_ControllersChanged value)?  controllersChanged,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case ConnectEventDto_DevicesChanged() when devicesChanged != null:
+return devicesChanged(_that);case ConnectEventDto_PairingCode() when pairingCode != null:
+return pairingCode(_that);case ConnectEventDto_PairingFinished() when pairingFinished != null:
+return pairingFinished(_that);case ConnectEventDto_RemoteState() when remoteState != null:
+return remoteState(_that);case ConnectEventDto_SessionClosed() when sessionClosed != null:
+return sessionClosed(_that);case ConnectEventDto_ControllersChanged() when controllersChanged != null:
+return controllersChanged(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( ConnectEventDto_DevicesChanged value)  devicesChanged,required TResult Function( ConnectEventDto_PairingCode value)  pairingCode,required TResult Function( ConnectEventDto_PairingFinished value)  pairingFinished,required TResult Function( ConnectEventDto_RemoteState value)  remoteState,required TResult Function( ConnectEventDto_SessionClosed value)  sessionClosed,required TResult Function( ConnectEventDto_ControllersChanged value)  controllersChanged,}){
+final _that = this;
+switch (_that) {
+case ConnectEventDto_DevicesChanged():
+return devicesChanged(_that);case ConnectEventDto_PairingCode():
+return pairingCode(_that);case ConnectEventDto_PairingFinished():
+return pairingFinished(_that);case ConnectEventDto_RemoteState():
+return remoteState(_that);case ConnectEventDto_SessionClosed():
+return sessionClosed(_that);case ConnectEventDto_ControllersChanged():
+return controllersChanged(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( ConnectEventDto_DevicesChanged value)?  devicesChanged,TResult? Function( ConnectEventDto_PairingCode value)?  pairingCode,TResult? Function( ConnectEventDto_PairingFinished value)?  pairingFinished,TResult? Function( ConnectEventDto_RemoteState value)?  remoteState,TResult? Function( ConnectEventDto_SessionClosed value)?  sessionClosed,TResult? Function( ConnectEventDto_ControllersChanged value)?  controllersChanged,}){
+final _that = this;
+switch (_that) {
+case ConnectEventDto_DevicesChanged() when devicesChanged != null:
+return devicesChanged(_that);case ConnectEventDto_PairingCode() when pairingCode != null:
+return pairingCode(_that);case ConnectEventDto_PairingFinished() when pairingFinished != null:
+return pairingFinished(_that);case ConnectEventDto_RemoteState() when remoteState != null:
+return remoteState(_that);case ConnectEventDto_SessionClosed() when sessionClosed != null:
+return sessionClosed(_that);case ConnectEventDto_ControllersChanged() when controllersChanged != null:
+return controllersChanged(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( List<ConnectDeviceDto> devices)?  devicesChanged,TResult Function( String peerId,  String peerName,  String code)?  pairingCode,TResult Function( String peerId,  String peerName,  bool success)?  pairingFinished,TResult Function( String deviceId,  RemoteStateDto state)?  remoteState,TResult Function( String deviceId,  String reason)?  sessionClosed,TResult Function( List<String> names)?  controllersChanged,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case ConnectEventDto_DevicesChanged() when devicesChanged != null:
+return devicesChanged(_that.devices);case ConnectEventDto_PairingCode() when pairingCode != null:
+return pairingCode(_that.peerId,_that.peerName,_that.code);case ConnectEventDto_PairingFinished() when pairingFinished != null:
+return pairingFinished(_that.peerId,_that.peerName,_that.success);case ConnectEventDto_RemoteState() when remoteState != null:
+return remoteState(_that.deviceId,_that.state);case ConnectEventDto_SessionClosed() when sessionClosed != null:
+return sessionClosed(_that.deviceId,_that.reason);case ConnectEventDto_ControllersChanged() when controllersChanged != null:
+return controllersChanged(_that.names);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( List<ConnectDeviceDto> devices)  devicesChanged,required TResult Function( String peerId,  String peerName,  String code)  pairingCode,required TResult Function( String peerId,  String peerName,  bool success)  pairingFinished,required TResult Function( String deviceId,  RemoteStateDto state)  remoteState,required TResult Function( String deviceId,  String reason)  sessionClosed,required TResult Function( List<String> names)  controllersChanged,}) {final _that = this;
+switch (_that) {
+case ConnectEventDto_DevicesChanged():
+return devicesChanged(_that.devices);case ConnectEventDto_PairingCode():
+return pairingCode(_that.peerId,_that.peerName,_that.code);case ConnectEventDto_PairingFinished():
+return pairingFinished(_that.peerId,_that.peerName,_that.success);case ConnectEventDto_RemoteState():
+return remoteState(_that.deviceId,_that.state);case ConnectEventDto_SessionClosed():
+return sessionClosed(_that.deviceId,_that.reason);case ConnectEventDto_ControllersChanged():
+return controllersChanged(_that.names);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( List<ConnectDeviceDto> devices)?  devicesChanged,TResult? Function( String peerId,  String peerName,  String code)?  pairingCode,TResult? Function( String peerId,  String peerName,  bool success)?  pairingFinished,TResult? Function( String deviceId,  RemoteStateDto state)?  remoteState,TResult? Function( String deviceId,  String reason)?  sessionClosed,TResult? Function( List<String> names)?  controllersChanged,}) {final _that = this;
+switch (_that) {
+case ConnectEventDto_DevicesChanged() when devicesChanged != null:
+return devicesChanged(_that.devices);case ConnectEventDto_PairingCode() when pairingCode != null:
+return pairingCode(_that.peerId,_that.peerName,_that.code);case ConnectEventDto_PairingFinished() when pairingFinished != null:
+return pairingFinished(_that.peerId,_that.peerName,_that.success);case ConnectEventDto_RemoteState() when remoteState != null:
+return remoteState(_that.deviceId,_that.state);case ConnectEventDto_SessionClosed() when sessionClosed != null:
+return sessionClosed(_that.deviceId,_that.reason);case ConnectEventDto_ControllersChanged() when controllersChanged != null:
+return controllersChanged(_that.names);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class ConnectEventDto_DevicesChanged extends ConnectEventDto {
+  const ConnectEventDto_DevicesChanged({required  List<ConnectDeviceDto> devices}): _devices = devices,super._();
+  
+
+/// 当前局域网里（含手动添加的）所有设备。
+ final  List<ConnectDeviceDto> _devices;
+/// 当前局域网里（含手动添加的）所有设备。
+ List<ConnectDeviceDto> get devices {
+  if (_devices is EqualUnmodifiableListView) return _devices;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_devices);
+}
+
+
+/// Create a copy of ConnectEventDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ConnectEventDto_DevicesChangedCopyWith<ConnectEventDto_DevicesChanged> get copyWith => _$ConnectEventDto_DevicesChangedCopyWithImpl<ConnectEventDto_DevicesChanged>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ConnectEventDto_DevicesChanged&&const DeepCollectionEquality().equals(other.devices, _devices));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_devices));
+}
+
+@override
+String toString() {
+    return 'ConnectEventDto.devicesChanged(devices: $devices)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ConnectEventDto_DevicesChangedCopyWith<$Res> implements $ConnectEventDtoCopyWith<$Res> {
+  factory $ConnectEventDto_DevicesChangedCopyWith(ConnectEventDto_DevicesChanged value, $Res Function(ConnectEventDto_DevicesChanged) _then) = _$ConnectEventDto_DevicesChangedCopyWithImpl;
+@useResult
+$Res call({
+ List<ConnectDeviceDto> devices
+});
+
+
+
+
+}
+/// @nodoc
+class _$ConnectEventDto_DevicesChangedCopyWithImpl<$Res>
+    implements $ConnectEventDto_DevicesChangedCopyWith<$Res> {
+  _$ConnectEventDto_DevicesChangedCopyWithImpl(this._self, this._then);
+
+  final ConnectEventDto_DevicesChanged _self;
+  final $Res Function(ConnectEventDto_DevicesChanged) _then;
+
+/// Create a copy of ConnectEventDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? devices = null,}) {
+  return _then(ConnectEventDto_DevicesChanged(
+devices: null == devices ? _self._devices : devices // ignore: cast_nullable_to_non_nullable
+as List<ConnectDeviceDto>,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class ConnectEventDto_PairingCode extends ConnectEventDto {
+  const ConnectEventDto_PairingCode({required this.peerId, required this.peerName, required this.code}): super._();
+  
+
+/// 请求配对的设备 ID。
+ final  String peerId;
+/// 请求配对的设备名。
+ final  String peerName;
+/// 6 位配对码，用户需要把它输进那台设备。
+ final  String code;
+
+/// Create a copy of ConnectEventDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ConnectEventDto_PairingCodeCopyWith<ConnectEventDto_PairingCode> get copyWith => _$ConnectEventDto_PairingCodeCopyWithImpl<ConnectEventDto_PairingCode>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ConnectEventDto_PairingCode&&(identical(other.peerId, peerId) || other.peerId == peerId)&&(identical(other.peerName, peerName) || other.peerName == peerName)&&(identical(other.code, code) || other.code == code));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,peerId,peerName,code);
+}
+
+@override
+String toString() {
+    return 'ConnectEventDto.pairingCode(peerId: $peerId, peerName: $peerName, code: $code)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ConnectEventDto_PairingCodeCopyWith<$Res> implements $ConnectEventDtoCopyWith<$Res> {
+  factory $ConnectEventDto_PairingCodeCopyWith(ConnectEventDto_PairingCode value, $Res Function(ConnectEventDto_PairingCode) _then) = _$ConnectEventDto_PairingCodeCopyWithImpl;
+@useResult
+$Res call({
+ String peerId, String peerName, String code
+});
+
+
+
+
+}
+/// @nodoc
+class _$ConnectEventDto_PairingCodeCopyWithImpl<$Res>
+    implements $ConnectEventDto_PairingCodeCopyWith<$Res> {
+  _$ConnectEventDto_PairingCodeCopyWithImpl(this._self, this._then);
+
+  final ConnectEventDto_PairingCode _self;
+  final $Res Function(ConnectEventDto_PairingCode) _then;
+
+/// Create a copy of ConnectEventDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? peerId = null,Object? peerName = null,Object? code = null,}) {
+  return _then(ConnectEventDto_PairingCode(
+peerId: null == peerId ? _self.peerId : peerId // ignore: cast_nullable_to_non_nullable
+as String,peerName: null == peerName ? _self.peerName : peerName // ignore: cast_nullable_to_non_nullable
+as String,code: null == code ? _self.code : code // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class ConnectEventDto_PairingFinished extends ConnectEventDto {
+  const ConnectEventDto_PairingFinished({required this.peerId, required this.peerName, required this.success}): super._();
+  
+
+/// 请求配对的设备 ID。
+ final  String peerId;
+/// 请求配对的设备名。
+ final  String peerName;
+/// 是否成功。
+ final  bool success;
+
+/// Create a copy of ConnectEventDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ConnectEventDto_PairingFinishedCopyWith<ConnectEventDto_PairingFinished> get copyWith => _$ConnectEventDto_PairingFinishedCopyWithImpl<ConnectEventDto_PairingFinished>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ConnectEventDto_PairingFinished&&(identical(other.peerId, peerId) || other.peerId == peerId)&&(identical(other.peerName, peerName) || other.peerName == peerName)&&(identical(other.success, success) || other.success == success));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,peerId,peerName,success);
+}
+
+@override
+String toString() {
+    return 'ConnectEventDto.pairingFinished(peerId: $peerId, peerName: $peerName, success: $success)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ConnectEventDto_PairingFinishedCopyWith<$Res> implements $ConnectEventDtoCopyWith<$Res> {
+  factory $ConnectEventDto_PairingFinishedCopyWith(ConnectEventDto_PairingFinished value, $Res Function(ConnectEventDto_PairingFinished) _then) = _$ConnectEventDto_PairingFinishedCopyWithImpl;
+@useResult
+$Res call({
+ String peerId, String peerName, bool success
+});
+
+
+
+
+}
+/// @nodoc
+class _$ConnectEventDto_PairingFinishedCopyWithImpl<$Res>
+    implements $ConnectEventDto_PairingFinishedCopyWith<$Res> {
+  _$ConnectEventDto_PairingFinishedCopyWithImpl(this._self, this._then);
+
+  final ConnectEventDto_PairingFinished _self;
+  final $Res Function(ConnectEventDto_PairingFinished) _then;
+
+/// Create a copy of ConnectEventDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? peerId = null,Object? peerName = null,Object? success = null,}) {
+  return _then(ConnectEventDto_PairingFinished(
+peerId: null == peerId ? _self.peerId : peerId // ignore: cast_nullable_to_non_nullable
+as String,peerName: null == peerName ? _self.peerName : peerName // ignore: cast_nullable_to_non_nullable
+as String,success: null == success ? _self.success : success // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class ConnectEventDto_RemoteState extends ConnectEventDto {
+  const ConnectEventDto_RemoteState({required this.deviceId, required this.state}): super._();
+  
+
+/// 哪台设备。
+ final  String deviceId;
+/// 它的最新状态。
+ final  RemoteStateDto state;
+
+/// Create a copy of ConnectEventDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ConnectEventDto_RemoteStateCopyWith<ConnectEventDto_RemoteState> get copyWith => _$ConnectEventDto_RemoteStateCopyWithImpl<ConnectEventDto_RemoteState>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ConnectEventDto_RemoteState&&(identical(other.deviceId, deviceId) || other.deviceId == deviceId)&&(identical(other.state, state) || other.state == state));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,deviceId,state);
+}
+
+@override
+String toString() {
+    return 'ConnectEventDto.remoteState(deviceId: $deviceId, state: $state)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ConnectEventDto_RemoteStateCopyWith<$Res> implements $ConnectEventDtoCopyWith<$Res> {
+  factory $ConnectEventDto_RemoteStateCopyWith(ConnectEventDto_RemoteState value, $Res Function(ConnectEventDto_RemoteState) _then) = _$ConnectEventDto_RemoteStateCopyWithImpl;
+@useResult
+$Res call({
+ String deviceId, RemoteStateDto state
+});
+
+
+
+
+}
+/// @nodoc
+class _$ConnectEventDto_RemoteStateCopyWithImpl<$Res>
+    implements $ConnectEventDto_RemoteStateCopyWith<$Res> {
+  _$ConnectEventDto_RemoteStateCopyWithImpl(this._self, this._then);
+
+  final ConnectEventDto_RemoteState _self;
+  final $Res Function(ConnectEventDto_RemoteState) _then;
+
+/// Create a copy of ConnectEventDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? deviceId = null,Object? state = null,}) {
+  return _then(ConnectEventDto_RemoteState(
+deviceId: null == deviceId ? _self.deviceId : deviceId // ignore: cast_nullable_to_non_nullable
+as String,state: null == state ? _self.state : state // ignore: cast_nullable_to_non_nullable
+as RemoteStateDto,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class ConnectEventDto_SessionClosed extends ConnectEventDto {
+  const ConnectEventDto_SessionClosed({required this.deviceId, required this.reason}): super._();
+  
+
+/// 哪台设备。
+ final  String deviceId;
+/// 断开的原因（给日志 / 提示用）。
+ final  String reason;
+
+/// Create a copy of ConnectEventDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ConnectEventDto_SessionClosedCopyWith<ConnectEventDto_SessionClosed> get copyWith => _$ConnectEventDto_SessionClosedCopyWithImpl<ConnectEventDto_SessionClosed>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ConnectEventDto_SessionClosed&&(identical(other.deviceId, deviceId) || other.deviceId == deviceId)&&(identical(other.reason, reason) || other.reason == reason));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,deviceId,reason);
+}
+
+@override
+String toString() {
+    return 'ConnectEventDto.sessionClosed(deviceId: $deviceId, reason: $reason)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ConnectEventDto_SessionClosedCopyWith<$Res> implements $ConnectEventDtoCopyWith<$Res> {
+  factory $ConnectEventDto_SessionClosedCopyWith(ConnectEventDto_SessionClosed value, $Res Function(ConnectEventDto_SessionClosed) _then) = _$ConnectEventDto_SessionClosedCopyWithImpl;
+@useResult
+$Res call({
+ String deviceId, String reason
+});
+
+
+
+
+}
+/// @nodoc
+class _$ConnectEventDto_SessionClosedCopyWithImpl<$Res>
+    implements $ConnectEventDto_SessionClosedCopyWith<$Res> {
+  _$ConnectEventDto_SessionClosedCopyWithImpl(this._self, this._then);
+
+  final ConnectEventDto_SessionClosed _self;
+  final $Res Function(ConnectEventDto_SessionClosed) _then;
+
+/// Create a copy of ConnectEventDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? deviceId = null,Object? reason = null,}) {
+  return _then(ConnectEventDto_SessionClosed(
+deviceId: null == deviceId ? _self.deviceId : deviceId // ignore: cast_nullable_to_non_nullable
+as String,reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class ConnectEventDto_ControllersChanged extends ConnectEventDto {
+  const ConnectEventDto_ControllersChanged({required  List<String> names}): _names = names,super._();
+  
+
+/// 当前连着本机的控制端名字。
+ final  List<String> _names;
+/// 当前连着本机的控制端名字。
+ List<String> get names {
+  if (_names is EqualUnmodifiableListView) return _names;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_names);
+}
+
+
+/// Create a copy of ConnectEventDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ConnectEventDto_ControllersChangedCopyWith<ConnectEventDto_ControllersChanged> get copyWith => _$ConnectEventDto_ControllersChangedCopyWithImpl<ConnectEventDto_ControllersChanged>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ConnectEventDto_ControllersChanged&&const DeepCollectionEquality().equals(other.names, _names));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_names));
+}
+
+@override
+String toString() {
+    return 'ConnectEventDto.controllersChanged(names: $names)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ConnectEventDto_ControllersChangedCopyWith<$Res> implements $ConnectEventDtoCopyWith<$Res> {
+  factory $ConnectEventDto_ControllersChangedCopyWith(ConnectEventDto_ControllersChanged value, $Res Function(ConnectEventDto_ControllersChanged) _then) = _$ConnectEventDto_ControllersChangedCopyWithImpl;
+@useResult
+$Res call({
+ List<String> names
+});
+
+
+
+
+}
+/// @nodoc
+class _$ConnectEventDto_ControllersChangedCopyWithImpl<$Res>
+    implements $ConnectEventDto_ControllersChangedCopyWith<$Res> {
+  _$ConnectEventDto_ControllersChangedCopyWithImpl(this._self, this._then);
+
+  final ConnectEventDto_ControllersChanged _self;
+  final $Res Function(ConnectEventDto_ControllersChanged) _then;
+
+/// Create a copy of ConnectEventDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? names = null,}) {
+  return _then(ConnectEventDto_ControllersChanged(
+names: null == names ? _self._names : names // ignore: cast_nullable_to_non_nullable
+as List<String>,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$ControlActionDto {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ControlActionDto);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'ControlActionDto()';
+}
+
+
+}
+
+/// @nodoc
+class $ControlActionDtoCopyWith<$Res>  {
+$ControlActionDtoCopyWith(ControlActionDto _, $Res Function(ControlActionDto) __);
+}
+
+
+/// Adds pattern-matching-related methods to [ControlActionDto].
+extension ControlActionDtoPatterns on ControlActionDto {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( ControlActionDto_Play value)?  play,TResult Function( ControlActionDto_Pause value)?  pause,TResult Function( ControlActionDto_Toggle value)?  toggle,TResult Function( ControlActionDto_Next value)?  next,TResult Function( ControlActionDto_Previous value)?  previous,TResult Function( ControlActionDto_Seek value)?  seek,TResult Function( ControlActionDto_Volume value)?  volume,TResult Function( ControlActionDto_Repeat value)?  repeat,TResult Function( ControlActionDto_Shuffle value)?  shuffle,TResult Function( ControlActionDto_PlayIndex value)?  playIndex,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case ControlActionDto_Play() when play != null:
+return play(_that);case ControlActionDto_Pause() when pause != null:
+return pause(_that);case ControlActionDto_Toggle() when toggle != null:
+return toggle(_that);case ControlActionDto_Next() when next != null:
+return next(_that);case ControlActionDto_Previous() when previous != null:
+return previous(_that);case ControlActionDto_Seek() when seek != null:
+return seek(_that);case ControlActionDto_Volume() when volume != null:
+return volume(_that);case ControlActionDto_Repeat() when repeat != null:
+return repeat(_that);case ControlActionDto_Shuffle() when shuffle != null:
+return shuffle(_that);case ControlActionDto_PlayIndex() when playIndex != null:
+return playIndex(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( ControlActionDto_Play value)  play,required TResult Function( ControlActionDto_Pause value)  pause,required TResult Function( ControlActionDto_Toggle value)  toggle,required TResult Function( ControlActionDto_Next value)  next,required TResult Function( ControlActionDto_Previous value)  previous,required TResult Function( ControlActionDto_Seek value)  seek,required TResult Function( ControlActionDto_Volume value)  volume,required TResult Function( ControlActionDto_Repeat value)  repeat,required TResult Function( ControlActionDto_Shuffle value)  shuffle,required TResult Function( ControlActionDto_PlayIndex value)  playIndex,}){
+final _that = this;
+switch (_that) {
+case ControlActionDto_Play():
+return play(_that);case ControlActionDto_Pause():
+return pause(_that);case ControlActionDto_Toggle():
+return toggle(_that);case ControlActionDto_Next():
+return next(_that);case ControlActionDto_Previous():
+return previous(_that);case ControlActionDto_Seek():
+return seek(_that);case ControlActionDto_Volume():
+return volume(_that);case ControlActionDto_Repeat():
+return repeat(_that);case ControlActionDto_Shuffle():
+return shuffle(_that);case ControlActionDto_PlayIndex():
+return playIndex(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( ControlActionDto_Play value)?  play,TResult? Function( ControlActionDto_Pause value)?  pause,TResult? Function( ControlActionDto_Toggle value)?  toggle,TResult? Function( ControlActionDto_Next value)?  next,TResult? Function( ControlActionDto_Previous value)?  previous,TResult? Function( ControlActionDto_Seek value)?  seek,TResult? Function( ControlActionDto_Volume value)?  volume,TResult? Function( ControlActionDto_Repeat value)?  repeat,TResult? Function( ControlActionDto_Shuffle value)?  shuffle,TResult? Function( ControlActionDto_PlayIndex value)?  playIndex,}){
+final _that = this;
+switch (_that) {
+case ControlActionDto_Play() when play != null:
+return play(_that);case ControlActionDto_Pause() when pause != null:
+return pause(_that);case ControlActionDto_Toggle() when toggle != null:
+return toggle(_that);case ControlActionDto_Next() when next != null:
+return next(_that);case ControlActionDto_Previous() when previous != null:
+return previous(_that);case ControlActionDto_Seek() when seek != null:
+return seek(_that);case ControlActionDto_Volume() when volume != null:
+return volume(_that);case ControlActionDto_Repeat() when repeat != null:
+return repeat(_that);case ControlActionDto_Shuffle() when shuffle != null:
+return shuffle(_that);case ControlActionDto_PlayIndex() when playIndex != null:
+return playIndex(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  play,TResult Function()?  pause,TResult Function()?  toggle,TResult Function()?  next,TResult Function()?  previous,TResult Function( BigInt positionMs)?  seek,TResult Function( double volume)?  volume,TResult Function( RepeatModeDto mode)?  repeat,TResult Function( ShuffleModeDto mode)?  shuffle,TResult Function( int index)?  playIndex,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case ControlActionDto_Play() when play != null:
+return play();case ControlActionDto_Pause() when pause != null:
+return pause();case ControlActionDto_Toggle() when toggle != null:
+return toggle();case ControlActionDto_Next() when next != null:
+return next();case ControlActionDto_Previous() when previous != null:
+return previous();case ControlActionDto_Seek() when seek != null:
+return seek(_that.positionMs);case ControlActionDto_Volume() when volume != null:
+return volume(_that.volume);case ControlActionDto_Repeat() when repeat != null:
+return repeat(_that.mode);case ControlActionDto_Shuffle() when shuffle != null:
+return shuffle(_that.mode);case ControlActionDto_PlayIndex() when playIndex != null:
+return playIndex(_that.index);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  play,required TResult Function()  pause,required TResult Function()  toggle,required TResult Function()  next,required TResult Function()  previous,required TResult Function( BigInt positionMs)  seek,required TResult Function( double volume)  volume,required TResult Function( RepeatModeDto mode)  repeat,required TResult Function( ShuffleModeDto mode)  shuffle,required TResult Function( int index)  playIndex,}) {final _that = this;
+switch (_that) {
+case ControlActionDto_Play():
+return play();case ControlActionDto_Pause():
+return pause();case ControlActionDto_Toggle():
+return toggle();case ControlActionDto_Next():
+return next();case ControlActionDto_Previous():
+return previous();case ControlActionDto_Seek():
+return seek(_that.positionMs);case ControlActionDto_Volume():
+return volume(_that.volume);case ControlActionDto_Repeat():
+return repeat(_that.mode);case ControlActionDto_Shuffle():
+return shuffle(_that.mode);case ControlActionDto_PlayIndex():
+return playIndex(_that.index);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  play,TResult? Function()?  pause,TResult? Function()?  toggle,TResult? Function()?  next,TResult? Function()?  previous,TResult? Function( BigInt positionMs)?  seek,TResult? Function( double volume)?  volume,TResult? Function( RepeatModeDto mode)?  repeat,TResult? Function( ShuffleModeDto mode)?  shuffle,TResult? Function( int index)?  playIndex,}) {final _that = this;
+switch (_that) {
+case ControlActionDto_Play() when play != null:
+return play();case ControlActionDto_Pause() when pause != null:
+return pause();case ControlActionDto_Toggle() when toggle != null:
+return toggle();case ControlActionDto_Next() when next != null:
+return next();case ControlActionDto_Previous() when previous != null:
+return previous();case ControlActionDto_Seek() when seek != null:
+return seek(_that.positionMs);case ControlActionDto_Volume() when volume != null:
+return volume(_that.volume);case ControlActionDto_Repeat() when repeat != null:
+return repeat(_that.mode);case ControlActionDto_Shuffle() when shuffle != null:
+return shuffle(_that.mode);case ControlActionDto_PlayIndex() when playIndex != null:
+return playIndex(_that.index);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class ControlActionDto_Play extends ControlActionDto {
+  const ControlActionDto_Play(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ControlActionDto_Play);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'ControlActionDto.play()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class ControlActionDto_Pause extends ControlActionDto {
+  const ControlActionDto_Pause(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ControlActionDto_Pause);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'ControlActionDto.pause()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class ControlActionDto_Toggle extends ControlActionDto {
+  const ControlActionDto_Toggle(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ControlActionDto_Toggle);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'ControlActionDto.toggle()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class ControlActionDto_Next extends ControlActionDto {
+  const ControlActionDto_Next(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ControlActionDto_Next);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'ControlActionDto.next()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class ControlActionDto_Previous extends ControlActionDto {
+  const ControlActionDto_Previous(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ControlActionDto_Previous);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'ControlActionDto.previous()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class ControlActionDto_Seek extends ControlActionDto {
+  const ControlActionDto_Seek({required this.positionMs}): super._();
+  
+
+/// 目标位置（毫秒）。
+ final  BigInt positionMs;
+
+/// Create a copy of ControlActionDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ControlActionDto_SeekCopyWith<ControlActionDto_Seek> get copyWith => _$ControlActionDto_SeekCopyWithImpl<ControlActionDto_Seek>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ControlActionDto_Seek&&(identical(other.positionMs, positionMs) || other.positionMs == positionMs));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,positionMs);
+}
+
+@override
+String toString() {
+    return 'ControlActionDto.seek(positionMs: $positionMs)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ControlActionDto_SeekCopyWith<$Res> implements $ControlActionDtoCopyWith<$Res> {
+  factory $ControlActionDto_SeekCopyWith(ControlActionDto_Seek value, $Res Function(ControlActionDto_Seek) _then) = _$ControlActionDto_SeekCopyWithImpl;
+@useResult
+$Res call({
+ BigInt positionMs
+});
+
+
+
+
+}
+/// @nodoc
+class _$ControlActionDto_SeekCopyWithImpl<$Res>
+    implements $ControlActionDto_SeekCopyWith<$Res> {
+  _$ControlActionDto_SeekCopyWithImpl(this._self, this._then);
+
+  final ControlActionDto_Seek _self;
+  final $Res Function(ControlActionDto_Seek) _then;
+
+/// Create a copy of ControlActionDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? positionMs = null,}) {
+  return _then(ControlActionDto_Seek(
+positionMs: null == positionMs ? _self.positionMs : positionMs // ignore: cast_nullable_to_non_nullable
+as BigInt,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class ControlActionDto_Volume extends ControlActionDto {
+  const ControlActionDto_Volume({required this.volume}): super._();
+  
+
+/// 0..=1。
+ final  double volume;
+
+/// Create a copy of ControlActionDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ControlActionDto_VolumeCopyWith<ControlActionDto_Volume> get copyWith => _$ControlActionDto_VolumeCopyWithImpl<ControlActionDto_Volume>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ControlActionDto_Volume&&(identical(other.volume, volume) || other.volume == volume));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,volume);
+}
+
+@override
+String toString() {
+    return 'ControlActionDto.volume(volume: $volume)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ControlActionDto_VolumeCopyWith<$Res> implements $ControlActionDtoCopyWith<$Res> {
+  factory $ControlActionDto_VolumeCopyWith(ControlActionDto_Volume value, $Res Function(ControlActionDto_Volume) _then) = _$ControlActionDto_VolumeCopyWithImpl;
+@useResult
+$Res call({
+ double volume
+});
+
+
+
+
+}
+/// @nodoc
+class _$ControlActionDto_VolumeCopyWithImpl<$Res>
+    implements $ControlActionDto_VolumeCopyWith<$Res> {
+  _$ControlActionDto_VolumeCopyWithImpl(this._self, this._then);
+
+  final ControlActionDto_Volume _self;
+  final $Res Function(ControlActionDto_Volume) _then;
+
+/// Create a copy of ControlActionDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? volume = null,}) {
+  return _then(ControlActionDto_Volume(
+volume: null == volume ? _self.volume : volume // ignore: cast_nullable_to_non_nullable
+as double,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class ControlActionDto_Repeat extends ControlActionDto {
+  const ControlActionDto_Repeat({required this.mode}): super._();
+  
+
+/// 新的循环模式。
+ final  RepeatModeDto mode;
+
+/// Create a copy of ControlActionDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ControlActionDto_RepeatCopyWith<ControlActionDto_Repeat> get copyWith => _$ControlActionDto_RepeatCopyWithImpl<ControlActionDto_Repeat>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ControlActionDto_Repeat&&(identical(other.mode, mode) || other.mode == mode));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,mode);
+}
+
+@override
+String toString() {
+    return 'ControlActionDto.repeat(mode: $mode)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ControlActionDto_RepeatCopyWith<$Res> implements $ControlActionDtoCopyWith<$Res> {
+  factory $ControlActionDto_RepeatCopyWith(ControlActionDto_Repeat value, $Res Function(ControlActionDto_Repeat) _then) = _$ControlActionDto_RepeatCopyWithImpl;
+@useResult
+$Res call({
+ RepeatModeDto mode
+});
+
+
+
+
+}
+/// @nodoc
+class _$ControlActionDto_RepeatCopyWithImpl<$Res>
+    implements $ControlActionDto_RepeatCopyWith<$Res> {
+  _$ControlActionDto_RepeatCopyWithImpl(this._self, this._then);
+
+  final ControlActionDto_Repeat _self;
+  final $Res Function(ControlActionDto_Repeat) _then;
+
+/// Create a copy of ControlActionDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? mode = null,}) {
+  return _then(ControlActionDto_Repeat(
+mode: null == mode ? _self.mode : mode // ignore: cast_nullable_to_non_nullable
+as RepeatModeDto,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class ControlActionDto_Shuffle extends ControlActionDto {
+  const ControlActionDto_Shuffle({required this.mode}): super._();
+  
+
+/// 新的随机模式。
+ final  ShuffleModeDto mode;
+
+/// Create a copy of ControlActionDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ControlActionDto_ShuffleCopyWith<ControlActionDto_Shuffle> get copyWith => _$ControlActionDto_ShuffleCopyWithImpl<ControlActionDto_Shuffle>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ControlActionDto_Shuffle&&(identical(other.mode, mode) || other.mode == mode));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,mode);
+}
+
+@override
+String toString() {
+    return 'ControlActionDto.shuffle(mode: $mode)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ControlActionDto_ShuffleCopyWith<$Res> implements $ControlActionDtoCopyWith<$Res> {
+  factory $ControlActionDto_ShuffleCopyWith(ControlActionDto_Shuffle value, $Res Function(ControlActionDto_Shuffle) _then) = _$ControlActionDto_ShuffleCopyWithImpl;
+@useResult
+$Res call({
+ ShuffleModeDto mode
+});
+
+
+
+
+}
+/// @nodoc
+class _$ControlActionDto_ShuffleCopyWithImpl<$Res>
+    implements $ControlActionDto_ShuffleCopyWith<$Res> {
+  _$ControlActionDto_ShuffleCopyWithImpl(this._self, this._then);
+
+  final ControlActionDto_Shuffle _self;
+  final $Res Function(ControlActionDto_Shuffle) _then;
+
+/// Create a copy of ControlActionDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? mode = null,}) {
+  return _then(ControlActionDto_Shuffle(
+mode: null == mode ? _self.mode : mode // ignore: cast_nullable_to_non_nullable
+as ShuffleModeDto,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class ControlActionDto_PlayIndex extends ControlActionDto {
+  const ControlActionDto_PlayIndex({required this.index}): super._();
+  
+
+/// 队列下标（越界时取最后一首）。
+ final  int index;
+
+/// Create a copy of ControlActionDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ControlActionDto_PlayIndexCopyWith<ControlActionDto_PlayIndex> get copyWith => _$ControlActionDto_PlayIndexCopyWithImpl<ControlActionDto_PlayIndex>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is ControlActionDto_PlayIndex&&(identical(other.index, index) || other.index == index));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,index);
+}
+
+@override
+String toString() {
+    return 'ControlActionDto.playIndex(index: $index)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ControlActionDto_PlayIndexCopyWith<$Res> implements $ControlActionDtoCopyWith<$Res> {
+  factory $ControlActionDto_PlayIndexCopyWith(ControlActionDto_PlayIndex value, $Res Function(ControlActionDto_PlayIndex) _then) = _$ControlActionDto_PlayIndexCopyWithImpl;
+@useResult
+$Res call({
+ int index
+});
+
+
+
+
+}
+/// @nodoc
+class _$ControlActionDto_PlayIndexCopyWithImpl<$Res>
+    implements $ControlActionDto_PlayIndexCopyWith<$Res> {
+  _$ControlActionDto_PlayIndexCopyWithImpl(this._self, this._then);
+
+  final ControlActionDto_PlayIndex _self;
+  final $Res Function(ControlActionDto_PlayIndex) _then;
+
+/// Create a copy of ControlActionDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? index = null,}) {
+  return _then(ControlActionDto_PlayIndex(
+index: null == index ? _self.index : index // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$CoreEventDto {
 
 

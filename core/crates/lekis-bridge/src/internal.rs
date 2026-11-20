@@ -2,7 +2,7 @@
 
 use std::sync::OnceLock;
 
-use crate::api::dto::CoreEventDto;
+use crate::api::dto::{ConnectEventDto, CoreEventDto};
 use crate::frb_generated::StreamSink;
 
 pub(crate) static CORE: OnceLock<lekis_core::LekisCore> = OnceLock::new();
@@ -17,6 +17,14 @@ pub(crate) struct SinkListener(pub(crate) StreamSink<CoreEventDto>);
 
 impl lekis_core::EventListener for SinkListener {
     fn on_event(&self, event: lekis_types::CoreEvent) {
+        let _ = self.0.add(event.into());
+    }
+}
+
+pub(crate) struct SinkConnectListener(pub(crate) StreamSink<ConnectEventDto>);
+
+impl lekis_core::connect::ConnectListener for SinkConnectListener {
+    fn on_connect_event(&self, event: lekis_core::connect::ConnectEvent) {
         let _ = self.0.add(event.into());
     }
 }
