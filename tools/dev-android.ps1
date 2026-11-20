@@ -18,7 +18,15 @@ $root = Split-Path -Parent $PSScriptRoot
 # 工具链根目录：LEKIS_DEV_ROOT，默认 %USERPROFILE%\dev。
 $dev = if ($env:LEKIS_DEV_ROOT) { $env:LEKIS_DEV_ROOT } else { Join-Path $env:USERPROFILE 'dev' }
 
-$env:JAVA_HOME = "$dev\toolchains\jdk17"
+# JDK 17：toolchains\jdk17 解压后可能多一层 jdk-17.x 目录，取第一个带 bin\java.exe 的。
+$jdk = "$dev\toolchains\jdk17"
+if (-not (Test-Path "$jdk\bin\java.exe")) {
+    $jdk = Get-ChildItem "$dev\toolchains\jdk17" -Directory -Filter 'jdk-*' -ErrorAction SilentlyContinue |
+        Where-Object { Test-Path "$($_.FullName)\bin\java.exe" } |
+        Select-Object -First 1 -ExpandProperty FullName
+}
+if (-not $jdk -or -not (Test-Path "$jdk\bin\java.exe")) { throw "找不到 JDK 17：$dev\toolchains\jdk17" }
+$env:JAVA_HOME = $jdk
 $env:ANDROID_HOME = "$dev\android-sdk"
 $env:ANDROID_NDK_HOME = "$dev\android-sdk\ndk\27.2.12479018"
 $env:CARGO_HOME = "$dev\cargo"
@@ -47,7 +55,9 @@ switch ($Mode) {
     }
     default {
         & $flutter build apk "--$Mode" --target-platform $platform
+        if ($LASTEXITCODE -ne 0) { throw "构建失败（flutter build apk 退出码 $LASTEXITCODE）" }
         $apk = "build\app\outputs\flutter-apk\app-$Mode.apk"
         adb -s $Device install -r $apk
+        if ($LASTEXITCODE -ne 0) { throw '安装失败' }
     }
 }
