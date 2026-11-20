@@ -46,9 +46,11 @@ PlatformDto _platform() {
 String _deviceName() {
   try {
     final name = Platform.localHostname.trim();
-    if (name.isNotEmpty) return name;
+    // Android reports "localhost" for every app: useless as a device name in
+    // Connect's device list, so fall back to something recognisable.
+    if (name.isNotEmpty && name.toLowerCase() != 'localhost') return name;
   } on Object {
     // Some sandboxes refuse hostname lookup; fall through.
   }
-  return Platform.operatingSystem;
+  return Platform.isAndroid ? 'Android 设备' : Platform.operatingSystem;
 }

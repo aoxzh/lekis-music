@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../theme/theme.dart';
+import '../sources/common.dart' show describeCoreError;
 import 'connect_gateway.dart';
 import 'connect_providers.dart';
 import 'connect_strings.dart';
@@ -93,6 +94,6 @@ Future<void> showPlayOnDeviceSheet(BuildContext context, WidgetRef ref) async {
       say(ConnectStrings.transferDone);
     }
   } catch (error) {
-    say('${ConnectStrings.transferFailed}：$error');
+    say('${ConnectStrings.transferFailed}：${describeCoreError(error)}');
   }
 }

@@ -9,10 +9,25 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../theme/theme.dart';
 import '../connect/connect_gateway.dart';
+import '../../rust/api/error.dart';
+import '../sources/common.dart' show describeCoreError;
 import '../connect/connect_providers.dart';
 import '../connect/connect_strings.dart';
 import 'strings.dart';
 import 'widgets/settings_widgets.dart';
+
+/// Core error for a toast: the shared wording plus the core's own detail.
+///
+/// Connect errors are protocol messages we wrote ourselves ("device failed
+/// pairing confirmation", "wrong pairing code", …), so unlike other features
+/// showing the detail is both safe and the only way to tell them apart —
+/// Dart release builds have no `toString` for `CoreError`, so without this the
+/// user just sees "Instance of 'CoreError'".
+String _connectError(Object error) {
+  final text = describeCoreError(error);
+  final detail = error is CoreError ? error.detail.trim() : '';
+  return detail.isEmpty ? text : '$text（$detail）';
+}
 
 /// 设置页里的「在其他设备上播放」。
 class ConnectSettingsSection extends ConsumerWidget {
@@ -55,7 +70,12 @@ class ConnectSettingsSection extends ConsumerWidget {
         ScaffoldMessenger.maybeOf(context)
           ?..hideCurrentSnackBar()
           ..showSnackBar(
-            SnackBar(content: Text('${failure ?? ConnectStrings.pairFailed}：$error')),
+            SnackBar(
+              content: Text(
+                '${failure ?? ConnectStrings.pairFailed}：'
+                '${_connectError(error)}',
+              ),
+            ),
           );
       }
     }
@@ -75,7 +95,11 @@ class ConnectSettingsSection extends ConsumerWidget {
         ScaffoldMessenger.maybeOf(context)
           ?..hideCurrentSnackBar()
           ..showSnackBar(
-            SnackBar(content: Text('${ConnectStrings.pairFailed}：$error')),
+            SnackBar(
+              content: Text(
+                '${ConnectStrings.pairFailed}：${_connectError(error)}',
+              ),
+            ),
           );
       }
     }
