@@ -2,7 +2,7 @@
 
 跨平台、开箱即用的本地 / NAS 音乐播放器。不需要部署服务器，直接播放本机和 NAS（SMB / WebDAV / NFS / SFTP）上的音乐，也能接入 Navidrome、Jellyfin、Plex 等自有服务器；自动补全封面和歌词；支持社区插件。
 
-> 当前状态：**Phase 0 已通过，Alpha 进行中**（分支 `phase-0`）。Flutter 客户端（`app/`）在 Windows 和 Android 上可以日常使用；macOS / iOS / Linux 在 Beta 跟进。逐项进度见 [docs/HANDOFF.md](docs/HANDOFF.md)，阶段规则见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+> 当前状态：**Alpha 预览版 `0.1.0-alpha.1`**（Android APK + Windows 免安装 zip，见 GitHub Releases；变更见 [CHANGELOG.md](CHANGELOG.md)）。Flutter 客户端（`app/`）在 Windows 和 Android 上可以日常使用；macOS / iOS / Linux 在 Beta 跟进。逐项进度见 [docs/HANDOFF.md](docs/HANDOFF.md)，阶段规则见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
 ## 现在能做什么
 
@@ -36,7 +36,6 @@
 | 可选 NAS 节点 | Rust + axum（和客户端是同一个核心）| [`core/bins/lekis-node`](core/bins/lekis-node) |
 | 插件 SDK | JSON Schema + TypeScript 类型 + WIT | [`plugin-sdk/`](plugin-sdk/) |
 | 设计 Token | 一份 JSON | [`design/`](design/) |
-| 旧的原生 UI（已冻结）| Kotlin/Compose、C#/WinUI 3、Rust/GTK4，经 UniFFI（`lekis-ffi`）调用核心 | [`apps/`](apps/) |
 
 许可证：MPL-2.0，复用优先（[ADR-0007](docs/adr/0007-license-and-reuse-first.md)）；第三方许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
@@ -56,15 +55,13 @@
 │   │   ├── lekis-sync         无服务器多设备同步（操作日志 + HLC）
 │   │   ├── lekis-plugin-host  插件清单、权限、JS 运行时
 │   │   ├── lekis-core         门面：组装所有服务，对外的唯一入口
-│   │   ├── lekis-bridge       flutter_rust_bridge 导出层（Flutter 用）
-│   │   └── lekis-ffi          UniFFI 导出层（只给冻结的 apps/ 用）
+│   │   └── lekis-bridge       flutter_rust_bridge 导出层（Flutter 用）
 │   ├── bins/lekis-node        可选的 headless NAS 节点
 │   └── vendor/rquickjs-sys    给 Android 补 bindgen 输出的 rquickjs-sys
 ├── app/                   Flutter 客户端（app/lib/src/…，Rust 由 Cargokit 自动编译）
-├── apps/                  旧的原生 UI（已冻结，Alpha 退出后删除）
 ├── plugin-sdk/            插件协议（JSON Schema / TS SDK / WIT / 示例）
 ├── design/                设计 Token
-├── tools/                 开发脚本（Android 联调、隐私检查、图标生成）
+├── tools/                 开发脚本（Android 联调、Windows 打包、隐私检查、图标生成）
 └── docs/                  需求、架构、规范、ADR、交接
 ```
 
@@ -120,4 +117,15 @@ cd core && cargo run -p lekis-library --example seed_fake_library --release -- <
 # 构建时用 --dart-define=LEKIS_DATA_DIR=<data-dir> 指向它；正常安装不要带这个参数
 ```
 
-> Android 主调试机是 Samsung Fold5；Windows 在本机开发和测试。`tools/gen-bindings.*`、`tools/build-*-core.*` 只服务冻结的 `apps/`，日常开发用不到。
+```powershell
+# Windows 免安装包：把 release 构建打成 dist/lekis-<版本>-windows-x64.zip（dist/ 不提交）
+tools/package-windows.ps1            # 先 flutter build windows --release；-SkipBuild 只打包
+```
+
+## 发布
+
+推送 `v*` 标签（例如 `v0.1.0-alpha.1`）会触发 [`.github/workflows/release.yml`](.github/workflows/release.yml)：构建签名的 Android APK（arm64-v8a、armeabi-v7a）和 Windows x64 zip，并创建 GitHub pre-release。需要的仓库 secrets：`LEKIS_KEYSTORE_BASE64`、`LEKIS_KEYSTORE_PASSWORD`、`LEKIS_KEY_ALIAS`、`LEKIS_KEY_PASSWORD`。
+
+本机签名：在 `app/android/key.properties`（不提交）里写 `storeFile`、`storePassword`、`keyAlias`、`keyPassword`，keystore 放在仓库外。没有 keystore 时 release 构建会退回 debug 签名并在 Gradle 输出里警告，这样的包不能发布。
+
+> Android 主调试机是 Samsung Fold5；Windows 在本机开发和测试。
