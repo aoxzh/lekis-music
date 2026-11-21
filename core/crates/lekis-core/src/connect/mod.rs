@@ -370,11 +370,12 @@ async fn load_settings(s: &Services) -> ConnectSettings {
         .ok()
         .flatten()
         // Early Android builds saved the hostname "localhost" (what Android
-        // reports for every app) as the name; treat that as never set so the
-        // platform's better default shows up instead.
+        // reports for every app), and later ones the placeholder "Android 设备"
+        // (saving the allow-control switch also saves the name); treat both as
+        // never set so the platform's real device name shows up instead.
         .filter(|n| {
             let n = n.trim();
-            !n.is_empty() && !n.eq_ignore_ascii_case("localhost")
+            !n.is_empty() && !n.eq_ignore_ascii_case("localhost") && n != "Android 设备"
         })
         .unwrap_or_else(|| s.config.device_name.clone());
     let allow = s

@@ -2,7 +2,9 @@ package dev.lekis.lekis
 
 import android.content.Context
 import android.net.wifi.WifiManager
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -31,8 +33,25 @@ class MainActivity : AudioServiceActivity() {
                     releaseMulticastLock()
                     result.success(true)
                 }
+                "deviceName" -> result.success(deviceName())
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    // 用户在系统设置里起的名字（"Fold5"）；拿不到就用厂商 + 型号。
+    // Connect 设备列表里显示它，比 "Android 设备" 好认。
+    private fun deviceName(): String {
+        val named = runCatching {
+            Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)
+        }.getOrNull()
+        if (!named.isNullOrBlank()) return named.trim()
+        val model = Build.MODEL.orEmpty().trim()
+        val maker = Build.MANUFACTURER.orEmpty().trim()
+        return when {
+            model.isEmpty() -> maker
+            maker.isEmpty() || model.startsWith(maker, ignoreCase = true) -> model
+            else -> "${maker.replaceFirstChar { it.uppercase() }} $model"
         }
     }
 

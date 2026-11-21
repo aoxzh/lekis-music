@@ -2,6 +2,7 @@
 
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:lekis/src/rust/api/core.dart';
@@ -25,7 +26,7 @@ Future<void> initLekisCore() async {
     config: CoreConfigDto(
       dataDir: dataDir.path,
       cacheDir: cacheDir.path,
-      deviceName: _deviceName(),
+      deviceName: await _deviceName(),
       platform: _platform(),
     ),
   );
@@ -43,11 +44,20 @@ PlatformDto _platform() {
   return PlatformDto.linux;
 }
 
-String _deviceName() {
+Future<String> _deviceName() async {
+  if (Platform.isAndroid) {
+    // Android 的主机名对每个 App 都是 "localhost"：问系统要用户起的设备名。
+    try {
+      final name = await const MethodChannel(
+        'dev.lekis.lekis/discovery',
+      ).invokeMethod<String>('deviceName');
+      if (name != null && name.trim().isNotEmpty) return name.trim();
+    } on Object {
+      // 通道不可用（测试环境）时走下面的兜底。
+    }
+  }
   try {
     final name = Platform.localHostname.trim();
-    // Android reports "localhost" for every app: useless as a device name in
-    // Connect's device list, so fall back to something recognisable.
     if (name.isNotEmpty && name.toLowerCase() != 'localhost') return name;
   } on Object {
     // Some sandboxes refuse hostname lookup; fall through.

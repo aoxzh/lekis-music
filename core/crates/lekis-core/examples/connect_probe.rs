@@ -13,7 +13,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use lekis_core::connect::{Control, ConnectStartOptions, PairStart};
+use lekis_core::connect::{ConnectStartOptions, Control, PairStart};
 use lekis_core::{CoreConfig, LekisCore, PlatformServices};
 use lekis_types::{SourceConfig, SourceKind, TrackQuery, TrackSort};
 
@@ -118,9 +118,7 @@ fn main() -> R<()> {
             }
             let ids: Vec<_> = rows.iter().map(|r| r.id).collect();
             println!("推送本机 {} 首到对方", ids.len());
-            let report = core
-                .connect_play_on(id.clone(), ids, 0, 0, true)
-                .await?;
+            let report = core.connect_play_on(id.clone(), ids, 0, 0, true).await?;
             println!("对方接收：{report:?}");
             tokio::time::sleep(Duration::from_secs(4)).await;
             show("推送后", &core.connect_remote_state(id.clone()).await?);
@@ -130,7 +128,12 @@ fn main() -> R<()> {
             ("暂停", Control::Pause),
             ("播放", Control::Play),
             ("下一首", Control::Next),
-            ("跳到 30 s", Control::Seek { position_ms: 30_000 }),
+            (
+                "跳到 30 s",
+                Control::Seek {
+                    position_ms: 30_000,
+                },
+            ),
             ("音量 0.5", Control::Volume { volume: 0.5 }),
             ("音量 1.0", Control::Volume { volume: 1.0 }),
             ("上一首", Control::Previous),
