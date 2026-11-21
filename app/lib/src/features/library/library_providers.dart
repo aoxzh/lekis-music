@@ -92,11 +92,12 @@ final albumArtworkProvider = FutureProvider.autoDispose
 
 /// Artwork by id (playlist covers). Artwork rows never change once written,
 /// so there is nothing to invalidate.
-final artworkByIdProvider = FutureProvider.autoDispose
-    .family<ArtworkDto?, int>((ref, artworkId) async {
-      ref.cacheFor(const Duration(minutes: 5));
-      return core.getArtwork(artworkId: artworkId);
-    });
+final artworkByIdProvider = FutureProvider.autoDispose.family<ArtworkDto?, int>(
+  (ref, artworkId) async {
+    ref.cacheFor(const Duration(minutes: 5));
+    return core.getArtwork(artworkId: artworkId);
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Paged lists (never load the whole library)
@@ -299,6 +300,22 @@ final artistsListProvider = Provider.autoDispose<PagedList<ArtistDto>>(
     count: () => _count(core.countArtists),
   ),
 );
+
+/// 歌曲按标题排序时的首字母 / 拼音索引偏移（UIX-05）。
+final trackIndexOffsetsProvider =
+    FutureProvider.autoDispose<List<LetterOffsetDto>>((ref) async {
+      ref.invalidateOnCatalogChange();
+      ref.cacheFor(const Duration(minutes: 5));
+      return core.trackIndexOffsets();
+    });
+
+/// 艺人列表的首字母 / 拼音索引偏移（UIX-05）。
+final artistIndexOffsetsProvider =
+    FutureProvider.autoDispose<List<LetterOffsetDto>>((ref) async {
+      ref.invalidateOnCatalogChange();
+      ref.cacheFor(const Duration(minutes: 5));
+      return core.artistIndexOffsets();
+    });
 
 final genreTracksListProvider = Provider.autoDispose
     .family<PagedList<TrackRowDto>, String>(

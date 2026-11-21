@@ -58,9 +58,9 @@ pub use sync_engine::SyncReport;
 use events::EventBus;
 pub use lekis_library::ListeningSummary;
 pub use lekis_library::{
-    BatchTagWriteItem, DuplicateGroup, DuplicateTrack, HealthIssueKind, LibraryHealthEntry,
-    LibraryHealthSummary, OfflineDownload, OfflineStats, PlaybackStateRow, SourceInfo,
-    TagWriteResult, TrackContext, TrackUserState,
+    BatchTagWriteItem, DuplicateGroup, DuplicateTrack, HealthIssueKind, LetterOffset,
+    LibraryHealthEntry, LibraryHealthSummary, OfflineDownload, OfflineStats, PlaybackStateRow,
+    SourceInfo, TagWriteResult, TrackContext, TrackUserState,
 };
 use lekis_library::{EnrichCandidateRow, Library, LyricsRow, PlaylistEntry};
 use lekis_playback::{EngineCommand, EqControl, OutputDevice, OutputMode, PlaybackEngine};
@@ -1547,6 +1547,20 @@ impl LekisCore {
             Ok(n)
         })
         .await
+    }
+
+    /// 歌曲按标题排序时的首字母索引表（UIX-05）。
+    pub async fn track_index_offsets(&self) -> Result<Vec<LetterOffset>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.track_title_index_offsets().await })
+            .await
+    }
+
+    /// 艺人列表的首字母索引表（UIX-05）。
+    pub async fn artist_index_offsets(&self) -> Result<Vec<LetterOffset>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.artist_index_offsets().await })
+            .await
     }
 
     /// 把 `track_id` 下的某一个来源拆成独立曲目（SRC-13 手动拆分）。

@@ -36,6 +36,7 @@ mod tracks;
 mod unified;
 
 pub use artwork::{cache_relative_path, ArtworkCandidate, ArtworkRow};
+pub use browse::LetterOffset;
 pub use db::{DbResultExt, Library};
 pub use enrich_queue::{EnrichCandidateRow, NewEnrichCandidate};
 pub use folders::{normalize_folder_path, FolderEntry, FolderListing, FolderRoot};

@@ -11,6 +11,43 @@ use lekis_types::{
 };
 use rusqlite::{params, OptionalExtension, Row};
 
+/// 字母 / 拼音索引条里一个首字母对应的起始行号（UIX-05）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LetterOffset {
+    /// 大写英文字母 `'A'..='Z'` 或非字母归类 `'#'`。
+    pub letter: String,
+    /// 该字母第一条记录在有序列表里的 0-based 行号。
+    pub offset: u32,
+}
+
+fn bucket_letter(sort_key: &str) -> char {
+    match sort_key.trim().chars().next() {
+        Some(c) if c.is_ascii_alphabetic() => c.to_ascii_uppercase(),
+        _ => '#',
+    }
+}
+
+fn collect_letter_offsets(keys: impl Iterator<Item = String>) -> Vec<LetterOffset> {
+    let mut out: Vec<LetterOffset> = Vec::with_capacity(27);
+    let mut seen: [bool; 27] = [false; 27];
+    for (idx, key) in keys.enumerate() {
+        let ch = bucket_letter(&key);
+        let slot = if ch.is_ascii_uppercase() {
+            (ch as u8 - b'A') as usize
+        } else {
+            26
+        };
+        if !seen[slot] {
+            seen[slot] = true;
+            out.push(LetterOffset {
+                letter: ch.to_string(),
+                offset: idx as u32,
+            });
+        }
+    }
+    out
+}
+
 /// 分页上限，和 `TrackQuery::MAX_LIMIT` 保持一致。
 const MAX_LIMIT: u32 = TrackQuery::MAX_LIMIT;
 
@@ -170,6 +207,42 @@ impl Library {
                 .collect::<rusqlite::Result<Vec<_>>>()
                 .db()?;
             Ok(rows)
+        })
+        .await
+    }
+
+    /// 按标题排序时，歌曲列表每个首字母（`#` / `A`–`Z`）的起始行号（UIX-05）。
+    ///
+    /// 走 `idx_track_sort` 覆盖索引，10 万首歌也只需几毫秒。
+    pub async fn track_title_index_offsets(&self) -> Result<Vec<LetterOffset>> {
+        self.read(|c| {
+            let mut stmt = c
+                .prepare_cached("SELECT title_sort_key FROM track ORDER BY title_sort_key, id")
+                .db()?;
+            let rows = stmt
+                .query_map([], |r| r.get::<_, String>(0))
+                .db()?
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .db()?;
+            Ok(collect_letter_offsets(rows.into_iter()))
+        })
+        .await
+    }
+
+    /// 艺人列表每个首字母（`#` / `A`–`Z`）的起始行号（UIX-05）。
+    pub async fn artist_index_offsets(&self) -> Result<Vec<LetterOffset>> {
+        self.read(|c| {
+            let mut stmt = c
+                .prepare_cached(
+                    "SELECT COALESCE(sort_name, name) FROM artist ORDER BY COALESCE(sort_name, name), id",
+                )
+                .db()?;
+            let rows = stmt
+                .query_map([], |r| r.get::<_, String>(0))
+                .db()?
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .db()?;
+            Ok(collect_letter_offsets(rows.into_iter()))
         })
         .await
     }
@@ -624,6 +697,14 @@ mod tests {
         assert_eq!(by_artist.len(), 3);
         let artist_albums = lib.artist_albums(artists[0].id, 0, 10).await?;
         assert_eq!(artist_albums.len(), 2);
+
+        let track_idx = lib.track_title_index_offsets().await?;
+        assert!(track_idx.iter().any(|e| e.letter == "Q")); // 晴天 -> qingtian
+        assert!(track_idx.iter().any(|e| e.letter == "Y")); // 夜曲/以父之名 -> y...
+        let artist_idx = lib.artist_index_offsets().await?;
+        assert_eq!(artist_idx.len(), 1);
+        assert_eq!(artist_idx[0].letter, "Z"); // 周杰伦 -> zhoujielun
+        assert_eq!(artist_idx[0].offset, 0);
         Ok(())
     }
 

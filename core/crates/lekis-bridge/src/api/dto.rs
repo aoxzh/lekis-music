@@ -2951,3 +2951,19 @@ impl From<lekis_core::TrackSourceInfo> for TrackSourceInfoDto {
         }
     }
 }
+
+/// 字母 / 拼音快速索引条的一项（UIX-05）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LetterOffsetDto {
+    pub letter: String,
+    pub offset: u32,
+}
+
+impl From<lekis_core::LetterOffset> for LetterOffsetDto {
+    fn from(l: lekis_core::LetterOffset) -> Self {
+        Self {
+            letter: l.letter,
+            offset: l.offset,
+        }
+    }
+}

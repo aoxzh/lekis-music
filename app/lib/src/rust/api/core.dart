@@ -894,6 +894,14 @@ Future<PlatformInt64> splitTrackSource({
   externalId: externalId,
 );
 
+/// 歌曲按标题排序时的首字母索引偏移（UIX-05）。
+Future<List<LetterOffsetDto>> trackIndexOffsets() =>
+    RustLib.instance.api.crateApiCoreTrackIndexOffsets();
+
+/// 艺人列表的首字母索引偏移（UIX-05）。
+Future<List<LetterOffsetDto>> artistIndexOffsets() =>
+    RustLib.instance.api.crateApiCoreArtistIndexOffsets();
+
 /// 最近的核心日志（最多 2000 行，已做简单脱敏）。
 List<String> recentLogs({required int limit}) =>
     RustLib.instance.api.crateApiCoreRecentLogs(limit: limit);

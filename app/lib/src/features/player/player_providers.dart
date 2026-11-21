@@ -419,14 +419,26 @@ class PlayerActions {
   /// Play an album from the cover wall. The core expands the album into a
   /// queue itself, so the UI only sends one id even for huge libraries.
   Future<void> playAlbum(int albumId) async {
+    await playContext(PlayContextDto.album(albumId: albumId));
+  }
+
+  /// 按核心播放上下文开播（资料库随机、收藏、流派、专辑等），支持先开启随机模式。
+  Future<bool> playContext(
+    PlayContextDto context, {
+    int startIndex = 0,
+    bool shuffle = false,
+  }) async {
+    if (shuffle) {
+      _playback._setShuffle(ShuffleModeDto.random);
+      _guard('setShuffle', () => core.setShuffle(mode: ShuffleModeDto.random));
+    }
     try {
-      await core.playContext(
-        context: PlayContextDto.album(albumId: albumId),
-        startIndex: 0,
-      );
+      await core.playContext(context: context, startIndex: startIndex);
+      return true;
     } catch (e) {
       final message = e is CoreError ? '${e.kind.name}: ${e.detail}' : '$e';
-      debugPrint('player playAlbum failed: $message');
+      debugPrint('player playContext failed: $message');
+      return false;
     }
   }
 

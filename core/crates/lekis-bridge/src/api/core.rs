@@ -1430,6 +1430,26 @@ pub async fn split_track_source(
         .0)
 }
 
+/// 歌曲按标题排序时的首字母索引偏移（UIX-05）。
+pub async fn track_index_offsets() -> Result<Vec<LetterOffsetDto>, CoreError> {
+    Ok(core()
+        .track_index_offsets()
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// 艺人列表的首字母索引偏移（UIX-05）。
+pub async fn artist_index_offsets() -> Result<Vec<LetterOffsetDto>, CoreError> {
+    Ok(core()
+        .artist_index_offsets()
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
 // ---- 诊断日志（SET-03）----
 
 /// 最近的核心日志（最多 2000 行，已做简单脱敏）。

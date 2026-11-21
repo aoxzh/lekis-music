@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/tag_editor_dialog.dart';
+import 'package:lekis/src/features/library/widgets/alphabet_index_bar.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
@@ -19,6 +20,7 @@ class PagedTrackList extends ConsumerStatefulWidget {
     this.empty,
     this.header,
     this.showHeaderWhenEmpty = false,
+    this.indexOffsets,
   });
 
   final PagedList<TrackRowDto> list;
@@ -29,6 +31,9 @@ class PagedTrackList extends ConsumerStatefulWidget {
 
   /// 列表为空时是否仍然显示 [header]（文件夹视图的目录列表就在 header 里）。
   final bool showHeaderWhenEmpty;
+
+  /// 首字母快速索引偏移（仅在按标题排序的长列表上传入，UIX-05）。
+  final List<LetterOffsetDto>? indexOffsets;
 
   @override
   ConsumerState<PagedTrackList> createState() => _PagedTrackListState();
@@ -112,8 +117,16 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
         if (list.isInitialLoading) {
           return const Center(child: CircularProgressIndicator());
         }
+        final offsets = widget.indexOffsets;
+        final showIndex =
+            offsets != null && offsets.length >= 2 && list.itemCount >= 15;
         final rows = SliverPadding(
-          padding: EdgeInsets.symmetric(horizontal: gutter - LekisSpacing.sm),
+          padding: EdgeInsets.fromLTRB(
+            gutter - LekisSpacing.sm,
+            0,
+            gutter - LekisSpacing.sm + (showIndex ? LekisSpacing.xl : 0),
+            0,
+          ),
           sliver: SliverFixedExtentList.builder(
             itemExtent: TrackTile.extent,
             itemCount: list.itemCount,
@@ -151,64 +164,83 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
             ],
           ),
         );
-        if (_selected.isEmpty) return content;
+        if (_selected.isEmpty && !showIndex) return content;
         return Stack(
           children: [
             Positioned.fill(child: content),
-            Positioned(
-              left: LekisSpacing.lg,
-              right: LekisSpacing.lg,
-              bottom: LekisSpacing.lg,
-              child: SafeArea(
-                top: false,
+            if (showIndex)
+              Positioned.fill(
                 child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Material(
-                    elevation: 8,
-                    color: context.lekisColors.surfaceElevated,
-                    borderRadius: BorderRadius.circular(LekisRadius.lg),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: LekisSpacing.md,
-                        vertical: LekisSpacing.sm,
-                      ),
-                      child: Wrap(
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        alignment: WrapAlignment.center,
-                        spacing: LekisSpacing.sm,
-                        runSpacing: LekisSpacing.xs,
-                        children: [
-                          Text(
-                            '已选 ${_selected.length} 首',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                          TextButton(
-                            onPressed: _clearSelection,
-                            child: const Text('取消选择'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: () =>
-                                _queueSelected(QueuePlacement.next),
-                            icon: const Icon(Icons.queue_play_next_rounded),
-                            label: const Text(QueueStrings.playNext),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: () => _queueSelected(QueuePlacement.end),
-                            icon: const Icon(Icons.add_to_queue_rounded),
-                            label: const Text(QueueStrings.addToQueue),
-                          ),
-                          FilledButton.icon(
-                            onPressed: _editSelectedTags,
-                            icon: const Icon(Icons.edit_note_rounded),
-                            label: const Text('批量编辑标签'),
-                          ),
-                        ],
+                  alignment: Alignment.centerRight,
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: scrollEndPadding(context)),
+                    child: AlphabetIndexBar(
+                      offsets: offsets,
+                      onSelect: (row) => jumpScrollControllerToRow(
+                        _controller,
+                        rowIndex: row,
+                        itemExtent: TrackTile.extent,
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
+            if (_selected.isNotEmpty)
+              Positioned(
+                left: LekisSpacing.lg,
+                right: LekisSpacing.lg,
+                bottom: LekisSpacing.lg,
+                child: SafeArea(
+                  top: false,
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Material(
+                      elevation: 8,
+                      color: context.lekisColors.surfaceElevated,
+                      borderRadius: BorderRadius.circular(LekisRadius.lg),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: LekisSpacing.md,
+                          vertical: LekisSpacing.sm,
+                        ),
+                        child: Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          alignment: WrapAlignment.center,
+                          spacing: LekisSpacing.sm,
+                          runSpacing: LekisSpacing.xs,
+                          children: [
+                            Text(
+                              '已选 ${_selected.length} 首',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                            TextButton(
+                              onPressed: _clearSelection,
+                              child: const Text('取消选择'),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () =>
+                                  _queueSelected(QueuePlacement.next),
+                              icon: const Icon(Icons.queue_play_next_rounded),
+                              label: const Text(QueueStrings.playNext),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () =>
+                                  _queueSelected(QueuePlacement.end),
+                              icon: const Icon(Icons.add_to_queue_rounded),
+                              label: const Text(QueueStrings.addToQueue),
+                            ),
+                            FilledButton.icon(
+                              onPressed: _editSelectedTags,
+                              icon: const Icon(Icons.edit_note_rounded),
+                              label: const Text('批量编辑标签'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         );
       },

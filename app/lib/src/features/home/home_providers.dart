@@ -50,3 +50,18 @@ final mostPlayedProvider = FutureProvider.autoDispose<List<TrackRowDto>>((
   ref.cacheFor(const Duration(minutes: 5));
   return core.mostPlayed(limit: homeShelfLimit);
 });
+
+/// 首页快捷胶囊展示的真实高频流派（最多 5 个，仅来自 SQLite 真实曲库）。
+final homeQuickGenresProvider = FutureProvider.autoDispose<List<GenreCountDto>>(
+  (ref) async {
+    ref.invalidateOnCatalogChange();
+    ref.cacheFor(const Duration(minutes: 5));
+    final all = await core.listGenres(limit: 24);
+    final valid =
+        all
+            .where((g) => g.name.trim().isNotEmpty && g.trackCount > 0)
+            .toList(growable: false)
+          ..sort((a, b) => b.trackCount.compareTo(a.trackCount));
+    return valid.take(5).toList(growable: false);
+  },
+);

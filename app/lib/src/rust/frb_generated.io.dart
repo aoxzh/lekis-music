@@ -286,6 +286,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 dco_decode_i_64(dynamic raw);
 
   @protected
+  LetterOffsetDto dco_decode_letter_offset_dto(dynamic raw);
+
+  @protected
   LibraryHealthEntryDto dco_decode_library_health_entry_dto(dynamic raw);
 
   @protected
@@ -360,6 +363,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<GenreCountDto> dco_decode_list_genre_count_dto(dynamic raw);
+
+  @protected
+  List<LetterOffsetDto> dco_decode_list_letter_offset_dto(dynamic raw);
 
   @protected
   List<LibraryHealthEntryDto> dco_decode_list_library_health_entry_dto(
@@ -1089,6 +1095,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
 
   @protected
+  LetterOffsetDto sse_decode_letter_offset_dto(SseDeserializer deserializer);
+
+  @protected
   LibraryHealthEntryDto sse_decode_library_health_entry_dto(
     SseDeserializer deserializer,
   );
@@ -1187,6 +1196,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<GenreCountDto> sse_decode_list_genre_count_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<LetterOffsetDto> sse_decode_list_letter_offset_dto(
     SseDeserializer deserializer,
   );
 
@@ -2097,6 +2111,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
 
   @protected
+  void sse_encode_letter_offset_dto(
+    LetterOffsetDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_library_health_entry_dto(
     LibraryHealthEntryDto self,
     SseSerializer serializer,
@@ -2219,6 +2239,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_genre_count_dto(
     List<GenreCountDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_letter_offset_dto(
+    List<LetterOffsetDto> self,
     SseSerializer serializer,
   );
 

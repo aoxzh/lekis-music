@@ -260,9 +260,13 @@ class _SongsSegment extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sort = ref.watch(songSortProvider);
+    final indexOffsets = sort == TrackSortDto.title
+        ? ref.watch(trackIndexOffsetsProvider).value
+        : null;
     return PagedTrackList(
       key: ValueKey(sort),
       list: ref.watch(songsListProvider(sort)),
+      indexOffsets: indexOffsets,
     );
   }
 }

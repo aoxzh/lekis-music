@@ -1,10 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
+import 'package:lekis/src/features/library/widgets/alphabet_index_bar.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
-import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/features/library/widgets/press_feedback.dart';
+import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Paged artist list (fixed row height).
@@ -32,6 +33,7 @@ class _ArtistListState extends ConsumerState<ArtistList> {
   @override
   Widget build(BuildContext context) {
     final list = ref.watch(artistsListProvider);
+    final offsets = ref.watch(artistIndexOffsetsProvider).value;
     final gutter = pageGutterOf(context);
     final theme = Theme.of(context);
     final colors = context.lekisColors;
@@ -45,7 +47,9 @@ class _ArtistListState extends ConsumerState<ArtistList> {
         if (list.isInitialLoading) {
           return const Center(child: CircularProgressIndicator());
         }
-        return Scrollbar(
+        final showIndex =
+            offsets != null && offsets.length >= 2 && list.itemCount >= 15;
+        final scrollView = Scrollbar(
           controller: _controller,
           interactive: true,
           child: ListView.builder(
@@ -53,7 +57,7 @@ class _ArtistListState extends ConsumerState<ArtistList> {
             padding: EdgeInsets.fromLTRB(
               gutter - LekisSpacing.sm,
               0,
-              gutter - LekisSpacing.sm,
+              gutter - LekisSpacing.sm + (showIndex ? LekisSpacing.xl : 0),
               scrollEndPadding(context),
             ),
             itemExtent: ArtistList.extent,
@@ -97,6 +101,28 @@ class _ArtistListState extends ConsumerState<ArtistList> {
               );
             },
           ),
+        );
+        if (!showIndex) return scrollView;
+        return Stack(
+          children: [
+            Positioned.fill(child: scrollView),
+            Positioned.fill(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: scrollEndPadding(context)),
+                  child: AlphabetIndexBar(
+                    offsets: offsets,
+                    onSelect: (row) => jumpScrollControllerToRow(
+                      _controller,
+                      rowIndex: row,
+                      itemExtent: ArtistList.extent,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         );
       },
     );

@@ -36,8 +36,11 @@ class HomePage extends ConsumerWidget {
     final recent = ref.watch(recentlyAddedProvider).value ?? const [];
     final played = ref.watch(recentlyPlayedProvider).value ?? const [];
     final most = ref.watch(mostPlayedProvider).value ?? const [];
+    final lovedCount = ref.watch(lovedCountProvider).value ?? 0;
+    final quickGenres = ref.watch(homeQuickGenresProvider).value ?? const [];
     final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
     final gutter = pageGutterOf(context);
+    final actions = ref.read(playerActionsProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -53,6 +56,8 @@ class HomePage extends ConsumerWidget {
                   ref.invalidate(recentlyAddedProvider);
                   ref.invalidate(recentlyPlayedProvider);
                   ref.invalidate(mostPlayedProvider);
+                  ref.invalidate(lovedCountProvider);
+                  ref.invalidate(homeQuickGenresProvider);
                   await ref.read(recentlyAddedAlbumsProvider.future);
                 },
                 child: CustomScrollView(
@@ -65,6 +70,34 @@ class HomePage extends ConsumerWidget {
                         0,
                       ),
                       sliver: const SliverToBoxAdapter(child: _HomeHeader()),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.only(top: LekisSpacing.md),
+                      sliver: SliverToBoxAdapter(
+                        child: HomeQuickMixStrip(
+                          gutter: gutter,
+                          hasTracks: !empty,
+                          lovedCount: lovedCount,
+                          hasMostPlayed: most.isNotEmpty,
+                          genres: quickGenres,
+                          onShuffleLibrary: () => actions.playContext(
+                            const PlayContextDto.library_(
+                              sort: TrackSortDto.title,
+                            ),
+                            shuffle: true,
+                          ),
+                          onPlayLoved: () => actions.playContext(
+                            const PlayContextDto.loved(),
+                            shuffle: true,
+                          ),
+                          onPlayMostPlayed: () =>
+                              actions.playRows(most, shuffle: true),
+                          onPlayGenre: (name) => actions.playContext(
+                            PlayContextDto.genre(name: name),
+                            shuffle: true,
+                          ),
+                        ),
+                      ),
                     ),
                     if (hasTrack)
                       SliverPadding(
@@ -555,6 +588,131 @@ class _ResumeProgress extends ConsumerWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// 首页基于真实资料库数据的快捷电台 / 场景胶囊条（DESIGN.md §3）。
+///
+/// 绝不展示写死的虚构分类：仅当用户确有喜欢曲目、常听记录或流派标签时才显示对应胶囊。
+class HomeQuickMixStrip extends StatelessWidget {
+  const HomeQuickMixStrip({
+    super.key,
+    required this.gutter,
+    required this.hasTracks,
+    required this.lovedCount,
+    required this.hasMostPlayed,
+    required this.genres,
+    required this.onShuffleLibrary,
+    required this.onPlayLoved,
+    required this.onPlayMostPlayed,
+    required this.onPlayGenre,
+  });
+
+  final double gutter;
+  final bool hasTracks;
+  final int lovedCount;
+  final bool hasMostPlayed;
+  final List<GenreCountDto> genres;
+  final VoidCallback onShuffleLibrary;
+  final VoidCallback onPlayLoved;
+  final VoidCallback onPlayMostPlayed;
+  final ValueChanged<String> onPlayGenre;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = <Widget>[
+      if (hasTracks)
+        _QuickMixCapsule(
+          icon: Icons.shuffle_rounded,
+          label: '随机漫游',
+          accent: true,
+          onTap: onShuffleLibrary,
+        ),
+      if (lovedCount > 0)
+        _QuickMixCapsule(
+          icon: Icons.favorite_rounded,
+          label: '我的喜欢',
+          onTap: onPlayLoved,
+        ),
+      if (hasMostPlayed)
+        _QuickMixCapsule(
+          icon: Icons.local_fire_department_rounded,
+          label: '常听精选',
+          onTap: onPlayMostPlayed,
+        ),
+      for (final g in genres)
+        if (g.name.trim().isNotEmpty && g.trackCount > 0)
+          _QuickMixCapsule(
+            icon: Icons.music_note_rounded,
+            label: g.name.trim(),
+            onTap: () => onPlayGenre(g.name),
+          ),
+    ];
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: EdgeInsets.symmetric(horizontal: gutter),
+      child: Row(
+        children: [
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0) const SizedBox(width: LekisSpacing.sm),
+            items[i],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickMixCapsule extends StatelessWidget {
+  const _QuickMixCapsule({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.accent = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.lekisColors;
+    final theme = Theme.of(context);
+    final bg = accent ? colors.accentSoft : colors.surfaceElevated;
+    final fg = accent ? colors.moon : theme.colorScheme.onSurface;
+    final borderColor = accent
+        ? colors.accent.withValues(alpha: 0.45)
+        : colors.outline;
+
+    return Material(
+      color: bg,
+      shape: StadiumBorder(side: BorderSide(color: borderColor)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: LekisSpacing.md,
+            vertical: LekisSpacing.sm,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: accent ? colors.accent : colors.moon),
+              const SizedBox(width: LekisSpacing.xs),
+              Text(
+                label,
+                style: theme.textTheme.labelLarge?.copyWith(color: fg),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

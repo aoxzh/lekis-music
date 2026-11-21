@@ -79,18 +79,37 @@ Future<void> runDownloadMenuAction(
   }
 }
 
-/// 正在下载时显示一个 16×16 的小进度环；其他状态不占空间。
+/// 单曲离线状态角标：下载中显示 16×16 进度环，已离线缓存显示极光绿离线图标（OFF-01）；
+/// 其他状态不占空间。
 class CompactDownloadProgress extends ConsumerWidget {
   const CompactDownloadProgress({super.key, required this.trackId});
 
   final int trackId;
 
+  static const Key downloadedIconKey = ValueKey(
+    'compact-download.downloaded-icon',
+  );
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(downloadStateProvider(trackId));
+    final colors = context.lekisColors;
+    if (state == OfflineStateDto.ready) {
+      return Padding(
+        padding: const EdgeInsets.only(right: LekisSpacing.xs),
+        child: Tooltip(
+          message: '已离线缓存',
+          child: Icon(
+            Icons.offline_pin_rounded,
+            key: downloadedIconKey,
+            size: 16,
+            color: colors.aurora,
+          ),
+        ),
+      );
+    }
     if (state != OfflineStateDto.downloading) return const SizedBox.shrink();
     final progress = ref.watch(downloadProgressProvider(trackId));
-    final colors = context.lekisColors;
     return Padding(
       padding: const EdgeInsets.only(right: LekisSpacing.xs),
       child: Tooltip(
