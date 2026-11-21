@@ -59,6 +59,54 @@ abstract final class LekisText {
   );
 }
 
+/// Coloured desktop text styles ([LekisDesktopType]) for the current theme.
+/// Use these for desktop chrome (sidebar, settings panes, cards) so all
+/// columns share one scale.
+@immutable
+class LekisDesktopText {
+  LekisDesktopText._(ColorScheme scheme, LekisColors colors)
+    : pageTitle = LekisText._withFonts(LekisDesktopType.pageTitle.toStyle())
+          .copyWith(color: scheme.onSurface),
+      paneTitle = LekisText._withFonts(LekisDesktopType.paneTitle.toStyle())
+          .copyWith(
+            color: scheme.onSurface.withValues(
+              alpha: LekisDesktopType.paneTitleOpacity,
+            ),
+          ),
+      item = LekisText._withFonts(LekisDesktopType.item.toStyle()).copyWith(
+        color: scheme.onSurface.withValues(alpha: LekisDesktopType.itemOpacity),
+      ),
+      itemSelected = LekisText._withFonts(LekisDesktopType.item.toStyle())
+          .copyWith(
+            color: scheme.onSurface,
+            fontWeight: LekisDesktopType.itemSelectedWeight,
+          ),
+      rowTitle = LekisText._withFonts(LekisDesktopType.item.toStyle())
+          .copyWith(color: scheme.onSurface),
+      sectionHeader = LekisText._withFonts(
+        LekisDesktopType.sectionHeader.toStyle(),
+      ).copyWith(color: colors.onSurfaceVariant),
+      secondary = LekisText._withFonts(LekisDesktopType.secondary.toStyle())
+          .copyWith(color: colors.onSurfaceVariant);
+
+  factory LekisDesktopText.of(BuildContext context) =>
+      LekisDesktopText._(Theme.of(context).colorScheme, context.lekisColors);
+
+  final TextStyle pageTitle;
+  final TextStyle paneTitle;
+
+  /// Unselected navigation entry.
+  final TextStyle item;
+
+  /// Selected navigation entry.
+  final TextStyle itemSelected;
+
+  /// Title of a row inside a card (full colour, regular weight).
+  final TextStyle rowTitle;
+  final TextStyle sectionHeader;
+  final TextStyle secondary;
+}
+
 /// System fonts with CJK coverage per platform (no bundled fonts).
 abstract final class _SystemFonts {
   static String? get family => switch (defaultTargetPlatform) {

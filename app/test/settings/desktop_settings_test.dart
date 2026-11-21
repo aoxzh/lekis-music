@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lekis/src/features/downloads/downloads_providers.dart';
 import 'package:lekis/src/features/enrich/enrich_providers.dart';
 import 'package:lekis/src/features/settings/desktop_settings_view.dart';
+import 'package:lekis/src/features/settings/settings_categories.dart';
 import 'package:lekis/src/features/settings/settings_page.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/features/settings/strings.dart';
@@ -87,7 +88,8 @@ void main() {
       for (final c in SettingsCategory.values) {
         expect(_category(c.name), findsOneWidget);
       }
-      expect(find.byKey(const ValueKey('settings-sources')), findsOneWidget);
+      // 音源 lives in the sidebar on desktop; not repeated in Settings.
+      expect(find.byKey(const ValueKey('settings-sources')), findsNothing);
 
       // Playback is open by default, to the right of the list.
       final nav = tester.getRect(_category('playback'));
@@ -152,6 +154,39 @@ void main() {
         );
       },
     );
+
+    testWidgets('desktop type scale; page title is not repeated as a section', (
+      tester,
+    ) async {
+      _profile(UiProfile.desktop);
+      _size(tester, const Size(1280, 820));
+      await tester.pumpWidget(_app());
+      await tester.pump();
+      await tester.tap(_category('appearance'));
+      await tester.pumpAndSettle();
+
+      // Once in the list, once as the page title — no "外观" section label.
+      expect(find.text(SettingsStrings.appearance), findsNWidgets(2));
+
+      double sizeOf(Finder f) =>
+          tester.widget<Text>(f).style?.fontSize ??
+          DefaultTextStyle.of(tester.element(f)).style.fontSize!;
+      final titles = find.text(SettingsStrings.appearance);
+      final sizes = [sizeOf(titles.at(0)), sizeOf(titles.at(1))]..sort();
+      expect(sizes, [
+        LekisDesktopType.item.size,
+        LekisDesktopType.pageTitle.size,
+      ]);
+      expect(
+        sizeOf(find.text(SettingsStrings.title)),
+        LekisDesktopType.paneTitle.size,
+      );
+      // Group labels share the 12 px header level.
+      expect(
+        sizeOf(find.text(SettingsCategoryGroup.general.title)),
+        LekisDesktopType.sectionHeader.size,
+      );
+    });
 
     testWidgets('Ctrl+F focuses search and filters the list', (tester) async {
       _profile(UiProfile.desktop);

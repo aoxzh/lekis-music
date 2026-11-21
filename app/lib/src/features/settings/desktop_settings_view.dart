@@ -4,12 +4,11 @@
 //   ┌──────────────────┬───────────────────────────────────────┐
 //   │ 设置             │ 播放                                  │
 //   │ [查找设置   ]    │                                       │
-//   │ 音乐             │ 播放                                  │
-//   │  ▍音源           │ ┌───────────────────────────────────┐ │
+//   │ 音乐             │ ┌───────────────────────────────────┐ │
 //   │   下载           │ │ 输出设备             [默认    ⌄]  │ │
 //   │   整理资料库     │ ├───────────────────────────────────┤ │
 //   │ 通用             │ │ 无缝播放                 开 (●)   │ │
-//   │   播放  ◀        │ └───────────────────────────────────┘ │
+//   │  ▍播放           │ └───────────────────────────────────┘ │
 //   │   …              │                                       │
 //   └──────────────────┴───────────────────────────────────────┘
 //
@@ -19,6 +18,12 @@
 // labelled toggles (see settings_widgets.dart). Every row is reachable with
 // Tab / arrow keys and shows hover and focus states.
 //
+// Type follows [LekisDesktopType]: the detail title (22) outranks the list
+// title (18); list entries are 14 like the sidebar; group labels are 12 and
+// muted in all three columns. A section whose title repeats the page title
+// is not labelled again ([SettingsPageTitle]). 音源 is not listed: the
+// sidebar already has it as a destination.
+//
 // Categories come from [SettingsCategory]; adding one there adds it here,
 // to the phone home list and to the search.
 
@@ -27,7 +32,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../shell/app_shell.dart';
-import '../../theme/tokens.dart';
+import '../../theme/theme.dart';
 import '../downloads/downloads_providers.dart';
 import '../enrich/enrich_providers.dart';
 import '../library/widgets/page_gutter.dart';
@@ -35,12 +40,14 @@ import '../sources/sources_providers.dart';
 import 'settings_categories.dart';
 import 'settings_page.dart' show SettingsSetupCard;
 import 'strings.dart';
+import 'widgets/settings_widgets.dart' show SettingsPageTitle;
 
 /// Width of the category list.
 const double desktopSettingsNavWidth = 288;
 
-/// Widest the detail column gets (Windows Settings caps its cards too).
-const double desktopSettingsDetailMaxWidth = 1000;
+/// Widest the detail column gets, so a row's label and its control stay
+/// within one glance on wide monitors (Windows Settings caps its cards too).
+const double desktopSettingsDetailMaxWidth = 760;
 
 class DesktopSettingsView extends ConsumerStatefulWidget {
   const DesktopSettingsView({
@@ -121,6 +128,11 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(width: desktopSettingsNavWidth, child: _nav(context)),
+          VerticalDivider(
+            width: 1,
+            thickness: 1,
+            color: context.lekisColors.outline.withValues(alpha: 0.6),
+          ),
           Expanded(child: _detail(context)),
         ],
       ),
@@ -130,7 +142,7 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
   Widget _nav(BuildContext context) {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
-    final sources = ref.watch(sourcesProvider).value;
+    final type = LekisDesktopText.of(context);
     final downloads = ref.watch(downloadsSummaryProvider);
     final pending = ref.watch(enrichPendingCountProvider);
     final query = _query;
@@ -143,17 +155,6 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
     for (final group in SettingsCategoryGroup.values) {
       final items = <Widget>[
         if (group == SettingsCategoryGroup.music) ...[
-          if (linkMatches(SettingsStrings.sources, SettingsStrings.sourcesHint))
-            _NavItem(
-              key: const ValueKey('settings-sources'),
-              icon: Icons.storage_outlined,
-              title: SettingsStrings.sources,
-              tooltip: sources == null || sources.isEmpty
-                  ? SettingsStrings.sourcesHint
-                  : SettingsStrings.sourcesCount(sources.length),
-              external: true,
-              onTap: () => AppShell.select(context, LekisDestination.sources),
-            ),
           if (linkMatches(
             SettingsStrings.downloads,
             SettingsStrings.downloadsHint,
@@ -163,7 +164,6 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
               icon: Icons.download_for_offline_outlined,
               title: SettingsStrings.downloads,
               tooltip: SettingsStrings.downloadsHint,
-              external: true,
               trailing: downloads.activeCount > 0
                   ? const SizedBox.square(
                       dimension: LekisSpacing.md,
@@ -201,12 +201,7 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
           ),
           child: Semantics(
             header: true,
-            child: Text(
-              group.title,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
-            ),
+            child: Text(group.title, style: type.sectionHeader),
           ),
         ),
       );
@@ -232,12 +227,7 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
             ),
             child: Semantics(
               header: true,
-              child: Text(
-                SettingsStrings.title,
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              child: Text(SettingsStrings.title, style: type.paneTitle),
             ),
           ),
           Padding(
@@ -282,7 +272,7 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
                     padding: const EdgeInsets.all(LekisSpacing.md),
                     child: Text(
                       SettingsStrings.searchEmpty,
-                      style: theme.textTheme.bodySmall,
+                      style: type.secondary,
                     ),
                   )
                 : FocusTraversalGroup(
@@ -300,7 +290,6 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
   }
 
   Widget _detail(BuildContext context) {
-    final theme = Theme.of(context);
     final sources = ref.watch(sourcesProvider).value;
     final noSources = sources != null && sources.isEmpty;
     final category = widget.selected;
@@ -321,9 +310,7 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
               header: true,
               child: Text(
                 category.title,
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+                style: LekisDesktopText.of(context).pageTitle,
               ),
             ),
           ),
@@ -344,12 +331,15 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
                       constraints: const BoxConstraints(
                         maxWidth: desktopSettingsDetailMaxWidth,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (noSources) const SettingsSetupCard(),
-                          ...category.sections,
-                        ],
+                      child: SettingsPageTitle(
+                        title: category.title,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (noSources) const SettingsSetupCard(),
+                            ...category.sections,
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -365,6 +355,8 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
 
 /// One row of the category list: Windows 11 navigation item (accent pill on
 /// the selected row, subtle fill, hover / focus highlight, hint as tooltip).
+/// No chevrons: in this master-detail layout every entry just switches the
+/// pane (or opens a page in place), like Windows Settings.
 class _NavItem extends StatelessWidget {
   const _NavItem({
     super.key,
@@ -373,7 +365,6 @@ class _NavItem extends StatelessWidget {
     required this.onTap,
     this.tooltip,
     this.selected = false,
-    this.external = false,
     this.trailing,
   });
 
@@ -382,15 +373,13 @@ class _NavItem extends StatelessWidget {
   final String? tooltip;
   final VoidCallback onTap;
   final bool selected;
-
-  /// Opens another page (sources, downloads) instead of the detail pane.
-  final bool external;
   final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
+    final type = LekisDesktopText.of(context);
     final radius = BorderRadius.circular(LekisRadius.xs);
     Widget item = Material(
       color: selected
@@ -425,24 +414,13 @@ class _NavItem extends StatelessWidget {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: selected ? FontWeight.w600 : null,
-                  ),
+                  style: selected ? type.itemSelected : type.item,
                 ),
               ),
               if (trailing != null) ...[
                 trailing!,
                 const SizedBox(width: LekisSpacing.sm),
               ],
-              if (external)
-                Padding(
-                  padding: const EdgeInsets.only(right: LekisSpacing.sm),
-                  child: Icon(
-                    Icons.chevron_right_rounded,
-                    size: LekisSpacing.lg,
-                    color: colors.onSurfaceVariant,
-                  ),
-                ),
             ],
           ),
         ),

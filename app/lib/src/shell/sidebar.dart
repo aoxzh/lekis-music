@@ -1,10 +1,15 @@
 // Navigation chrome: an icon rail for medium windows and a full sidebar for
 // expanded ones. Both use the same destinations and the same active language:
-// a soft moonlight block plus a small gold marker.
+// a soft accent block plus a small accent marker (the same accent the
+// settings list and the player use, so there is one selection colour).
+//
+// On desktop the sidebar uses [LekisDesktopType], the scale every desktop
+// pane shares (14 px entries, 12 px muted group labels).
 
 import 'package:material_ui/material_ui.dart';
 
-import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/platform/ui_profile.dart';
+import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/brand_mark.dart';
 
 import 'destinations.dart';
@@ -26,6 +31,9 @@ class LekisSidebar extends StatelessWidget {
     final colors = context.lekisColors;
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
+    final desktop = UiProfile.current.isDesktop
+        ? LekisDesktopText.of(context)
+        : null;
 
     return Material(
       color: scheme.surface,
@@ -79,10 +87,12 @@ class LekisSidebar extends StatelessWidget {
                   ),
                   child: Text(
                     '浏览',
-                    style: text.labelSmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                      letterSpacing: 1.2,
-                    ),
+                    style:
+                        desktop?.sectionHeader ??
+                        text.labelSmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                          letterSpacing: 1.2,
+                        ),
                   ),
                 ),
                 const SizedBox(height: LekisSpacing.sm),
@@ -121,9 +131,11 @@ class LekisSidebar extends StatelessWidget {
                   ),
                   child: Text(
                     '本地优先 · 无账号',
-                    style: text.labelSmall?.copyWith(
-                      color: colors.onSurfaceVariant.withValues(alpha: 0.7),
-                    ),
+                    style:
+                        desktop?.secondary ??
+                        text.labelSmall?.copyWith(
+                          color: colors.onSurfaceVariant.withValues(alpha: 0.7),
+                        ),
                   ),
                 ),
               ],
@@ -237,6 +249,15 @@ class _SidebarItem extends StatelessWidget {
     final reduce = lekisReduceMotion(context);
     final fg = selected ? lekisNavForeground(context) : colors.onSurfaceVariant;
     final radius = BorderRadius.circular(LekisRadius.md);
+    final desktop = UiProfile.current.isDesktop
+        ? LekisDesktopText.of(context)
+        : null;
+    final label =
+        (selected ? desktop?.itemSelected : desktop?.item) ??
+        (text.bodyLarge ?? const TextStyle()).copyWith(
+          color: selected ? scheme.onSurface : fg,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+        );
 
     return Semantics(
       container: true,
@@ -253,11 +274,15 @@ class _SidebarItem extends StatelessWidget {
             lekisSelectionHaptic();
             onTap();
           },
-          hoverColor: colors.accentSoft.withValues(alpha: 0.55),
+          // A neutral hover, so a hovered entry never reads as a second
+          // selected one next to the accent block.
+          hoverColor: scheme.onSurface.withValues(alpha: 0.05),
           child: AnimatedContainer(
             duration: reduce ? LekisMotion.fast : LekisMotion.normal,
             curve: Curves.easeOut,
-            height: LekisSizes.touchTargetMin,
+            height: desktop != null
+                ? LekisSpacing.xxl + LekisSpacing.sm
+                : LekisSizes.touchTargetMin,
             padding: const EdgeInsets.only(left: LekisSpacing.sm),
             decoration: BoxDecoration(
               color: selected ? colors.accentSoft : Colors.transparent,
@@ -278,10 +303,7 @@ class _SidebarItem extends StatelessWidget {
                   child: AnimatedDefaultTextStyle(
                     duration: LekisMotion.fast,
                     curve: Curves.easeOut,
-                    style: (text.bodyLarge ?? const TextStyle()).copyWith(
-                      color: selected ? scheme.onSurface : fg,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                    ),
+                    style: label,
                     child: Text(
                       destination.label,
                       maxLines: 1,
@@ -298,7 +320,7 @@ class _SidebarItem extends StatelessWidget {
   }
 }
 
-/// Gold presence marker, grown with the standard spring so the sidebar uses
+/// Accent presence marker, grown with the standard spring so the sidebar uses
 /// the same motion language as the bottom bar.
 class _SidebarMarker extends StatelessWidget {
   const _SidebarMarker({required this.selected, required this.reduce});
@@ -326,7 +348,7 @@ class _SidebarMarker extends StatelessWidget {
             scaleY: t.clamp(0.0, 1.12),
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: colors.moon,
+                color: colors.accent,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -372,7 +394,8 @@ class _RailItem extends StatelessWidget {
               lekisSelectionHaptic();
               onTap();
             },
-            hoverColor: colors.accentSoft.withValues(alpha: 0.55),
+            hoverColor: Theme.of(context).colorScheme.onSurface
+                .withValues(alpha: 0.05),
             child: AnimatedContainer(
               duration: reduce ? LekisMotion.fast : LekisMotion.normal,
               curve: Curves.easeOut,

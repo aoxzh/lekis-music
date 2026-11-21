@@ -500,6 +500,47 @@ abstract final class LekisType {
   static const double lyricsInactiveBlur = 1.5;
 }
 
+/// Desktop typography (Windows / macOS / Linux) for tool-like chrome: the
+/// sidebar, the settings panes and their cards. Read at mouse distance, so
+/// it stays within 12–22 and only uses w400 / w500 / w600 — the phone's
+/// 28 px bold titles look like posters next to 12 px captions there, and
+/// heavy CJK system fonts make the jump worse.
+///
+/// Every pane uses the same five levels, so a list item in the sidebar is
+/// the same size as one in the settings list or a card row.
+abstract final class LekisDesktopType {
+  /// Title of the detail pane (the page the user is reading).
+  static const pageTitle = LekisTypeToken(
+    22,
+    FontWeight.w600,
+    28,
+    letterSpacing: -0.1,
+  );
+
+  /// Title of a secondary column (the settings category list); deliberately
+  /// quieter than [pageTitle].
+  static const paneTitle = LekisTypeToken(18, FontWeight.w600, 24);
+  static const double paneTitleOpacity = 0.9;
+
+  /// Navigation entries, list rows and card row titles.
+  static const item = LekisTypeToken(14, FontWeight.w400, 20);
+  static const FontWeight itemSelectedWeight = FontWeight.w600;
+
+  /// Unselected navigation entries are slightly dimmed.
+  static const double itemOpacity = 0.85;
+
+  /// Group labels above lists and cards, in every pane (muted colour).
+  static const sectionHeader = LekisTypeToken(
+    12,
+    FontWeight.w500,
+    16,
+    letterSpacing: 0.2,
+  );
+
+  /// Subtitles, hints and metadata (muted colour).
+  static const secondary = LekisTypeToken(12, FontWeight.w400, 16);
+}
+
 /// Now Playing dynamic background tokens.
 ///
 /// Defaults follow Symfonik's `modern` Now Playing style: the artwork itself

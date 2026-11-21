@@ -13,7 +13,7 @@ import 'dart:math' as math;
 import 'package:material_ui/material_ui.dart';
 
 import '../../../platform/ui_profile.dart';
-import '../../../theme/tokens.dart';
+import '../../../theme/theme.dart';
 import '../../library/widgets/page_gutter.dart';
 import '../../sources/common.dart';
 
@@ -86,9 +86,11 @@ class SettingsPageHeader extends StatelessWidget {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: _desktop
+                      ? LekisDesktopText.of(context).pageTitle
+                      : theme.textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                 ),
               ),
             ),
@@ -187,7 +189,29 @@ class SettingsScrollView extends StatelessWidget {
   );
 }
 
+/// 桌面设置详情页的页面标题。小节标题和它一样时不再重复显示
+/// （例如“外观”页里的“外观”分组）。
+class SettingsPageTitle extends InheritedWidget {
+  const SettingsPageTitle({
+    super.key,
+    required this.title,
+    required super.child,
+  });
+
+  final String title;
+
+  static String? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<SettingsPageTitle>()?.title;
+
+  @override
+  bool updateShouldNotify(SettingsPageTitle oldWidget) =>
+      title != oldWidget.title;
+}
+
 /// 小节标题：与首页书架标题同一风格，缩小一级。
+///
+/// 桌面上和侧栏的“浏览”、分类列表的“音乐 / 通用”同一层级：12 px 中等字重的
+/// 元信息色（[LekisDesktopType.sectionHeader]），三栏共用。
 class SettingsSectionHeader extends StatelessWidget {
   const SettingsSectionHeader(this.title, {super.key, this.trailing});
 
@@ -197,6 +221,12 @@ class SettingsSectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
+    if (_desktop &&
+        trailing == null &&
+        SettingsPageTitle.of(context) == title) {
+      // The page title right above already says this.
+      return const SizedBox(height: LekisSpacing.xs);
+    }
     return Padding(
       padding: _desktop
           // Desktop: a semibold label just above its card, like Windows 11.
@@ -220,7 +250,7 @@ class SettingsSectionHeader extends StatelessWidget {
               child: Text(
                 title,
                 style: _desktop
-                    ? text.bodyMedium?.copyWith(fontWeight: FontWeight.w600)
+                    ? LekisDesktopText.of(context).sectionHeader
                     : text.labelLarge?.copyWith(
                         color: context.lekisColors.onSurfaceVariant,
                         letterSpacing: 0.4,
@@ -426,6 +456,7 @@ class SettingsTile extends StatelessWidget {
   }
 
   Widget _build(BuildContext context, ThemeData theme, LekisColors colors) {
+    final desktop = _desktop ? LekisDesktopText.of(context) : null;
     final end = chevron
         ? Row(
             mainAxisSize: MainAxisSize.min,
@@ -463,11 +494,14 @@ class SettingsTile extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: theme.textTheme.bodyLarge),
+                    Text(
+                      title,
+                      style: desktop?.rowTitle ?? theme.textTheme.bodyLarge,
+                    ),
                     if (subtitle != null) ...[
                       const SizedBox(height: LekisSpacing.xxs),
                       DefaultTextStyle.merge(
-                        style: theme.textTheme.bodySmall,
+                        style: desktop?.secondary ?? theme.textTheme.bodySmall,
                         child: subtitle!,
                       ),
                     ],
@@ -587,7 +621,11 @@ class SettingsBlockTile extends StatelessWidget {
                 Expanded(
                   child: Text(
                     title,
-                    style: titleStyle ?? theme.textTheme.bodyLarge,
+                    style:
+                        titleStyle ??
+                        (_desktop
+                            ? LekisDesktopText.of(context).rowTitle
+                            : theme.textTheme.bodyLarge),
                   ),
                 ),
                 if (trailing != null) settingsAlignTrailing(trailing!),
@@ -603,7 +641,12 @@ class SettingsBlockTile extends StatelessWidget {
                 child,
                 if (hint != null) ...[
                   const SizedBox(height: LekisSpacing.sm),
-                  Text(hint!, style: theme.textTheme.bodySmall),
+                  Text(
+                    hint!,
+                    style: _desktop
+                        ? LekisDesktopText.of(context).secondary
+                        : theme.textTheme.bodySmall,
+                  ),
                 ],
               ],
             ),
@@ -641,7 +684,7 @@ class SettingsComboBox<T> extends StatelessWidget {
     required this.choices,
     required this.onChanged,
     this.controller,
-    this.minWidth = 160,
+    this.minWidth = 128,
     this.maxWidth = 280,
   });
 
@@ -679,40 +722,43 @@ class SettingsComboBox<T> extends StatelessWidget {
             child: Text(choice.label),
           ),
       ],
-      builder: (context, menu, _) => ConstrainedBox(
-        constraints: BoxConstraints(minWidth: minWidth, maxWidth: maxWidth),
-        child: OutlinedButton(
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size(0, LekisSpacing.xxl + LekisSpacing.xs),
-            padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.md),
-            alignment: AlignmentDirectional.centerStart,
-            foregroundColor: theme.colorScheme.onSurface,
-            side: BorderSide(color: colors.outline),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(LekisRadius.xs),
+      // Hug the label (within min / max) and keep the arrow on the right
+      // edge, like a Windows ComboBox — no empty half box.
+      builder: (context, menu, _) => IntrinsicWidth(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: minWidth, maxWidth: maxWidth),
+          child: OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, LekisSpacing.xxl + LekisSpacing.xs),
+              padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.md),
+              alignment: AlignmentDirectional.centerStart,
+              foregroundColor: theme.colorScheme.onSurface,
+              side: BorderSide(color: colors.outline),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(LekisRadius.xs),
+              ),
             ),
-          ),
-          onPressed: onChanged == null
-              ? null
-              : () => menu.isOpen ? menu.close() : menu.open(),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: Text(
-                  current?.label ?? '',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium,
+            onPressed: onChanged == null
+                ? null
+                : () => menu.isOpen ? menu.close() : menu.open(),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    current?.label ?? '',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium,
+                  ),
                 ),
-              ),
-              const SizedBox(width: LekisSpacing.sm),
-              Icon(
-                Icons.expand_more_rounded,
-                size: LekisSpacing.lg + LekisSpacing.xxs,
-                color: colors.onSurfaceVariant,
-              ),
-            ],
+                const SizedBox(width: LekisSpacing.sm),
+                Icon(
+                  Icons.expand_more_rounded,
+                  size: LekisSpacing.lg + LekisSpacing.xxs,
+                  color: colors.onSurfaceVariant,
+                ),
+              ],
+            ),
           ),
         ),
       ),
