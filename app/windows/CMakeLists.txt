@@ -39,7 +39,9 @@ add_definitions(-DUNICODE -D_UNICODE)
 # of modifying this function.
 function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_features(${TARGET} PUBLIC cxx_std_17)
-  target_compile_options(${TARGET} PRIVATE /W4 /WX /wd4100)
+  target_compile_options(${TARGET} PRIVATE /W4 /WX /wd4100 /utf-8)
+  # /utf-8: plugin sources contain non-ASCII characters; on a non-UTF-8 system
+  # code page (e.g. 936) MSVC warns C4819, which /WX turns into an error.
   target_compile_options(${TARGET} PRIVATE /EHsc)
   target_compile_definitions(${TARGET} PRIVATE "_HAS_EXCEPTIONS=0")
   target_compile_definitions(${TARGET} PRIVATE "$<$<CONFIG:Debug>:_DEBUG>")
