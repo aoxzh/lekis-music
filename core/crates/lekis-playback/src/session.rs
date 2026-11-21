@@ -1574,18 +1574,27 @@ mod tests {
     use std::path::Path;
     use std::time::Instant;
 
+    use crate::output::bitperfect::pack_into;
     use crate::output::{NativePacking, NativeSampleSource, OutputDevice};
 
     /// 测试用「原生空输出」：只接受比特完美链路，按真实时间拉走 i32 样本并记录。
     struct NativeNullFactory {
         planned: PcmFormat,
+        bits: u8,
+        packing: NativePacking,
         capture: Arc<std::sync::Mutex<Vec<i32>>>,
     }
 
     impl NativeNullFactory {
         fn new(planned: PcmFormat) -> Self {
+            Self::with_native(planned, 16, NativePacking::Int16)
+        }
+
+        fn with_native(planned: PcmFormat, bits: u8, packing: NativePacking) -> Self {
             Self {
                 planned,
+                bits,
+                packing,
                 capture: Arc::new(std::sync::Mutex::new(Vec::new())),
             }
         }
@@ -1614,10 +1623,10 @@ mod tests {
             native: NativeSampleFormat,
         ) -> Result<Option<NativePlan>> {
             assert_eq!(requested, self.planned);
-            assert_eq!(native, NativeSampleFormat::Int { bits: 16 });
+            assert_eq!(native, NativeSampleFormat::Int { bits: self.bits });
             Ok(Some(NativePlan {
                 format: self.planned,
-                packing: NativePacking::Int16,
+                packing: self.packing,
             }))
         }
 
@@ -1809,6 +1818,128 @@ mod tests {
             "16 bit 原生样本必须保持左对齐 i32 位模式"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 写一个任意位深（16 / 24）的整数 PCM WAV，返回路径和 data 块原始字节。
+    fn write_pcm_wav(
+        dir: &Path,
+        name: &str,
+        rate: u32,
+        channels: u16,
+        bits: u16,
+        samples: &[i32],
+    ) -> (std::path::PathBuf, Vec<u8>) {
+        let bytes_per = usize::from(bits / 8);
+        let mut data = Vec::with_capacity(samples.len() * bytes_per);
+        for v in samples {
+            data.extend_from_slice(&v.to_le_bytes()[..bytes_per]);
+        }
+        let block_align = channels * bits / 8;
+        let mut buf = Vec::new();
+        buf.extend_from_slice(b"RIFF");
+        buf.extend_from_slice(&(36 + data.len() as u32).to_le_bytes());
+        buf.extend_from_slice(b"WAVEfmt ");
+        buf.extend_from_slice(&16u32.to_le_bytes());
+        buf.extend_from_slice(&1u16.to_le_bytes());
+        buf.extend_from_slice(&channels.to_le_bytes());
+        buf.extend_from_slice(&rate.to_le_bytes());
+        buf.extend_from_slice(&(rate * u32::from(block_align)).to_le_bytes());
+        buf.extend_from_slice(&block_align.to_le_bytes());
+        buf.extend_from_slice(&bits.to_le_bytes());
+        buf.extend_from_slice(b"data");
+        buf.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        buf.extend_from_slice(&data);
+        std::fs::create_dir_all(dir).expect("create temp dir");
+        let path = dir.join(name);
+        std::fs::write(&path, &buf).expect("write wav");
+        (path, data)
+    }
+
+    /// 可复现的"音乐"：伪随机满量程样本，夹着正负满幅、±1 和 0，左右声道不同。
+    fn bit_exact_signal(frames: usize, channels: usize, bits: u32) -> Vec<i32> {
+        let max = (1i64 << (bits - 1)) - 1;
+        let min = -(1i64 << (bits - 1));
+        let mut state = 0x2545_f491_4f6c_dd1du64;
+        let mut out = Vec::with_capacity(frames * channels);
+        for i in 0..frames * channels {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            let v = match i % 97 {
+                0 if i > 0 => max,
+                13 => min,
+                29 => 1,
+                41 => -1,
+                53 if i > 0 => 0,
+                _ => ((state >> 11) as i64 % (max - min + 1)) + min,
+            };
+            out.push(v as i32);
+        }
+        // 第一个样本必须非零：用它在录到的流里定位起点（前面可能有静音预填充）。
+        if out[0] == 0 {
+            out[0] = 1;
+        }
+        out
+    }
+
+    /// PLY-05 逐位验证：16 / 24 bit 立体声 WAV 经独占链路送到输出端，
+    /// 每个样本的位模式都和源文件一致，按设备格式打包后的字节和文件 data 块逐字节相同。
+    #[tokio::test]
+    async fn exclusive_output_is_bit_identical_to_the_source() {
+        for (bits, packing) in [
+            (16u16, NativePacking::Int16),
+            (24u16, NativePacking::Int24Packed),
+        ] {
+            let dir = temp_dir(&format!("bit-exact-{bits}"));
+            let rate = 8_000u32;
+            let channels = 2u16;
+            let frames = 4_000usize; // 500 ms
+            let source = bit_exact_signal(frames, usize::from(channels), u32::from(bits));
+            let (path, data) = write_pcm_wav(&dir, "src.wav", rate, channels, bits, &source);
+            let format = PcmFormat {
+                sample_rate: rate,
+                channels,
+            };
+            let factory = Arc::new(NativeNullFactory::with_native(format, bits as u8, packing));
+            let mut session = Session::start_with_factory(
+                &cached_media(1, &path, 500),
+                None,
+                OutputMode::Exclusive,
+                1.0,
+                Handle::current(),
+                factory.clone(),
+            )
+            .await
+            .expect("start native session");
+            assert!(session.native_bit_perfect(), "{bits} bit 必须走原生链路");
+            let deadline = Instant::now() + Duration::from_secs(10);
+            while Instant::now() < deadline && !session.finished() {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            assert!(session.finished(), "{bits} bit 会话应该播完");
+            session.stop();
+
+            let captured = factory.captured();
+            let shift = 32 - u32::from(bits);
+            let first = captured.iter().position(|s| *s != 0).expect("必须录到样本");
+            let got = &captured[first..];
+            assert!(
+                got.len() >= source.len(),
+                "{bits} bit 录到的样本不够：{}",
+                got.len()
+            );
+            for (i, (g, s)) in got.iter().zip(&source).enumerate() {
+                assert_eq!(*g, s << shift, "{bits} bit 第 {i} 个样本位模式不同");
+            }
+            let mut packed = vec![0u8; data.len()];
+            let written = pack_into(&got[..source.len()], packing, &mut packed);
+            assert_eq!(written, data.len());
+            assert!(
+                packed == data,
+                "{bits} bit 打包后的字节必须和源文件 data 块一致"
+            );
+            let _ = std::fs::remove_dir_all(&dir);
+        }
     }
 
     /// 共享模式开播必须淡入：第一帧接近静音，20 ms 后回到原幅度。
