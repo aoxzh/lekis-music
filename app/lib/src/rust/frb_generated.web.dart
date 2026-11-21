@@ -83,6 +83,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ArtworkDto dco_decode_box_autoadd_artwork_dto(dynamic raw);
 
   @protected
+  bool dco_decode_box_autoadd_bool(dynamic raw);
+
+  @protected
   ControlActionDto dco_decode_box_autoadd_control_action_dto(dynamic raw);
 
   @protected
@@ -452,6 +455,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<TrackRowDto> dco_decode_list_track_row_dto(dynamic raw);
 
   @protected
+  List<TrackSourceInfoDto> dco_decode_list_track_source_info_dto(dynamic raw);
+
+  @protected
   ListeningBucketDto dco_decode_listening_bucket_dto(dynamic raw);
 
   @protected
@@ -486,6 +492,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ArtworkDto? dco_decode_opt_box_autoadd_artwork_dto(dynamic raw);
+
+  @protected
+  bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
 
   @protected
   ErrorKind? dco_decode_opt_box_autoadd_error_kind(dynamic raw);
@@ -727,6 +736,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TrackSortDto dco_decode_track_sort_dto(dynamic raw);
 
   @protected
+  TrackSourceInfoDto dco_decode_track_source_info_dto(dynamic raw);
+
+  @protected
   TrackTagOverridesDto dco_decode_track_tag_overrides_dto(dynamic raw);
 
   @protected
@@ -808,6 +820,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ArtworkDto sse_decode_box_autoadd_artwork_dto(SseDeserializer deserializer);
+
+  @protected
+  bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
   ControlActionDto sse_decode_box_autoadd_control_action_dto(
@@ -1303,6 +1318,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<TrackRowDto> sse_decode_list_track_row_dto(SseDeserializer deserializer);
 
   @protected
+  List<TrackSourceInfoDto> sse_decode_list_track_source_info_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ListeningBucketDto sse_decode_listening_bucket_dto(
     SseDeserializer deserializer,
   );
@@ -1347,6 +1367,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ArtworkDto? sse_decode_opt_box_autoadd_artwork_dto(
     SseDeserializer deserializer,
   );
+
+  @protected
+  bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
   ErrorKind? sse_decode_opt_box_autoadd_error_kind(
@@ -1634,6 +1657,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TrackSortDto sse_decode_track_sort_dto(SseDeserializer deserializer);
 
   @protected
+  TrackSourceInfoDto sse_decode_track_source_info_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TrackTagOverridesDto sse_decode_track_tag_overrides_dto(
     SseDeserializer deserializer,
   );
@@ -1733,6 +1761,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     ArtworkDto self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_control_action_dto(
@@ -2362,6 +2393,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_track_source_info_dto(
+    List<TrackSourceInfoDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_listening_bucket_dto(
     ListeningBucketDto self,
     SseSerializer serializer,
@@ -2420,6 +2457,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     ArtworkDto? self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_error_kind(
@@ -2789,6 +2829,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_track_sort_dto(TrackSortDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_track_source_info_dto(
+    TrackSourceInfoDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_track_tag_overrides_dto(

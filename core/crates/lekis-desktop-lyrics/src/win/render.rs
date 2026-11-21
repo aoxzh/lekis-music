@@ -18,8 +18,9 @@ use windows::Win32::Graphics::Direct2D::*;
 use windows::Win32::Graphics::DirectWrite::*;
 use windows::Win32::Graphics::Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM;
 use windows::Win32::Graphics::Gdi::{
-    CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject, SelectObject, AC_SRC_ALPHA, AC_SRC_OVER,
-    BITMAPINFO, BITMAPINFOHEADER, BI_RGB, BLENDFUNCTION, DIB_RGB_COLORS, HBITMAP, HDC, HGDIOBJ,
+    CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject, SelectObject, AC_SRC_ALPHA,
+    AC_SRC_OVER, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, BLENDFUNCTION, DIB_RGB_COLORS, HBITMAP, HDC,
+    HGDIOBJ,
 };
 use windows::Win32::UI::WindowsAndMessaging::{UpdateLayeredWindow, ULW_ALPHA};
 use windows_numerics::Vector2;
@@ -44,7 +45,13 @@ pub(super) enum Button {
     Close,
 }
 
-const BUTTONS: [Button; 5] = [Button::Previous, Button::PlayPause, Button::Next, Button::Lock, Button::Close];
+const BUTTONS: [Button; 5] = [
+    Button::Previous,
+    Button::PlayPause,
+    Button::Next,
+    Button::Lock,
+    Button::Close,
+];
 
 /// 和交互有关、影响画面的状态。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -143,7 +150,13 @@ impl Layout {
 }
 
 /// 这一帧画面的指纹：没变就不重画。
-pub(super) fn frame_key(view: &View<'_>, ui: &Ui, style: &Style, size: (i32, i32), dpi: u32) -> u64 {
+pub(super) fn frame_key(
+    view: &View<'_>,
+    ui: &Ui,
+    style: &Style,
+    size: (i32, i32),
+    dpi: u32,
+) -> u64 {
     let mut h = DefaultHasher::new();
     view.kind.hash(&mut h);
     view.primary.hash(&mut h);
@@ -189,7 +202,12 @@ fn rgba(r: f32, g: f32, b: f32, a: f32) -> D2D1_COLOR_F {
     D2D1_COLOR_F { r, g, b, a }
 }
 
-const TRANSPARENT: D2D1_COLOR_F = D2D1_COLOR_F { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
+const TRANSPARENT: D2D1_COLOR_F = D2D1_COLOR_F {
+    r: 0.0,
+    g: 0.0,
+    b: 0.0,
+    a: 0.0,
+};
 
 /// 栅格化好的一行。
 struct CachedLine {
@@ -229,7 +247,8 @@ impl Surface {
                 ..Default::default()
             };
             let mut bits = std::ptr::null_mut();
-            let bitmap = match CreateDIBSection(Some(dc), &info, DIB_RGB_COLORS, &mut bits, None, 0) {
+            let bitmap = match CreateDIBSection(Some(dc), &info, DIB_RGB_COLORS, &mut bits, None, 0)
+            {
                 Ok(b) => b,
                 Err(e) => {
                     let _ = DeleteDC(dc);
@@ -237,7 +256,13 @@ impl Surface {
                 }
             };
             let old = SelectObject(dc, bitmap.into());
-            Ok(Surface { w, h, dc, bitmap, old })
+            Ok(Surface {
+                w,
+                h,
+                dc,
+                bitmap,
+                old,
+            })
         }
     }
 }
@@ -330,7 +355,15 @@ impl Gfx {
         let rt = self.render_target()?;
         let dc = self.surface.as_ref().map(|s| s.dc).unwrap_or_default();
         let result = unsafe {
-            rt.BindDC(dc, &RECT { left: 0, top: 0, right: w, bottom: h })?;
+            rt.BindDC(
+                dc,
+                &RECT {
+                    left: 0,
+                    top: 0,
+                    right: w,
+                    bottom: h,
+                },
+            )?;
             rt.BeginDraw();
             rt.Clear(Some(&TRANSPARENT));
             let drawn = self.paint(&rt, layout, style, view, ui);
@@ -386,7 +419,14 @@ impl Gfx {
             if !ui.locked && ui.hovered {
                 brush.SetColor(&rgba(0.0, 0.0, 0.0, 0.42));
                 let r = 10.0 * layout.scale;
-                rt.FillRoundedRectangle(&D2D1_ROUNDED_RECT { rect: full, radiusX: r, radiusY: r }, &brush);
+                rt.FillRoundedRectangle(
+                    &D2D1_ROUNDED_RECT {
+                        rect: full,
+                        radiusX: r,
+                        radiusY: r,
+                    },
+                    &brush,
+                );
             } else if !ui.locked {
                 brush.SetColor(&rgba(0.0, 0.0, 0.0, 3.0 / 255.0));
                 rt.FillRectangle(&full, &brush);
@@ -396,10 +436,23 @@ impl Gfx {
         let avail = layout.avail_width();
         // 主行。
         let sung = view.kind != PrimaryKind::Idle;
-        let primary = self.line(rt, view.primary, layout.font_px, avail, style, sung, view.words)?;
+        let primary = self.line(
+            rt,
+            view.primary,
+            layout.font_px,
+            avail,
+            style,
+            sung,
+            view.words,
+        )?;
         let px = ((layout.width as f32 - primary.w) / 2.0).round();
         let py = (layout.line1_top + (layout.line1_h - primary.h) / 2.0).round();
-        let dest = |x: f32, y: f32, l: &LineMetrics| D2D_RECT_F { left: x, top: y, right: x + l.w, bottom: y + l.h };
+        let dest = |x: f32, y: f32, l: &LineMetrics| D2D_RECT_F {
+            left: x,
+            top: y,
+            right: x + l.w,
+            bottom: y + l.h,
+        };
         let d = dest(px, py, &primary);
         let nn = D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR;
         unsafe {
@@ -412,7 +465,12 @@ impl Gfx {
                         .get(word)
                         .map(|(l, r)| l + (r - l) * fraction)
                         .unwrap_or(0.0);
-                    let clip = D2D_RECT_F { left: d.left, top: d.top, right: d.left + x, bottom: d.bottom };
+                    let clip = D2D_RECT_F {
+                        left: d.left,
+                        top: d.top,
+                        right: d.left + x,
+                        bottom: d.bottom,
+                    };
                     rt.PushAxisAlignedClip(&clip, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
                     rt.DrawBitmap(fill, Some(&d), style.opacity, nn, None);
                     rt.PopAxisAlignedClip();
@@ -427,7 +485,15 @@ impl Gfx {
                 let second = self.line(rt, text, layout.small_px, avail, style, false, &[])?;
                 let sx = ((layout.width as f32 - second.w) / 2.0).round();
                 let sy = (layout.line2_top + (layout.line2_h - second.h) / 2.0).round();
-                unsafe { rt.DrawBitmap(&second.base, Some(&dest(sx, sy, &second)), style.opacity * 0.9, nn, None) };
+                unsafe {
+                    rt.DrawBitmap(
+                        &second.base,
+                        Some(&dest(sx, sy, &second)),
+                        style.opacity * 0.9,
+                        nn,
+                        None,
+                    )
+                };
             }
         }
 
@@ -438,7 +504,13 @@ impl Gfx {
         Ok(())
     }
 
-    unsafe fn toolbar(&self, rt: &ID2D1DCRenderTarget, brush: &ID2D1SolidColorBrush, layout: &Layout, ui: &Ui) -> Result<()> {
+    unsafe fn toolbar(
+        &self,
+        rt: &ID2D1DCRenderTarget,
+        brush: &ID2D1SolidColorBrush,
+        layout: &Layout,
+        ui: &Ui,
+    ) -> Result<()> {
         let size = 15.0 * layout.scale;
         let family = self.icons.unwrap_or("Segoe UI Symbol");
         let format = unsafe {
@@ -475,19 +547,44 @@ impl Gfx {
             unsafe {
                 if ui.locked {
                     brush.SetColor(&rgba(0.0, 0.0, 0.0, 0.5));
-                    rt.FillRoundedRectangle(&D2D1_ROUNDED_RECT { rect: r, radiusX: radius, radiusY: radius }, brush);
+                    rt.FillRoundedRectangle(
+                        &D2D1_ROUNDED_RECT {
+                            rect: r,
+                            radiusX: radius,
+                            radiusY: radius,
+                        },
+                        brush,
+                    );
                 }
                 if bg > 0.0 {
                     brush.SetColor(&rgba(1.0, 1.0, 1.0, bg));
-                    rt.FillRoundedRectangle(&D2D1_ROUNDED_RECT { rect: r, radiusX: radius, radiusY: radius }, brush);
+                    rt.FillRoundedRectangle(
+                        &D2D1_ROUNDED_RECT {
+                            rect: r,
+                            radiusX: radius,
+                            radiusY: radius,
+                        },
+                        brush,
+                    );
                 }
             }
             let glyph = icon_glyph(b, ui, self.icons.is_some());
             let text: Vec<u16> = glyph.encode_utf16().collect();
-            let tl = unsafe { self.dwrite.CreateTextLayout(&text, &format, r.right - r.left, r.bottom - r.top)? };
+            let tl = unsafe {
+                self.dwrite
+                    .CreateTextLayout(&text, &format, r.right - r.left, r.bottom - r.top)?
+            };
             unsafe {
                 brush.SetColor(&rgba(1.0, 1.0, 1.0, 0.95));
-                rt.DrawTextLayout(Vector2 { X: r.left, Y: r.top }, &tl, brush, D2D1_DRAW_TEXT_OPTIONS_NONE);
+                rt.DrawTextLayout(
+                    Vector2 {
+                        X: r.left,
+                        Y: r.top,
+                    },
+                    &tl,
+                    brush,
+                    D2D1_DRAW_TEXT_OPTIONS_NONE,
+                );
             }
         }
         Ok(())
@@ -521,9 +618,19 @@ impl Gfx {
         }
         let built = unsafe { self.build_line(rt, text, font_px, max_w, style, with_fill, words)? };
         let metrics = LineMetrics::from(&built);
-        let built = CachedLine { key, used: tick, ..built };
+        let built = CachedLine {
+            key,
+            used: tick,
+            ..built
+        };
         if self.cache.len() >= CACHE_LIMIT {
-            if let Some(oldest) = self.cache.iter().enumerate().min_by_key(|(_, c)| c.used).map(|(i, _)| i) {
+            if let Some(oldest) = self
+                .cache
+                .iter()
+                .enumerate()
+                .min_by_key(|(_, c)| c.used)
+                .map(|(i, _)| i)
+            {
                 self.cache.swap_remove(oldest);
             }
         }
@@ -531,7 +638,12 @@ impl Gfx {
         Ok(metrics)
     }
 
-    unsafe fn text_layout(&self, utf16: &[u16], style: &Style, font_px: f32) -> Result<(IDWriteTextLayout, DWRITE_TEXT_METRICS)> {
+    unsafe fn text_layout(
+        &self,
+        utf16: &[u16],
+        style: &Style,
+        font_px: f32,
+    ) -> Result<(IDWriteTextLayout, DWRITE_TEXT_METRICS)> {
         let family = if style.font_family.trim().is_empty() {
             DEFAULT_FAMILY
         } else {
@@ -553,7 +665,9 @@ impl Gfx {
                 w!("zh-cn"),
             )?;
             format.SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP)?;
-            let layout = self.dwrite.CreateTextLayout(utf16, &format, 100_000.0, font_px * 3.0)?;
+            let layout = self
+                .dwrite
+                .CreateTextLayout(utf16, &format, 100_000.0, font_px * 3.0)?;
             let mut m = DWRITE_TEXT_METRICS::default();
             layout.GetMetrics(&mut m)?;
             Ok((layout, m))
@@ -584,9 +698,29 @@ impl Gfx {
         let bw = (tw + 2.0 * pad).ceil().max(1.0);
         let bh = (m.height + 2.0 * pad).ceil().max(1.0);
         let unsung = color(style.unsung_color);
-        let base = unsafe { rasterize(rt, &layout, (bw, bh), pad, r, unsung, color(style.outline_color))? };
+        let base = unsafe {
+            rasterize(
+                rt,
+                &layout,
+                (bw, bh),
+                pad,
+                r,
+                unsung,
+                color(style.outline_color),
+            )?
+        };
         let fill = if with_fill {
-            Some(unsafe { rasterize(rt, &layout, (bw, bh), pad, r, color(style.sung_color), color(style.outline_color))? })
+            Some(unsafe {
+                rasterize(
+                    rt,
+                    &layout,
+                    (bw, bh),
+                    pad,
+                    r,
+                    color(style.sung_color),
+                    color(style.outline_color),
+                )?
+            })
         } else {
             None
         };
@@ -660,7 +794,10 @@ unsafe fn rasterize(
     unsafe {
         let target = rt.CreateCompatibleRenderTarget(
             None,
-            Some(&D2D_SIZE_U { width: bw as u32, height: bh as u32 }),
+            Some(&D2D_SIZE_U {
+                width: bw as u32,
+                height: bh as u32,
+            }),
             None,
             D2D1_COMPATIBLE_RENDER_TARGET_OPTIONS_NONE,
         )?;
@@ -668,15 +805,30 @@ unsafe fn rasterize(
         target.Clear(Some(&TRANSPARENT));
         target.SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
         let brush = target.CreateSolidColorBrush(&outline, None)?;
-        let at = |dx: f32, dy: f32| Vector2 { X: pad + dx, Y: pad + dy };
+        let at = |dx: f32, dy: f32| Vector2 {
+            X: pad + dx,
+            Y: pad + dy,
+        };
         let opts = D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT;
         // 柔和的投影。
-        brush.SetColor(&D2D1_COLOR_F { a: outline.a * 0.45, ..outline });
+        brush.SetColor(&D2D1_COLOR_F {
+            a: outline.a * 0.45,
+            ..outline
+        });
         target.DrawTextLayout(at(r * 0.7, r * 1.6), layout, &brush, opts);
         // 描边。
         brush.SetColor(&outline);
         let d = r * std::f32::consts::FRAC_1_SQRT_2;
-        for (dx, dy) in [(r, 0.0), (-r, 0.0), (0.0, r), (0.0, -r), (d, d), (d, -d), (-d, d), (-d, -d)] {
+        for (dx, dy) in [
+            (r, 0.0),
+            (-r, 0.0),
+            (0.0, r),
+            (0.0, -r),
+            (d, d),
+            (d, -d),
+            (-d, d),
+            (-d, -d),
+        ] {
             target.DrawTextLayout(at(dx, dy), layout, &brush, opts);
         }
         brush.SetColor(&fill);
@@ -694,7 +846,8 @@ fn find_icon_font(dwrite: &IDWriteFactory) -> Option<&'static str> {
     for family in ["Segoe Fluent Icons", "Segoe MDL2 Assets"] {
         let (mut index, mut exists) = (0u32, windows::core::BOOL(0));
         let name = HSTRING::from(family);
-        if unsafe { collection.FindFamilyName(PCWSTR(name.as_ptr()), &mut index, &mut exists) }.is_ok()
+        if unsafe { collection.FindFamilyName(PCWSTR(name.as_ptr()), &mut index, &mut exists) }
+            .is_ok()
             && exists.as_bool()
         {
             return Some(family);

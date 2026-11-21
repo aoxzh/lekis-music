@@ -51,7 +51,11 @@ impl Shared {
     }
 
     pub(crate) fn emit(&self, event: Event) {
-        let handler = self.handler.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let handler = self
+            .handler
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
         if let Some(h) = handler {
             h(event);
         }
@@ -110,7 +114,11 @@ impl DesktopLyrics {
 
     /// 设置事件回调（替换之前的）。
     pub fn set_event_handler(&self, handler: EventHandler) {
-        *self.shared.handler.lock().unwrap_or_else(|e| e.into_inner()) = Some(handler);
+        *self
+            .shared
+            .handler
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = Some(handler);
     }
 
     /// 恢复保存过的位置记录（[`Event::PlacementChanged`] 给出的 JSON）。在第一次显示前调用。
@@ -184,7 +192,8 @@ impl DesktopLyrics {
         let wake = {
             let mut s = self.shared.state();
             let prev = s.clock;
-            let elapsed = u64::try_from(now.duration_since(s.clock_at).as_millis()).unwrap_or(u64::MAX);
+            let elapsed =
+                u64::try_from(now.duration_since(s.clock_at).as_millis()).unwrap_or(u64::MAX);
             let expected = if prev.playing {
                 prev.position_ms.saturating_add(elapsed)
             } else {
@@ -221,7 +230,12 @@ impl DesktopLyrics {
     }
 
     fn notify(&self, change: Change) {
-        if let Some(p) = self.platform.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
+        if let Some(p) = self
+            .platform
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+        {
             p.notify(change);
         }
     }

@@ -91,7 +91,11 @@ impl Placements {
 
     /// 选显示器并算出窗口矩形。`height_px(scale)` 给出该缩放下的窗口高度。
     /// 返回所选显示器在 `monitors` 里的下标；`monitors` 为空时返回 `None`。
-    pub fn resolve(&self, monitors: &[Monitor], height_px: impl Fn(f32) -> i32) -> Option<(usize, Rect)> {
+    pub fn resolve(
+        &self,
+        monitors: &[Monitor],
+        height_px: impl Fn(f32) -> i32,
+    ) -> Option<(usize, Rect)> {
         if monitors.is_empty() {
             return None;
         }
@@ -105,7 +109,12 @@ impl Placements {
                 let left = m.work.left + dip(spot.x, m.scale);
                 let top = m.work.top + dip(spot.y, m.scale);
                 let w = dip(spot.width.max(MIN_WIDTH_DIP), m.scale);
-                Rect { left, top, right: left + w, bottom: top + h }
+                Rect {
+                    left,
+                    top,
+                    right: left + w,
+                    bottom: top + h,
+                }
             }
             None => default_rect(m, h),
         };
@@ -136,16 +145,29 @@ pub fn default_rect(m: &Monitor, height: i32) -> Rect {
     let w = dip(DEFAULT_WIDTH_DIP, m.scale).min((m.work.width() as f32 * 0.8) as i32);
     let left = m.work.left + (m.work.width() - w) / 2;
     let top = m.work.bottom - height - dip(DEFAULT_BOTTOM_MARGIN_DIP, m.scale);
-    Rect { left, top, right: left + w, bottom: top + height }
+    Rect {
+        left,
+        top,
+        right: left + w,
+        bottom: top + height,
+    }
 }
 
 /// 把窗口整个挪进工作区（宽度过大时先缩到工作区宽度，但不小于 `min_width`）。
 pub fn clamp(rect: Rect, work: Rect, min_width: i32) -> Rect {
-    let w = rect.width().min(work.width()).max(min_width.min(work.width()));
+    let w = rect
+        .width()
+        .min(work.width())
+        .max(min_width.min(work.width()));
     let h = rect.height();
     let left = rect.left.clamp(work.left, (work.right - w).max(work.left));
     let top = rect.top.clamp(work.top, (work.bottom - h).max(work.top));
-    Rect { left, top, right: left + w, bottom: top + h }
+    Rect {
+        left,
+        top,
+        right: left + w,
+        bottom: top + h,
+    }
 }
 
 #[cfg(test)]
@@ -155,7 +177,12 @@ mod tests {
     fn monitor(key: &str, left: i32, scale: f32, primary: bool) -> Monitor {
         Monitor {
             key: key.into(),
-            work: Rect { left, top: 0, right: left + 1920, bottom: 1040 },
+            work: Rect {
+                left,
+                top: 0,
+                right: left + 1920,
+                bottom: 1040,
+            },
             scale,
             primary,
         }
@@ -164,7 +191,9 @@ mod tests {
     #[test]
     fn default_is_bottom_center_of_primary() {
         let ms = [monitor("B", 1920, 1.0, false), monitor("A", 0, 1.0, true)];
-        let (i, r) = Placements::default().resolve(&ms, |_| 100).unwrap_or_default();
+        let (i, r) = Placements::default()
+            .resolve(&ms, |_| 100)
+            .unwrap_or_default();
         assert_eq!(i, 1);
         assert_eq!(r.width(), 880);
         assert_eq!(r.left, (1920 - 880) / 2);
@@ -175,7 +204,15 @@ mod tests {
     fn remembers_per_monitor_in_dip() {
         let ms = [monitor("A", 0, 1.0, true), monitor("B", 1920, 1.5, false)];
         let mut p = Placements::default();
-        p.record(&ms[1], Rect { left: 1920 + 300, top: 150, right: 1920 + 300 + 1200, bottom: 300 });
+        p.record(
+            &ms[1],
+            Rect {
+                left: 1920 + 300,
+                top: 150,
+                right: 1920 + 300 + 1200,
+                bottom: 300,
+            },
+        );
         let p = Placements::from_json(&p.to_json());
         assert_eq!(p.last.as_deref(), Some("B"));
         let (i, r) = p.resolve(&ms, |s| (100.0 * s) as i32).unwrap_or_default();
@@ -189,7 +226,15 @@ mod tests {
     #[test]
     fn falls_back_to_primary_when_monitor_is_gone() {
         let mut p = Placements::default();
-        p.record(&monitor("GONE", 5000, 1.0, false), Rect { left: 5100, top: 10, right: 5600, bottom: 110 });
+        p.record(
+            &monitor("GONE", 5000, 1.0, false),
+            Rect {
+                left: 5100,
+                top: 10,
+                right: 5600,
+                bottom: 110,
+            },
+        );
         let ms = [monitor("A", 0, 1.0, true)];
         let (i, r) = p.resolve(&ms, |_| 100).unwrap_or_default();
         assert_eq!(i, 0);
@@ -198,11 +243,50 @@ mod tests {
 
     #[test]
     fn clamps_into_work_area() {
-        let work = Rect { left: 0, top: 0, right: 1000, bottom: 800 };
-        let r = clamp(Rect { left: 900, top: 790, right: 1300, bottom: 890 }, work, 300);
-        assert_eq!(r, Rect { left: 600, top: 700, right: 1000, bottom: 800 });
-        let wide = clamp(Rect { left: -50, top: -5, right: 2000, bottom: 95 }, work, 300);
-        assert_eq!(wide, Rect { left: 0, top: 0, right: 1000, bottom: 100 });
+        let work = Rect {
+            left: 0,
+            top: 0,
+            right: 1000,
+            bottom: 800,
+        };
+        let r = clamp(
+            Rect {
+                left: 900,
+                top: 790,
+                right: 1300,
+                bottom: 890,
+            },
+            work,
+            300,
+        );
+        assert_eq!(
+            r,
+            Rect {
+                left: 600,
+                top: 700,
+                right: 1000,
+                bottom: 800
+            }
+        );
+        let wide = clamp(
+            Rect {
+                left: -50,
+                top: -5,
+                right: 2000,
+                bottom: 95,
+            },
+            work,
+            300,
+        );
+        assert_eq!(
+            wide,
+            Rect {
+                left: 0,
+                top: 0,
+                right: 1000,
+                bottom: 100
+            }
+        );
     }
 
     #[test]

@@ -1392,6 +1392,44 @@ pub async fn folder_tracks(
         .collect())
 }
 
+// ---- 统一资料库（SRC-13）----
+
+/// 列出曲目关联的全部来源文件与当前选源状态。
+pub async fn track_sources(track_id: i64) -> Result<Vec<TrackSourceInfoDto>, CoreError> {
+    Ok(core()
+        .track_sources(lekis_types::TrackId(track_id))
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// 把 `absorb_ids` 合并到 `keep_id` 下（保留所有音源文件与用户数据，不删磁盘文件）。
+pub async fn merge_tracks(keep_id: i64, absorb_ids: Vec<i64>) -> Result<u64, CoreError> {
+    let absorb = absorb_ids.into_iter().map(lekis_types::TrackId).collect();
+    Ok(core()
+        .merge_tracks(lekis_types::TrackId(keep_id), absorb)
+        .await?)
+}
+
+/// 把曲目下的某个来源拆分成一条独立曲目，返回新曲目 ID。
+pub async fn split_track_source(
+    track_id: i64,
+    source_id: i64,
+    file_id: Option<i64>,
+    external_id: Option<String>,
+) -> Result<i64, CoreError> {
+    Ok(core()
+        .split_track_source(
+            lekis_types::TrackId(track_id),
+            lekis_types::SourceId(source_id),
+            file_id,
+            external_id,
+        )
+        .await?
+        .0)
+}
+
 // ---- 诊断日志（SET-03）----
 
 /// 最近的核心日志（最多 2000 行，已做简单脱敏）。

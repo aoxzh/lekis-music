@@ -398,7 +398,7 @@ impl Library {
 /// 挪到新曲目：喜欢 / 评分 / 播放次数、播放记录、歌单条目（按 uid 引用），
 /// 以及挂在本机曲目 ID 上的手工标签、覆盖层、钉的封面、歌词、离线下载。
 /// 新曲目已经有的数据优先，旧的只补空缺。
-fn carry_over_user_data(tx: &Transaction<'_>, old_id: i64, new_id: i64) -> Result<()> {
+pub(crate) fn carry_over_user_data(tx: &Transaction<'_>, old_id: i64, new_id: i64) -> Result<()> {
     let uid_of = |id: i64| -> Result<String> {
         tx.query_row("SELECT uid FROM track WHERE id = ?1", params![id], |r| {
             r.get(0)

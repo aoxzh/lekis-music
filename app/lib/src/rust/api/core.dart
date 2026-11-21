@@ -867,6 +867,33 @@ Future<List<TrackRowDto>> folderTracks({
   limit: limit,
 );
 
+/// 列出曲目关联的全部来源文件与当前选源状态。
+Future<List<TrackSourceInfoDto>> trackSources({
+  required PlatformInt64 trackId,
+}) => RustLib.instance.api.crateApiCoreTrackSources(trackId: trackId);
+
+/// 把 `absorb_ids` 合并到 `keep_id` 下（保留所有音源文件与用户数据，不删磁盘文件）。
+Future<BigInt> mergeTracks({
+  required PlatformInt64 keepId,
+  required Int64List absorbIds,
+}) => RustLib.instance.api.crateApiCoreMergeTracks(
+  keepId: keepId,
+  absorbIds: absorbIds,
+);
+
+/// 把曲目下的某个来源拆分成一条独立曲目，返回新曲目 ID。
+Future<PlatformInt64> splitTrackSource({
+  required PlatformInt64 trackId,
+  required PlatformInt64 sourceId,
+  PlatformInt64? fileId,
+  String? externalId,
+}) => RustLib.instance.api.crateApiCoreSplitTrackSource(
+  trackId: trackId,
+  sourceId: sourceId,
+  fileId: fileId,
+  externalId: externalId,
+);
+
 /// 最近的核心日志（最多 2000 行，已做简单脱敏）。
 List<String> recentLogs({required int limit}) =>
     RustLib.instance.api.crateApiCoreRecentLogs(limit: limit);

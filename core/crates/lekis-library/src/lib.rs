@@ -33,6 +33,7 @@ mod sources;
 mod sync;
 mod tag_edit;
 mod tracks;
+mod unified;
 
 pub use artwork::{cache_relative_path, ArtworkCandidate, ArtworkRow};
 pub use db::{DbResultExt, Library};
@@ -61,3 +62,4 @@ pub use tag_edit::{
     TAG_BACKUP_VERSION,
 };
 pub use tracks::{TrackContext, TrackFile, TrackUserState};
+pub use unified::TrackSourceEntry;

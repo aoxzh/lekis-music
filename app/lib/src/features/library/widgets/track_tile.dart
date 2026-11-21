@@ -4,6 +4,7 @@ import 'package:lekis/src/features/downloads/downloads_providers.dart';
 import 'package:lekis/src/features/enrich/enrich_actions.dart';
 import 'package:lekis/src/features/library/artwork_actions.dart';
 import 'package:lekis/src/features/library/tag_editor_dialog.dart';
+import 'package:lekis/src/features/library/track_sources_sheet.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
@@ -31,6 +32,7 @@ enum _TrackMenuAction {
   editTags,
   enrich,
   artwork,
+  sources,
   download,
 }
 
@@ -151,6 +153,12 @@ class TrackTile extends ConsumerWidget {
           enrichTracksFlow(context, [track.id]);
         case _TrackMenuAction.artwork:
           changeArtworkFlow(context, trackIds: [track.id]);
+        case _TrackMenuAction.sources:
+          showTrackSourcesSheet(
+            context,
+            trackId: track.id,
+            trackTitle: track.title,
+          );
         case _TrackMenuAction.download:
           runDownloadMenuAction(context, ref, track.id, downloadState);
       }
@@ -219,6 +227,15 @@ class TrackTile extends ConsumerWidget {
           contentPadding: EdgeInsets.zero,
           leading: Icon(Icons.image_outlined),
           title: Text(ArtworkActionStrings.change),
+        ),
+      ),
+      const PopupMenuItem(
+        value: _TrackMenuAction.sources,
+        child: ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.layers_outlined),
+          title: Text(UnifiedStrings.menuTitle),
         ),
       ),
       PopupMenuItem(

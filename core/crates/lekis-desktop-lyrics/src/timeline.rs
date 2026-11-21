@@ -113,7 +113,10 @@ pub fn view<'a>(
     let Some(i) = idx else {
         let first = &doc.lines[0];
         let wait = u64::from(first.start_ms).saturating_sub(position_ms);
-        return title_view(non_empty(&first.text).or(non_empty(&doc.artist)), Some(wait));
+        return title_view(
+            non_empty(&first.text).or(non_empty(&doc.artist)),
+            Some(wait),
+        );
     };
     let line = &doc.lines[i];
     let next = doc.lines.get(i + 1);
@@ -284,7 +287,10 @@ mod tests {
         let mut l = line(0, "原文");
         l.translation = Some("translation".into());
         let d = doc(vec![l, line(1000, "next")]);
-        assert_eq!(view(Some(&d), Some(7), 10, true).secondary, Some("translation"));
+        assert_eq!(
+            view(Some(&d), Some(7), 10, true).secondary,
+            Some("translation")
+        );
     }
 
     #[test]
@@ -308,14 +314,34 @@ mod tests {
     fn karaoke_progress() {
         let mut l = line(1000, "ab");
         l.words = vec![
-            Word { start_ms: 1000, end_ms: 1200, text: "a".into() },
-            Word { start_ms: 1200, end_ms: 1600, text: "b".into() },
+            Word {
+                start_ms: 1000,
+                end_ms: 1200,
+                text: "a".into(),
+            },
+            Word {
+                start_ms: 1200,
+                end_ms: 1600,
+                text: "b".into(),
+            },
         ];
         let d = doc(vec![l, line(3000, "z")]);
         let at = |p| view(Some(&d), Some(7), p, true);
-        assert_eq!(at(1100).fill, Fill::Partial { word: 0, fraction: 0.5 });
+        assert_eq!(
+            at(1100).fill,
+            Fill::Partial {
+                word: 0,
+                fraction: 0.5
+            }
+        );
         assert!(at(1100).animating);
-        assert_eq!(at(1300).fill, Fill::Partial { word: 1, fraction: 0.25 });
+        assert_eq!(
+            at(1300).fill,
+            Fill::Partial {
+                word: 1,
+                fraction: 0.25
+            }
+        );
         assert_eq!(at(1600).fill, Fill::All);
         assert!(!at(1600).animating);
     }
@@ -323,14 +349,21 @@ mod tests {
     #[test]
     fn interpolator_smooths_jitter_but_follows_seeks() {
         let mut ip = Interpolator::default();
-        let c = |pos| Clock { track_id: Some(1), playing: true, position_ms: pos };
+        let c = |pos| Clock {
+            track_id: Some(1),
+            playing: true,
+            position_ms: pos,
+        };
         assert_eq!(ip.position(c(1000), 150), 1150);
         // 新采样比显示值略小：保持不回退。
         assert_eq!(ip.position(c(1100), 0), 1150);
         // seek 回到开头：跟随。
         assert_eq!(ip.position(c(0), 0), 0);
         // 暂停时不插值。
-        let paused = Clock { playing: false, ..c(500) };
+        let paused = Clock {
+            playing: false,
+            ..c(500)
+        };
         assert_eq!(ip.position(paused, 999), 500);
     }
 }

@@ -74,6 +74,33 @@ use tokio::runtime::{Handle, Runtime};
 static LYRICS_TRIED: std::sync::LazyLock<std::sync::Mutex<std::collections::HashSet<TrackId>>> =
     std::sync::LazyLock::new(Default::default);
 
+/// 统一资料库里一首歌对应的某个可播放来源（含当前选源状态，SRC-13/SRC-14）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrackSourceInfo {
+    /// 所属音源 ID。
+    pub source_id: SourceId,
+    /// 音源名称。
+    pub source_name: String,
+    /// 音源类型。
+    pub source_kind: SourceKind,
+    /// 文件系统类音源的文件 ID；服务器源为 `None`。
+    pub file_id: Option<i64>,
+    /// 源内相对路径（服务器源为空串）。
+    pub path: String,
+    /// 服务器源的曲目 ID（文件系统源为 `None`）。
+    pub external_id: Option<String>,
+    /// 文件大小（字节；未知或服务器源为 0）。
+    pub size_bytes: u64,
+    /// 音质徽章（如 `FLAC 24/96`）。
+    pub format: Option<String>,
+    /// 音质分（越大越好）。
+    pub quality_score: i64,
+    /// 最近探测的可达性（`None` = 尚未探测）。
+    pub reachable: Option<bool>,
+    /// 按当前网络环境与可达性，现在点击播放是否会优先选中这一份。
+    pub preferred: bool,
+}
+
 /// 核心实例。一个进程里只应该有一个。
 pub struct LekisCore {
     /// 自己创建的运行时（借用宿主运行时时为 `None`）。
@@ -1460,6 +1487,88 @@ impl LekisCore {
             source_id,
             reachable,
         });
+    }
+
+    // -----------------------------------------------------------------------
+    // 统一资料库（SRC-13）：查看曲目全部来源、手动合并 / 拆分
+    // -----------------------------------------------------------------------
+
+    /// 列出 `track_id` 关联的全部音源文件，并标注每个源的当前可达性以及
+    /// 按当前网络环境（Home / Away）会优先播放哪一份。
+    pub async fn track_sources(&self, track_id: TrackId) -> Result<Vec<TrackSourceInfo>> {
+        let s = self.services.clone();
+        self.run(async move {
+            let entries = s.library.track_source_entries(track_id).await?;
+            let files = s.library.track_files(track_id).await?;
+            let chosen = s.health.pick(&files);
+            let out = entries
+                .into_iter()
+                .map(|e| {
+                    let reachable = match s.health.get(e.source_id) {
+                        Reachability::Reachable => Some(true),
+                        Reachability::Unreachable => Some(false),
+                        Reachability::Unknown => None,
+                    };
+                    let preferred = chosen.is_some_and(|best| {
+                        best.source_id == e.source_id
+                            && best.path == e.path
+                            && best.external_id == e.external_id
+                    });
+                    TrackSourceInfo {
+                        source_id: e.source_id,
+                        source_name: e.source_name,
+                        source_kind: e.source_kind,
+                        file_id: e.file_id,
+                        path: e.path,
+                        external_id: e.external_id,
+                        size_bytes: e.size_bytes,
+                        format: e.format,
+                        quality_score: e.quality_score,
+                        reachable,
+                        preferred,
+                    }
+                })
+                .collect();
+            Ok(out)
+        })
+        .await
+    }
+
+    /// 把 `absorb_ids` 合并到 `keep_id` 下（SRC-13 手动合并），不删除磁盘文件。
+    pub async fn merge_tracks(&self, keep_id: TrackId, absorb_ids: Vec<TrackId>) -> Result<u64> {
+        let s = self.services.clone();
+        self.run(async move {
+            let n = s.library.merge_tracks(keep_id, absorb_ids).await?;
+            if n > 0 {
+                s.events.emit(CoreEvent::LibraryChanged {
+                    scope: LibraryScope::Catalog,
+                });
+            }
+            Ok(n)
+        })
+        .await
+    }
+
+    /// 把 `track_id` 下的某一个来源拆成独立曲目（SRC-13 手动拆分）。
+    pub async fn split_track_source(
+        &self,
+        track_id: TrackId,
+        source_id: SourceId,
+        file_id: Option<i64>,
+        external_id: Option<String>,
+    ) -> Result<TrackId> {
+        let s = self.services.clone();
+        self.run(async move {
+            let new_id = s
+                .library
+                .split_track_source(track_id, source_id, file_id, external_id)
+                .await?;
+            s.events.emit(CoreEvent::LibraryChanged {
+                scope: LibraryScope::Catalog,
+            });
+            Ok(new_id)
+        })
+        .await
     }
 
     /// 手动跑一轮同步（SYN-01/02）。`share` 是 NAS 上共享目录的 Vfs。

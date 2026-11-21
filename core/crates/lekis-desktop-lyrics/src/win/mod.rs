@@ -20,13 +20,13 @@ use windows::core::{w, BOOL, PCWSTR};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
 use windows::Win32::Graphics::Dwm::DwmFlush;
 use windows::Win32::Graphics::Gdi::{
-    EnumDisplayMonitors, GetMonitorInfoW, MonitorFromWindow, HDC, HMONITOR, MONITORINFO, MONITORINFOEXW,
-    MONITOR_DEFAULTTONEAREST,
+    EnumDisplayMonitors, GetMonitorInfoW, MonitorFromWindow, HDC, HMONITOR, MONITORINFO,
+    MONITORINFOEXW, MONITOR_DEFAULTTONEAREST,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::HiDpi::{
-    GetDpiForMonitor, GetDpiForWindow, SetThreadDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
-    MDT_EFFECTIVE_DPI,
+    GetDpiForMonitor, GetDpiForWindow, SetThreadDpiAwarenessContext,
+    DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, MDT_EFFECTIVE_DPI,
 };
 use windows::Win32::UI::WindowsAndMessaging::*;
 
@@ -403,7 +403,8 @@ impl Win {
         let mut pt = POINT::default();
         unsafe { GetCursorPos(&mut pt) }.ok()?;
         let r = self.window_rect();
-        r.contains(pt.x, pt.y).then_some((pt.x - r.left, pt.y - r.top))
+        r.contains(pt.x, pt.y)
+            .then_some((pt.x - r.left, pt.y - r.top))
     }
 
     fn poll_hover(&mut self) {
@@ -559,7 +560,9 @@ impl Win {
                 Some(LRESULT(0))
             }
             // 不要系统菜单、不要双击最大化。
-            WM_NCRBUTTONDOWN | WM_NCRBUTTONUP | WM_NCLBUTTONDBLCLK | WM_CONTEXTMENU => Some(LRESULT(0)),
+            WM_NCRBUTTONDOWN | WM_NCRBUTTONUP | WM_NCLBUTTONDBLCLK | WM_CONTEXTMENU => {
+                Some(LRESULT(0))
+            }
             WM_TIMER => {
                 match wparam.0 {
                     TIMER_HOVER => self.poll_hover(),
@@ -680,7 +683,11 @@ fn monitor_info(hmon: HMONITOR) -> Option<Monitor> {
         return None;
     }
     let mi = info.monitorInfo;
-    let len = info.szDevice.iter().position(|&c| c == 0).unwrap_or(info.szDevice.len());
+    let len = info
+        .szDevice
+        .iter()
+        .position(|&c| c == 0)
+        .unwrap_or(info.szDevice.len());
     let device = String::from_utf16_lossy(&info.szDevice[..len]);
     let key = format!(
         "{device}@{}x{}",
@@ -712,7 +719,12 @@ fn enum_monitors() -> Vec<Monitor> {
     }
     let mut out: Vec<Monitor> = Vec::new();
     unsafe {
-        let _ = EnumDisplayMonitors(None, None, Some(cb), LPARAM(&mut out as *mut Vec<Monitor> as isize));
+        let _ = EnumDisplayMonitors(
+            None,
+            None,
+            Some(cb),
+            LPARAM(&mut out as *mut Vec<Monitor> as isize),
+        );
     }
     out
 }
@@ -720,5 +732,7 @@ fn enum_monitors() -> Vec<Monitor> {
 /// 调试 / 测试：窗口句柄（截图验证用）。
 #[allow(dead_code)]
 pub(crate) fn find_window() -> Option<isize> {
-    unsafe { FindWindowW(CLASS_NAME, None) }.ok().map(|h| h.0 as isize)
+    unsafe { FindWindowW(CLASS_NAME, None) }
+        .ok()
+        .map(|h| h.0 as isize)
 }

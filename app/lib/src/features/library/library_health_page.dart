@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/downloads_models.dart';
 import 'package:lekis/src/features/library/album_detail_page.dart';
 import 'package:lekis/src/features/library/library_health_providers.dart';
+import 'package:lekis/src/features/library/track_sources_sheet.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/settings/widgets/settings_widgets.dart';
@@ -187,13 +188,47 @@ class _DuplicatesHeader extends StatelessWidget {
   }
 }
 
-class _DuplicateGroupRow extends StatelessWidget {
+class _DuplicateGroupRow extends ConsumerStatefulWidget {
   const _DuplicateGroupRow({required this.group});
 
   final DuplicateGroupDto group;
 
   @override
+  ConsumerState<_DuplicateGroupRow> createState() => _DuplicateGroupRowState();
+}
+
+class _DuplicateGroupRowState extends ConsumerState<_DuplicateGroupRow> {
+  bool _merging = false;
+
+  Future<void> _mergeGroup() async {
+    if (_merging) return;
+    final group = widget.group;
+    final keepId = group.keepTrackId;
+    final absorb = [
+      for (final t in group.tracks)
+        if (t.trackId != keepId) t.trackId,
+    ];
+    if (absorb.isEmpty) return;
+    setState(() => _merging = true);
+    try {
+      final merged = await ref
+          .read(unifiedLibraryGatewayProvider)
+          .mergeTracks(keepId, absorb);
+      ref.invalidate(libraryHealthSummaryProvider);
+      ref.invalidate(duplicateGroupListProvider);
+      if (mounted) {
+        showFeatureSnack(context, UnifiedStrings.mergeDone(merged));
+      }
+    } catch (e) {
+      if (mounted) showFeatureSnack(context, describeCoreError(e));
+    } finally {
+      if (mounted) setState(() => _merging = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final group = widget.group;
     final theme = Theme.of(context);
     final colors = context.lekisColors;
     DuplicateTrackDto? keep;
@@ -236,6 +271,29 @@ class _DuplicateGroupRow extends StatelessWidget {
       children: [
         for (final track in group.tracks)
           _DuplicateVersionRow(track: track, title: title),
+        if (group.tracks.length > 1)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              settingsTextInset,
+              LekisSpacing.xs,
+              settingsRowInset,
+              LekisSpacing.md,
+            ),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.tonalIcon(
+                key: ValueKey('duplicate.merge.${group.keepTrackId}'),
+                onPressed: _merging ? null : _mergeGroup,
+                icon: _merging
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.merge_rounded, size: 18),
+                label: const Text(UnifiedStrings.mergeAction),
+              ),
+            ),
+          ),
       ],
     );
   }

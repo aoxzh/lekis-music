@@ -2917,3 +2917,37 @@ impl From<ArtworkChangeDto> for lekis_core::ArtworkChange {
         }
     }
 }
+
+/// 统一资料库里一首歌的某个来源（SRC-13）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrackSourceInfoDto {
+    pub source_id: i64,
+    pub source_name: String,
+    pub source_kind: SourceKindDto,
+    pub file_id: Option<i64>,
+    pub path: String,
+    pub external_id: Option<String>,
+    pub size_bytes: u64,
+    pub format: Option<String>,
+    pub quality_score: i64,
+    pub reachable: Option<bool>,
+    pub preferred: bool,
+}
+
+impl From<lekis_core::TrackSourceInfo> for TrackSourceInfoDto {
+    fn from(s: lekis_core::TrackSourceInfo) -> Self {
+        Self {
+            source_id: s.source_id.0,
+            source_name: s.source_name,
+            source_kind: s.source_kind.into(),
+            file_id: s.file_id,
+            path: s.path,
+            external_id: s.external_id,
+            size_bytes: s.size_bytes,
+            format: s.format,
+            quality_score: s.quality_score,
+            reachable: s.reachable,
+            preferred: s.preferred,
+        }
+    }
+}
