@@ -2329,6 +2329,7 @@ dependencies = [
  "cpal",
  "lekis-types",
  "lekis-vfs",
+ "ndk",
  "reqwest",
  "ringbuf",
  "rubato",

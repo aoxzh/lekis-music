@@ -12,9 +12,12 @@
 //! 比特完美链路（PLY-05）不走 f32：解码器输出左对齐 i32（[`NativeSampleSource`]），
 //! 经 i32 环形缓冲直接打包成设备字节，见 [`bitperfect`]。
 
+#[cfg(target_os = "android")]
+pub mod aaudio_direct;
 pub mod bitperfect;
 pub mod cpal_output;
 pub mod ring_source;
+pub mod usb_direct;
 #[cfg(windows)]
 pub mod wasapi_exclusive;
 

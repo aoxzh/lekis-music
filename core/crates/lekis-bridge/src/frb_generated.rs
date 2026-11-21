@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1546306781;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1838818929;
 
 // Section: executor
 
@@ -6259,6 +6259,35 @@ fn wire__crate__api__core__record_play_impl(
         },
     )
 }
+fn wire__crate__api__usb_output__refresh_usb_bit_perfect_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "refresh_usb_bit_perfect",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::usb_output::refresh_usb_bit_perfect())?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__core__reject_candidate_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -7653,6 +7682,43 @@ fn wire__crate__api__core__set_track_tag_overrides_impl(
         },
     )
 }
+fn wire__crate__api__usb_output__set_usb_bit_perfect_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "set_usb_bit_perfect",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_enabled = <bool>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::CoreError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::usb_output::set_usb_bit_perfect(api_enabled).await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__core__set_volume_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8185,6 +8251,35 @@ fn wire__crate__api__core__update_source_impl(
                     .await,
                 )
             }
+        },
+    )
+}
+fn wire__crate__api__usb_output__usb_bit_perfect_status_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "usb_bit_perfect_status",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::usb_output::usb_bit_perfect_status())?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
@@ -11586,6 +11681,57 @@ impl SseDecode for () {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {}
 }
 
+impl SseDecode for crate::api::usb_output::UsbBitPerfectStateDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::usb_output::UsbBitPerfectStateDto::Disabled,
+            1 => crate::api::usb_output::UsbBitPerfectStateDto::Unavailable,
+            2 => crate::api::usb_output::UsbBitPerfectStateDto::NoDevice,
+            3 => crate::api::usb_output::UsbBitPerfectStateDto::Unsupported,
+            4 => crate::api::usb_output::UsbBitPerfectStateDto::FormatFallback,
+            5 => crate::api::usb_output::UsbBitPerfectStateDto::Ready,
+            6 => crate::api::usb_output::UsbBitPerfectStateDto::Active,
+            7 => crate::api::usb_output::UsbBitPerfectStateDto::Failed,
+            _ => unreachable!("Invalid variant for UsbBitPerfectStateDto: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::usb_output::UsbBitPerfectStatusDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_available = <bool>::sse_decode(deserializer);
+        let mut var_enabled = <bool>::sse_decode(deserializer);
+        let mut var_state =
+            <crate::api::usb_output::UsbBitPerfectStateDto>::sse_decode(deserializer);
+        let mut var_deviceName = <Option<String>>::sse_decode(deserializer);
+        let mut var_deviceSupportsBitPerfect = <bool>::sse_decode(deserializer);
+        let mut var_sdkInt = <i32>::sse_decode(deserializer);
+        let mut var_sampleRate = <Option<u32>>::sse_decode(deserializer);
+        let mut var_channels = <Option<u16>>::sse_decode(deserializer);
+        let mut var_sourceBits = <Option<u8>>::sse_decode(deserializer);
+        let mut var_sourceFloat = <bool>::sse_decode(deserializer);
+        let mut var_containerBits = <Option<u8>>::sse_decode(deserializer);
+        let mut var_message = <Option<String>>::sse_decode(deserializer);
+        return crate::api::usb_output::UsbBitPerfectStatusDto {
+            available: var_available,
+            enabled: var_enabled,
+            state: var_state,
+            device_name: var_deviceName,
+            device_supports_bit_perfect: var_deviceSupportsBitPerfect,
+            sdk_int: var_sdkInt,
+            sample_rate: var_sampleRate,
+            channels: var_channels,
+            source_bits: var_sourceBits,
+            source_float: var_sourceFloat,
+            container_bits: var_containerBits,
+            message: var_message,
+        };
+    }
+}
+
 fn pde_ffi_dispatcher_primary_impl(
     func_id: i32,
     port: flutter_rust_bridge::for_generated::MessagePort,
@@ -11834,74 +11980,80 @@ fn pde_ffi_dispatcher_primary_impl(
         172 => wire__crate__api__core__recently_added_impl(port, ptr, rust_vec_len, data_len),
         173 => wire__crate__api__core__recently_played_impl(port, ptr, rust_vec_len, data_len),
         174 => wire__crate__api__core__record_play_impl(port, ptr, rust_vec_len, data_len),
-        175 => wire__crate__api__core__reject_candidate_impl(port, ptr, rust_vec_len, data_len),
-        176 => wire__crate__api__core__remove_download_impl(port, ptr, rust_vec_len, data_len),
-        177 => wire__crate__api__core__remove_from_playlist_impl(port, ptr, rust_vec_len, data_len),
-        178 => wire__crate__api__core__remove_plugin_impl(port, ptr, rust_vec_len, data_len),
-        179 => wire__crate__api__core__remove_source_impl(port, ptr, rust_vec_len, data_len),
-        180 => wire__crate__api__core__rename_playlist_impl(port, ptr, rust_vec_len, data_len),
-        182 => wire__crate__api__core__restore_artwork_impl(port, ptr, rust_vec_len, data_len),
-        183 => {
+        176 => wire__crate__api__core__reject_candidate_impl(port, ptr, rust_vec_len, data_len),
+        177 => wire__crate__api__core__remove_download_impl(port, ptr, rust_vec_len, data_len),
+        178 => wire__crate__api__core__remove_from_playlist_impl(port, ptr, rust_vec_len, data_len),
+        179 => wire__crate__api__core__remove_plugin_impl(port, ptr, rust_vec_len, data_len),
+        180 => wire__crate__api__core__remove_source_impl(port, ptr, rust_vec_len, data_len),
+        181 => wire__crate__api__core__rename_playlist_impl(port, ptr, rust_vec_len, data_len),
+        183 => wire__crate__api__core__restore_artwork_impl(port, ptr, rust_vec_len, data_len),
+        184 => {
             wire__crate__api__core__restore_playback_state_impl(port, ptr, rust_vec_len, data_len)
         }
-        184 => wire__crate__api__core__restore_track_tags_impl(port, ptr, rust_vec_len, data_len),
-        185 => wire__crate__api__core__save_playback_state_impl(port, ptr, rust_vec_len, data_len),
-        186 => wire__crate__api__core__scan_library_health_impl(port, ptr, rust_vec_len, data_len),
-        188 => wire__crate__api__dto__scrobble_settings_input_dto_default_impl(
+        185 => wire__crate__api__core__restore_track_tags_impl(port, ptr, rust_vec_len, data_len),
+        186 => wire__crate__api__core__save_playback_state_impl(port, ptr, rust_vec_len, data_len),
+        187 => wire__crate__api__core__scan_library_health_impl(port, ptr, rust_vec_len, data_len),
+        189 => wire__crate__api__dto__scrobble_settings_input_dto_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        190 => wire__crate__api__core__search_impl(port, ptr, rust_vec_len, data_len),
-        192 => {
+        191 => wire__crate__api__core__search_impl(port, ptr, rust_vec_len, data_len),
+        193 => {
             wire__crate__api__core__set_artwork_from_image_impl(port, ptr, rust_vec_len, data_len)
         }
-        193 => wire__crate__api__core__set_credential_impl(port, ptr, rust_vec_len, data_len),
-        195 => wire__crate__api__core__set_equalizer_impl(port, ptr, rust_vec_len, data_len),
-        196 => wire__crate__api__core__set_loved_impl(port, ptr, rust_vec_len, data_len),
-        197 => wire__crate__api__core__set_lyrics_impl(port, ptr, rust_vec_len, data_len),
-        198 => wire__crate__api__core__set_lyrics_offset_impl(port, ptr, rust_vec_len, data_len),
-        202 => wire__crate__api__core__set_playlist_artwork_impl(port, ptr, rust_vec_len, data_len),
-        203 => wire__crate__api__core__set_playlist_rules_impl(port, ptr, rust_vec_len, data_len),
-        204 => wire__crate__api__core__set_plugin_enabled_impl(port, ptr, rust_vec_len, data_len),
-        205 => wire__crate__api__core__set_plugin_setting_impl(port, ptr, rust_vec_len, data_len),
-        206 => wire__crate__api__core__set_rating_impl(port, ptr, rust_vec_len, data_len),
-        208 => {
+        194 => wire__crate__api__core__set_credential_impl(port, ptr, rust_vec_len, data_len),
+        196 => wire__crate__api__core__set_equalizer_impl(port, ptr, rust_vec_len, data_len),
+        197 => wire__crate__api__core__set_loved_impl(port, ptr, rust_vec_len, data_len),
+        198 => wire__crate__api__core__set_lyrics_impl(port, ptr, rust_vec_len, data_len),
+        199 => wire__crate__api__core__set_lyrics_offset_impl(port, ptr, rust_vec_len, data_len),
+        203 => wire__crate__api__core__set_playlist_artwork_impl(port, ptr, rust_vec_len, data_len),
+        204 => wire__crate__api__core__set_playlist_rules_impl(port, ptr, rust_vec_len, data_len),
+        205 => wire__crate__api__core__set_plugin_enabled_impl(port, ptr, rust_vec_len, data_len),
+        206 => wire__crate__api__core__set_plugin_setting_impl(port, ptr, rust_vec_len, data_len),
+        207 => wire__crate__api__core__set_rating_impl(port, ptr, rust_vec_len, data_len),
+        209 => {
             wire__crate__api__core__set_scrobble_settings_impl(port, ptr, rust_vec_len, data_len)
         }
-        209 => wire__crate__api__core__set_setting_impl(port, ptr, rust_vec_len, data_len),
-        211 => wire__crate__api__core__set_track_artwork_impl(port, ptr, rust_vec_len, data_len),
-        212 => wire__crate__api__core__set_track_overlay_impl(port, ptr, rust_vec_len, data_len),
-        213 => {
+        210 => wire__crate__api__core__set_setting_impl(port, ptr, rust_vec_len, data_len),
+        212 => wire__crate__api__core__set_track_artwork_impl(port, ptr, rust_vec_len, data_len),
+        213 => wire__crate__api__core__set_track_overlay_impl(port, ptr, rust_vec_len, data_len),
+        214 => {
             wire__crate__api__core__set_track_tag_overrides_impl(port, ptr, rust_vec_len, data_len)
         }
-        215 => {
-            wire__crate__api__core__smart_playlist_tracks_impl(port, ptr, rust_vec_len, data_len)
-        }
-        216 => wire__crate__api__core__smart_playlists_impl(port, ptr, rust_vec_len, data_len),
-        217 => wire__crate__api__core__split_track_source_impl(port, ptr, rust_vec_len, data_len),
-        218 => wire__crate__api__core__start_scan_impl(port, ptr, rust_vec_len, data_len),
-        219 => wire__crate__api__core__sync_now_impl(port, ptr, rust_vec_len, data_len),
-        220 => {
-            wire__crate__api__dto__sync_report_dto_default_impl(port, ptr, rust_vec_len, data_len)
-        }
-        221 => wire__crate__api__core__test_scrobble_impl(port, ptr, rust_vec_len, data_len),
-        222 => wire__crate__api__core__test_source_impl(port, ptr, rust_vec_len, data_len),
-        223 => wire__crate__api__core__track_index_offsets_impl(port, ptr, rust_vec_len, data_len),
-        224 => {
-            wire__crate__api__dto__track_overlay_dto_default_impl(port, ptr, rust_vec_len, data_len)
-        }
-        225 => wire__crate__api__core__track_sources_impl(port, ptr, rust_vec_len, data_len),
-        226 => wire__crate__api__core__track_tag_overrides_impl(port, ptr, rust_vec_len, data_len),
-        227 => wire__crate__api__dto__track_tag_overrides_dto_default_impl(
+        215 => wire__crate__api__usb_output__set_usb_bit_perfect_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        228 => wire__crate__api__core__update_source_impl(port, ptr, rust_vec_len, data_len),
-        229 => wire__crate__api__core__write_track_tags_impl(port, ptr, rust_vec_len, data_len),
+        217 => {
+            wire__crate__api__core__smart_playlist_tracks_impl(port, ptr, rust_vec_len, data_len)
+        }
+        218 => wire__crate__api__core__smart_playlists_impl(port, ptr, rust_vec_len, data_len),
+        219 => wire__crate__api__core__split_track_source_impl(port, ptr, rust_vec_len, data_len),
+        220 => wire__crate__api__core__start_scan_impl(port, ptr, rust_vec_len, data_len),
+        221 => wire__crate__api__core__sync_now_impl(port, ptr, rust_vec_len, data_len),
+        222 => {
+            wire__crate__api__dto__sync_report_dto_default_impl(port, ptr, rust_vec_len, data_len)
+        }
+        223 => wire__crate__api__core__test_scrobble_impl(port, ptr, rust_vec_len, data_len),
+        224 => wire__crate__api__core__test_source_impl(port, ptr, rust_vec_len, data_len),
+        225 => wire__crate__api__core__track_index_offsets_impl(port, ptr, rust_vec_len, data_len),
+        226 => {
+            wire__crate__api__dto__track_overlay_dto_default_impl(port, ptr, rust_vec_len, data_len)
+        }
+        227 => wire__crate__api__core__track_sources_impl(port, ptr, rust_vec_len, data_len),
+        228 => wire__crate__api__core__track_tag_overrides_impl(port, ptr, rust_vec_len, data_len),
+        229 => wire__crate__api__dto__track_tag_overrides_dto_default_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        230 => wire__crate__api__core__update_source_impl(port, ptr, rust_vec_len, data_len),
+        232 => wire__crate__api__core__write_track_tags_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -11988,17 +12140,23 @@ fn pde_ffi_dispatcher_sync_impl(
         158 => wire__crate__api__core__queue_move_impl(ptr, rust_vec_len, data_len),
         159 => wire__crate__api__core__queue_remove_impl(ptr, rust_vec_len, data_len),
         171 => wire__crate__api__core__recent_logs_impl(ptr, rust_vec_len, data_len),
-        181 => wire__crate__api__core__report_source_reachability_impl(ptr, rust_vec_len, data_len),
-        187 => wire__crate__api__core__scrobble_settings_impl(ptr, rust_vec_len, data_len),
-        189 => wire__crate__api__core__scrobble_status_impl(ptr, rust_vec_len, data_len),
-        191 => wire__crate__api__core__seek_impl(ptr, rust_vec_len, data_len),
-        194 => wire__crate__api__core__set_ducked_impl(ptr, rust_vec_len, data_len),
-        199 => wire__crate__api__core__set_network_away_impl(ptr, rust_vec_len, data_len),
-        200 => wire__crate__api__core__set_output_device_impl(ptr, rust_vec_len, data_len),
-        201 => wire__crate__api__core__set_output_mode_impl(ptr, rust_vec_len, data_len),
-        207 => wire__crate__api__core__set_repeat_impl(ptr, rust_vec_len, data_len),
-        210 => wire__crate__api__core__set_shuffle_impl(ptr, rust_vec_len, data_len),
-        214 => wire__crate__api__core__set_volume_impl(ptr, rust_vec_len, data_len),
+        175 => {
+            wire__crate__api__usb_output__refresh_usb_bit_perfect_impl(ptr, rust_vec_len, data_len)
+        }
+        182 => wire__crate__api__core__report_source_reachability_impl(ptr, rust_vec_len, data_len),
+        188 => wire__crate__api__core__scrobble_settings_impl(ptr, rust_vec_len, data_len),
+        190 => wire__crate__api__core__scrobble_status_impl(ptr, rust_vec_len, data_len),
+        192 => wire__crate__api__core__seek_impl(ptr, rust_vec_len, data_len),
+        195 => wire__crate__api__core__set_ducked_impl(ptr, rust_vec_len, data_len),
+        200 => wire__crate__api__core__set_network_away_impl(ptr, rust_vec_len, data_len),
+        201 => wire__crate__api__core__set_output_device_impl(ptr, rust_vec_len, data_len),
+        202 => wire__crate__api__core__set_output_mode_impl(ptr, rust_vec_len, data_len),
+        208 => wire__crate__api__core__set_repeat_impl(ptr, rust_vec_len, data_len),
+        211 => wire__crate__api__core__set_shuffle_impl(ptr, rust_vec_len, data_len),
+        216 => wire__crate__api__core__set_volume_impl(ptr, rust_vec_len, data_len),
+        231 => {
+            wire__crate__api__usb_output__usb_bit_perfect_status_impl(ptr, rust_vec_len, data_len)
+        }
         _ => unreachable!(),
     }
 }
@@ -14821,6 +14979,66 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::dto::TrackTagOverridesDto>
         self
     }
 }
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::usb_output::UsbBitPerfectStateDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Disabled => 0.into_dart(),
+            Self::Unavailable => 1.into_dart(),
+            Self::NoDevice => 2.into_dart(),
+            Self::Unsupported => 3.into_dart(),
+            Self::FormatFallback => 4.into_dart(),
+            Self::Ready => 5.into_dart(),
+            Self::Active => 6.into_dart(),
+            Self::Failed => 7.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::usb_output::UsbBitPerfectStateDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::usb_output::UsbBitPerfectStateDto>
+    for crate::api::usb_output::UsbBitPerfectStateDto
+{
+    fn into_into_dart(self) -> crate::api::usb_output::UsbBitPerfectStateDto {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::usb_output::UsbBitPerfectStatusDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.available.into_into_dart().into_dart(),
+            self.enabled.into_into_dart().into_dart(),
+            self.state.into_into_dart().into_dart(),
+            self.device_name.into_into_dart().into_dart(),
+            self.device_supports_bit_perfect
+                .into_into_dart()
+                .into_dart(),
+            self.sdk_int.into_into_dart().into_dart(),
+            self.sample_rate.into_into_dart().into_dart(),
+            self.channels.into_into_dart().into_dart(),
+            self.source_bits.into_into_dart().into_dart(),
+            self.source_float.into_into_dart().into_dart(),
+            self.container_bits.into_into_dart().into_dart(),
+            self.message.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::usb_output::UsbBitPerfectStatusDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::usb_output::UsbBitPerfectStatusDto>
+    for crate::api::usb_output::UsbBitPerfectStatusDto
+{
+    fn into_into_dart(self) -> crate::api::usb_output::UsbBitPerfectStatusDto {
+        self
+    }
+}
 
 impl SseEncode for flutter_rust_bridge::for_generated::anyhow::Error {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -17406,6 +17624,46 @@ impl SseEncode for u8 {
 impl SseEncode for () {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {}
+}
+
+impl SseEncode for crate::api::usb_output::UsbBitPerfectStateDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::usb_output::UsbBitPerfectStateDto::Disabled => 0,
+                crate::api::usb_output::UsbBitPerfectStateDto::Unavailable => 1,
+                crate::api::usb_output::UsbBitPerfectStateDto::NoDevice => 2,
+                crate::api::usb_output::UsbBitPerfectStateDto::Unsupported => 3,
+                crate::api::usb_output::UsbBitPerfectStateDto::FormatFallback => 4,
+                crate::api::usb_output::UsbBitPerfectStateDto::Ready => 5,
+                crate::api::usb_output::UsbBitPerfectStateDto::Active => 6,
+                crate::api::usb_output::UsbBitPerfectStateDto::Failed => 7,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::usb_output::UsbBitPerfectStatusDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.available, serializer);
+        <bool>::sse_encode(self.enabled, serializer);
+        <crate::api::usb_output::UsbBitPerfectStateDto>::sse_encode(self.state, serializer);
+        <Option<String>>::sse_encode(self.device_name, serializer);
+        <bool>::sse_encode(self.device_supports_bit_perfect, serializer);
+        <i32>::sse_encode(self.sdk_int, serializer);
+        <Option<u32>>::sse_encode(self.sample_rate, serializer);
+        <Option<u16>>::sse_encode(self.channels, serializer);
+        <Option<u8>>::sse_encode(self.source_bits, serializer);
+        <bool>::sse_encode(self.source_float, serializer);
+        <Option<u8>>::sse_encode(self.container_bits, serializer);
+        <Option<String>>::sse_encode(self.message, serializer);
+    }
 }
 
 #[cfg(not(target_family = "wasm"))]

@@ -54,6 +54,9 @@ pub fn init_core(config: CoreConfigDto) -> Result<(), CoreError> {
     };
     let inner = lekis_core::LekisCore::new(config.into(), platform)?;
     let _ = CORE.set(inner);
+    // PLY-05：Android USB DAC 直出的平台层 + 恢复上次的开关。
+    #[cfg(target_os = "android")]
+    crate::usb_audio::init_after_core();
     Ok(())
 }
 

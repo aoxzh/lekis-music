@@ -17,6 +17,16 @@ static INIT: Once = Once::new();
 /// Java 线程里先缓存一份。
 static CREDENTIAL_CIPHER_CLASS: AtomicUsize = AtomicUsize::new(0);
 
+/// `UsbAudioBridge`（USB DAC 直出，PLY-05）的全局引用，原因同上：探测和设置混音器属性
+/// 发生在解码 / 引擎线程上。
+static USB_AUDIO_BRIDGE_CLASS: AtomicUsize = AtomicUsize::new(0);
+
+/// 给 `usb_audio.rs` 用的全局类引用（未初始化时为 `None`）。
+pub(crate) fn usb_audio_bridge_class() -> Option<jclass> {
+    let raw = USB_AUDIO_BRIDGE_CLASS.load(Ordering::Relaxed);
+    (raw != 0).then_some(raw as jclass)
+}
+
 /// 给 `credentials.rs` 用的全局类引用（未初始化时为 `None`）。
 pub(crate) fn credential_cipher_class() -> Option<jclass> {
     let raw = CREDENTIAL_CIPHER_CLASS.load(Ordering::Relaxed);
@@ -54,6 +64,12 @@ pub unsafe extern "system" fn Java_dev_lekis_lekis_MainActivity_initRustAndroidC
             }
             ndk_context::initialize_android_context(vm as *mut c_void, global as *mut c_void);
             cache_credential_cipher_class(env, fns);
+            cache_class(
+                env,
+                fns,
+                b"dev/lekis/lekis/UsbAudioBridge\0",
+                &USB_AUDIO_BRIDGE_CLASS,
+            );
         }
     });
 }
@@ -94,5 +110,41 @@ unsafe fn cache_credential_cipher_class(env: *mut JNIEnv, fns: &jni_sys::JNINati
     unsafe { delete_local_ref(env, local) };
     if !global.is_null() {
         CREDENTIAL_CIPHER_CLASS.store(global as usize, Ordering::Relaxed);
+    }
+}
+
+/// 在 Java 线程上缓存任意 App 类的全局引用（找不到时清掉异常，什么也不存）。
+///
+/// # Safety
+/// `env` 必须是当前 Java 线程的合法 JNIEnv，`fns` 必须来自同一个 JNIEnv；`name` 以 NUL 结尾。
+unsafe fn cache_class(
+    env: *mut JNIEnv,
+    fns: &jni_sys::JNINativeInterface_,
+    name: &[u8],
+    slot: &AtomicUsize,
+) {
+    let (Some(find_class), Some(new_global), Some(delete_local_ref), Some(exception_check), Some(exception_clear)) = (
+        fns.FindClass,
+        fns.NewGlobalRef,
+        fns.DeleteLocalRef,
+        fns.ExceptionCheck,
+        fns.ExceptionClear,
+    ) else {
+        return;
+    };
+    // SAFETY: 见函数说明。
+    unsafe {
+        let local = find_class(env, name.as_ptr().cast());
+        if local.is_null() {
+            if exception_check(env) != 0 {
+                exception_clear(env);
+            }
+            return;
+        }
+        let global = new_global(env, local);
+        delete_local_ref(env, local);
+        if !global.is_null() {
+            slot.store(global as usize, Ordering::Relaxed);
+        }
     }
 }

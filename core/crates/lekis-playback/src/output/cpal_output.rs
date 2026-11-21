@@ -27,6 +27,9 @@ pub struct CpalOutput {
     /// Windows 独占流（PLY-05）。COM 对象在它自己的音频线程里。
     #[cfg(windows)]
     wasapi: Option<super::wasapi_exclusive::WasapiExclusiveStream>,
+    /// Android USB DAC 直出流（PLY-05，`usb_direct` 已设好比特完美混音器属性）。
+    #[cfg(target_os = "android")]
+    usb: Option<super::aaudio_direct::AaudioDirectStream>,
     playing: bool,
     /// 当前流实际使用的格式。
     format: Option<PcmFormat>,
@@ -48,6 +51,8 @@ impl CpalOutput {
             stream: None,
             #[cfg(windows)]
             wasapi: None,
+            #[cfg(target_os = "android")]
+            usb: None,
             playing: false,
             format: None,
             mode: OutputMode::Shared,
@@ -75,7 +80,11 @@ impl CpalOutput {
         {
             self.wasapi.as_ref().map(|stream| stream.packing())
         }
-        #[cfg(not(windows))]
+        #[cfg(target_os = "android")]
+        {
+            self.usb.as_ref().map(|stream| stream.packing())
+        }
+        #[cfg(not(any(windows, target_os = "android")))]
         {
             None
         }
@@ -109,8 +118,19 @@ impl CpalOutput {
         super::wasapi_exclusive::plan(device_id, requested, native).map(Some)
     }
 
-    /// 非 Windows：没有比特完美后端。
-    #[cfg(not(windows))]
+    /// Android：USB DAC 直出（Android 14+ 比特完美混音器）。没开 / 没 USB 设备时 `Ok(None)`。
+    #[cfg(target_os = "android")]
+    pub fn plan_native(
+        &self,
+        _device_id: Option<&str>,
+        requested: PcmFormat,
+        native: NativeSampleFormat,
+    ) -> Result<Option<NativePlan>> {
+        super::usb_direct::plan_global(requested, native).map(|plan| plan.map(|p| p.native_plan()))
+    }
+
+    /// 其他平台：没有比特完美后端。
+    #[cfg(not(any(windows, target_os = "android")))]
     pub fn plan_native(
         &self,
         _device_id: Option<&str>,
@@ -141,8 +161,42 @@ impl CpalOutput {
         Ok(format)
     }
 
-    /// 非 Windows：没有比特完美后端。
-    #[cfg(not(windows))]
+    /// Android：设置首选混音器属性，再按同一格式把 AAudio 流开到 USB 设备上。
+    /// 任何一步失败都清掉首选属性并返回错误，会话层随后退回普通输出。
+    #[cfg(target_os = "android")]
+    pub fn start_native(
+        &mut self,
+        _device_id: Option<&str>,
+        requested: PcmFormat,
+        native: NativeSampleFormat,
+        source: Box<dyn NativeSampleSource>,
+    ) -> Result<PcmFormat> {
+        self.stop()?;
+        let plan = super::usb_direct::prepare_global(requested, native)?;
+        match super::aaudio_direct::AaudioDirectStream::start(
+            plan.device_id,
+            plan.format,
+            plan.packing,
+            source,
+        ) {
+            Ok(stream) => {
+                let format = stream.format();
+                self.usb = Some(stream);
+                self.playing = true;
+                self.format = Some(format);
+                self.mode = OutputMode::Exclusive;
+                super::usb_direct::mark_active_global();
+                Ok(format)
+            }
+            Err(e) => {
+                super::usb_direct::mark_failed_global(&e.message);
+                Err(e)
+            }
+        }
+    }
+
+    /// 其他平台：没有比特完美后端。
+    #[cfg(not(any(windows, target_os = "android")))]
     pub fn start_native(
         &mut self,
         _device_id: Option<&str>,
@@ -435,6 +489,10 @@ impl AudioOutput for CpalOutput {
             mode
         };
 
+        // Android：普通输出不能停在 USB 比特完美混音器上（否则别的声音会被静音、格式被锁住）。
+        #[cfg(target_os = "android")]
+        super::usb_direct::on_shared_output_global();
+
         let device = self.find_device(device_id)?;
         let cfg = Self::negotiate(&device, requested)?;
         let actual = PcmFormat {
@@ -486,6 +544,14 @@ impl AudioOutput for CpalOutput {
             }
             return Ok(());
         }
+        #[cfg(target_os = "android")]
+        if let Some(stream) = self.usb.as_ref() {
+            if self.playing {
+                stream.pause();
+                self.playing = false;
+            }
+            return Ok(());
+        }
         if let Some(stream) = &self.stream {
             if self.playing {
                 stream.pause().map_err(|e| {
@@ -500,6 +566,14 @@ impl AudioOutput for CpalOutput {
     fn resume(&mut self) -> Result<()> {
         #[cfg(windows)]
         if let Some(stream) = self.wasapi.as_ref() {
+            if !self.playing {
+                stream.resume();
+                self.playing = true;
+            }
+            return Ok(());
+        }
+        #[cfg(target_os = "android")]
+        if let Some(stream) = self.usb.as_ref() {
             if !self.playing {
                 stream.resume();
                 self.playing = true;
@@ -525,6 +599,11 @@ impl AudioOutput for CpalOutput {
         }
         #[cfg(windows)]
         if let Some(mut stream) = self.wasapi.take() {
+            stream.stop();
+        }
+        // 只关流；首选混音器属性留着，下一首同格式时不用重新切路由（关闭开关 / 改走普通输出时才清）。
+        #[cfg(target_os = "android")]
+        if let Some(stream) = self.usb.take() {
             stream.stop();
         }
         self.playing = false;

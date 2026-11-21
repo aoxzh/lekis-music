@@ -5,3 +5,4 @@ pub mod dto;
 pub mod error;
 pub mod media_controls;
 pub mod podcast;
+pub mod usb_output;

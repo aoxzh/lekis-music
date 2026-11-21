@@ -10,6 +10,7 @@ import 'api/dto.dart';
 import 'api/error.dart';
 import 'api/media_controls.dart';
 import 'api/podcast.dart';
+import 'api/usb_output.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -759,6 +760,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void dco_decode_unit(dynamic raw);
+
+  @protected
+  UsbBitPerfectStateDto dco_decode_usb_bit_perfect_state_dto(dynamic raw);
+
+  @protected
+  UsbBitPerfectStatusDto dco_decode_usb_bit_perfect_status_dto(dynamic raw);
 
   @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
@@ -1692,6 +1699,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_decode_unit(SseDeserializer deserializer);
+
+  @protected
+  UsbBitPerfectStateDto sse_decode_usb_bit_perfect_state_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UsbBitPerfectStatusDto sse_decode_usb_bit_perfect_status_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   void sse_encode_AnyhowException(
@@ -2880,6 +2897,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_usb_bit_perfect_state_dto(
+    UsbBitPerfectStateDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_usb_bit_perfect_status_dto(
+    UsbBitPerfectStatusDto self,
+    SseSerializer serializer,
+  );
 }
 
 // Section: wire_class

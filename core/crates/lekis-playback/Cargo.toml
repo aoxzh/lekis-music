@@ -28,6 +28,10 @@ reqwest = { workspace = true, features = ["blocking"] }
 [target.'cfg(windows)'.dependencies]
 wasapi = "0.27"
 
+# PLY-05：Android USB DAC 直出的 AAudio 流。和 cpal 用同一个 ndk 版本与 feature，不会多编一份。
+[target.'cfg(target_os = "android")'.dependencies]
+ndk = { version = "0.9", default-features = false, features = ["audio", "api-level-26"] }
+
 # 离线无缝检查（PLY-01）：用真实专辑跑 Session 的拼接路径。`test = true` 让
 # `cargo test -p lekis-playback` 也跑它的指标单元测试（含 10 ms 静音负对照），不需要专辑文件。
 [[example]]

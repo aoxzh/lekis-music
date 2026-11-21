@@ -20,6 +20,8 @@ class MainActivity : AudioServiceActivity() {
         // Rust 核心的音频输出（cpal → AAudio）需要 JavaVM 和 Context，必须在 Dart 调用核心之前登记。
         System.loadLibrary("lekis_bridge")
         initRustAndroidContext(applicationContext)
+        // PLY-05：USB DAC 直出（比特完美混音器属性 + USB 插拔通知）。
+        UsbAudioBridge.init(applicationContext)
         super.onCreate(savedInstanceState)
     }
 
@@ -76,6 +78,8 @@ class MainActivity : AudioServiceActivity() {
 
     override fun onDestroy() {
         releaseMulticastLock()
+        // 真正退出时把 USB 设备的首选混音器属性还给系统。
+        if (isFinishing) UsbAudioBridge.release()
         super.onDestroy()
     }
 
