@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'dev/perf_probe.dart';
 import 'features/player/playback_session.dart';
 import 'features/player/widgets/player_controls.dart';
+import 'platform/network_context.dart';
 import 'shell/app_shell.dart';
 import 'theme/theme.dart';
 import 'theme/theme_settings.dart';
@@ -19,6 +20,7 @@ class LekisApp extends ConsumerWidget {
     // 常驻服务：播放会话保存 / 恢复，以及播放历史计数。
     ref.watch(playbackSessionProvider);
     ref.watch(playHistoryProvider);
+    ref.watch(networkContextProvider);
     final themeMode = ref.watch(themeModeProvider);
     final oled = ref.watch(oledBlackProvider);
 
