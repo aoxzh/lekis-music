@@ -8,6 +8,7 @@ import 'dev/perf_probe.dart';
 import 'features/player/playback_session.dart';
 import 'features/player/widgets/player_controls.dart';
 import 'platform/network_context.dart';
+import 'platform/window_caption.dart';
 import 'shell/app_shell.dart';
 import 'theme/theme.dart';
 import 'theme/theme_settings.dart';
@@ -32,6 +33,9 @@ class LekisApp extends ConsumerWidget {
       themeMode: themeMode,
       themeAnimationDuration: LekisMotion.normal,
       scrollBehavior: const _LekisScrollBehavior(),
+      // 窗口标题栏跟随应用的深浅色，而不是 Windows 的。
+      builder: (context, child) =>
+          WindowCaptionSync(child: child ?? const SizedBox.shrink()),
       // 空格播放/暂停、媒体键等快捷键在整个应用里生效。
       home: const PerfProbe(child: PlayerShortcuts(child: AppShell())),
     );

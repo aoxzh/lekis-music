@@ -3,8 +3,10 @@
 
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
+#include <flutter/method_channel.h>
 
 #include <memory>
+#include <optional>
 
 #include "win32_window.h"
 
@@ -28,6 +30,16 @@ class FlutterWindow : public Win32Window {
 
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
+
+  // "lekis/window": lets Dart paint the caption to match the app theme.
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
+      window_channel_;
+
+  // Caption brightness chosen by the app; empty = follow Windows.
+  std::optional<bool> dark_caption_;
+
+  // Applies [dark_caption_] to the native title bar.
+  void ApplyCaptionTheme();
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_
