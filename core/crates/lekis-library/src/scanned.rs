@@ -394,6 +394,79 @@ impl Library {
 /// `track_file` / `track_artist` / `album_artist` / `track_genre` 都是 `ON DELETE CASCADE`，
 /// 所以删掉 `track` / `album` / `artist` 时关联表会自动收缩；搜索索引是 fts5 虚表，
 /// 需要手动按 `ref_id` 删，否则会留下指向不存在的行、搜索时 JOIN 掉但 `MATCH` 仍然命中。
+/// 曲目身份变了（同一个文件，标签改了，uid 跟着变）时，把旧曲目上的用户数据
+/// 挪到新曲目：喜欢 / 评分 / 播放次数、播放记录、歌单条目（按 uid 引用），
+/// 以及挂在本机曲目 ID 上的手工标签、覆盖层、钉的封面、歌词、离线下载。
+/// 新曲目已经有的数据优先，旧的只补空缺。
+fn carry_over_user_data(tx: &Transaction<'_>, old_id: i64, new_id: i64) -> Result<()> {
+    let uid_of = |id: i64| -> Result<String> {
+        tx.query_row("SELECT uid FROM track WHERE id = ?1", params![id], |r| {
+            r.get(0)
+        })
+        .db()
+    };
+    let old_uid = uid_of(old_id)?;
+    let new_uid = uid_of(new_id)?;
+
+    if old_uid != new_uid {
+        // user_state：新 uid 没有记录就整行改名，有就合并。
+        tx.execute(
+            "INSERT INTO user_state (track_uid, loved, rating, play_count, last_played, updated_hlc)
+             SELECT ?2, loved, rating, play_count, last_played, updated_hlc
+               FROM user_state WHERE track_uid = ?1
+             ON CONFLICT (track_uid) DO UPDATE SET
+               loved = MAX(user_state.loved, excluded.loved),
+               rating = COALESCE(user_state.rating, excluded.rating),
+               play_count = user_state.play_count + excluded.play_count,
+               last_played = MAX(COALESCE(user_state.last_played, 0),
+                                 COALESCE(excluded.last_played, 0))",
+            params![old_uid, new_uid],
+        )
+        .db()?;
+        tx.execute(
+            "DELETE FROM user_state WHERE track_uid = ?1",
+            params![old_uid],
+        )
+        .db()?;
+        tx.execute(
+            "UPDATE play_event SET track_uid = ?2 WHERE track_uid = ?1",
+            params![old_uid, new_uid],
+        )
+        .db()?;
+        tx.execute(
+            "UPDATE playlist_item SET track_uid = ?2 WHERE track_uid = ?1",
+            params![old_uid, new_uid],
+        )
+        .db()?;
+    }
+
+    tx.execute(
+        "UPDATE track SET
+           overlay_json = COALESCE(overlay_json,
+             (SELECT overlay_json FROM track WHERE id = ?1)),
+           tag_overrides_json = COALESCE(tag_overrides_json,
+             (SELECT tag_overrides_json FROM track WHERE id = ?1)),
+           artwork_id = COALESCE(artwork_id,
+             (SELECT artwork_id FROM track WHERE id = ?1))
+         WHERE id = ?2",
+        params![old_id, new_id],
+    )
+    .db()?;
+    tx.execute(
+        "UPDATE lyrics SET track_id = ?2
+          WHERE track_id = ?1
+            AND NOT EXISTS (SELECT 1 FROM lyrics WHERE track_id = ?2)",
+        params![old_id, new_id],
+    )
+    .db()?;
+    tx.execute(
+        "UPDATE OR IGNORE offline_download SET track_id = ?2 WHERE track_id = ?1",
+        params![old_id, new_id],
+    )
+    .db()?;
+    Ok(())
+}
+
 pub(crate) fn sweep_orphans(tx: &Transaction<'_>) -> Result<()> {
     // 顺序很重要：先删实体，再清索引，否则索引里还会指向刚被删掉的行。
     tx.execute(
@@ -541,6 +614,15 @@ fn upsert_one(tx: &Transaction<'_>, f: &ScannedFile) -> Result<UpsertOutcome> {
     .db()?;
     // 一个文件只对应一首曲目：标签变了（曲目身份跟着变）时解开旧曲目，
     // 否则旧曲目会和新曲目一起留在列表里。
+    let previous: Vec<i64> = {
+        let mut stmt = tx
+            .prepare("SELECT track_id FROM track_file WHERE file_id = ?1 AND track_id != ?2")
+            .db()?;
+        let rows = stmt
+            .query_map(params![file_id, track_id], |r| r.get(0))
+            .db()?;
+        rows.collect::<rusqlite::Result<_>>().db()?
+    };
     let relinked = tx
         .execute(
             "DELETE FROM track_file WHERE file_id = ?1 AND track_id != ?2",
@@ -548,6 +630,21 @@ fn upsert_one(tx: &Transaction<'_>, f: &ScannedFile) -> Result<UpsertOutcome> {
         )
         .db()?
         > 0;
+    for old in previous {
+        let still_linked: bool = tx
+            .query_row(
+                "SELECT EXISTS (SELECT 1 FROM track_file WHERE track_id = ?1)",
+                params![old],
+                |r| r.get(0),
+            )
+            .db()?;
+        // 旧曲目没有别的文件了：这是同一首歌换了标签（补全了文件名兜底的标签、
+        // 用户改标签写回文件……），不是两首歌。把用户数据跟过来，否则旧曲目被
+        // 清理后，喜欢 / 播放次数 / 歌单条目都会悄悄丢掉。
+        if !still_linked {
+            carry_over_user_data(tx, old, track_id)?;
+        }
+    }
 
     for (pos, name) in t.artists.iter().enumerate() {
         let artist_id = upsert_artist(tx, name)?;
@@ -707,6 +804,65 @@ mod tests {
 
         let found = lib.search("晴天", 10).await?;
         assert_eq!(found.tracks.len(), 1);
+        Ok(())
+    }
+
+    /// 同一个文件换了标签（uid 变了）：喜欢、播放次数和歌单条目跟着新曲目走，
+    /// 不会因为旧曲目被清理而丢掉。
+    #[tokio::test]
+    async fn retagged_file_keeps_user_data() -> Result<()> {
+        let lib = temp_library("retag")?;
+        let source_id = lib
+            .add_source(SourceConfig {
+                id: None,
+                kind: SourceKind::Local,
+                name: "Music".into(),
+                addresses: vec!["/music".into()],
+                root_path: String::new(),
+                credential_ref: None,
+                options: BTreeMap::new(),
+                enabled: true,
+            })
+            .await?;
+
+        // 第一次扫描只拿到文件名兜底的标题。
+        let mut fallback = sample(source_id, "a/01 qing tian.flac", "01 qing tian");
+        fallback.tags.album = None;
+        fallback.tags.duration_ms = 0;
+        lib.upsert_scanned(vec![fallback]).await?;
+        let old = lib
+            .list_track_rows(TrackQuery {
+                sort: TrackSort::Title,
+                offset: 0,
+                limit: 10,
+            })
+            .await?;
+        let old_uid = lib.get_track(old[0].id).await?.uid;
+        lib.set_loved(old_uid.clone(), true).await?;
+        let playlist = lib.create_playlist("mix", None).await?;
+        lib.add_to_playlist(playlist, old_uid.clone(), None, None)
+            .await?;
+
+        // 重扫读到了真标签：同一个文件，新的 uid。
+        lib.upsert_scanned(vec![sample(source_id, "a/01 qing tian.flac", "晴天")])
+            .await?;
+        let rows = lib
+            .list_track_rows(TrackQuery {
+                sort: TrackSort::Title,
+                offset: 0,
+                limit: 10,
+            })
+            .await?;
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].title, "晴天");
+        let new_uid = lib.get_track(rows[0].id).await?.uid;
+        assert_ne!(new_uid, old_uid);
+
+        assert!(lib.user_state(new_uid.clone()).await?.loved);
+        let items = lib.playlist_items(playlist, 0, 10).await?;
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].item.track_uid, new_uid.0);
+        assert_eq!(items[0].track.as_ref().map(|t| t.id), Some(rows[0].id));
         Ok(())
     }
 
