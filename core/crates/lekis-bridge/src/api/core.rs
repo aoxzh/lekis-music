@@ -959,6 +959,11 @@ pub async fn set_artwork_from_image(
         .into())
 }
 
+/// 把用户选的图片存进封面缓存，返回封面 ID（再交给 `set_playlist_artwork` 之类）。
+pub async fn import_artwork(image: Vec<u8>) -> Result<i64, CoreError> {
+    Ok(core().import_artwork(image).await?.0)
+}
+
 /// 撤销一次换封面。
 pub async fn restore_artwork(change: ArtworkChangeDto) -> Result<(), CoreError> {
     Ok(core().restore_artwork(change.into()).await?)

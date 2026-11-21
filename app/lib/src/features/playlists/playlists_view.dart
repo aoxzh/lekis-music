@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/playlists/playlist_actions.dart';
+import 'package:lekis/src/features/playlists/playlist_cover.dart';
 import 'package:lekis/src/features/playlists/playlist_detail_page.dart';
 import 'package:lekis/src/features/playlists/playlist_m3u.dart';
 import 'package:lekis/src/features/playlists/playlist_providers.dart';
@@ -199,7 +200,6 @@ class _PlaylistTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
-    final smart = playlist.kind == PlaylistKindDto.smart;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 1),
       child: ListTile(
@@ -209,19 +209,11 @@ class _PlaylistTile extends StatelessWidget {
         ),
         hoverColor: colors.accentSoft.withValues(alpha: 0.5),
         onTap: onOpen,
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: smart
-                ? colors.accentSoft
-                : colors.surfaceVariant.withValues(alpha: 0.7),
-            borderRadius: BorderRadius.circular(LekisRadius.artworkList),
-          ),
-          child: Icon(
-            smart ? Icons.auto_awesome_rounded : Icons.queue_music_rounded,
-            color: smart ? colors.accent : colors.onSurfaceVariant,
-          ),
+        leading: PlaylistCover(
+          playlist: playlist,
+          size: 48,
+          radius: LekisRadius.artworkList,
+          iconSize: 24,
         ),
         title: Row(
           children: [

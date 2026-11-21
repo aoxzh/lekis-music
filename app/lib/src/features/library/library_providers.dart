@@ -81,22 +81,21 @@ final trackArtworkProvider = FutureProvider.autoDispose
       return core.artwork(trackId: trackId);
     });
 
-/// Album artwork.
-///
-/// TODO(core): the bridge has no `artwork(artworkId)` / `albumArtwork(albumId)`
-/// yet, so we resolve the album cover through its first track. Replace this
-/// once the core exposes the hash on `AlbumDto` (or an album artwork call).
+/// Album artwork: the album's own cover, or its first track's when it has none
+/// (the core resolves that, so a user-picked album cover shows here at once).
 final albumArtworkProvider = FutureProvider.autoDispose
     .family<ArtworkDto?, int>((ref, albumId) async {
       ref.invalidateOnCatalogChange();
       ref.cacheFor(const Duration(minutes: 2));
-      final first = await core.albumTracks(
-        albumId: albumId,
-        offset: 0,
-        limit: 1,
-      );
-      if (first.isEmpty) return null;
-      return core.artwork(trackId: first.first.id);
+      return core.albumArtwork(albumId: albumId);
+    });
+
+/// Artwork by id (playlist covers). Artwork rows never change once written,
+/// so there is nothing to invalidate.
+final artworkByIdProvider = FutureProvider.autoDispose
+    .family<ArtworkDto?, int>((ref, artworkId) async {
+      ref.cacheFor(const Duration(minutes: 5));
+      return core.getArtwork(artworkId: artworkId);
     });
 
 // ---------------------------------------------------------------------------

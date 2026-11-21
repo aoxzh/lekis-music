@@ -594,6 +594,10 @@ Future<ArtworkChangeDto> setArtworkFromImage({
   albumId: albumId,
 );
 
+/// 把用户选的图片存进封面缓存，返回封面 ID（再交给 `set_playlist_artwork` 之类）。
+Future<PlatformInt64> importArtwork({required List<int> image}) =>
+    RustLib.instance.api.crateApiCoreImportArtwork(image: image);
+
 /// 撤销一次换封面。
 Future<void> restoreArtwork({required ArtworkChangeDto change}) =>
     RustLib.instance.api.crateApiCoreRestoreArtwork(change: change);

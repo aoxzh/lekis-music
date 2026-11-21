@@ -2,12 +2,14 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/download_status.dart';
+import 'package:lekis/src/features/library/artwork_actions.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/playlists/playlist_actions.dart';
+import 'package:lekis/src/features/playlists/playlist_cover.dart';
 import 'package:lekis/src/features/playlists/playlist_m3u.dart';
 import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/features/playlists/smart_playlist_editor_page.dart';
@@ -323,7 +325,6 @@ class _PlaylistHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
-    final smart = playlist.kind == PlaylistKindDto.smart;
 
     Future<void> delete() async {
       final deleted = await deletePlaylistFlow(context, ref, playlist);
@@ -337,20 +338,11 @@ class _PlaylistHeader extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 560;
-        final art = Container(
-          width: wide ? 132 : 104,
-          height: wide ? 132 : 104,
-          decoration: BoxDecoration(
-            color: smart
-                ? colors.accentSoft
-                : colors.surfaceVariant.withValues(alpha: 0.7),
-            borderRadius: BorderRadius.circular(LekisRadius.artworkGrid),
-          ),
-          child: Icon(
-            smart ? Icons.auto_awesome_rounded : Icons.queue_music_rounded,
-            size: wide ? 52 : 42,
-            color: smart ? colors.accent : colors.onSurfaceVariant,
-          ),
+        final art = PlaylistCover(
+          playlist: playlist,
+          size: wide ? 132 : 104,
+          radius: LekisRadius.artworkGrid,
+          iconSize: wide ? 52 : 42,
         );
 
         final info = Column(
@@ -430,6 +422,19 @@ class _PlaylistHeader extends ConsumerWidget {
                           queueTrackIds,
                           where: QueuePlacement.end,
                         );
+                      case 'cover':
+                        changePlaylistCoverFlow(
+                          context,
+                          playlistId: playlist.id.toInt(),
+                          previousArtworkId: playlist.artworkId?.toInt(),
+                        );
+                      case 'cover-remove':
+                        changePlaylistCoverFlow(
+                          context,
+                          playlistId: playlist.id.toInt(),
+                          previousArtworkId: playlist.artworkId?.toInt(),
+                          pick: false,
+                        );
                       case 'rename':
                         rename();
                       case 'delete':
@@ -448,6 +453,15 @@ class _PlaylistHeader extends ConsumerWidget {
                       ),
                       PopupMenuDivider(),
                     ],
+                    const PopupMenuItem(
+                      value: 'cover',
+                      child: Text(ArtworkActionStrings.change),
+                    ),
+                    if (playlist.artworkId != null)
+                      const PopupMenuItem(
+                        value: 'cover-remove',
+                        child: Text(ArtworkActionStrings.remove),
+                      ),
                     const PopupMenuItem(value: 'rename', child: Text('重命名')),
                     const PopupMenuItem(value: 'delete', child: Text('删除歌单')),
                   ],

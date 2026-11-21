@@ -2105,10 +2105,7 @@ impl LekisCore {
         track_ids: Vec<TrackId>,
         album_id: Option<AlbumId>,
     ) -> Result<ArtworkChange> {
-        const MAX_IMAGE: usize = 40 * 1024 * 1024;
-        if image.is_empty() || image.len() > MAX_IMAGE {
-            return Err(LekisError::invalid("封面图片为空或超过 40 MB"));
-        }
+        check_artwork_image(&image)?;
         if track_ids.is_empty() && album_id.is_none() {
             return Err(LekisError::invalid("没有指定要换封面的曲目或专辑"));
         }
@@ -2149,6 +2146,23 @@ impl LekisCore {
             .await?;
         self.emit_library_changed();
         Ok(change)
+    }
+
+    /// 把用户选的图片存进封面缓存（缩略图、取色、按内容去重），不挂到任何东西上。
+    /// 返回封面 ID，调用方再用它设歌单封面之类（[`Self::set_playlist_artwork`]）。
+    pub async fn import_artwork(&self, image: Vec<u8>) -> Result<ArtworkId> {
+        check_artwork_image(&image)?;
+        let s = self.services.clone();
+        self.run(async move {
+            let target = enrich::ArtworkTarget {
+                track_id: None,
+                album_id: None,
+                replace_album: false,
+            };
+            enrich::store_artwork_bytes(&s.config.cache_dir, &s.library, target, image, "user")
+                .await
+        })
+        .await
     }
 
     /// 撤销 [`Self::set_artwork_from_image`]：把曲目和专辑的封面改回原样。
@@ -2622,6 +2636,15 @@ impl LekisCore {
             scope: LibraryScope::Catalog,
         });
     }
+}
+
+/// 用户选的封面图片不能为空，也不能大得离谱（解码会吃光内存）。
+fn check_artwork_image(image: &[u8]) -> Result<()> {
+    const MAX_IMAGE: usize = 40 * 1024 * 1024;
+    if image.is_empty() || image.len() > MAX_IMAGE {
+        return Err(LekisError::invalid("封面图片为空或超过 40 MB"));
+    }
+    Ok(())
 }
 
 /// 一次换封面的结果：新封面，以及换之前的状态（撤销用）。
@@ -3194,6 +3217,7 @@ mod tests {
                 .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
                 .map_err(|e| LekisError::internal(e.to_string()))?;
 
+            let png_copy = png.clone();
             let before_track = core.artwork(track.id).await?.map(|a| a.id);
             let change = core
                 .set_artwork_from_image(png, vec![track.id], album)
@@ -3223,6 +3247,11 @@ mod tests {
             // 撤销：回到换之前。
             core.restore_artwork(change).await?;
             assert_eq!(core.artwork(track.id).await?.map(|a| a.id), before_track);
+
+            // 歌单封面：同一张图按内容去重，拿到同一个封面 ID。
+            let imported = core.import_artwork(png_copy).await?;
+            assert_eq!(imported, artwork);
+            assert!(core.import_artwork(Vec::new()).await.is_err());
             Ok::<_, LekisError>(())
         })?;
         drop(core);

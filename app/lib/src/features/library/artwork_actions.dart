@@ -16,6 +16,8 @@ abstract final class ArtworkActionStrings {
   static const changed = '封面已更换';
   static const failed = '更换封面失败';
   static const undo = '撤销';
+  static const remove = '移除封面';
+  static const removed = '已移除封面';
   static const restored = '已恢复原来的封面';
 }
 
@@ -51,6 +53,60 @@ Future<void> changeArtworkFlow(
             onPressed: () async {
               try {
                 await core.restoreArtwork(change: change);
+                say(ArtworkActionStrings.restored);
+              } catch (error) {
+                say('${ArtworkActionStrings.failed}：${describeCoreError(error)}');
+              }
+            },
+          ),
+        ),
+      );
+  } catch (error) {
+    say('${ArtworkActionStrings.failed}：${describeCoreError(error)}');
+  }
+}
+
+/// 给歌单换封面（[pick] 为 `false` 时移除封面，回到默认图标）。带撤销。
+Future<void> changePlaylistCoverFlow(
+  BuildContext context, {
+  required int playlistId,
+  required int? previousArtworkId,
+  bool pick = true,
+}) async {
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  void say(String text) => messenger
+    ?..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(text)));
+  try {
+    int? artworkId;
+    if (pick) {
+      final file = await FilePicker.pickFile(
+        dialogTitle: ArtworkActionStrings.pickTitle,
+        type: FileType.image,
+      );
+      if (file == null) return;
+      artworkId = (await core.importArtwork(image: await file.readAsBytes()))
+          .toInt();
+    }
+    await core.setPlaylistArtwork(
+      playlistId: playlistId,
+      artworkId: artworkId,
+    );
+    messenger
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            pick ? ArtworkActionStrings.changed : ArtworkActionStrings.removed,
+          ),
+          action: SnackBarAction(
+            label: ArtworkActionStrings.undo,
+            onPressed: () async {
+              try {
+                await core.setPlaylistArtwork(
+                  playlistId: playlistId,
+                  artworkId: previousArtworkId,
+                );
                 say(ArtworkActionStrings.restored);
               } catch (error) {
                 say('${ArtworkActionStrings.failed}：${describeCoreError(error)}');
