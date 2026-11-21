@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/rust/api/dto.dart';
+import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
 
 export 'package:lekis/src/features/library/widgets/artwork.dart'
@@ -75,17 +76,21 @@ Color readableOn(Color background, {Color? preferred}) {
       : _darkInk;
 }
 
-/// 把 [accent] 的亮度推到在 [scene] 上至少 [minRatio]（默认 3:1）。
+/// 把 [accent] 的亮度推到在 [scene] 上至少 [minRatio]（默认 3:1），
+/// 同时避开既配不上白字也配不上黑字的中间灰区（至少留出 4.5:1 给按钮图标）。
 /// 只改 HSL 的 lightness，保留封面的色相。
 Color readableAccent(Color accent, Color scene, {double minRatio = 3}) {
-  if (contrastRatio(accent, scene) >= minRatio) return accent;
+  bool ok(Color c) =>
+      contrastRatio(c, scene) >= minRatio &&
+      contrastRatio(readableOn(c), c) >= 4.5;
+  if (ok(accent)) return accent;
   final hsl = HSLColor.fromColor(accent);
   final towardsLight = scene.computeLuminance() < 0.5;
   var lightness = hsl.lightness;
-  for (var i = 0; i < 20; i++) {
+  for (var i = 0; i < 25; i++) {
     lightness = (lightness + (towardsLight ? 0.04 : -0.04)).clamp(0.0, 1.0);
     final candidate = hsl.withLightness(lightness).toColor();
-    if (contrastRatio(candidate, scene) >= minRatio) return candidate;
+    if (ok(candidate)) return candidate;
   }
   return towardsLight ? _lightInk : _darkInk;
 }
@@ -100,16 +105,17 @@ class NowPlayingTint {
     required this.secondary,
     required this.onPrimary,
     required this.isLight,
+    this.protectionOpacity = LekisNowPlaying.protectionOpacity,
   });
 
-  /// 背景压暗 / 提亮层的底色：近黑或近白，混入一点封面主色。
+  /// 背景压暗层的底色：近黑，混入一点封面主色。
   /// 往背景上叠这一层，文字就能稳定落在 [foreground] 的对比度里。
   final Color scene;
 
-  /// 正文、图标颜色（近黑或近白）。
+  /// 正文、图标颜色（近白，保持深色沉浸氛围，不因单块亮色翻成黑字）。
   final Color foreground;
 
-  /// 可安全用作按钮 / 进度条的封面主色（对 [scene] ≥ 3:1）。
+  /// 可安全用作按钮 / 进度条的封面主色（对 [scene] ≥ 4.5:1）。
   final Color primary;
 
   /// 封面辅色，用于渐变的第二层。
@@ -118,8 +124,12 @@ class NowPlayingTint {
   /// 画在 [primary] 上的图标颜色。
   final Color onPrimary;
 
-  /// [foreground] 是浅色（背景应压暗）还是深色（背景应提亮）。
+  /// [foreground] 是浅色（背景压暗）还是深色。
   final bool isLight;
+
+  /// 铺在模糊封面 + 渐变之上的全屏压暗透明度：暗封面保持轻柔，
+  /// 白底 / 极亮封面自动加深，保证浅色文字与歌词始终清晰可读。
+  final double protectionOpacity;
 
   /// [palette] 为空时退回主题色。
   factory NowPlayingTint.resolve(PaletteDto? palette, ColorScheme scheme) {
@@ -132,28 +142,41 @@ class NowPlayingTint {
         secondary: scheme.tertiary,
         onPrimary: scheme.onPrimary,
         isLight: foreground.computeLuminance() > 0.5,
+        protectionOpacity: LekisNowPlaying.protectionOpacity,
       );
     }
 
     final rawPrimary = Color(0xFF000000 | (palette.primary & 0xFFFFFF));
     final rawSecondary = Color(0xFF000000 | (palette.secondary & 0xFFFFFF));
-    // 以封面主色的明度选场景：暗封面配近白文字 + 深色压暗层，
-    // 亮封面配近黑文字 + 浅色提亮层。
-    final isLight = rawPrimary.computeLuminance() < 0.45;
-    final scene = isLight
-        ? Color.alphaBlend(const Color(0xE6000000), rawPrimary)
-        : Color.alphaBlend(const Color(0xE6FFFFFF), rawPrimary);
-    final primary = readableAccent(rawPrimary, scene);
+    final samples = <Color>[
+      rawPrimary,
+      rawSecondary,
+      for (final c in palette.gradient) Color(0xFF000000 | (c & 0xFFFFFF)),
+    ];
+    final avgLum =
+        samples.fold<double>(0, (acc, c) => acc + c.computeLuminance()) /
+        samples.length;
+    // 暗封面只需轻压暗保留氛围；亮白封面（如白底插画）自动提高压暗强度，
+    // 保证近白歌词与控件始终清晰，不再因为单个亮色点把暗紫背景翻成黑字。
+    final t = ((avgLum - 0.14) / 0.50).clamp(0.0, 1.0);
+    final protection =
+        LekisNowPlaying.protectionOpacity +
+        (LekisNowPlaying.protectionOpacityMax -
+                LekisNowPlaying.protectionOpacity) *
+            t;
+    final scene = Color.alphaBlend(const Color(0xE6000000), rawPrimary);
+    final primary = readableAccent(rawPrimary, scene, minRatio: 4.5);
     return NowPlayingTint(
       scene: scene,
-      foreground: isLight ? _lightInk : _darkInk,
+      foreground: _lightInk,
       primary: primary,
-      secondary: readableAccent(rawSecondary, scene),
+      secondary: readableAccent(rawSecondary, scene, minRatio: 3.5),
       onPrimary: readableOn(
         primary,
         preferred: Color(0xFF000000 | (palette.onPrimary & 0xFFFFFF)),
       ),
-      isLight: isLight,
+      isLight: true,
+      protectionOpacity: protection,
     );
   }
 }

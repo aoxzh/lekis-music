@@ -552,10 +552,12 @@ abstract final class LekisNowPlaying {
   static const Duration gradientCycle = Duration(milliseconds: 24000);
   static const double blurRadius = 160;
 
-  /// No full-screen dimming; contrast comes from the adaptive tint and from
-  /// the protected top bar. Kept as a token so a future "classic" style can
-  /// turn global protection back on.
-  static const double protectionOpacity = 0;
+  /// Minimum full-screen dark scrim over the blurred artwork so light ink
+  /// always keeps readable contrast even on mid-tone covers.
+  static const double protectionOpacity = 0.24;
+
+  /// Upper bound of the adaptive dark scrim for very bright / white covers.
+  static const double protectionOpacityMax = 0.56;
 
   /// Strength of the top-bar scrim (transparency 60 → 40% opacity).
   static const double topBarProtectionOpacity = 0.40;
@@ -567,8 +569,8 @@ abstract final class LekisNowPlaying {
   static const double gradientOpacity = 0.55;
 
   /// Opacity of the source-over grain laid over the soft gradients
-  /// (stops banding on large smooth areas).
-  static const double noiseOpacity = 0.12;
+  /// (stops banding on large smooth areas without looking snowy).
+  static const double noiseOpacity = 0.045;
 
   /// Share of the travel after which a released drag opens / closes Now
   /// Playing, and the fling speed (logical px/s) that decides regardless.

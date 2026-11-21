@@ -190,4 +190,25 @@ void main() {
     await tester.pumpAndSettle();
     expect(container.read(activeRemoteProvider), isNull);
   });
+
+  testWidgets('Fold5 unfolded width (690 dp) lays remote controls and queue '
+      'side by side', (tester) async {
+    final gateway = FakeConnectGateway();
+    await _pump(tester, gateway);
+    tester.view.physicalSize = const Size(690, 829);
+    tester.view.devicePixelRatio = 1;
+
+    await _openPicker(tester);
+    await tester.tap(find.byKey(const ValueKey('connect.pick.pc.remote')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+
+    final controls = tester.getCenter(
+      find.byKey(const ValueKey('connect.remote.controls')),
+    );
+    final queue = tester.getCenter(
+      find.byKey(const ValueKey('connect.remote.queue')),
+    );
+    expect(queue.dx, greaterThan(controls.dx));
+  });
 }

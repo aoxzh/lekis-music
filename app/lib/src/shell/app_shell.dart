@@ -12,6 +12,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'package:lekis/src/features/connect/connect_active.dart';
 import 'package:lekis/src/features/connect/connect_runtime_host.dart';
 import 'package:lekis/src/features/player/mini_player.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
@@ -311,10 +312,13 @@ class _SideTabsLayout extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final style = ref.watch(tabBarStyleProvider);
     final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
+    final hasRemote = ref.watch(activeRemoteProvider) != null;
     final mq = MediaQuery.of(context);
     // Reserve the band the floating mini player really occupies (card +
     // margin + gesture inset), not just the card.
-    final mini = hasTrack ? MiniPlayer.bottomBandHeight(context) : 0.0;
+    final mini = (hasTrack || hasRemote)
+        ? MiniPlayer.bottomBandHeight(context)
+        : 0.0;
     return Scaffold(
       // The content below gets a MediaQuery read from *outside* this
       // Scaffold, i.e. still carrying the keyboard inset. If this Scaffold

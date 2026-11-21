@@ -301,24 +301,24 @@ class PlayShuffleButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const minSize = Size(
-      LekisSizes.gridArtworkMin * 0.75,
-      LekisSizes.touchTargetMin,
+    final buttonStyle = FilledButton.styleFrom(
+      minimumSize: const Size(0, LekisSizes.touchTargetMin),
+      padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.lg),
     );
     return Wrap(
-      spacing: LekisSpacing.md,
+      spacing: LekisSpacing.sm,
       runSpacing: LekisSpacing.sm,
       alignment: alignment,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         FilledButton.icon(
-          style: FilledButton.styleFrom(minimumSize: minSize),
+          style: buttonStyle,
           onPressed: onPlay,
           icon: const Icon(Icons.play_arrow_rounded),
           label: const Text('播放'),
         ),
         FilledButton.tonalIcon(
-          style: FilledButton.styleFrom(minimumSize: minSize),
+          style: buttonStyle,
           onPressed: onShuffle,
           icon: const Icon(Icons.shuffle_rounded),
           label: const Text('随机播放'),

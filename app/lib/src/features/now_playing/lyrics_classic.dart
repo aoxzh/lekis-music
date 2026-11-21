@@ -27,7 +27,7 @@ import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Where the active line sits, as a fraction of the viewport height.
-const double _activeLineAnchor = 0.3;
+const double _activeLineAnchor = 0.24;
 
 /// Inactive lines further than this from the active one skip the blur layer
 /// (they have faded to the inactive opacity anyway; every blurred line is

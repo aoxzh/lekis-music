@@ -4,6 +4,8 @@
 // 内容换成对方的曲目、"正在 xx 上播放"和遥控的播放 / 暂停；点一下打开遥控页。
 // 桌面播放条不动，在它上面加一条细的提示条。
 
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -17,6 +19,22 @@ import 'connect_strings.dart';
 import 'connect_ui.dart';
 import 'device_picker.dart';
 import 'remote_control_page.dart';
+
+/// Shared remote cover fetch keyed by `(deviceId, trackId, uid)` so the
+/// remote mini player and remote-control page reuse the same bytes.
+final remoteArtworkBytesProvider = FutureProvider.autoDispose
+    .family<Uint8List?, ({String deviceId, int trackId, String? uid})>((
+      ref,
+      key,
+    ) async {
+      try {
+        return await ref
+            .read(connectGatewayProvider)
+            .remoteArtwork(key.deviceId, trackId: key.trackId, uid: key.uid);
+      } catch (_) {
+        return null;
+      }
+    });
 
 Future<void> _toggle(WidgetRef ref, String deviceId) async {
   try {
@@ -50,6 +68,19 @@ class ConnectRemoteMiniPlayer extends ConsumerWidget {
         : (state!.positionMs.toInt() / duration).clamp(0.0, 1.0);
     const art = LekisSizes.miniPlayerHeight - LekisSpacing.sm * 2;
 
+    final artBytes = track == null
+        ? null
+        : ref
+              .watch(
+                remoteArtworkBytesProvider((
+                  deviceId: device.deviceId,
+                  trackId: track.id,
+                  uid: track.uid,
+                )),
+              )
+              .value;
+    final subtitleColor = theme.colorScheme.onSurface.withValues(alpha: 0.78);
+
     return Semantics(
       container: true,
       button: true,
@@ -75,16 +106,23 @@ class ConnectRemoteMiniPlayer extends ConsumerWidget {
                     ),
                     child: Row(
                       children: [
-                        Container(
-                          width: art,
-                          height: art,
-                          decoration: BoxDecoration(
-                            color: colors.accentSoft,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            connectPlatformIcon(device.platform),
-                            color: colors.accent,
+                        ClipOval(
+                          child: SizedBox.square(
+                            dimension: art,
+                            child: artBytes != null
+                                ? Image.memory(
+                                    artBytes,
+                                    fit: BoxFit.cover,
+                                    cacheWidth: 128,
+                                    gaplessPlayback: true,
+                                  )
+                                : ColoredBox(
+                                    color: colors.accentSoft,
+                                    child: Icon(
+                                      connectPlatformIcon(device.platform),
+                                      color: colors.accent,
+                                    ),
+                                  ),
                           ),
                         ),
                         const SizedBox(width: LekisSpacing.md),
@@ -101,13 +139,26 @@ class ConnectRemoteMiniPlayer extends ConsumerWidget {
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              Text(
-                                ConnectStrings.playingOnDevice(device.name),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: colors.accent,
-                                ),
+                              Row(
+                                children: [
+                                  Icon(
+                                    connectPlatformIcon(device.platform),
+                                    size: 13,
+                                    color: colors.moon,
+                                  ),
+                                  const SizedBox(width: LekisSpacing.xxs),
+                                  Expanded(
+                                    child: Text(
+                                      ConnectStrings.playingOnDevice(
+                                        device.name,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(color: subtitleColor),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -135,7 +186,7 @@ class ConnectRemoteMiniPlayer extends ConsumerWidget {
                     child: LinearProgressIndicator(
                       value: progress,
                       minHeight: LekisSpacing.xxs,
-                      color: colors.accent,
+                      color: colors.moon,
                       backgroundColor: colors.outline.withValues(alpha: 0.55),
                       borderRadius: BorderRadius.circular(LekisRadius.pill),
                     ),

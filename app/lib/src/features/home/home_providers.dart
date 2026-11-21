@@ -16,6 +16,19 @@ final recentlyAddedProvider = FutureProvider.autoDispose<List<TrackRowDto>>((
   return core.recentlyAdded(limit: homeShelfLimit);
 });
 
+/// 首页「最近添加」按专辑展示，避免导入整张专辑时出现一整排重复封面。
+final recentlyAddedAlbumsProvider = FutureProvider.autoDispose<List<AlbumDto>>((
+  ref,
+) async {
+  ref.invalidateOnCatalogChange();
+  ref.cacheFor(const Duration(minutes: 5));
+  return core.listAlbums(
+    sort: TrackSortDto.recentlyAdded,
+    offset: 0,
+    limit: homeShelfLimit,
+  );
+});
+
 /// 首页"最近播放"：core 的 `recentlyPlayed` 按 `last_played` 倒序，
 /// 由播放历史（[playHistoryRevisionProvider]）和资料库变化驱动刷新。
 final recentlyPlayedProvider = FutureProvider.autoDispose<List<TrackRowDto>>((

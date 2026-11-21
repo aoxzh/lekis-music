@@ -10,13 +10,17 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../layout/adaptive_two_pane.dart';
+import '../../layout/fold.dart';
 import '../../rust/api/dto.dart';
 import '../../theme/theme.dart';
+import '../../widgets/lekis_slider.dart';
 import 'connect_active.dart';
 import 'connect_gateway.dart';
 import 'connect_providers.dart';
 import 'connect_strings.dart';
 import 'connect_ui.dart';
+import 'remote_now_playing_bar.dart';
 
 /// 打开 [deviceId] 的遥控页（盖在整个外壳上面）。
 Future<void> openRemoteControl(BuildContext context, String deviceId) =>
@@ -90,8 +94,24 @@ class _RemoteControlPageState extends ConsumerState<RemoteControlPage> {
       body = _RemoteBody(deviceId: widget.deviceId, state: state, send: _send);
     }
 
+    final track = state?.track;
+    final artBytes = track == null
+        ? null
+        : ref
+              .watch(
+                remoteArtworkBytesProvider((
+                  deviceId: widget.deviceId,
+                  trackId: track.id,
+                  uid: track.uid,
+                )),
+              )
+              .value;
+
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         title: Text(
           name.isEmpty
               ? ConnectStrings.title
@@ -112,7 +132,69 @@ class _RemoteControlPageState extends ConsumerState<RemoteControlPage> {
           const SizedBox(width: LekisSpacing.sm),
         ],
       ),
-      body: SafeArea(top: false, child: body),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          _RemoteBackdrop(bytes: artBytes),
+          SafeArea(child: body),
+        ],
+      ),
+    );
+  }
+}
+
+class _RemoteBackdrop extends StatelessWidget {
+  const _RemoteBackdrop({required this.bytes});
+
+  final Uint8List? bytes;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.lekisColors;
+    final surface = Theme.of(context).colorScheme.surface;
+    return IgnorePointer(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(-0.3, -0.4),
+                radius: 1.3,
+                colors: [colors.accentSoft, surface],
+              ),
+            ),
+          ),
+          if (bytes != null)
+            AnimatedSwitcher(
+              duration: LekisMotion.slow,
+              child: Image.memory(
+                bytes!,
+                key: ValueKey(bytes!.length),
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+                cacheWidth: 48,
+                filterQuality: FilterQuality.medium,
+                gaplessPlayback: true,
+              ),
+            ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  surface.withValues(alpha: 0.72),
+                  surface.withValues(alpha: 0.84),
+                  surface.withValues(alpha: 0.94),
+                ],
+                stops: const [0, 0.55, 1],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -152,26 +234,50 @@ class _RemoteBody extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 720;
-        if (wide) {
-          return Padding(
+        final fold = context.fold;
+        final wide = constraints.maxWidth >= 600;
+        final playerPane = Center(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(LekisSpacing.xl),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    children: [
-                      Flexible(child: Center(child: artwork)),
-                      const SizedBox(height: LekisSpacing.xl),
-                      controls,
-                    ],
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: wide ? 320 : 340,
+                      maxHeight: wide ? 320 : 340,
+                    ),
+                    child: artwork,
                   ),
-                ),
-                const SizedBox(width: LekisSpacing.xxl),
-                Expanded(child: queue),
-              ],
+                  const SizedBox(height: LekisSpacing.xl),
+                  controls,
+                ],
+              ),
             ),
+          ),
+        );
+        final queuePane = Padding(
+          padding: const EdgeInsets.all(LekisSpacing.xl),
+          child: queue,
+        );
+
+        if (fold.isSeparating) {
+          return AdaptiveTwoPane(
+            primaryFraction: 0.52,
+            primary: playerPane,
+            secondary: queuePane,
+          );
+        }
+        if (wide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(flex: 52, child: playerPane),
+              VerticalDivider(width: 1, color: context.lekisColors.outline),
+              Expanded(flex: 48, child: queuePane),
+            ],
           );
         }
         return ListView(
@@ -179,7 +285,7 @@ class _RemoteBody extends StatelessWidget {
           children: [
             Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 360),
+                constraints: const BoxConstraints(maxWidth: 340),
                 child: artwork,
               ),
             ),
@@ -194,68 +300,56 @@ class _RemoteBody extends StatelessWidget {
   }
 }
 
-class _RemoteArtwork extends ConsumerStatefulWidget {
+class _RemoteArtwork extends ConsumerWidget {
   const _RemoteArtwork({required this.deviceId, required this.track});
 
   final String deviceId;
   final RemoteTrackDto track;
 
   @override
-  ConsumerState<_RemoteArtwork> createState() => _RemoteArtworkState();
-}
-
-class _RemoteArtworkState extends ConsumerState<_RemoteArtwork> {
-  late Future<Uint8List?> _bytes = _load();
-
-  Future<Uint8List?> _load() => ref
-      .read(connectGatewayProvider)
-      .remoteArtwork(
-        widget.deviceId,
-        trackId: widget.track.id,
-        uid: widget.track.uid,
-      )
-      .catchError((Object _) => null);
-
-  @override
-  void didUpdateWidget(covariant _RemoteArtwork old) {
-    super.didUpdateWidget(old);
-    if (old.track.id != widget.track.id) _bytes = _load();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.lekisColors;
+    final data = ref
+        .watch(
+          remoteArtworkBytesProvider((
+            deviceId: deviceId,
+            trackId: track.id,
+            uid: track.uid,
+          )),
+        )
+        .value;
     return AspectRatio(
       aspectRatio: 1,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(LekisRadius.md),
-        child: FutureBuilder<Uint8List?>(
-          future: _bytes,
-          builder: (context, snapshot) {
-            final data = snapshot.data;
-            return AnimatedSwitcher(
-              duration: LekisMotion.normal,
-              child: data == null
-                  ? ColoredBox(
-                      key: const ValueKey('placeholder'),
-                      color: colors.surfaceVariant,
-                      child: Icon(
-                        Icons.music_note_rounded,
-                        size: LekisSpacing.xxl * 2,
-                        color: colors.onSurfaceVariant,
-                      ),
-                    )
-                  : Image.memory(
-                      data,
-                      key: ValueKey(widget.track.id),
-                      fit: BoxFit.cover,
-                      // Remote covers can be full size: decode at a size that
-                      // fits the page, not the original 3000 px.
-                      cacheWidth: 1024,
-                      gaplessPlayback: true,
+      child: DecoratedBox(
+        position: DecorationPosition.foreground,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(LekisRadius.md),
+          border: Border.all(color: colors.outline),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(LekisRadius.md),
+          child: AnimatedSwitcher(
+            duration: LekisMotion.normal,
+            child: data == null
+                ? ColoredBox(
+                    key: const ValueKey('placeholder'),
+                    color: colors.surfaceVariant,
+                    child: Icon(
+                      Icons.music_note_rounded,
+                      size: LekisSpacing.xxl * 2,
+                      color: colors.onSurfaceVariant,
                     ),
-            );
-          },
+                  )
+                : Image.memory(
+                    data,
+                    key: ValueKey(track.id),
+                    fit: BoxFit.cover,
+                    // Remote covers can be full size: decode at a size that
+                    // fits the page, not the original 3000 px.
+                    cacheWidth: 1024,
+                    gaplessPlayback: true,
+                  ),
+          ),
         ),
       ),
     );
@@ -388,8 +482,9 @@ class _RemoteControlsState extends State<_RemoteControls> {
           ),
         ],
         const SizedBox(height: LekisSpacing.md),
-        Slider(
+        LekisSlider(
           key: const ValueKey('connect.remote.seek'),
+          semanticLabel: '播放进度',
           value: duration <= 0 ? 0 : position.clamp(0, duration).toDouble(),
           max: duration <= 0 ? 1 : duration.toDouble(),
           onChanged: duration <= 0
@@ -483,25 +578,56 @@ class _RemoteControlsState extends State<_RemoteControls> {
             ),
           ],
         ),
-        const SizedBox(height: LekisSpacing.sm),
-        Row(
-          children: [
-            const Icon(Icons.volume_down_rounded),
-            Expanded(
-              child: Slider(
-                key: const ValueKey('connect.remote.volume'),
-                semanticFormatterCallback: (v) =>
-                    '${ConnectStrings.volume} ${(v * 100).round()}%',
-                value: (_volumeDrag ?? state.volume).clamp(0.0, 1.0),
-                onChanged: _setVolume,
-                onChangeEnd: (v) {
-                  _setVolume(v, force: true);
-                  setState(() => _volumeDrag = null);
-                },
+        const SizedBox(height: LekisSpacing.md),
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: LekisSpacing.md,
+            vertical: LekisSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: colors.surfaceVariant.withValues(alpha: 0.65),
+            borderRadius: BorderRadius.circular(LekisRadius.pill),
+            border: Border.all(color: colors.outline),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.volume_down_rounded,
+                size: 18,
+                color: colors.onSurfaceVariant,
               ),
-            ),
-            const Icon(Icons.volume_up_rounded),
-          ],
+              const SizedBox(width: LekisSpacing.xs),
+              Expanded(
+                child: LekisSlider(
+                  key: const ValueKey('connect.remote.volume'),
+                  semanticLabel: ConnectStrings.volume,
+                  semanticFormatterCallback: (v) =>
+                      '${ConnectStrings.volume} ${(v * 100).round()}%',
+                  trackHeight: 3,
+                  thumbRadius: 6,
+                  dense: true,
+                  value: (_volumeDrag ?? state.volume).clamp(0.0, 1.0),
+                  onChanged: _setVolume,
+                  onChangeEnd: (v) {
+                    _setVolume(v, force: true);
+                    setState(() => _volumeDrag = null);
+                  },
+                ),
+              ),
+              const SizedBox(width: LekisSpacing.xs),
+              SizedBox(
+                width: 36,
+                child: Text(
+                  '${((_volumeDrag ?? state.volume).clamp(0.0, 1.0) * 100).round()}%',
+                  textAlign: TextAlign.end,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontFeatures: LekisText.tabularFigures,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );

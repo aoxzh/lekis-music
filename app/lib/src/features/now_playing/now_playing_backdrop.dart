@@ -55,6 +55,7 @@ class NowPlayingBackdrop extends StatefulWidget {
     required this.opacity,
     required this.scrim,
     required this.cycle,
+    this.protectionOpacity = LekisNowPlaying.protectionOpacity,
     this.grain = true,
     this.crossfade = Duration.zero,
   });
@@ -68,8 +69,12 @@ class NowPlayingBackdrop extends StatefulWidget {
   /// Overall opacity of the gradient over the blurred cover.
   final double opacity;
 
-  /// Top-bar protection colour; anything transparent disables the scrim.
+  /// Protection tint colour (full-screen subtle veil + top-bar scrim);
+  /// anything transparent disables both.
   final Color scrim;
+
+  /// Full-screen veil opacity over the blurred cover + gradient.
+  final double protectionOpacity;
 
   /// Drives the drift. Stopped for low-power / reduced motion.
   final Animation<double> cycle;
@@ -95,6 +100,7 @@ class _NowPlayingBackdropState extends State<NowPlayingBackdrop> {
       for (final c in widget.colors) c.toARGB32(),
       widget.scrim.toARGB32(),
       (widget.opacity * 100).round(),
+      (widget.protectionOpacity * 100).round(),
     ].join('|');
 
     return AnimatedSwitcher(
@@ -109,6 +115,7 @@ class _NowPlayingBackdropState extends State<NowPlayingBackdrop> {
         colors: widget.colors,
         opacity: widget.opacity,
         scrim: widget.scrim,
+        protectionOpacity: widget.protectionOpacity,
         cycle: widget.cycle,
         grain: widget.grain,
       ),
@@ -123,6 +130,7 @@ class _BakedScene extends StatefulWidget {
     required this.colors,
     required this.opacity,
     required this.scrim,
+    required this.protectionOpacity,
     required this.cycle,
     required this.grain,
   });
@@ -131,6 +139,7 @@ class _BakedScene extends StatefulWidget {
   final List<Color> colors;
   final double opacity;
   final Color scrim;
+  final double protectionOpacity;
   final Animation<double> cycle;
   final bool grain;
 
@@ -218,11 +227,15 @@ class _BakedSceneState extends State<_BakedScene> {
 
   @override
   Widget build(BuildContext context) {
+    final veil = widget.scrim.a > 0 && widget.protectionOpacity > 0
+        ? widget.scrim.withValues(alpha: widget.protectionOpacity)
+        : null;
     return RepaintBoundary(
       child: CustomPaint(
         painter: _BackdropPainter(
           cover: _cover,
           gradient: _gradient,
+          veil: veil,
           scrim: _scrim,
           grain: widget.grain ? _grain : null,
           cycle: widget.cycle,
@@ -237,6 +250,7 @@ class _BackdropPainter extends CustomPainter {
   _BackdropPainter({
     required this.cover,
     required this.gradient,
+    required this.veil,
     required this.scrim,
     required this.grain,
     required this.cycle,
@@ -244,6 +258,7 @@ class _BackdropPainter extends CustomPainter {
 
   final ui.Image? cover;
   final ui.Image? gradient;
+  final Color? veil;
   final ui.Image? scrim;
   final ui.Image? grain;
   final Animation<double> cycle;
@@ -296,6 +311,11 @@ class _BackdropPainter extends CustomPainter {
       canvas.restore();
     }
 
+    final v = veil;
+    if (v != null) {
+      canvas.drawRect(Offset.zero & size, Paint()..color = v);
+    }
+
     final s = scrim;
     if (s != null) {
       canvas.drawImageRect(
@@ -329,6 +349,7 @@ class _BackdropPainter extends CustomPainter {
   bool shouldRepaint(_BackdropPainter old) =>
       old.cover != cover ||
       old.gradient != gradient ||
+      old.veil != veil ||
       old.scrim != scrim ||
       old.grain != grain;
 }

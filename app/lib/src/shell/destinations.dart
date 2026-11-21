@@ -14,7 +14,7 @@ enum LekisDestination {
   library('资料库', Icons.library_music_outlined, Icons.library_music_rounded),
   search('搜索', Icons.search_rounded, Icons.saved_search_rounded),
   podcasts('播客', Icons.podcasts_outlined, Icons.podcasts_rounded),
-  sources('音源', Icons.storage_outlined, Icons.storage_rounded),
+  sources('音源', Icons.folder_outlined, Icons.folder_rounded),
   settings('设置', Icons.settings_outlined, Icons.settings_rounded);
 
   const LekisDestination(this.label, this.icon, this.selectedIcon);

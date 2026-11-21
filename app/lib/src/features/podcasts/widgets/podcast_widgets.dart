@@ -25,8 +25,9 @@ class PodcastArtwork extends StatelessWidget {
     final colors = context.lekisColors;
     final fallback = DecoratedBox(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        color: colors.surfaceVariant,
         borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: colors.outline),
       ),
       child: SizedBox(
         width: size,
@@ -41,18 +42,25 @@ class PodcastArtwork extends StatelessWidget {
     final src = url;
     if (src == null || src.isEmpty) return fallback;
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: Image.network(
-          src,
-          fit: BoxFit.cover,
-          cacheWidth: (size * dpr).round(),
-          errorBuilder: (_, _, _) => fallback,
-          loadingBuilder: (context, child, progress) =>
-              progress == null ? child : fallback,
+    return DecoratedBox(
+      position: DecorationPosition.foreground,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: colors.outline),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: SizedBox(
+          width: size,
+          height: size,
+          child: Image.network(
+            src,
+            fit: BoxFit.cover,
+            cacheWidth: (size * dpr).round(),
+            errorBuilder: (_, _, _) => fallback,
+            loadingBuilder: (context, child, progress) =>
+                progress == null ? child : fallback,
+          ),
         ),
       ),
     );

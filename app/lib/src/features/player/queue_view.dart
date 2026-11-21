@@ -20,7 +20,17 @@ class QueueList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rows = ref.watch(queuePreviewProvider);
-    final currentId = ref.watch(playbackProvider.select((s) => s.trackId));
+    final playback = ref.watch(
+      playbackProvider.select(
+        (s) => (
+          trackId: s.trackId,
+          queueIndex: s.queueIndex,
+          queueLength: s.queueLength,
+        ),
+      ),
+    );
+    final start = queuePreviewStart(playback.queueLength, playback.queueIndex);
+    final actions = ref.read(playerActionsProvider);
     final colors = context.lekisColors;
     final theme = Theme.of(context);
 
@@ -50,88 +60,131 @@ class QueueList extends ConsumerWidget {
             ),
           );
         }
-        return ListView.separated(
+        return ReorderableListView.builder(
           padding: const EdgeInsets.symmetric(vertical: LekisSpacing.sm),
+          buildDefaultDragHandles: false,
+          proxyDecorator: (child, index, animation) => Material(
+            elevation: 6,
+            color: colors.surfaceElevated,
+            borderRadius: BorderRadius.circular(LekisRadius.sm),
+            child: child,
+          ),
+          onReorderItem: (oldIndex, newIndex) {
+            if (oldIndex == newIndex) return;
+            actions.moveQueueItem(start + oldIndex, start + newIndex);
+          },
           itemCount: items.length,
-          separatorBuilder: (_, _) => const SizedBox(height: LekisSpacing.xxs),
           itemBuilder: (context, i) {
             final row = items[i];
-            final isCurrent = row.id == currentId;
+            final actualIndex = start + i;
+            final isCurrent = playback.queueIndex != null
+                ? actualIndex == playback.queueIndex
+                : row.id == playback.trackId;
             final artSize = compact ? 36.0 : 44.0;
-            return ListTile(
-              dense: compact,
-              visualDensity: compact ? VisualDensity.compact : null,
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: compact ? LekisSpacing.sm : LekisSpacing.lg,
+            return Padding(
+              key: ValueKey('queue-row-$actualIndex-${row.id}'),
+              padding: const EdgeInsets.symmetric(
+                vertical: LekisSpacing.xxs / 2,
               ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(LekisRadius.sm),
-              ),
-              tileColor: isCurrent ? colors.accentSoft : null,
-              leading: SizedBox.square(
-                dimension: artSize,
-                child: TrackArtwork(
-                  trackId: row.id,
-                  hasArtwork: row.artworkId != null,
-                  radius: LekisRadius.artworkList,
-                  placeholderLabel: row.title,
+              child: ListTile(
+                dense: compact,
+                visualDensity: compact ? VisualDensity.compact : null,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: compact ? LekisSpacing.sm : LekisSpacing.lg,
                 ),
-              ),
-              title: Text(
-                row.title.isEmpty ? '（已删除）' : row.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: isCurrent ? colors.accent : null,
-                  fontWeight: isCurrent ? FontWeight.w600 : null,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(LekisRadius.sm),
                 ),
-              ),
-              subtitle: row.artistLine.isEmpty
-                  ? null
-                  : Text(
-                      row.artistLine,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
+                tileColor: isCurrent ? colors.accentSoft : null,
+                onTap: () => actions.playQueueAt(actualIndex),
+                leading: SizedBox.square(
+                  dimension: artSize,
+                  child: TrackArtwork(
+                    trackId: row.id,
+                    hasArtwork: row.artworkId != null,
+                    radius: LekisRadius.artworkList,
+                    placeholderLabel: row.title,
+                  ),
+                ),
+                title: Text(
+                  row.title.isEmpty ? '（已删除）' : row.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: isCurrent ? colors.accent : null,
+                    fontWeight: isCurrent ? FontWeight.w600 : null,
+                  ),
+                ),
+                subtitle: row.artistLine.isEmpty
+                    ? null
+                    : Text(
+                        row.artistLine,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isCurrent)
+                      Padding(
+                        padding: const EdgeInsets.only(right: LekisSpacing.xs),
+                        child: Icon(
+                          Icons.graphic_eq_rounded,
+                          size: 18,
+                          color: colors.accent,
+                        ),
+                      ),
+                    if (!compact)
+                      LovedButton(
+                        trackId: row.id,
+                        initialLoved: row.loved,
+                        size: 18,
+                      ),
+                    PopupMenuButton<String>(
+                      tooltip: '队列操作',
+                      icon: Icon(
+                        Icons.more_horiz_rounded,
+                        size: 18,
                         color: colors.onSurfaceVariant,
                       ),
+                      padding: EdgeInsets.zero,
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'playlist':
+                            showAddToPlaylistSheet(
+                              context,
+                              trackId: row.id,
+                              trackTitle: row.title,
+                            );
+                          case 'remove':
+                            actions.removeQueueAt(actualIndex);
+                        }
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'playlist', child: Text('添加到歌单')),
+                        PopupMenuItem(value: 'remove', child: Text('从队列移除')),
+                      ],
                     ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (isCurrent)
-                    Icon(
-                      Icons.graphic_eq_rounded,
-                      size: 18,
-                      color: colors.accent,
+                    ReorderableDragStartListener(
+                      index: i,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: LekisSpacing.xs,
+                          vertical: LekisSpacing.sm,
+                        ),
+                        child: Icon(
+                          Icons.drag_handle_rounded,
+                          size: 20,
+                          color: colors.onSurfaceVariant,
+                          semanticLabel: '拖动排序',
+                        ),
+                      ),
                     ),
-                  LovedButton(
-                    trackId: row.id,
-                    initialLoved: row.loved,
-                    size: 18,
-                  ),
-                  PopupMenuButton<String>(
-                    tooltip: '队列操作',
-                    icon: Icon(
-                      Icons.more_horiz_rounded,
-                      size: 18,
-                      color: colors.onSurfaceVariant,
-                    ),
-                    padding: EdgeInsets.zero,
-                    onSelected: (value) {
-                      if (value == 'playlist') {
-                        showAddToPlaylistSheet(
-                          context,
-                          trackId: row.id,
-                          trackTitle: row.title,
-                        );
-                      }
-                    },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'playlist', child: Text('添加到歌单')),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           },
@@ -150,9 +203,6 @@ Future<void> showQueueSheet(BuildContext context) {
 }
 
 Future<void> _showQueueBottomSheet(BuildContext context) {
-  final length = ProviderScope.containerOf(context)
-      .read(playbackProvider)
-      .queueLength;
   return showLekisSheet<void>(
     context,
     heightFactor: 0.62,
@@ -166,16 +216,23 @@ Future<void> _showQueueBottomSheet(BuildContext context) {
             LekisSpacing.xl,
             LekisSpacing.sm,
           ),
-          child: Row(
-            children: [
-              Text('播放队列', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(width: LekisSpacing.sm),
-              Text(
-                '$length 首',
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(color: context.lekisColors.onSurfaceVariant),
-              ),
-            ],
+          child: Consumer(
+            builder: (context, ref, _) {
+              final length = ref.watch(
+                playbackProvider.select((s) => s.queueLength),
+              );
+              return Row(
+                children: [
+                  Text('播放队列', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(width: LekisSpacing.sm),
+                  Text(
+                    '$length 首',
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: context.lekisColors.onSurfaceVariant),
+                  ),
+                ],
+              );
+            },
           ),
         ),
         const Divider(height: 1),

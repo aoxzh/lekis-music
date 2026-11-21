@@ -261,6 +261,12 @@ final currentArtworkProvider = FutureProvider<ArtworkDto?>((ref) async {
   return core.artwork(trackId: id);
 });
 
+/// First queue index included in [queuePreviewProvider].
+int queuePreviewStart(int length, int? currentIndex) {
+  if (length <= 0) return 0;
+  return ((currentIndex ?? 0) - 1).clamp(0, length - 1);
+}
+
 /// A short window around the current item, for the queue sheet / side panel.
 /// The full queue can be huge; the persistent context only needs what is
 /// around the cursor.
@@ -269,9 +275,9 @@ final queuePreviewProvider = FutureProvider.autoDispose<List<TrackRowDto>>((
 ) async {
   ref.watch(playbackProvider.select((s) => s.queueVersion));
   final length = ref.watch(playbackProvider.select((s) => s.queueLength));
-  final index = ref.watch(playbackProvider.select((s) => s.queueIndex)) ?? 0;
+  final index = ref.watch(playbackProvider.select((s) => s.queueIndex));
   if (length == 0) return const [];
-  final start = (index - 1).clamp(0, length - 1);
+  final start = queuePreviewStart(length, index);
   final limit = (length - start).clamp(1, 30);
   return core.queueItems(offset: start, limit: limit);
 });
