@@ -7,7 +7,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lekis/src/features/downloads/downloads_providers.dart';
 import 'package:lekis/src/features/enrich/enrich_providers.dart';
 import 'package:lekis/src/features/settings/desktop_settings_view.dart';
-import 'package:lekis/src/features/settings/settings_categories.dart';
 import 'package:lekis/src/features/settings/settings_page.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/features/settings/strings.dart';
