@@ -303,7 +303,7 @@ class PlayShuffleButtons extends StatelessWidget {
   Widget build(BuildContext context) {
     final buttonStyle = FilledButton.styleFrom(
       minimumSize: const Size(0, LekisSizes.touchTargetMin),
-      padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.lg),
+      padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.md),
     );
     return Wrap(
       spacing: LekisSpacing.sm,

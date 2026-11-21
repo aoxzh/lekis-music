@@ -1,5 +1,7 @@
 import 'package:lekis/src/features/connect/device_picker.dart';
 import 'package:lekis/src/features/connect/remote_now_playing_bar.dart';
+import 'package:lekis/src/features/desktop_lyrics/desktop_lyrics_controller.dart';
+import 'package:lekis/src/features/desktop_lyrics/desktop_lyrics_strings.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_providers.dart'
@@ -42,6 +44,7 @@ class PlayerBar extends ConsumerWidget {
   final bool sidePanel;
 
   static const Key lyricsKey = ValueKey('player-bar.lyrics');
+  static const Key desktopLyricsKey = ValueKey('player-bar.desktop-lyrics');
   static const Key queueKey = ValueKey('player-bar.queue');
   static const Key devicesKey = ValueKey('player-bar.devices');
 
@@ -54,6 +57,10 @@ class PlayerBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
     final sidePane = sidePanel ? ref.watch(desktopSidePaneProvider) : null;
+    final desktopLyricsSupported = ref.watch(desktopLyricsSupportedProvider);
+    final desktopLyricsVisible = desktopLyricsSupported
+        ? ref.watch(desktopLyricsProvider.select((s) => s.visible))
+        : false;
     final colors = context.lekisColors;
     const artSize = LekisSizes.desktopPlayerBarHeight - LekisSpacing.lg * 2;
 
@@ -117,6 +124,16 @@ class PlayerBar extends ConsumerWidget {
                       openNowPlaying(context);
                     },
             ),
+            if (desktopLyricsSupported)
+              _BarToggle(
+                key: desktopLyricsKey,
+                tooltip: DesktopLyricsStrings.toggleTooltip,
+                icon: Icons.subtitles_outlined,
+                selectedIcon: Icons.subtitles_rounded,
+                selected: desktopLyricsVisible,
+                onPressed: () =>
+                    ref.read(desktopLyricsProvider.notifier).toggleVisible(),
+              ),
             _BarToggle(
               key: queueKey,
               tooltip: sidePane == DesktopSidePane.queue ? '隐藏播放队列' : '播放队列',

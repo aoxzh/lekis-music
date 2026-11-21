@@ -2207,6 +2207,7 @@ dependencies = [
  "flutter_rust_bridge",
  "jni-sys 0.3.1",
  "lekis-core",
+ "lekis-desktop-lyrics",
  "lekis-library",
  "lekis-playback",
  "lekis-types",
@@ -2251,6 +2252,17 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "zip",
+]
+
+[[package]]
+name = "lekis-desktop-lyrics"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tracing",
+ "windows",
+ "windows-numerics",
 ]
 
 [[package]]

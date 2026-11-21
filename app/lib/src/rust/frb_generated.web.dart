@@ -8,6 +8,7 @@
 
 import 'api/connect.dart';
 import 'api/core.dart';
+import 'api/desktop_lyrics.dart';
 import 'api/dto.dart';
 import 'api/error.dart';
 import 'api/media_controls.dart';
@@ -43,6 +44,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RustStreamSink<CoreEventDto> dco_decode_StreamSink_core_event_dto_Sse(
     dynamic raw,
   );
+
+  @protected
+  RustStreamSink<DesktopLyricsEventDto>
+  dco_decode_StreamSink_desktop_lyrics_event_dto_Sse(dynamic raw);
 
   @protected
   String dco_decode_String(dynamic raw);
@@ -82,6 +87,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CoreConfigDto dco_decode_box_autoadd_core_config_dto(dynamic raw);
+
+  @protected
+  DesktopLyricsClockDto dco_decode_box_autoadd_desktop_lyrics_clock_dto(
+    dynamic raw,
+  );
+
+  @protected
+  DesktopLyricsDocDto dco_decode_box_autoadd_desktop_lyrics_doc_dto(
+    dynamic raw,
+  );
+
+  @protected
+  DesktopLyricsStyleDto dco_decode_box_autoadd_desktop_lyrics_style_dto(
+    dynamic raw,
+  );
 
   @protected
   EqualizerDto dco_decode_box_autoadd_equalizer_dto(dynamic raw);
@@ -184,6 +204,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CoreEventDto dco_decode_core_event_dto(dynamic raw);
 
   @protected
+  DesktopLyricsClockDto dco_decode_desktop_lyrics_clock_dto(dynamic raw);
+
+  @protected
+  DesktopLyricsControlDto dco_decode_desktop_lyrics_control_dto(dynamic raw);
+
+  @protected
+  DesktopLyricsDocDto dco_decode_desktop_lyrics_doc_dto(dynamic raw);
+
+  @protected
+  DesktopLyricsEventDto dco_decode_desktop_lyrics_event_dto(dynamic raw);
+
+  @protected
+  DesktopLyricsLineDto dco_decode_desktop_lyrics_line_dto(dynamic raw);
+
+  @protected
+  DesktopLyricsStyleDto dco_decode_desktop_lyrics_style_dto(dynamic raw);
+
+  @protected
+  DesktopLyricsWordDto dco_decode_desktop_lyrics_word_dto(dynamic raw);
+
+  @protected
   DirectoryPodcastDto dco_decode_directory_podcast_dto(dynamic raw);
 
   @protected
@@ -279,6 +320,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ConnectDeviceDto> dco_decode_list_connect_device_dto(dynamic raw);
+
+  @protected
+  List<DesktopLyricsLineDto> dco_decode_list_desktop_lyrics_line_dto(
+    dynamic raw,
+  );
+
+  @protected
+  List<DesktopLyricsWordDto> dco_decode_list_desktop_lyrics_word_dto(
+    dynamic raw,
+  );
 
   @protected
   List<DirectoryPodcastDto> dco_decode_list_directory_podcast_dto(dynamic raw);
@@ -712,6 +763,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<DesktopLyricsEventDto>
+  sse_decode_StreamSink_desktop_lyrics_event_dto_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
@@ -759,6 +816,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CoreConfigDto sse_decode_box_autoadd_core_config_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DesktopLyricsClockDto sse_decode_box_autoadd_desktop_lyrics_clock_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DesktopLyricsDocDto sse_decode_box_autoadd_desktop_lyrics_doc_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DesktopLyricsStyleDto sse_decode_box_autoadd_desktop_lyrics_style_dto(
     SseDeserializer deserializer,
   );
 
@@ -891,6 +963,41 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CoreEventDto sse_decode_core_event_dto(SseDeserializer deserializer);
 
   @protected
+  DesktopLyricsClockDto sse_decode_desktop_lyrics_clock_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DesktopLyricsControlDto sse_decode_desktop_lyrics_control_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DesktopLyricsDocDto sse_decode_desktop_lyrics_doc_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DesktopLyricsEventDto sse_decode_desktop_lyrics_event_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DesktopLyricsLineDto sse_decode_desktop_lyrics_line_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DesktopLyricsStyleDto sse_decode_desktop_lyrics_style_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DesktopLyricsWordDto sse_decode_desktop_lyrics_word_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   DirectoryPodcastDto sse_decode_directory_podcast_dto(
     SseDeserializer deserializer,
   );
@@ -1012,6 +1119,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ConnectDeviceDto> sse_decode_list_connect_device_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<DesktopLyricsLineDto> sse_decode_list_desktop_lyrics_line_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<DesktopLyricsWordDto> sse_decode_list_desktop_lyrics_word_dto(
     SseDeserializer deserializer,
   );
 
@@ -1561,6 +1678,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_desktop_lyrics_event_dto_Sse(
+    RustStreamSink<DesktopLyricsEventDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
@@ -1620,6 +1743,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_core_config_dto(
     CoreConfigDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_desktop_lyrics_clock_dto(
+    DesktopLyricsClockDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_desktop_lyrics_doc_dto(
+    DesktopLyricsDocDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_desktop_lyrics_style_dto(
+    DesktopLyricsStyleDto self,
     SseSerializer serializer,
   );
 
@@ -1789,6 +1930,48 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_core_event_dto(CoreEventDto self, SseSerializer serializer);
 
   @protected
+  void sse_encode_desktop_lyrics_clock_dto(
+    DesktopLyricsClockDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_desktop_lyrics_control_dto(
+    DesktopLyricsControlDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_desktop_lyrics_doc_dto(
+    DesktopLyricsDocDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_desktop_lyrics_event_dto(
+    DesktopLyricsEventDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_desktop_lyrics_line_dto(
+    DesktopLyricsLineDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_desktop_lyrics_style_dto(
+    DesktopLyricsStyleDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_desktop_lyrics_word_dto(
+    DesktopLyricsWordDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_directory_podcast_dto(
     DirectoryPodcastDto self,
     SseSerializer serializer,
@@ -1941,6 +2124,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_connect_device_dto(
     List<ConnectDeviceDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_desktop_lyrics_line_dto(
+    List<DesktopLyricsLineDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_desktop_lyrics_word_dto(
+    List<DesktopLyricsWordDto> self,
     SseSerializer serializer,
   );
 

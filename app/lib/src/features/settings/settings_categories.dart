@@ -26,6 +26,10 @@ import 'settings_backup.dart';
 import 'settings_guard.dart';
 import 'settings_providers.dart';
 import '../connect/connect_strings.dart';
+import '../desktop_lyrics/desktop_lyrics_settings_section.dart';
+import '../desktop_lyrics/desktop_lyrics_strings.dart';
+import '../sync/sync_settings_section.dart';
+import '../sync/sync_strings.dart';
 import 'connect_settings_section.dart';
 import 'strings.dart';
 import 'tab_bar_style_picker.dart';
@@ -62,6 +66,18 @@ enum SettingsCategory {
     SettingsCategoryGroup.music,
     _organizeSections,
     keywords: [SettingsStrings.libraryHealth, SettingsStrings.enrichReview],
+  ),
+  sync(
+    SyncStrings.title,
+    SyncStrings.hint,
+    Icons.sync_rounded,
+    SettingsCategoryGroup.music,
+    buildSyncSettingsSections,
+    keywords: [
+      SyncStrings.sectionChannel,
+      SyncStrings.syncNow,
+      SyncStrings.autoOnLaunch,
+    ],
   ),
   connect(
     ConnectStrings.title,
@@ -109,7 +125,11 @@ enum SettingsCategory {
     Icons.lyrics_outlined,
     SettingsCategoryGroup.general,
     _lyricsSections,
-    keywords: [SettingsStrings.lyricsStage, SettingsStrings.lyricsSparks],
+    keywords: [
+      SettingsStrings.lyricsStage,
+      SettingsStrings.lyricsSparks,
+      DesktopLyricsStrings.title,
+    ],
   ),
   advanced(
     SettingsStrings.advanced,
@@ -180,7 +200,10 @@ List<Widget> _organizeSections() => const [_OrganizeSection()];
 List<Widget> _connectSections() => const [ConnectSettingsSection()];
 List<Widget> _playbackSections() => const [_PlaybackSection()];
 List<Widget> _appearanceSections() => const [_AppearanceSection()];
-List<Widget> _lyricsSections() => const [_LyricsSection()];
+List<Widget> _lyricsSections() => const [
+  _LyricsSection(),
+  DesktopLyricsSettingsSection(),
+];
 List<Widget> _advancedSections() => [
   const _AudioOutputSection(),
   const _ServicesSection(),

@@ -10,6 +10,7 @@ members = [
   "crates/lekis-playback",
   "crates/lekis-sync",
   "crates/lekis-plugin-host",
+  "crates/lekis-desktop-lyrics",
   "crates/lekis-core",
   "crates/lekis-bridge",
   "bins/lekis-node",
@@ -33,6 +34,7 @@ lekis-enrich = { path = "crates/lekis-enrich" }
 lekis-playback = { path = "crates/lekis-playback" }
 lekis-sync = { path = "crates/lekis-sync" }
 lekis-plugin-host = { path = "crates/lekis-plugin-host" }
+lekis-desktop-lyrics = { path = "crates/lekis-desktop-lyrics" }
 lekis-core = { path = "crates/lekis-core" }
 
 # ---- 基础 ----

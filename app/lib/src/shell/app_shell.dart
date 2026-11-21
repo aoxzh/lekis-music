@@ -14,6 +14,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'package:lekis/src/features/connect/connect_active.dart';
 import 'package:lekis/src/features/connect/connect_runtime_host.dart';
+import 'package:lekis/src/features/desktop_lyrics/desktop_lyrics_controller.dart';
 import 'package:lekis/src/features/player/mini_player.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/player_bar.dart';
@@ -153,29 +154,31 @@ class _AppShellState extends State<AppShell> {
       onPopInvokedWithResult: _onSystemBack,
       // Starts Connect once (listen + advertise + browse) and shows the
       // pairing code when another device asks to pair with this one.
-      child: ConnectRuntimeHost(
-        child: switch (mode) {
-          ShellChromeMode.bottomBar => _BottomBarLayout(
-            current: _current,
-            onSelected: _select,
-            content: content,
-          ),
-          ShellChromeMode.sideTabs => _SideTabsLayout(
-            current: _current,
-            onSelected: _select,
-            content: content,
-          ),
-          ShellChromeMode.rail => _RailLayout(
-            current: _current,
-            onSelected: _select,
-            content: content,
-          ),
-          ShellChromeMode.sidebar => _SidebarLayout(
-            current: _current,
-            onSelected: _select,
-            content: content,
-          ),
-        },
+      child: DesktopLyricsRuntimeHost(
+        child: ConnectRuntimeHost(
+          child: switch (mode) {
+            ShellChromeMode.bottomBar => _BottomBarLayout(
+              current: _current,
+              onSelected: _select,
+              content: content,
+            ),
+            ShellChromeMode.sideTabs => _SideTabsLayout(
+              current: _current,
+              onSelected: _select,
+              content: content,
+            ),
+            ShellChromeMode.rail => _RailLayout(
+              current: _current,
+              onSelected: _select,
+              content: content,
+            ),
+            ShellChromeMode.sidebar => _SidebarLayout(
+              current: _current,
+              onSelected: _select,
+              content: content,
+            ),
+          },
+        ),
       ),
     );
   }
