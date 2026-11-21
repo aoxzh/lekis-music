@@ -271,6 +271,13 @@ struct State {
     /// 刚才因为队列编辑取消了预装：如果解码器已经拼上旧歌但还没播到，
     /// 需要重建会话，让编辑立刻生效（否则会听到与队列不一致的下一首）。
     gapless_next_invalidated: bool,
+    /// 命令通道。放在状态里，是为了打开曲目（网络源可能要等十几秒）的时候
+    /// 也能继续收命令，不让整个播放器卡住。
+    inbox: mpsc::UnboundedReceiver<EngineCommand>,
+    /// 加载期间收到、要等加载结束（或马上，排在最前）处理的命令。
+    pending: VecDeque<EngineCommand>,
+    /// 快照通道（加载期间也要把音量 / 暂停之类的变化推出去）。
+    snapshot_tx: watch::Sender<PlaybackSnapshot>,
 }
 
 impl State {
@@ -280,6 +287,8 @@ impl State {
         snap: PlaybackSnapshot,
         eq: Arc<EqControl>,
         output_factory: Arc<dyn OutputFactory>,
+        inbox: mpsc::UnboundedReceiver<EngineCommand>,
+        snapshot_tx: watch::Sender<PlaybackSnapshot>,
     ) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
         Self {
@@ -304,7 +313,15 @@ impl State {
             gapless: true,
             queue_dirty: false,
             gapless_next_invalidated: false,
+            inbox,
+            pending: VecDeque::new(),
+            snapshot_tx,
         }
+    }
+
+    /// 把当前快照推给订阅者。
+    fn publish(&self) {
+        self.snapshot_tx.send_replace(self.snap.clone());
     }
 
     /// 关掉当前会话（幂等）。会停掉 cpal 流并 join 解码线程。
@@ -723,6 +740,8 @@ impl State {
 
         self.snap.state = PlaybackState::Loading;
         self.snap.position_ms = 0;
+        // 让界面马上看到"正在加载"（解析 / 打开网络源可能要好几秒）。
+        self.publish();
         // 上一首预装过的媒体也许正好就是这一首（手动 Next / 回退），`resolve` 会复用它。
         let resolved = self.resolve(track_id).await;
         self.queued_media = None;
@@ -739,18 +758,76 @@ impl State {
 
         // 时长先按解析结果填，解码器打开后会用真实值覆盖。
         self.snap.duration_ms = media.duration_hint_ms;
-        match Session::start_with_factory_and_eq(
-            &media,
-            self.device_id.as_deref(),
+        // 打开会话可能很慢（网络源连不上时要等到连接超时）。这期间继续收命令：
+        // 换歌 / 换队列 / 退出直接放弃这次加载；暂停、播放、音量、跳转先记下来，
+        // 快照立刻更新，会话开好后再补上；其余命令排队等加载结束。
+        let device_id = self.device_id.clone();
+        let start_media = media.clone();
+        let start = Session::start_with_factory_and_eq(
+            &start_media,
+            device_id.as_deref(),
             self.mode,
             self.snap.volume,
             self.handle.clone(),
             self.eq.clone(),
             self.output_factory.clone(),
-        )
-        .await
-        {
-            Ok(session) => {
+        );
+        tokio::pin!(start);
+        let mut pause_after = false;
+        let mut seek_after: Option<u64> = None;
+        let started = loop {
+            tokio::select! {
+                result = &mut start => break Some(result),
+                command = self.inbox.recv() => {
+                    match command {
+                        None | Some(EngineCommand::Shutdown) => {
+                            self.pending.push_front(EngineCommand::Shutdown);
+                            break None;
+                        }
+                        Some(
+                            cmd @ (EngineCommand::SetQueue { .. }
+                            | EngineCommand::Next
+                            | EngineCommand::Previous),
+                        ) => {
+                            self.pending.push_front(cmd);
+                            break None;
+                        }
+                        Some(EngineCommand::Pause) => {
+                            pause_after = true;
+                            self.snap.state = PlaybackState::Paused;
+                        }
+                        Some(EngineCommand::Play) => {
+                            pause_after = false;
+                            self.snap.state = PlaybackState::Loading;
+                        }
+                        Some(EngineCommand::SetVolume(v)) => {
+                            self.snap.volume = v.clamp(0.0, 1.0);
+                        }
+                        Some(EngineCommand::Seek(ms)) => {
+                            seek_after = Some(ms);
+                            self.snap.position_ms = ms;
+                        }
+                        Some(other) => self.pending.push_back(other),
+                    }
+                    self.publish();
+                }
+            }
+        };
+        let Some(started) = started else {
+            tracing::debug!(target: "playback", %track_id, "load abandoned for a newer command");
+            return;
+        };
+        match started {
+            Ok(mut session) => {
+                session.set_volume(self.snap.volume);
+                if let Some(ms) = seek_after {
+                    match session.seek(ms) {
+                        Ok(()) => self.snap.position_ms = ms,
+                        Err(e) => {
+                            tracing::warn!(target: "playback", position_ms = ms, error = %e, "seek after load failed")
+                        }
+                    }
+                }
                 if let Some(duration) = session.duration_ms() {
                     self.snap.duration_ms = duration;
                 }
@@ -773,9 +850,16 @@ impl State {
                     actual_mode = ?session.output_mode(),
                     "playing"
                 );
+                if pause_after {
+                    if let Err(e) = session.pause() {
+                        tracing::warn!(target: "playback", error = %e, "cannot pause output");
+                    }
+                    self.snap.state = PlaybackState::Paused;
+                } else {
+                    self.snap.state = PlaybackState::Playing;
+                }
                 self.session = Some(session);
                 self.current_media = Some(media);
-                self.snap.state = PlaybackState::Playing;
             }
             Err(e) => {
                 // 没有音频设备、格式不支持、文件坏了……都不 panic，退化成"暂停"。
@@ -992,7 +1076,7 @@ impl State {
 }
 
 async fn run(
-    mut commands: mpsc::UnboundedReceiver<EngineCommand>,
+    commands: mpsc::UnboundedReceiver<EngineCommand>,
     snapshot: watch::Sender<PlaybackSnapshot>,
     resolver: mpsc::Sender<ResolveRequest>,
     eq: Arc<EqControl>,
@@ -1004,6 +1088,8 @@ async fn run(
         PlaybackSnapshot::default(),
         eq,
         output_factory,
+        commands,
+        snapshot,
     );
     let mut ticker = tokio::time::interval(Duration::from_millis(TICK_MS));
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
@@ -1011,8 +1097,17 @@ async fn run(
     ticker.tick().await;
 
     loop {
+        // 加载期间攒下的命令先处理（打断加载的那条排在最前）。
+        if let Some(cmd) = state.pending.pop_front() {
+            if matches!(cmd, EngineCommand::Shutdown) {
+                break;
+            }
+            state.handle(cmd).await;
+            state.publish();
+            continue;
+        }
         tokio::select! {
-            command = commands.recv() => {
+            command = state.inbox.recv() => {
                 match command {
                     Some(EngineCommand::Shutdown) | None => break,
                     Some(cmd) => state.handle(cmd).await,
@@ -1020,12 +1115,12 @@ async fn run(
             }
             _ = ticker.tick() => state.on_tick().await,
         }
-        snapshot.send_replace(state.snap.clone());
+        state.publish();
     }
 
     // Shutdown：停流 + join 解码线程（幂等，重复调用安全）。
     state.close_session();
-    snapshot.send_replace(state.snap.clone());
+    state.publish();
     tracing::debug!(target: "playback", "engine task exiting");
 }
 
@@ -1072,6 +1167,67 @@ mod tests {
         assert_eq!(engine.snapshot().volume, 0.5);
         // 引擎退出后命令通道关闭。
         assert!(engine.send(EngineCommand::Play).is_err());
+    }
+
+    /// 网络源连不上时打开会话要等到超时：这期间音量 / 暂停 / 跳转要立刻反映到快照，
+    /// 换歌要直接放弃这次加载，而不是把命令全堵在后面（Connect 遥控时尤其明显）。
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn commands_are_not_stuck_behind_a_slow_load() {
+        // 只接受连接、从不回复的"串流服务器"。
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        std::thread::spawn(move || {
+            let mut held = Vec::new();
+            for stream in listener.incoming().flatten() {
+                held.push(stream);
+            }
+        });
+        let url = format!("http://{addr}/stream/track.flac");
+        let (resolve_tx, mut resolve_rx) = mpsc::channel::<ResolveRequest>(8);
+        tokio::spawn(async move {
+            while let Some((track, reply)) = resolve_rx.recv().await {
+                let _ = reply.send(Ok(MediaSource {
+                    track_id: track,
+                    location: MediaLocation::Url {
+                        url: url.clone(),
+                        headers: Vec::new(),
+                    },
+                    duration_hint_ms: 200_000,
+                    gain_db: None,
+                }));
+            }
+        });
+        let engine = PlaybackEngine::spawn(resolve_tx);
+        engine
+            .send(EngineCommand::SetQueue {
+                tracks: vec![TrackId(1), TrackId(2), TrackId(3)],
+                start: 0,
+            })
+            .expect("send");
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_eq!(engine.snapshot().state, PlaybackState::Loading);
+
+        engine.send(EngineCommand::SetVolume(0.4)).expect("send");
+        engine.send(EngineCommand::Pause).expect("send");
+        engine.send(EngineCommand::Seek(30_000)).expect("send");
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        let snap = engine.snapshot();
+        assert_eq!(snap.volume, 0.4);
+        assert_eq!(snap.state, PlaybackState::Paused);
+        assert_eq!(snap.position_ms, 30_000);
+
+        engine.send(EngineCommand::Next).expect("send");
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        let snap = engine.snapshot();
+        assert_eq!(snap.track_id, Some(TrackId(2)), "换歌不能等前一首超时");
+        assert_eq!(snap.volume, 0.4);
+
+        engine.send(EngineCommand::Shutdown).expect("send");
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(
+            engine.send(EngineCommand::Play).is_err(),
+            "退出也不能等加载超时"
+        );
     }
 
     /// 空队列：状态直接是 Ended，不 panic。
