@@ -71,6 +71,10 @@ pub enum EngineCommand {
     SetShuffle(ShuffleMode),
     /// 音量（0..=1）。
     SetVolume(f32),
+    /// 临时压低音量（0..=1，1 = 不压低），用于系统音频焦点"闪避"（导航播报、通知音）。
+    /// 和 [`EngineCommand::SetVolume`] 相乘，但不改快照里的音量：遥控端、进度保存
+    /// 看到的仍是用户设的音量，闪避期间用户调音量也不会在恢复时被覆盖。
+    SetDuck(f32),
     /// 选择输出设备（PLY-05）：`None` 表示跟随系统默认设备。
     ///
     /// 换设备会重建输出流；正在播放时会从当前位置接着放（不会回到开头）。
@@ -274,6 +278,8 @@ struct State {
     /// 命令通道。放在状态里，是为了打开曲目（网络源可能要等十几秒）的时候
     /// 也能继续收命令，不让整个播放器卡住。
     inbox: mpsc::UnboundedReceiver<EngineCommand>,
+    /// 音频焦点闪避系数（1 = 不压低），见 [`EngineCommand::SetDuck`]。
+    duck: f32,
     /// 加载期间收到、要等加载结束（或马上，排在最前）处理的命令。
     pending: VecDeque<EngineCommand>,
     /// 快照通道（加载期间也要把音量 / 暂停之类的变化推出去）。
@@ -314,9 +320,15 @@ impl State {
             queue_dirty: false,
             gapless_next_invalidated: false,
             inbox,
+            duck: 1.0,
             pending: VecDeque::new(),
             snapshot_tx,
         }
+    }
+
+    /// 实际给输出的音量：用户音量 × 闪避系数。
+    fn effective_volume(&self) -> f32 {
+        self.snap.volume * self.duck
     }
 
     /// 把当前快照推给订阅者。
@@ -500,8 +512,16 @@ impl State {
             EngineCommand::SetVolume(v) => {
                 let v = v.clamp(0.0, 1.0);
                 self.snap.volume = v;
+                let effective = self.effective_volume();
                 if let Some(session) = self.session.as_mut() {
-                    session.set_volume(v);
+                    session.set_volume(effective);
+                }
+            }
+            EngineCommand::SetDuck(d) => {
+                self.duck = d.clamp(0.0, 1.0);
+                let effective = self.effective_volume();
+                if let Some(session) = self.session.as_mut() {
+                    session.set_volume(effective);
                 }
             }
             EngineCommand::SetOutputDevice(device_id) => {
@@ -767,7 +787,7 @@ impl State {
             &start_media,
             device_id.as_deref(),
             self.mode,
-            self.snap.volume,
+            self.effective_volume(),
             self.handle.clone(),
             self.eq.clone(),
             self.output_factory.clone(),
@@ -803,6 +823,9 @@ impl State {
                         Some(EngineCommand::SetVolume(v)) => {
                             self.snap.volume = v.clamp(0.0, 1.0);
                         }
+                        Some(EngineCommand::SetDuck(d)) => {
+                            self.duck = d.clamp(0.0, 1.0);
+                        }
                         Some(EngineCommand::Seek(ms)) => {
                             seek_after = Some(ms);
                             self.snap.position_ms = ms;
@@ -819,7 +842,7 @@ impl State {
         };
         match started {
             Ok(mut session) => {
-                session.set_volume(self.snap.volume);
+                session.set_volume(self.effective_volume());
                 if let Some(ms) = seek_after {
                     match session.seek(ms) {
                         Ok(()) => self.snap.position_ms = ms,
@@ -1228,6 +1251,27 @@ mod tests {
             engine.send(EngineCommand::Play).is_err(),
             "退出也不能等加载超时"
         );
+    }
+
+    /// 闪避只压实际输出，不改快照里的用户音量；闪避期间改音量，恢复后保留新值。
+    #[tokio::test]
+    async fn duck_does_not_touch_the_user_volume() {
+        let (resolve_tx, mut resolve_rx) = mpsc::channel::<ResolveRequest>(8);
+        tokio::spawn(async move {
+            while let Some((_track, reply)) = resolve_rx.recv().await {
+                let _ = reply.send(Err(LekisError::not_found("none")));
+            }
+        });
+        let engine = PlaybackEngine::spawn(resolve_tx);
+        engine.send(EngineCommand::SetVolume(0.8)).expect("send");
+        engine.send(EngineCommand::SetDuck(0.3)).expect("send");
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert_eq!(engine.snapshot().volume, 0.8);
+        engine.send(EngineCommand::SetVolume(0.6)).expect("send");
+        engine.send(EngineCommand::SetDuck(1.0)).expect("send");
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert_eq!(engine.snapshot().volume, 0.6);
+        let _ = engine.send(EngineCommand::Shutdown);
     }
 
     /// 空队列：状态直接是 Ended，不 panic。

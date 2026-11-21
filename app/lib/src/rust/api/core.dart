@@ -476,6 +476,10 @@ void setShuffle({required ShuffleModeDto mode}) =>
 void setVolume({required double volume}) =>
     RustLib.instance.api.crateApiCoreSetVolume(volume: volume);
 
+/// 系统音频焦点闪避（压低到 30% / 恢复），不改用户音量。
+void setDucked({required bool ducked}) =>
+    RustLib.instance.api.crateApiCoreSetDucked(ducked: ducked);
+
 PlaybackSnapshotDto playbackSnapshot() =>
     RustLib.instance.api.crateApiCorePlaybackSnapshot();
 

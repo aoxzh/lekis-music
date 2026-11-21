@@ -786,6 +786,12 @@ pub fn set_volume(volume: f32) -> Result<(), CoreError> {
     Ok(core().set_volume(volume)?)
 }
 
+/// 系统音频焦点闪避（压低到 30% / 恢复），不改用户音量。
+#[frb(sync)]
+pub fn set_ducked(ducked: bool) -> Result<(), CoreError> {
+    Ok(core().set_ducked(ducked)?)
+}
+
 #[frb(sync)]
 pub fn playback_snapshot() -> PlaybackSnapshotDto {
     core().playback_snapshot().into()

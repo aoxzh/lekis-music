@@ -60,7 +60,8 @@ class LekisAudioHandler extends BaseAudioHandler with SeekHandler {
   bool _pausedByInterruption = false;
 
   /// 闪避前的音量（`null` = 当前没有闪避）。
-  double? _volumeBeforeDuck;
+  /// 正在为别的 App 闪避（压低音量）。核心单独记闪避系数，不改用户音量。
+  bool _ducked = false;
 
   /// 元数据请求的序号：切歌很快时丢弃过期的结果。
   int _metadataSeq = 0;
@@ -123,10 +124,9 @@ class LekisAudioHandler extends BaseAudioHandler with SeekHandler {
         if (event.begin) {
           switch (event.type) {
             case AudioInterruptionType.duck:
-              if (_isPlaying(_state) && _volumeBeforeDuck == null) {
-                final volume = core.playbackSnapshot().volume;
-                _volumeBeforeDuck = volume;
-                _safe(() => core.setVolume(volume: volume * 0.3));
+              if (_isPlaying(_state) && !_ducked) {
+                _ducked = true;
+                _safe(() => core.setDucked(ducked: true));
               }
             case AudioInterruptionType.pause:
             case AudioInterruptionType.unknown:
@@ -139,10 +139,9 @@ class LekisAudioHandler extends BaseAudioHandler with SeekHandler {
         } else {
           switch (event.type) {
             case AudioInterruptionType.duck:
-              final restore = _volumeBeforeDuck;
-              _volumeBeforeDuck = null;
-              if (restore != null) {
-                _safe(() => core.setVolume(volume: restore));
+              if (_ducked) {
+                _ducked = false;
+                _safe(() => core.setDucked(ducked: false));
               }
             case AudioInterruptionType.pause:
               if (_pausedByInterruption) {

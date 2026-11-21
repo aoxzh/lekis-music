@@ -1744,6 +1744,14 @@ impl LekisCore {
         self.services.engine.send(EngineCommand::SetVolume(volume))
     }
 
+    /// 系统音频焦点"闪避"：`true` 时临时压到 30%，`false` 恢复。
+    /// 不改用户音量（快照、遥控端、保存的会话都不受影响）。
+    pub fn set_ducked(&self, ducked: bool) -> Result<()> {
+        self.services
+            .engine
+            .send(EngineCommand::SetDuck(if ducked { DUCK_GAIN } else { 1.0 }))
+    }
+
     /// 切输出设备（PLY-05/PLY-12）。`None` 表示跟随系统默认。
     pub fn set_output_device(&self, device_id: Option<String>) -> Result<()> {
         self.services
@@ -2646,6 +2654,9 @@ fn check_artwork_image(image: &[u8]) -> Result<()> {
     }
     Ok(())
 }
+
+/// 闪避时的音量系数（和常见播放器一致，压到 30%）。
+const DUCK_GAIN: f32 = 0.3;
 
 /// 一次换封面的结果：新封面，以及换之前的状态（撤销用）。
 #[derive(Debug, Clone, PartialEq, Eq)]
