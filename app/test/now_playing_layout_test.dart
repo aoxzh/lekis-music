@@ -20,6 +20,7 @@ import 'package:lekis/src/features/now_playing/now_playing_tint.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
 import 'package:lekis/src/rust/api/dto.dart';
+import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -52,7 +53,10 @@ final _track = TrackDto(
   playCount: 0,
 );
 
-ProviderContainer _container({NowPlayingPane pane = NowPlayingPane.cover}) {
+ProviderContainer _container({
+  NowPlayingPane pane = NowPlayingPane.cover,
+  LyricsDto? lyrics,
+}) {
   final container = ProviderContainer(
     overrides: [
       coreEventSourceProvider.overrideWithValue(const Stream.empty()),
@@ -62,7 +66,9 @@ ProviderContainer _container({NowPlayingPane pane = NowPlayingPane.cover}) {
       currentArtworkProvider.overrideWith((ref) async => null),
       downloadStateProvider.overrideWith((ref, id) => null),
       downloadProgressProvider.overrideWith((ref, id) => null),
-      lyricsProvider.overrideWith((ref, id) async => null),
+      lyricsProvider.overrideWith(
+        (ref, id) async => lyrics == null ? null : ParsedLyrics.parse(lyrics),
+      ),
     ],
   );
   container.read(nowPlayingPaneProvider.notifier).set(pane);
@@ -230,6 +236,28 @@ void main() {
     final center = tester.getCenter(empty);
     final paneLeft = 829 * 0.45;
     expect(center.dx, closeTo(paneLeft + (829 - paneLeft) / 2, 1));
+    expect(tester.takeException(), isNull);
+  });
+
+  // Known issue from 0.1.0-alpha.1: with this track paused the lyrics pane
+  // came up blank. Paused (the fixture state) must still show the lines.
+  testWidgets('lyrics pane shows synced lines while paused', (tester) async {
+    final container = _container(
+      pane: NowPlayingPane.lyrics,
+      lyrics: const LyricsDto(
+        format: LyricsFormatDto.lrc,
+        content: '[00:00.00]第一行歌词\n[00:05.00]第二行歌词\n[00:10.00]第三行歌词',
+        source: 'test',
+        offsetMs: 0,
+        confidence: 1,
+      ),
+    );
+    addTearDown(container.dispose);
+    await _pump(tester, container);
+
+    expect(find.text('暂无歌词'), findsNothing);
+    expect(find.text('第一行歌词'), findsWidgets);
+    expect(find.text('第二行歌词'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
