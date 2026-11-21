@@ -5,7 +5,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../rust/api/error.dart';
 import '../settings/connect_settings_section.dart' show showPairingCodeDialog;
-import '../sources/common.dart' show describeCoreError;
+import '../sources/common.dart' show coreErrorKind, describeCoreError;
 import 'connect_gateway.dart';
 import 'connect_providers.dart';
 import 'connect_strings.dart';
@@ -16,6 +16,9 @@ import 'connect_strings.dart';
 /// 显示细节既安全又是唯一能区分它们的办法；release 构建里 `CoreError`
 /// 没有 `toString`，不处理就只剩 "Instance of 'CoreError'"。
 String connectErrorText(Object error) {
+  // 连不上（超时 / 被拒绝）：多半是对方没开 Lekis，或手机上的 Lekis 在后台没在播放
+  // （Android 不让后台 App 接受入站连接）。直接告诉用户该怎么做，比 "connect timed out" 有用。
+  if (coreErrorKind(error) == ErrorKind.network) return ConnectStrings.unreachable;
   final text = describeCoreError(error);
   final detail = error is CoreError ? error.detail.trim() : '';
   return detail.isEmpty ? text : '$text（$detail）';

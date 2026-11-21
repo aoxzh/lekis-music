@@ -50,6 +50,8 @@ abstract final class ConnectStrings {
   static const pairConfirm = '完成配对';
   static const pairRetry = '配对码不对，再试一次';
   static const pairFailed = '配对失败';
+  static const unreachable =
+      '连不上这台设备：请在它上面打开 Lekis（手机要在前台或正在播放），并确认两台设备在同一个网络';
 
   // 转移
   static const transferTitle = '在这台设备上播放';
