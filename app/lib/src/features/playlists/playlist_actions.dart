@@ -75,8 +75,8 @@ Future<bool> confirmDeletePlaylist(
       title: const Text('删除歌单？'),
       content: Text(
         playlist.kind == PlaylistKindDto.smart
-            ? '“${playlist.name}”的规则和内容都会删除。已同步到其它设备的删除会写墓碑。'
-            : '“${playlist.name}”会从所有设备删除，曲目文件不会受影响。',
+            ? '“${playlist.name}”和它的规则会被删除，曲目文件不受影响。'
+            : '“${playlist.name}”会被删除，曲目文件不受影响。',
       ),
       actions: [
         TextButton(

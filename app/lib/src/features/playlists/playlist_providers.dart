@@ -116,7 +116,7 @@ Future<bool> playlistContainsTrack(int playlistId, String trackUid) async {
   }
 }
 
-/// 删除歌单（墓碑，会同步到其它设备）。
+/// 删除歌单。
 Future<void> deletePlaylistById(int id) async {
   await core.deletePlaylist(playlistId: id);
 }

@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/features/playlists/smart_rules_model.dart';
+import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
@@ -48,6 +49,7 @@ class _SmartPlaylistEditorPageState
   bool _saving = false;
   bool _counting = false;
   int? _previewCount;
+  List<TrackRowDto> _previewTracks = const [];
   String? _previewError;
   String? _loadError;
   Timer? _debounce;
@@ -117,10 +119,19 @@ class _SmartPlaylistEditorPageState
 
   Future<void> _refreshPreview(int token) async {
     try {
-      final count = await core.countSmartRules(rules: _rules);
+      final rules = _rules;
+      final (count, tracks) = await (
+        core.countSmartRules(rules: rules),
+        core.previewSmartRules(
+          rules: rules,
+          offset: 0,
+          limit: _previewSampleSize,
+        ),
+      ).wait;
       if (!mounted || token != _previewToken) return;
       setState(() {
         _previewCount = count.toInt();
+        _previewTracks = tracks;
         _previewError = null;
         _counting = false;
       });
@@ -240,6 +251,11 @@ class _SmartPlaylistEditorPageState
           count: _previewCount,
           error: _previewError,
         ),
+        if (_previewError == null && _previewTracks.isNotEmpty)
+          _PreviewTracks(
+            tracks: _previewTracks,
+            more: (_previewCount ?? 0) - _previewTracks.length,
+          ),
         const SizedBox(height: LekisSpacing.md),
         FilledButton.icon(
           onPressed: _saving ? null : _save,
@@ -769,6 +785,69 @@ class _SettingsCard extends StatelessWidget {
               title: const Text('倒序'),
               value: sortDesc,
               onChanged: onSortDescChanged,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 预览列表最多显示几首。
+const _previewSampleSize = 8;
+
+/// 规则匹配到的前几首歌，让用户一眼看出规则对不对。
+class _PreviewTracks extends StatelessWidget {
+  const _PreviewTracks({required this.tracks, required this.more});
+
+  final List<TrackRowDto> tracks;
+  final int more;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.lekisColors;
+    return Padding(
+      padding: const EdgeInsets.only(top: LekisSpacing.xs),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final track in tracks)
+            ListTile(
+              dense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: LekisSpacing.sm,
+              ),
+              leading: SizedBox.square(
+                dimension: 36,
+                child: TrackArtwork(
+                  trackId: track.id.toInt(),
+                  hasArtwork: track.artworkId != null,
+                  placeholderLabel: track.title,
+                ),
+              ),
+              title: Text(
+                track.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                track.artistLine,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          if (more > 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: LekisSpacing.sm,
+                vertical: LekisSpacing.xs,
+              ),
+              child: Text(
+                '还有 $more 首…',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
             ),
         ],
       ),
