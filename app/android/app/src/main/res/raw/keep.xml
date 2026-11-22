@@ -2,4 +2,4 @@
 <!-- audio_service 通过 getResources().getIdentifier() 按名称动态查找播放控件图标，
      release 构建的 shrinkResources 会把它们当成未引用资源删掉，导致通知栏按钮空白。 -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@drawable/audio_service_*,@mipmap/ic_launcher_monochrome" />
+    tools:keep="@drawable/ic_media_*,@drawable/audio_service_*,@mipmap/ic_launcher_monochrome" />

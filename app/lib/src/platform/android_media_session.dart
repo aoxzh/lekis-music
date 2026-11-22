@@ -35,6 +35,9 @@ Future<void> initAndroidMediaSession() async {
       androidNotificationChannelDescription: 'Lekis playback controls',
       androidNotificationIcon: 'mipmap/ic_launcher_monochrome',
       androidStopForegroundOnPause: false,
+      // 限制通知封面位图尺寸，避免国产 ROM（OriginOS / HyperOS）因 IPC 位图过大丢弃封面。
+      artDownscaleWidth: 300,
+      artDownscaleHeight: 300,
       fastForwardInterval: Duration(seconds: 10),
       rewindInterval: Duration(seconds: 10),
     ),
@@ -225,16 +228,45 @@ class LekisAudioHandler extends BaseAudioHandler with SeekHandler {
       PlaybackStateDto.paused => AudioProcessingState.ready,
       PlaybackStateDto.ended => AudioProcessingState.completed,
     };
+    // 原生 Android 13+ / Pixel / One UI / ColorOS 会由系统直接根据 PlaybackState 的
+    // systemActions 渲染现代媒体卡片；而 OriginOS 等仍直接渲染 MediaStyle 通知按钮的系统，
+    // 使用我们自定义的精致圆角矢量图标（ic_media_*）替代 audio_service 默认的复古粗 PNG。
+    const prevControl = MediaControl(
+      androidIcon: 'drawable/ic_media_prev',
+      label: 'Previous',
+      action: MediaAction.skipToPrevious,
+    );
+    const playControl = MediaControl(
+      androidIcon: 'drawable/ic_media_play',
+      label: 'Play',
+      action: MediaAction.play,
+    );
+    const pauseControl = MediaControl(
+      androidIcon: 'drawable/ic_media_pause',
+      label: 'Pause',
+      action: MediaAction.pause,
+    );
+    const nextControl = MediaControl(
+      androidIcon: 'drawable/ic_media_next',
+      label: 'Next',
+      action: MediaAction.skipToNext,
+    );
+
     // copyWith 不能改 updateTime，所以整个重建。
     playbackState.add(
       PlaybackState(
         controls: [
-          MediaControl.skipToPrevious,
-          if (playing) MediaControl.pause else MediaControl.play,
-          MediaControl.skipToNext,
+          prevControl,
+          if (playing) pauseControl else playControl,
+          nextControl,
         ],
         androidCompactActionIndices: const [0, 1, 2],
         systemActions: const {
+          MediaAction.play,
+          MediaAction.pause,
+          MediaAction.playPause,
+          MediaAction.skipToPrevious,
+          MediaAction.skipToNext,
           MediaAction.seek,
           MediaAction.seekForward,
           MediaAction.seekBackward,
@@ -260,8 +292,13 @@ class LekisAudioHandler extends BaseAudioHandler with SeekHandler {
       try {
         final art = await core.artwork(trackId: trackId);
         if (art != null) {
-          final path = core.artworkPath(hash: art.hash, width: 512);
-          if (await File(path).exists()) artUri = Uri.file(path);
+          for (final width in const [512, 256, 1024, 128]) {
+            final path = core.artworkPath(hash: art.hash, width: width);
+            if (await File(path).exists()) {
+              artUri = Uri.file(path);
+              break;
+            }
+          }
         }
       } catch (e) {
         debugPrint('media session: artwork lookup failed: $e');
