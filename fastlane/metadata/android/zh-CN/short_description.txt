@@ -1,0 +1,1 @@
+开源本地与 NAS 无损音乐播放器，免服务端直连 SMB/WebDAV/NFS/SFTP 及 Navidrome/Jellyfin

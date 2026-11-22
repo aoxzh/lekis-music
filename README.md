@@ -1,137 +1,273 @@
-# Lekis Music（月兔音乐）
+<div align="center">
 
-跨平台、开箱即用的本地 / NAS 音乐播放器。不需要部署服务器，直接播放本机和 NAS（SMB / WebDAV / NFS / SFTP）上的音乐，也能接入 Navidrome、Jellyfin、Plex 等自有服务器；自动补全封面和歌词；支持社区插件。
+<img src="app/assets/brand/mark.png" alt="Lekis Music (月兔音乐) Logo" width="112" height="112" />
 
-> 当前状态：**Alpha 预览版 `0.1.0-alpha.1`**（Android APK + Windows 免安装 zip，见 GitHub Releases；变更见 [CHANGELOG.md](CHANGELOG.md)）。Flutter 客户端（`app/`）在 Windows 和 Android 上可以日常使用；macOS / iOS / Linux 在 Beta 跟进。逐项进度见 [docs/HANDOFF.md](docs/HANDOFF.md)，阶段规则见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+# Lekis Music · 月兔音乐
 
-## 现在能做什么
+**Open-Source, Cross-Platform Local & NAS Lossless Music Player — No Server Required**  
+**开源跨平台本地 / NAS 无损音乐播放器 · 无需部署服务端，开箱即用**
 
-- **音源**：本地文件夹、SMB、WebDAV，局域网自动发现 NAS（mDNS / WS-Discovery / SSDP）；Jellyfin / Emby / Plex / OpenSubsonic 服务器；密码存系统钥匙串；离线下载单曲、歌单和合集。
-- **资料库**：10 万首级别的库（冷启动 0.3 s、滚动 120 fps）；专辑 / 艺人 / 歌曲 / 流派 / 文件夹浏览；拼音和简繁搜索；歌单、智能歌单、喜欢、1–5 星；M3U / XSPF 导入导出；播放历史和年度回顾；重复检测、库健康检查；编辑标签并写回文件。
-- **播放**：样本级无缝播放、Windows WASAPI 独占（比特完美）、ReplayGain、淡入淡出、10 段均衡器和耳机预设、睡眠定时、会话恢复、Last.fm / ListenBrainz / Libre.fm 上报；锁屏 / 通知 / SMTC 媒体控件，Windows 托盘。
-- **封面和歌词**：自动补全封面和歌词（LRCLIB 等），低置信度结果进待确认页；逐行 / 逐字歌词、Flow / Steps / Tilt 歌词舞台；手动编辑歌词和时间偏移。
-- **插件**：本地 JS 插件的安装、启用、权限和设置（协议见 [`plugin-sdk/`](plugin-sdk/)）。
+[![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
+[![Core: Rust](https://img.shields.io/badge/Core-Rust-orange.svg)](core/)
+[![UI: Flutter](https://img.shields.io/badge/UI-Flutter-02569B.svg)](app/)
+[![Platforms](https://img.shields.io/badge/Platforms-Android%20%7C%20Windows-success.svg)](#platforms--roadmap)
+[![F-Droid Ready](https://img.shields.io/badge/F--Droid-Metadata%20Ready-1976D2.svg)](docs/FDROID.md)
 
-## 文档
+**[English](#english) · [简体中文](#简体中文) · [Quick Facts](#quick-facts) · [FAQ](#faq) · [F-Droid](docs/FDROID.md)**
 
-| 文档 | 内容 |
-|---|---|
-| [docs/HANDOFF.md](docs/HANDOFF.md) | **现在做到哪、正在做什么、已知问题、下一步** |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | 阶段和阶段闸门 |
-| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | 需求编号、实现状态、验收基线 |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构、模块边界、依赖规则、线程模型 —— **改代码之前必须读** |
-| [docs/DESIGN.md](docs/DESIGN.md) | 视觉与交互方向 |
-| [docs/CODING_GUIDELINES.md](docs/CODING_GUIDELINES.md) | Rust / Flutter 编码规范 |
-| [docs/REUSE.md](docs/REUSE.md) | 复用清单：写新模块前先查这里 |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | 分支、提交、PR、ADR 流程 |
-| [docs/adr/](docs/adr/) | 架构决策记录（为什么这么选）|
+</div>
 
-## 技术栈
+---
 
-| 层 | 技术 | 目录 |
+> **TL;DR / 一句话介绍**  
+> **Lekis Music (月兔音乐)** is a privacy-first, open-source (MPL-2.0) music player powered by a **Rust audio & library core** and a **Flutter UI**. Play music directly from local folders or your NAS (**SMB / WebDAV / NFS / SFTP**) with **zero server setup**, or connect **Navidrome / OpenSubsonic / Jellyfin / Emby / Plex**. Features **0.3s cold start on 100,000+ tracks**, **sample-accurate gapless playback**, **Windows WASAPI bit-perfect exclusive mode**, **zero-API-key artwork & synced lyrics enrichment** (with CJK/ACG support), **Windows native floating desktop lyrics**, **LAN device remote control & streaming (Connect)**, and **serverless multi-device sync**.
+>
+> **月兔音乐（Lekis Music）** 是一款开源（MPL-2.0）、隐私优先的本地与 NAS 无损音乐播放器（Rust 核心 + Flutter 界面）。**无需在 NAS 上部署任何服务端**，直接局域网自动发现并播放本机和 **SMB / WebDAV / NFS / SFTP** 曲库，也支持接入 **Navidrome / OpenSubsonic / Jellyfin / Emby / Plex**。具备 **10 万首曲库 0.3 秒冷启动**、**样本级无缝播放**、**Windows WASAPI 独占比特完美输出**、**免 API Key 多源封面与双语歌词自动补全**（含日区 / ACG 增强）、**Windows 原生桌面悬浮歌词**、**局域网跨设备遥控与接力串流（Connect）**、**统一资料库低音质去重**以及**无服务器多设备同步**。
+
+---
+
+## Why Lekis Music? · 核心亮点
+
+| Highlight / 特性 | English | 简体中文 |
 |---|---|---|
-| 核心（全部业务逻辑）| Rust 2021，tokio，SQLite，symphonia，cpal / WASAPI | [`core/`](core/) |
-| Flutter 桥接 | flutter_rust_bridge v2 | [`core/crates/lekis-bridge`](core/crates/lekis-bridge) |
-| 客户端 UI | Flutter + Riverpod，一套代码覆盖所有平台 | [`app/`](app/) |
-| 可选 NAS 节点 | Rust + axum（和客户端是同一个核心）| [`core/bins/lekis-node`](core/bins/lekis-node) |
-| 插件 SDK | JSON Schema + TypeScript 类型 + WIT | [`plugin-sdk/`](plugin-sdk/) |
-| 设计 Token | 一份 JSON | [`design/`](design/) |
+| **Zero-Server NAS Direct Play** | Stream directly from **SMB, WebDAV, NFS, SFTP** & local folders with LAN auto-discovery (mDNS / WS-Discovery / SSDP) and automatic Home/Away failover — no Docker or server setup required. | **免部署直连 NAS**：直接播放本机与 **SMB / WebDAV / NFS / SFTP**，支持局域网自动发现与内外网地址自动故障切换，同时兼容 Navidrome / Jellyfin / Emby / Plex。 |
+| **Audiophile Rust Core** | **100,000+ tracks** cold start in ~0.3s at 120 fps; sample-accurate **gapless playback**, **Windows WASAPI bit-perfect exclusive mode**, ReplayGain, 10-band EQ & headphone presets. | **专业级 Rust 引擎**：10 万首大曲库 ~0.3 秒冷启动、120 fps 流畅滚动；样本级无缝播放、Windows WASAPI 独占逐位一致输出、ReplayGain、10 段均衡器与耳机预设。 |
+| **Zero-Key Cover & Lyrics** | Built-in 5 artwork sources + 4 lyrics sources (LRCLIB, Cover Art Archive, iTunes JP/Global, Deezer, VocaDB, etc.) with word-by-word karaoke, CJK per-locale font fallback, and **Windows native floating desktop lyrics**. | **免 Key 封面与歌词补全**：内置 5 个封面源 + 4 个歌词源（含日区 iTunes、VocaDB 与翻译歌词），支持逐字卡拉 OK、中日韩分语种字体回退与 **Windows 原生桌面悬浮歌词**。 |
+| **Unified Library & Dedup** | Automatically merges duplicate tracks across local storage, NAS, and media servers, picking the highest quality; one-click cleanup of lower-quality duplicates (index or disk/NAS). | **统一资料库与低音质去重**：同一首歌在本地 / NAS / 媒体服务器的多副本自动合并择优；重复歌曲支持一键删除低音质版本并释放磁盘 / NAS 空间。 |
+| **LAN Connect & Sync** | Discover and pair devices on your LAN to remote-control playback, transfer queues, and stream missing tracks; serverless multi-device sync for favorites, playlists, and history via any shared folder. | **局域网遥控与无服务器同步**：设备间局域网配对遥控、播放队列接力与缺失曲目串流；通过本地或 NAS 共享目录实现无服务器多设备同步。 |
+| **Refined UI & Privacy** | Liquid Glass & flat styles, Vinyl / Cassette / Cover now-playing modes, full English & Chinese UI, JS plugin host, **no accounts, no telemetry, no ads, no Google Play Services** (F-Droid friendly). | **精致界面与隐私优先**：液态玻璃 / 扁平风格、黑胶 / 磁带播放页、中英双语、本地 JS 插件宿主；**无账号、无遥测、无广告、无 Google 服务依赖**（F-Droid 友好）。 |
 
-许可证：MPL-2.0，复用优先（[ADR-0007](docs/adr/0007-license-and-reuse-first.md)）；第三方许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+---
 
-## 目录结构
+## Quick Facts
 
-```
-.
-├── core/                  Rust workspace（所有业务逻辑都在这里）
-│   ├── crates/
-│   │   ├── lekis-types        领域模型、ID、错误、事件（不依赖任何 IO）
-│   │   ├── lekis-vfs          虚拟文件系统：本地 / SMB / WebDAV / NFS / SFTP
-│   │   ├── lekis-library      SQLite 数据库、迁移、查询、全文搜索
-│   │   ├── lekis-scanner      扫描流水线、标签读取、NAS 共享索引
-│   │   ├── lekis-providers    媒体服务器源：OpenSubsonic / Jellyfin / Plex / Emby
-│   │   ├── lekis-enrich       封面 / 歌词 / 标签补全、匹配打分、Scrobble
-│   │   ├── lekis-playback     播放引擎：解码 → DSP → 输出
-│   │   ├── lekis-sync         无服务器多设备同步（操作日志 + HLC）
-│   │   ├── lekis-plugin-host  插件清单、权限、JS 运行时
-│   │   ├── lekis-core         门面：组装所有服务，对外的唯一入口
-│   │   └── lekis-bridge       flutter_rust_bridge 导出层（Flutter 用）
-│   ├── bins/lekis-node        可选的 headless NAS 节点
-│   └── vendor/rquickjs-sys    给 Android 补 bindgen 输出的 rquickjs-sys
-├── app/                   Flutter 客户端（app/lib/src/…，Rust 由 Cargokit 自动编译）
-├── plugin-sdk/            插件协议（JSON Schema / TS SDK / WIT / 示例）
-├── design/                设计 Token
-├── tools/                 开发脚本（Android 联调、Windows 打包、隐私检查、图标生成）
-└── docs/                  需求、架构、规范、ADR、交接
-```
-
-## 开发环境
-
-| 目标 | 需要安装 |
+| Attribute | Details |
 |---|---|
-| 核心 | Rust（版本见 [`core/rust-toolchain.toml`](core/rust-toolchain.toml)），`cargo install cargo-deny` |
-| Flutter App | Flutter stable（3.50+，见 `app/.metadata`）、`dart`；`flutter doctor` 通过 |
-| Android | JDK 17、Android SDK 37 + NDK `28.2.13676358`、`rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android`；Cargokit 会在 `flutter build` 时自动编译 Rust |
-| Windows | Flutter Windows 桌面工具链 + Visual Studio 的 C++ 桌面负载（Cargokit 需要 MSVC）；本机开发和测试 |
-| Linux | Beta 再补 |
+| **App Name** | Lekis Music (中文名：月兔音乐) |
+| **Package ID (Android)** | `dev.lekis.music` |
+| **License** | [MPL-2.0](LICENSE) (Open Source, FOSS) |
+| **Architecture** | Rust core (`core/`) + `flutter_rust_bridge` v2 + Flutter UI (`app/`) |
+| **Current Platforms** | Android 8.0+ (arm64-v8a), Windows 10/11 (x64) — macOS / iOS / Linux planned for Beta |
+| **Local & NAS Protocols** | Local folders, SMB, WebDAV, NFSv3, SFTP (password & OpenSSH key) |
+| **Media Servers** | OpenSubsonic (Navidrome, Gonic, Airsonic), Jellyfin, Emby, Plex |
+| **Audio Formats** | FLAC, ALAC, WAV, AIFF, Opus, Ogg Vorbis, MP3, AAC / M4A |
+| **Audio Features** | Sample-accurate gapless, Windows WASAPI exclusive (bit-perfect), ReplayGain, 10-band EQ + headphone presets, sleep timer (incl. end-of-track), Last.fm / ListenBrainz / Libre.fm scrobbling |
+| **Telemetry / Tracking** | None (100% local data; network used only for your configured sources, metadata enrichment, podcasts/radio, and optional scrobbling) |
 
-Flutter Windows App 用 MSVC 构建。只有在 Windows 上用 GNU Rust 工具链单独跑核心时才需要 dot-source [`tools/env-windows-gnu.ps1`](tools/env-windows-gnu.ps1)（配 GNU `dlltool`；`llvm-dlltool` 生成的 import library 会让程序一启动就 `0xC0000005`）。
+---
 
-## 常用命令
+<a id="english"></a>
+
+## English
+
+### Overview
+
+**Lekis Music** is built for listeners who own their music library — whether stored locally on a phone/PC, on a home NAS, or on a self-hosted media server — and want a fast, audiophile-grade player without cloud lock-in or mandatory server maintenance.
+
+### Features
+
+- **Flexible Music Sources**
+  - Direct playback from **Local folders**, **SMB**, **WebDAV**, **NFSv3**, and **SFTP** with LAN NAS auto-discovery (mDNS / WS-Discovery / SSDP).
+  - Native client support for **OpenSubsonic (Navidrome, etc.)**, **Jellyfin**, **Emby**, and **Plex**.
+  - **Home / Away network failover**: automatically prefers LAN addresses at home and switches to public/VPN addresses with optional transcoding on mobile data.
+  - **Unified Library**: deduplicates the same track across local files, NAS shares, and media servers, with manual merge/split and one-click removal of lower-quality duplicates.
+  - **Offline downloads** for tracks, albums, and playlists; credentials stored securely in OS keystores (Android Keystore / Windows Credential Manager).
+- **High-Performance Library & Management**
+  - Scales to **100,000+ tracks** (~0.3s cold start, 120 fps scrolling) backed by SQLite FTS.
+  - Browse by Albums, Artists, Tracks, Genres, Folders, and Favorites; Pinyin & Traditional/Simplified Chinese search; A–Z / `#` fast index scrubber.
+  - Playlists, Smart Playlists (with live rule preview), 1–5 star ratings, M3U / XSPF import & export, play history, Year in Review, library health checks, and in-place audio tag editing.
+- **Audiophile Playback Engine (Rust)**
+  - Sample-accurate **gapless playback** (pre-decodes next track, strips MP3/AAC encoder delay & padding) and smooth 20 ms fade-in/out.
+  - **Windows WASAPI Exclusive Mode** (bit-perfect output) with automatic shared-mode fallback.
+  - **ReplayGain**, **10-band equalizer** with AutoEq-style headphone presets, sleep timer (15/30/60/90 min + end-of-track), playback session restore, and **Last.fm / ListenBrainz / Libre.fm** scrobbling.
+  - Podcasts (directory search, charts, RSS, OPML) and Internet Radio (Radio Browser + custom streams).
+- **Lyrics, Artwork & Visual Experience**
+  - Zero-API-key cascading enrichment for **album artwork** (Cover Art Archive, iTunes Global/JP, Deezer, VocaDB, MusicBrainz) and **synced lyrics** (LRCLIB, etc.), with a review queue for low-confidence matches.
+  - Classic lyrics view + Flow / Steps / Tilt stages, word-by-word karaoke, CJK per-locale font fallback, manual lyric & offset editor, and **Windows native floating desktop lyrics** (Win32 layered window + Direct2D/DirectWrite, click-through lock).
+  - **Vinyl**, **Cassette**, and **Cover** Now Playing styles; **Liquid Glass** & **Flat** display styles; full **English / Simplified Chinese** live language switching.
+- **Multi-Device & Extensibility**
+  - **Lekis Connect**: discover and pair devices on your LAN to remote-control playback, transfer queues, and stream local tracks between PC and mobile.
+  - **Serverless Multi-Device Sync**: operation-log + HLC sync for favorites, playlists, and play history over any local or NAS shared folder.
+  - **Plugin Host**: install and manage local JavaScript plugins with explicit permissions (see [`plugin-sdk/`](plugin-sdk/)).
+
+### Platforms & Roadmap
+
+| Platform | Status | Notes |
+|---|---|---|
+| **Android** (8.0+, arm64-v8a) | **Alpha Ready** | APK via GitHub Releases; [F-Droid metadata ready](docs/FDROID.md) |
+| **Windows** (10/11 x64) | **Alpha Ready** | Portable ZIP via GitHub Releases; WASAPI exclusive, system tray, SMTC, floating desktop lyrics |
+| **macOS / iOS / Linux** | **Planned (Beta)** | Rust core & Flutter UI are cross-platform; native media controls, sample-rate switching & packaging in Beta |
+
+See [docs/ROADMAP.md](docs/ROADMAP.md) for stage gates and [CHANGELOG.md](CHANGELOG.md) for detailed release history.
+
+---
+
+<a id="简体中文"></a>
+
+## 简体中文
+
+### 项目简介
+
+**月兔音乐（Lekis Music）** 专为拥有自己本地或 NAS 音乐库的听众打造：无需折腾 Docker 或部署服务端，开箱即可直接扫描并无损播放本机与 NAS 上的音乐，同时完美兼容 Navidrome、Jellyfin、Emby、Plex 等自有媒体服务器。核心采用 Rust 编写，界面采用 Flutter 跨平台构建，追求极致性能、高保真音质与零打扰的隐私体验。
+
+### 核心功能
+
+- **全能音源与统一资料库**
+  - **免服务端直连**：支持本地文件夹、**SMB**、**WebDAV**、**NFSv3**、**SFTP**（密码 / OpenSSH 私钥），内置局域网 NAS 自动发现（mDNS / WS-Discovery / SSDP）。
+  - **媒体服务器接入**：支持 **OpenSubsonic（Navidrome 等）**、**Jellyfin**、**Emby**、**Plex**。
+  - **内外网自动选路（Home / Away）**：在家优先走局域网高速直连，外出切移动网络自动切换备用/公网地址并支持媒体服务器转码。
+  - **统一资料库与低音质去重**：同一首歌在本地、NAS 与多个服务器上的副本自动合并择优；支持查看/手动拆分来源，并在「资料库检查 → 重复歌曲」中一键删除低音质版本（支持仅移出索引或同步删除磁盘/NAS 源文件）。
+  - **离线缓存与安全凭据**：支持单曲、专辑、歌单离线下载；密码存系统钥匙串，数据库不存明文。
+- **十万级大曲库与高效管理**
+  - 针对 **10 万首级别** 曲库优化：冷启动约 **0.3 秒**，列表滚动 **120 fps**。
+  - 专辑 / 艺人 / 歌曲 / 流派 / 文件夹 / 喜欢浏览；支持拼音与简繁搜索、右侧 `A–Z / #` 字母与拼音快速索引条。
+  - 歌单、智能歌单（支持实时预览匹配曲目）、1–5 星评分、M3U / XSPF 导入导出、播放历史、年度回顾、库健康检查与音频标签编辑写回。
+- **发烧级 Rust 播放引擎**
+  - **样本级无缝播放（Gapless）**：预解码下一首并精确去除 MP3/AAC 编码器延迟与填充；20 ms 淡入淡出。
+  - **Windows WASAPI 独占模式**：软件链路已通过逐位一致验证，独占不可用时自动平滑回退共享模式。
+  - **ReplayGain 响度均衡**、**10 段均衡器**与 AutoEq 风格耳机预设、睡眠定时（含「放完这首」）、播放会话恢复、**Last.fm / ListenBrainz / Libre.fm** 听歌上报。
+  - 内置 **播客**（目录搜索、榜单、RSS、OPML）与 **网络电台**（Radio Browser 与自定义流）。
+- **封面、歌词与桌面体验**
+  - **免 API Key 多源补全**：级联 5 个封面源（含 Cover Art Archive、iTunes 日区/全球、Deezer、VocaDB、网易云等，针对日系 / ACG 专辑专项增强）与 4 个歌词源（含 LRCLIB、网易云翻译歌词、酷狗等），支持按需选择补全并内置待确认队列。
+  - **沉浸式歌词**：经典歌词 + Flow / Steps / Tilt 歌词舞台、逐字卡拉 OK、中日韩分语种字体回退（解决中日双语汉字异体字混排）、手动编辑歌词与时间偏移。
+  - **Windows 原生桌面悬浮歌词**：Win32 分层窗口 + Direct2D / DirectWrite 逐字渲染，支持拖动、鼠标穿透锁定、自定义字体与配色。
+  - **多元视觉**：提供封面、**黑胶唱片**、**复古磁带**三种播放页样式，支持**液态玻璃 / 扁平**显示样式、可定制导航栏位置与中英双语实时切换。
+- **跨设备体验与插件生态**
+  - **局域网遥控与接力（Connect）**：局域网设备互相发现并配对后，支持遥控播放/音量/进度/队列，并将当前队列一键转移至另一台设备（对方缺失的曲目自动从本机串流）。
+  - **无服务器多设备同步**：通过本地或 NAS 共享目录同步喜欢、歌单与播放历史（操作日志 + HLC，无需云服务器）。
+  - **本地 JS 插件宿主**：支持社区插件安装、启用、权限管理与配置（协议见 [`plugin-sdk/`](plugin-sdk/)）。
+
+---
+
+## Architecture & Tech Stack · 技术架构
+
+| Layer / 层级 | Technology / 技术 | Directory / 目录 |
+|---|---|---|
+| Core (All Business Logic) | Rust 2021, tokio, SQLite, symphonia, cpal / WASAPI | [`core/`](core/) |
+| Flutter FFI Bridge | `flutter_rust_bridge` v2 | [`core/crates/lekis-bridge`](core/crates/lekis-bridge) |
+| Cross-Platform UI | Flutter + Riverpod | [`app/`](app/) |
+| Optional Headless NAS Node | Rust + axum | [`core/bins/lekis-node`](core/bins/lekis-node) |
+| Plugin SDK | JSON Schema + TypeScript + WIT | [`plugin-sdk/`](plugin-sdk/) |
+| Design Tokens | Platform-agnostic JSON | [`design/`](design/) |
+
+<details>
+<summary><strong>Repository Structure · 目录结构</strong></summary>
+
+```text
+.
+├── core/                  Rust workspace (all business logic & audio engine)
+│   ├── crates/
+│   │   ├── lekis-types        Domain models, IDs, errors, events (zero IO)
+│   │   ├── lekis-vfs          Virtual FS: Local / SMB / WebDAV / NFS / SFTP
+│   │   ├── lekis-library      SQLite database, migrations, queries, FTS
+│   │   ├── lekis-scanner      Tag scanning pipeline & NAS shared index
+│   │   ├── lekis-providers    OpenSubsonic / Jellyfin / Plex / Emby clients
+│   │   ├── lekis-enrich       Artwork / lyrics / metadata enrichment & scrobbling
+│   │   ├── lekis-playback     Audio engine: decode → DSP → output
+│   │   ├── lekis-sync         Serverless multi-device sync (op-log + HLC)
+│   │   ├── lekis-plugin-host  Plugin manifest, permissions, JS runtime
+│   │   ├── lekis-desktop-lyrics  Windows native layered floating lyrics
+│   │   ├── lekis-core         Facade assembling all services
+│   │   └── lekis-bridge       flutter_rust_bridge v2 bindings
+│   └── bins/lekis-node        Optional headless NAS node
+├── app/                   Flutter client (Rust compiled automatically via Cargokit)
+├── fastlane/              F-Droid / Android Fastlane store metadata (en-US, zh-CN)
+├── plugin-sdk/            Plugin protocol (JSON Schema / TS SDK / WIT / examples)
+├── design/                Design tokens
+├── tools/                 Build, packaging, privacy check & icon scripts
+└── docs/                  Architecture, requirements, roadmap, ADRs & F-Droid guide
+```
+
+</details>
+
+---
+
+## Building from Source · 从源码构建
+
+### Prerequisites · 开发环境
+
+- **Rust**: stable toolchain ([`core/rust-toolchain.toml`](core/rust-toolchain.toml)); for Android add `aarch64-linux-android` target.
+- **Flutter**: stable channel (Dart `^3.14.0`, `flutter doctor` passing).
+- **Android**: JDK 17, Android SDK 37, NDK `28.2.13676358` (Cargokit builds the Rust core automatically).
+- **Windows**: Visual Studio C++ Desktop workload (MSVC).
+
+### Common Commands · 常用命令
 
 ```bash
-# 核心：格式化、静态检查、测试
+# Rust core: format, lint, test
 cd core && cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
-```
 
-```bash
-# Flutter App：静态分析 + 单元/组件测试
+# Flutter app: static analysis & tests
 cd app && flutter pub get && flutter analyze && flutter test
-```
 
-```powershell
-# Android 日常联调：只为已连接设备的 ABI 编 Rust 核心
-tools/dev-android.ps1                  # flutter run（debug，可热重载）
-tools/dev-android.ps1 -Mode release    # 构建 release APK 并安装
-```
-
-```bash
-# Android 手动构建：Cargokit 会自动构建 Rust 核心；只打 arm64 最快
+# Android release APK (arm64-v8a)
 cd app && flutter build apk --release --target-platform android-arm64
-adb -s <device-serial> install -r build/app/outputs/flutter-apk/app-release.apk
-```
 
-```bash
-# 改了 core/crates/lekis-bridge/src/api/ 之后重新生成 Dart 绑定
+# Windows release build
+cd app && flutter build windows --release
+
+# Regenerate Dart FFI bindings after changing core/crates/lekis-bridge/src/api/
 cd app && flutter_rust_bridge_codegen generate
 ```
 
-```powershell
-# Windows：本机 release 构建，产物在 app/build/windows/x64/runner/Release/lekis.exe
-cd app; flutter build windows --release
-```
+Windows portable ZIP packaging: `tools/package-windows.ps1` (outputs to `dist/`).
 
-```bash
-# 10 万首性能库（可选）：生成到任意本地数据目录（不要提交）
-cd core && cargo run -p lekis-library --example seed_fake_library --release -- <data-dir> 100000
-# 构建时用 --dart-define=LEKIS_DATA_DIR=<data-dir> 指向它；正常安装不要带这个参数
-```
+---
 
-```powershell
-# Windows 免安装包：把 release 构建打成 dist/lekis-<版本>-windows-x64.zip（外加同名 .sha256；dist/ 不提交）
-tools/package-windows.ps1            # 先 flutter build windows --release；-SkipBuild 只打包已有构建，-InDir 换构建目录
-```
+<a id="faq"></a>
 
-```powershell
-# Windows 开始菜单快捷方式：免安装构建也能从开始菜单和搜索里找到 Lekis（-Uninstall 删除）
-tools/install-windows-shortcut.ps1   # 指向 app/build/windows/x64/runner/Release/lekis.exe
-tools/package-windows.ps1 -Shortcut  # 指向打包出来的 dist/lekis-<版本>-windows-x64/（保留 staging 不删）
-```
+## FAQ · 常见问题
 
-## 发布
+<details>
+<summary><strong>Does Lekis Music require a self-hosted server like Navidrome, Jellyfin, or Plex? / 使用月兔音乐必须部署服务端吗？</strong></summary>
 
-推送 `v*` 标签（例如 `v0.1.0-alpha.1`）会触发 [`.github/workflows/release.yml`](.github/workflows/release.yml)：构建签名的 Android APK（arm64-v8a，只编设备 ABI）和 Windows x64 zip，并创建 GitHub pre-release。需要的仓库 secrets：`LEKIS_KEYSTORE_BASE64`、`LEKIS_KEYSTORE_PASSWORD`、`LEKIS_KEY_ALIAS`、`LEKIS_KEY_PASSWORD`。
+**No.** You can point Lekis Music directly at local folders or NAS shares via **SMB, WebDAV, NFS, or SFTP** with zero server-side software. If you *do* already run Navidrome (OpenSubsonic), Jellyfin, Emby, or Plex, Lekis Music connects to them natively and can even unify them with your local/NAS library.
 
-本机签名：在 `app/android/key.properties`（不提交）里写 `storeFile`、`storePassword`、`keyAlias`、`keyPassword`，keystore 放在仓库外。没有 keystore 时 release 构建会退回 debug 签名并在 Gradle 输出里警告，这样的包不能发布。
+**不需要。** 你可以直接通过 **SMB / WebDAV / NFS / SFTP** 播放 NAS 共享目录或本机文件夹，无需在 NAS 上部署任何服务。如果你已经部署了 Navidrome（OpenSubsonic）、Jellyfin、Emby 或 Plex，月兔音乐也能原生接入并与本地曲库统一管理。
 
-> Android 主调试机是 Samsung Fold5；Windows 在本机开发和测试。
+</details>
+
+<details>
+<summary><strong>Does it support bit-perfect & gapless lossless playback? / 支持无损、无缝播放和比特完美输出吗？</strong></summary>
+
+**Yes.** The Rust playback engine decodes FLAC, ALAC, WAV, AIFF, Opus, Ogg, MP3, and AAC natively with sample-accurate gapless transitions (stripping MP3/AAC encoder delay/padding). On Windows, WASAPI Exclusive Mode delivers bit-perfect output to your DAC/audio interface.
+
+**支持。** Rust 播放引擎原生解码 FLAC / ALAC / WAV / AIFF / Opus / Ogg / MP3 / AAC，支持样本级无缝播放（自动去除 MP3/AAC 编码器延迟与填充）；Windows 端支持 WASAPI 独占比特完美输出。
+
+</details>
+
+<details>
+<summary><strong>Is Lekis Music free, open-source, and available on F-Droid? / 是免费开源软件吗？会上架 F-Droid 吗？</strong></summary>
+
+**Yes.** Lekis Music is licensed under **MPL-2.0**, contains no ads, no tracking, and no proprietary Google Play Services dependencies. F-Droid Fastlane metadata and reproducible build configuration are included in the repository — see [docs/FDROID.md](docs/FDROID.md) for F-Droid submission status and build recipe.
+
+**是的。** 月兔音乐采用 **MPL-2.0** 开源协议，无广告、无遥测、无 Google 专有服务依赖。仓库已内置 F-Droid Fastlane 元数据与开源构建配置，详见 [docs/FDROID.md](docs/FDROID.md)。
+
+</details>
+
+<details>
+<summary><strong>Where is my data stored? / 我的数据存在哪里？</strong></summary>
+
+All library metadata, playlists, and settings stay **100% on your device** (Windows: `%APPDATA%\dev.lekis\lekis\`; Android: app private storage `dev.lekis.music`). Credentials are encrypted using your OS keystore. Optional multi-device sync writes only to the local/NAS folder you choose.
+
+所有曲库索引、歌单与设置均**完全保存在本地**，凭据使用系统钥匙串加密；可选的多设备同步仅写入你指定的本地或 NAS 目录，不经过任何第三方云服务器。
+
+</details>
+
+---
+
+## Documentation · 文档导航
+
+| Document | Description |
+|---|---|
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Release milestones & stage gates / 路线图与阶段规划 |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture, module boundaries & threading / 架构与模块边界 |
+| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Feature requirements & status / 需求清单与实现状态 |
+| [docs/DESIGN.md](docs/DESIGN.md) | Visual & interaction design / 视觉与交互设计 |
+| [docs/FDROID.md](docs/FDROID.md) | F-Droid FOSS compliance & build recipe / F-Droid 上架清单与构建配方 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution & PR guidelines / 贡献指南 |
+| [CHANGELOG.md](CHANGELOG.md) | Version changelog / 更新日志 |
+
+## License · 许可证
+
+Licensed under the **Mozilla Public License 2.0 ([MPL-2.0](LICENSE))**. Third-party notices are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

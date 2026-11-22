@@ -74,6 +74,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    dependenciesInfo {
+        // Omit Google's encrypted DependencyInfoBlock for F-Droid / FOSS reproducible builds.
+        includeInApk = false
+        includeInBundle = false
+    }
+
     signingConfigs {
         releaseSigning?.let { rs ->
             create("release") {

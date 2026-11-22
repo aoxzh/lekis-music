@@ -1,0 +1,6 @@
+Initial public Alpha preview:
+- Direct playback for Local, SMB, WebDAV, NFS, SFTP, OpenSubsonic, Jellyfin, Emby, and Plex
+- Sample-accurate gapless Rust engine, ReplayGain, 10-band EQ & headphone presets
+- Zero-API-key artwork & synced lyrics enrichment (with CJK/ACG enhancements)
+- Unified library deduplication, LAN Connect remote control & serverless multi-device sync
+- Full English & Simplified Chinese UI, Vinyl & Cassette now-playing styles

@@ -1,4 +1,4 @@
-# 提交前的隐私自检（PowerShell 版，与 tools/check-privacy.sh 等价）。
+﻿# 提交前的隐私自检（PowerShell 版，与 tools/check-privacy.sh 等价）。
 #
 # 检查即将提交的内容里有没有不该进公开仓库的东西：
 #   · 本机的绝对路径（Windows / macOS / Linux 的家目录）
@@ -37,7 +37,7 @@ $binaryExtensions = '\.(png|jpe?g|gif|webp|ico|icns|bmp|jar|so|dll|dylib|a|lib|e
 
 # 本机路径 + 凭据。宁可误报也不要漏。
 $patterns = @(
-    @{ Name = '本机绝对路径'; Regex = 'C:\\?\\?Users\\\\?|C:/Users/|/Users/[A-Za-z0-9._-]+/|/home/[A-Za-z0-9._-]+/|\\\\Users\\\\[A-Za-z0-9._-]+\\\\' },
+    @{ Name = '本机绝对路径'; Regex = 'C:\\Users\\|C:/Users/|/Users/[A-Za-z0-9._-]+/|/home/[A-Za-z0-9._-]+/|\\\\Users\\\\[A-Za-z0-9._-]+\\\\' },
     @{ Name = '邮箱';         Regex = '[A-Za-z0-9._%+-]+@(gmail|qq|outlook|hotmail|163|126|foxmail)\.[A-Za-z]{2,}' },
     @{ Name = 'GitHub Token'; Regex = 'gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}' },
     @{ Name = '私钥';         Regex = '-----BEGIN [A-Z ]*PRIVATE KEY-----' },

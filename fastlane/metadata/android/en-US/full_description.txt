@@ -1,0 +1,13 @@
+Lekis Music is an open-source, privacy-first local and NAS lossless music player powered by a high-performance Rust audio core and a Flutter interface.
+
+Play your music library directly from local folders or your home NAS with zero server setup, or connect your existing self-hosted media servers.
+
+Key Features:
+- Zero-Server NAS Direct Play: Stream directly from Local folders, SMB, WebDAV, NFSv3, and SFTP with LAN auto-discovery (mDNS / WS-Discovery / SSDP) and automatic Home/Away failover.
+- Self-Hosted Media Servers: Native support for OpenSubsonic (Navidrome, Gonic, Airsonic), Jellyfin, Emby, and Plex.
+- High-Performance Rust Engine: Handles 100,000+ tracks smoothly with sample-accurate gapless playback, ReplayGain, 10-band equalizer with headphone presets, sleep timer (including end-of-track), and Last.fm / ListenBrainz / Libre.fm scrobbling.
+- Unified Library & Quality Deduplication: Automatically merges identical tracks across local storage, NAS, and media servers, with one-click cleanup of lower-quality duplicates.
+- Zero-API-Key Artwork & Synced Lyrics: Automatic album cover and synced lyrics enrichment (LRCLIB, Cover Art Archive, iTunes, Deezer, VocaDB, MusicBrainz), word-by-word karaoke, and manual lyric/offset editing.
+- LAN Connect & Serverless Sync: Remote-control playback and transfer queues between paired LAN devices; sync favorites, playlists, and play history via any shared folder without cloud accounts.
+- Podcasts, Radio & Plugins: Built-in podcast directory/RSS/OPML, internet radio, Vinyl/Cassette/Cover now-playing styles, and local JS plugin support.
+- 100% Privacy-First FOSS: Licensed under MPL-2.0. No accounts, no telemetry, no ads, and no Google Play Services.
