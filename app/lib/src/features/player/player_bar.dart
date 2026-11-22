@@ -1,9 +1,10 @@
+import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/connect/device_picker.dart';
 import 'package:lekis/src/features/connect/remote_now_playing_bar.dart';
 import 'package:lekis/src/features/desktop_lyrics/desktop_lyrics_controller.dart';
 import 'package:lekis/src/features/desktop_lyrics/desktop_lyrics_strings.dart';
-import 'package:flutter/gestures.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_providers.dart'
     show SimpleValue;
 import 'package:lekis/src/features/library/widgets/track_actions.dart'
@@ -17,6 +18,7 @@ import 'package:lekis/src/features/settings/settings_providers.dart'
     show playbackOutputProvider;
 import 'package:lekis/src/shell/routes.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/lekis_slider.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// What the desktop right-hand context panel shows (Spotify's "lyrics" /
@@ -47,11 +49,8 @@ class PlayerBar extends ConsumerWidget {
   static const Key desktopLyricsKey = ValueKey('player-bar.desktop-lyrics');
   static const Key queueKey = ValueKey('player-bar.queue');
   static const Key devicesKey = ValueKey('player-bar.devices');
-
-  /// Below this width the right-hand block drops the volume slider and keeps
-  /// only the mute button (the mouse wheel still changes volume over it).
-  static const double _volumeSliderMinWidth =
-      LekisSizes.touchTargetMin * 4 + LekisSizes.gridArtworkMin * 0.75;
+  static const Key volumeKey = ValueKey('player-bar.volume');
+  static const Key volumePopoverKey = ValueKey('player-bar.volume-popover');
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -101,59 +100,61 @@ class PlayerBar extends ConsumerWidget {
       ),
     );
 
-    final right = LayoutBuilder(
-      builder: (context, constraints) {
-        final roomy = constraints.maxWidth >= _volumeSliderMinWidth;
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
+    final right = IconButtonTheme(
+      data: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          visualDensity: VisualDensity.compact,
+          minimumSize: const Size(38, 38),
+          padding: const EdgeInsets.all(LekisSpacing.xs),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          _BarToggle(
+            key: lyricsKey,
+            tooltip: sidePane == DesktopSidePane.lyrics ? '隐藏歌词' : '歌词',
+            icon: Icons.lyrics_outlined,
+            selectedIcon: Icons.lyrics_rounded,
+            selected: sidePane == DesktopSidePane.lyrics,
+            onPressed: !hasTrack
+                ? null
+                : sidePanel
+                ? () => toggleSide(DesktopSidePane.lyrics)
+                : () {
+                    ref
+                        .read(nowPlayingPaneProvider.notifier)
+                        .set(NowPlayingPane.lyrics);
+                    openNowPlaying(context);
+                  },
+          ),
+          if (desktopLyricsSupported)
             _BarToggle(
-              key: lyricsKey,
-              tooltip: sidePane == DesktopSidePane.lyrics ? '隐藏歌词' : '歌词',
-              icon: Icons.lyrics_outlined,
-              selectedIcon: Icons.lyrics_rounded,
-              selected: sidePane == DesktopSidePane.lyrics,
-              onPressed: !hasTrack
-                  ? null
-                  : sidePanel
-                  ? () => toggleSide(DesktopSidePane.lyrics)
-                  : () {
-                      ref
-                          .read(nowPlayingPaneProvider.notifier)
-                          .set(NowPlayingPane.lyrics);
-                      openNowPlaying(context);
-                    },
+              key: desktopLyricsKey,
+              tooltip: DesktopLyricsStrings.toggleTooltip,
+              icon: Icons.subtitles_outlined,
+              selectedIcon: Icons.subtitles_rounded,
+              selected: desktopLyricsVisible,
+              onPressed: () =>
+                  ref.read(desktopLyricsProvider.notifier).toggleVisible(),
             ),
-            if (desktopLyricsSupported)
-              _BarToggle(
-                key: desktopLyricsKey,
-                tooltip: DesktopLyricsStrings.toggleTooltip,
-                icon: Icons.subtitles_outlined,
-                selectedIcon: Icons.subtitles_rounded,
-                selected: desktopLyricsVisible,
-                onPressed: () =>
-                    ref.read(desktopLyricsProvider.notifier).toggleVisible(),
-              ),
-            _BarToggle(
-              key: queueKey,
-              tooltip: sidePane == DesktopSidePane.queue ? '隐藏播放队列' : '播放队列',
-              icon: Icons.queue_music_rounded,
-              selectedIcon: Icons.queue_music_rounded,
-              selected: sidePane == DesktopSidePane.queue,
-              onPressed: !hasTrack
-                  ? null
-                  : sidePanel
-                  ? () => toggleSide(DesktopSidePane.queue)
-                  : () => showQueueSheet(context),
-            ),
-            const ConnectDeviceButton(alwaysShow: true),
-            const _OutputDeviceButton(key: devicesKey),
-            Flexible(
-              child: _WheelVolume(child: VolumeControl(showSlider: roomy)),
-            ),
-          ],
-        );
-      },
+          _BarToggle(
+            key: queueKey,
+            tooltip: sidePane == DesktopSidePane.queue ? '隐藏播放队列' : '播放队列',
+            icon: Icons.queue_music_rounded,
+            selectedIcon: Icons.queue_music_rounded,
+            selected: sidePane == DesktopSidePane.queue,
+            onPressed: !hasTrack
+                ? null
+                : sidePanel
+                ? () => toggleSide(DesktopSidePane.queue)
+                : () => showQueueSheet(context),
+          ),
+          const ConnectDeviceButton(alwaysShow: true),
+          const _OutputDeviceButton(key: devicesKey),
+          const _WheelVolume(child: _VolumePopoverButton(key: volumeKey)),
+        ],
+      ),
     );
 
     return PlayerShortcuts(
@@ -180,10 +181,10 @@ class PlayerBar extends ConsumerWidget {
                   child: Row(
                     children: [
                       Expanded(flex: 3, child: left),
-                      const SizedBox(width: LekisSpacing.lg),
+                      const SizedBox(width: LekisSpacing.md),
                       Expanded(flex: 4, child: Center(child: center)),
-                      const SizedBox(width: LekisSpacing.lg),
-                      Expanded(flex: 3, child: right),
+                      const SizedBox(width: LekisSpacing.md),
+                      Expanded(flex: 4, child: right),
                     ],
                   ),
                 ),
@@ -219,10 +220,7 @@ class _BarToggle extends StatelessWidget {
     return IconButton(
       tooltip: tooltip,
       isSelected: selected,
-      constraints: const BoxConstraints(
-        minWidth: LekisSizes.touchTargetMin,
-        minHeight: LekisSizes.touchTargetMin,
-      ),
+      constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
       style: IconButton.styleFrom(
         backgroundColor: selected ? colors.accentSoft : null,
         foregroundColor: selected ? colors.accent : null,
@@ -344,6 +342,166 @@ class _NowPlayingLink extends StatelessWidget {
       message: '打开播放页',
       waitDuration: LekisMotion.slow,
       child: link,
+    );
+  }
+}
+
+/// 桌面播放条音量按钮：点击向上弹出浮动竖向音量条，窄窗口不再被裁切；
+/// 滚轮悬停在按钮或浮层上同样可直接微调音量。
+class _VolumePopoverButton extends ConsumerStatefulWidget {
+  const _VolumePopoverButton({super.key});
+
+  @override
+  ConsumerState<_VolumePopoverButton> createState() =>
+      _VolumePopoverButtonState();
+}
+
+class _VolumePopoverButtonState extends ConsumerState<_VolumePopoverButton> {
+  final OverlayPortalController _portal = OverlayPortalController();
+  final LayerLink _link = LayerLink();
+  double _beforeMute = 1;
+
+  IconData _iconFor(double volume) => volume == 0
+      ? Icons.volume_off_rounded
+      : volume < 0.5
+      ? Icons.volume_down_rounded
+      : Icons.volume_up_rounded;
+
+  void _toggleMute(double volume) {
+    final actions = ref.read(playerActionsProvider);
+    if (volume == 0) {
+      actions.setVolume(_beforeMute > 0 ? _beforeMute : 1);
+    } else {
+      _beforeMute = volume;
+      actions.setVolume(0);
+    }
+  }
+
+  void _togglePopover() {
+    setState(() {
+      if (_portal.isShowing) {
+        _portal.hide();
+      } else {
+        _portal.show();
+      }
+    });
+  }
+
+  void _hidePopover() {
+    if (!_portal.isShowing) return;
+    setState(() => _portal.hide());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final volume = ref.watch(playbackProvider.select((s) => s.volume));
+    final colors = context.lekisColors;
+    final percent = (volume.clamp(0.0, 1.0) * 100).round();
+
+    return CompositedTransformTarget(
+      link: _link,
+      child: OverlayPortal(
+        controller: _portal,
+        overlayChildBuilder: (context) {
+          final currentVol = ref
+              .watch(playbackProvider.select((s) => s.volume))
+              .clamp(0.0, 1.0);
+          final currentPct = (currentVol * 100).round();
+          return CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.escape): _hidePopover,
+            },
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onTap: _hidePopover,
+                  ),
+                ),
+                CompositedTransformFollower(
+                  link: _link,
+                  showWhenUnlinked: false,
+                  targetAnchor: Alignment.topRight,
+                  followerAnchor: Alignment.bottomRight,
+                  offset: const Offset(0, -LekisSpacing.sm),
+                  child: _WheelVolume(
+                    child: Material(
+                      key: PlayerBar.volumePopoverKey,
+                      elevation: 10,
+                      color: colors.surfaceElevated,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(LekisRadius.lg),
+                        side: BorderSide(color: colors.outline),
+                      ),
+                      child: SizedBox(
+                        width: 52,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: LekisSpacing.sm,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '$currentPct%',
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: colors.onSurfaceVariant,
+                                      fontFeatures: const [
+                                        FontFeature.tabularFigures(),
+                                      ],
+                                    ),
+                              ),
+                              const SizedBox(height: LekisSpacing.xs),
+                              SizedBox(
+                                height: 136,
+                                child: RotatedBox(
+                                  quarterTurns: 3,
+                                  child: LekisSlider(
+                                    value: currentVol,
+                                    semanticFormatterCallback: (v) =>
+                                        '音量 ${(v * 100).round()}%',
+                                    onChanged: (v) => ref
+                                        .read(playerActionsProvider)
+                                        .setVolume(v),
+                                    trackHeight: LekisSliderGeometry.track,
+                                    dense: true,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: LekisSpacing.xs),
+                              IconButton(
+                                tooltip: currentVol == 0 ? '取消静音' : '静音',
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => _toggleMute(currentVol),
+                                icon: Icon(
+                                  _iconFor(currentVol),
+                                  size: 20,
+                                  color: currentVol == 0
+                                      ? colors.onSurfaceVariant
+                                      : colors.accent,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+        child: _BarToggle(
+          tooltip: '音量 $percent%',
+          icon: _iconFor(volume),
+          selectedIcon: _iconFor(volume),
+          selected: _portal.isShowing,
+          onPressed: _togglePopover,
+        ),
+      ),
     );
   }
 }
