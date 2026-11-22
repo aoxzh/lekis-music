@@ -192,6 +192,40 @@ impl Library {
         .await
     }
 
+    /// 自动清理已经过期的待确认封面候选：曲目（或其所属专辑）已经有生效封面时，
+    /// 不再向用户提示重复的封面替换建议。返回被清理的条数。
+    pub async fn dismiss_stale_artwork_candidates(&self) -> Result<u64> {
+        self.write(move |conn| {
+            let now = now_ms();
+            let n = conn
+                .execute(
+                    "UPDATE enrich_candidate
+                     SET state = 'rejected', decided_at = ?1
+                     WHERE state = 'pending'
+                       AND kind = 'artwork'
+                       AND (
+                         (track_id IS NOT NULL AND EXISTS (
+                           SELECT 1
+                           FROM track t
+                           LEFT JOIN album a ON a.id = t.album_id
+                           WHERE t.id = enrich_candidate.track_id
+                             AND COALESCE(t.artwork_id, a.artwork_id) IS NOT NULL
+                         ))
+                         OR (album_id IS NOT NULL AND EXISTS (
+                           SELECT 1
+                           FROM album a
+                           WHERE a.id = enrich_candidate.album_id
+                             AND a.artwork_id IS NOT NULL
+                         ))
+                       )",
+                    params![now],
+                )
+                .db()?;
+            Ok(n as u64)
+        })
+        .await
+    }
+
     /// 接受一条候选（`state = 'accepted'`，`decided_at` 记成现在）。
     ///
     /// 候选不存在、或者已经不是 `pending`，返回 [`LekisError::not_found`]。

@@ -3228,6 +3228,9 @@ class TrackDto {
   /// 播放次数。
   final PlatformInt64 playCount;
 
+  /// 是否已存在本地文件副本（来自本机文件夹音源）。
+  final bool isLocal;
+
   const TrackDto({
     required this.id,
     required this.uid,
@@ -3246,6 +3249,7 @@ class TrackDto {
     required this.loved,
     this.rating,
     required this.playCount,
+    required this.isLocal,
   });
 
   @override
@@ -3266,7 +3270,8 @@ class TrackDto {
       overlay.hashCode ^
       loved.hashCode ^
       rating.hashCode ^
-      playCount.hashCode;
+      playCount.hashCode ^
+      isLocal.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -3289,7 +3294,8 @@ class TrackDto {
           overlay == other.overlay &&
           loved == other.loved &&
           rating == other.rating &&
-          playCount == other.playCount;
+          playCount == other.playCount &&
+          isLocal == other.isLocal;
 }
 
 /// 按听歌时长排名的曲目。
@@ -3380,6 +3386,9 @@ class TrackRowDto {
   final String? qualityBadge;
   final bool loved;
 
+  /// 是否已存在本地文件副本（来自本机文件夹音源）。
+  final bool isLocal;
+
   const TrackRowDto({
     required this.id,
     required this.title,
@@ -3389,6 +3398,7 @@ class TrackRowDto {
     this.artworkId,
     this.qualityBadge,
     required this.loved,
+    required this.isLocal,
   });
 
   @override
@@ -3400,7 +3410,8 @@ class TrackRowDto {
       durationMs.hashCode ^
       artworkId.hashCode ^
       qualityBadge.hashCode ^
-      loved.hashCode;
+      loved.hashCode ^
+      isLocal.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -3414,7 +3425,8 @@ class TrackRowDto {
           durationMs == other.durationMs &&
           artworkId == other.artworkId &&
           qualityBadge == other.qualityBadge &&
-          loved == other.loved;
+          loved == other.loved &&
+          isLocal == other.isLocal;
 }
 
 enum TrackSortDto { title, artist, album, recentlyAdded, mostPlayed }

@@ -1318,6 +1318,7 @@ pub(crate) fn episode_track(episode: &PodcastEpisode) -> Track {
         replaygain: Default::default(),
         artwork_id: None,
         overlay: None,
+        is_local: false,
     }
 }
 
@@ -1332,6 +1333,7 @@ pub(crate) fn episode_track_row(episode: &PodcastEpisode) -> TrackRow {
         artwork_id: None,
         quality_badge: None,
         loved: false,
+        is_local: false,
     }
 }
 

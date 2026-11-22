@@ -705,8 +705,19 @@ impl ITunes {
         self.cache.clear();
     }
 
-    /// 检索地址。
+    /// 检索地址（默认商店区，测试与兜底复用）。
+    #[cfg(test)]
     fn search_url(&self, term: &str, entity: &str) -> Result<reqwest::Url> {
+        self.search_url_in_country(term, entity, None)
+    }
+
+    /// 按指定商店区检索（如 `Some("jp")` 覆盖日区动漫 OST / Vocaloid / ACG 专辑）。
+    fn search_url_in_country(
+        &self,
+        term: &str,
+        entity: &str,
+        country: Option<&str>,
+    ) -> Result<reqwest::Url> {
         let mut url = http::join(&self.base_url, "/search")?;
         {
             let mut query = url.query_pairs_mut();
@@ -714,13 +725,24 @@ impl ITunes {
             query.append_pair("entity", entity);
             query.append_pair("media", "music");
             query.append_pair("limit", "5");
+            if let Some(code) = country {
+                query.append_pair("country", code);
+                if code.eq_ignore_ascii_case("jp") {
+                    query.append_pair("lang", "ja_jp");
+                }
+            }
         }
         Ok(url)
     }
 
     /// 检索一次并解析。
-    async fn search(&self, term: &str, entity: &str) -> Result<Vec<ITunesItem>> {
-        let url = self.search_url(term, entity)?;
+    async fn search(
+        &self,
+        term: &str,
+        entity: &str,
+        country: Option<&str>,
+    ) -> Result<Vec<ITunesItem>> {
+        let url = self.search_url_in_country(term, entity, country)?;
         let Some(body) = fetch(
             &self.client,
             &self.limiter,
@@ -734,6 +756,57 @@ impl ITunes {
         };
         parse_itunes_search(&body)
     }
+}
+
+/// 文本是否包含中日韩表意文字或日文假名（用于优先走日区商店与 ACG 清洗逻辑）。
+pub(crate) fn contains_cjk_or_kana(text: &str) -> bool {
+    text.chars().any(|c| {
+        matches!(
+            c as u32,
+            0x3040..=0x30FF // Hiragana + Katakana
+                | 0x31F0..=0x31FF
+                | 0x4E00..=0x9FFF // CJK Unified Ideographs
+                | 0x3400..=0x4DBF
+                | 0xF900..=0xFAFF
+        )
+    })
+}
+
+/// 清洗日系 / ACG 曲名与专辑名里常见的版本后缀噪声：
+/// 如 `(TV Size)`、`(Game Ver.)`、`(Instrumental)`、`(CV. xxx)`、`[Hi-Res]`、全角波浪号等。
+pub(crate) fn clean_acg_query(text: &str) -> String {
+    let mut s = text.replace(['\u{3000}', '～', '~'], " ");
+    for (open, close) in [('(', ')'), ('（', '）'), ('[', ']'), ('【', '】'), ('「', '」')] {
+        while let Some(start) = s.find(open) {
+            if let Some(rel_end) = s[start + open.len_utf8()..].find(close) {
+                let end = start + open.len_utf8() + rel_end + close.len_utf8();
+                let inner = &s[start + open.len_utf8()..start + open.len_utf8() + rel_end];
+                let lower = inner.to_ascii_lowercase();
+                let is_noise = lower.contains("tv")
+                    || lower.contains("size")
+                    || lower.contains("ver")
+                    || lower.contains("edit")
+                    || lower.contains("inst")
+                    || lower.contains("off vocal")
+                    || lower.contains("karaoke")
+                    || lower.contains("cv.")
+                    || lower.contains("cv:")
+                    || lower.contains("feat")
+                    || lower.contains("flac")
+                    || lower.contains("hi-res")
+                    || lower.contains("remaster")
+                    || lower.contains("ost")
+                    || lower.contains("op")
+                    || lower.contains("ed");
+                if is_noise {
+                    s.replace_range(start..end, " ");
+                    continue;
+                }
+            }
+            break;
+        }
+    }
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 #[async_trait]
@@ -762,15 +835,34 @@ impl ArtworkProvider for ITunes {
             .map(String::as_str)
             .unwrap_or("")
             .trim();
+        let is_cjk = contains_cjk_or_kana(&hint.title)
+            || contains_cjk_or_kana(artist)
+            || hint.album.as_deref().is_some_and(contains_cjk_or_kana);
+        // CJK / 日语曲目优先查日区商店（日区覆盖大量动漫 OST / Vocaloid / 角色歌），
+        // 未命中再回落到全局商店。
+        let primary_country = is_cjk.then_some("jp");
+
         let song_term = format!("{} {}", hint.title.trim(), artist)
             .trim()
             .to_string();
         let mut candidates = if song_term.is_empty() {
             Vec::new()
         } else {
-            let items = self.search(&song_term, "song").await?;
+            let items = self.search(&song_term, "song", primary_country).await?;
             item_candidates(self.name(), hint, &items)
         };
+
+        if candidates.is_empty() {
+            let cleaned_title = clean_acg_query(&hint.title);
+            let cleaned_artist = clean_acg_query(artist);
+            let cleaned_song = format!("{cleaned_title} {cleaned_artist}")
+                .trim()
+                .to_string();
+            if !cleaned_song.is_empty() && cleaned_song != song_term {
+                let items = self.search(&cleaned_song, "song", primary_country).await?;
+                candidates = item_candidates(self.name(), hint, &items);
+            }
+        }
 
         if candidates.is_empty() {
             if let Some(album) = hint
@@ -780,9 +872,22 @@ impl ArtworkProvider for ITunes {
                 .filter(|a| !a.is_empty())
             {
                 let album_term = format!("{album} {artist}").trim().to_string();
-                let items = self.search(&album_term, "album").await?;
+                let items = self.search(&album_term, "album", primary_country).await?;
                 candidates = item_candidates(self.name(), hint, &items);
+                if candidates.is_empty() {
+                    let cleaned_album = clean_acg_query(album);
+                    if !cleaned_album.is_empty() && cleaned_album != album {
+                        let items = self.search(&cleaned_album, "album", primary_country).await?;
+                        candidates = item_candidates(self.name(), hint, &items);
+                    }
+                }
             }
+        }
+
+        // 日区没查到时，再退回默认全局区试一次（部分海外发行的双语/华语专辑不在 JP 区）。
+        if candidates.is_empty() && primary_country.is_some() && !song_term.is_empty() {
+            let items = self.search(&song_term, "song", None).await?;
+            candidates = item_candidates(self.name(), hint, &items);
         }
 
         if !candidates.is_empty() {

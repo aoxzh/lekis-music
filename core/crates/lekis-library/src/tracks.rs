@@ -53,7 +53,9 @@ pub enum TrackContext {
 
 pub(crate) const TRACK_ROW_COLUMNS: &str = "t.id, t.title, t.artist_line, a.title, t.duration_ms,
      COALESCE(t.artwork_id, a.artwork_id),
-     t.quality_badge, COALESCE(u.loved, 0), t.overlay_json, t.tag_overrides_json";
+     t.quality_badge, COALESCE(u.loved, 0), t.overlay_json, t.tag_overrides_json,
+     EXISTS(SELECT 1 FROM track_file tf JOIN source src ON src.id = tf.source_id
+            WHERE tf.track_id = t.id AND src.kind = 'local')";
 
 pub(crate) fn map_track_row(r: &Row<'_>) -> rusqlite::Result<TrackRow> {
     let overlay = r
@@ -80,6 +82,7 @@ pub(crate) fn map_track_row(r: &Row<'_>) -> rusqlite::Result<TrackRow> {
         artwork_id: r.get::<_, Option<i64>>(5)?.map(ArtworkId),
         quality_badge: r.get(6)?,
         loved: r.get::<_, i64>(7)? != 0,
+        is_local: r.get::<_, i64>(10)? != 0,
     })
 }
 
@@ -169,7 +172,9 @@ impl Library {
                 .query_row(
                     "SELECT t.id, t.uid, t.title, t.sort_title, t.album_id, a.title, t.track_no,
                             t.disc_no, t.year, t.duration_ms, t.mbid_recording, t.replaygain_json,
-                            t.artwork_id, t.overlay_json, t.tag_overrides_json
+                            t.artwork_id, t.overlay_json, t.tag_overrides_json,
+                            EXISTS(SELECT 1 FROM track_file tf JOIN source src ON src.id = tf.source_id
+                                   WHERE tf.track_id = t.id AND src.kind = 'local')
                      FROM track t LEFT JOIN album a ON a.id = t.album_id
                      WHERE t.id = ?1",
                     params![id.0],
@@ -198,6 +203,7 @@ impl Library {
                                 overlay: r
                                     .get::<_, Option<String>>(13)?
                                     .and_then(|s| serde_json::from_str::<TrackOverlay>(&s).ok()),
+                                is_local: r.get::<_, i64>(15)? != 0,
                             },
                             r.get::<_, Option<String>>(14)?
                                 .and_then(|s| serde_json::from_str::<TrackTagOverrides>(&s).ok()),

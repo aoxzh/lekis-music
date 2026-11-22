@@ -4,6 +4,7 @@
 // 核心按匹配度处理：把握大的直接应用（只写覆盖层 / 缓存，不动原文件），
 // 把握一般的进待确认队列，结果用一条提示告诉用户，有待确认的给个入口。
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge.dart' show Int64List;
 import 'package:lekis/src/features/library/library_actions.dart'
     show describeCoreError;
@@ -12,6 +13,8 @@ import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/routes.dart';
 import 'package:material_ui/material_ui.dart';
+
+import 'enrich_progress.dart';
 
 const String enrichScopeSettingKey = 'enrich.scope';
 
@@ -37,8 +40,8 @@ enum EnrichScope {
       'Fetch missing album artwork and synced lyrics (no API key needed)',
     ),
     EnrichScope.artwork => L10n.tr(
-      '仅从 iTunes / Deezer / 网易云 / Cover Art Archive 查找高清封面',
-      'Search iTunes, Deezer, NetEase & Cover Art Archive for covers only',
+      '仅从 iTunes(含日区) / Deezer / 网易云 / VocaDB / Cover Art Archive 查找高清封面',
+      'Search iTunes (incl. JP), Deezer, NetEase, VocaDB & Cover Art Archive for covers',
     ),
     EnrichScope.lyrics => L10n.tr(
       '仅从 LRCLIB / 网易云 / 酷狗 / Lyrics.ovh 查找歌词',
@@ -101,19 +104,74 @@ Future<EnrichScope?> showEnrichScopeDialog(BuildContext context) {
   );
 }
 
-/// 对 [trackIds] 跑一次补全并提示结果。
+/// 对 [trackIds] 跑一次补全并提示结果（自动驱动 [enrichProgressProvider] 实时进度条）。
 ///
 /// 未显式传入 [scope] 时先弹出范围选择（封面 + 歌词 / 仅封面 / 仅歌词）。
 Future<void> enrichTracksFlow(
   BuildContext context,
   List<int> trackIds, {
   EnrichScope? scope,
+  List<EnrichTarget>? targets,
+  VoidCallback? onCompleted,
 }) async {
-  if (trackIds.isEmpty) return;
+  final resolvedTargets =
+      targets ?? [for (final id in trackIds) EnrichTarget(trackId: id)];
+  if (resolvedTargets.isEmpty) return;
   final chosen = scope ?? await showEnrichScopeDialog(context);
   if (chosen == null || !context.mounted) return;
 
   final messenger = ScaffoldMessenger.maybeOf(context);
+  ProviderContainer? container;
+  try {
+    container = ProviderScope.containerOf(context, listen: false);
+  } catch (_) {}
+
+  if (container != null && resolvedTargets.length > 1) {
+    final notifier = container.read(enrichProgressProvider.notifier);
+    if (container.read(enrichProgressProvider)?.running == true) {
+      messenger
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text(EnrichActionStrings.runningFor(chosen))),
+        );
+      return;
+    }
+    final done = await notifier.run(
+      scope: chosen,
+      targets: resolvedTargets,
+      onCompleted: onCompleted,
+    );
+    if (done == null) return;
+    final report = EnrichReportDto(
+      autoApplied: done.autoApplied,
+      queued: done.queued,
+      discarded: 0,
+    );
+    messenger
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            done.cancelled
+                ? L10n.tr(
+                    '已取消补全（完成 ${done.completed} / ${done.total}）',
+                    'Enrichment cancelled (${done.completed} / ${done.total})',
+                  )
+                : EnrichActionStrings.result(report),
+          ),
+          action: report.queued > 0 && context.mounted
+              ? SnackBarAction(
+                  label: EnrichActionStrings.review,
+                  onPressed: () {
+                    if (context.mounted) openEnrichReview(context);
+                  },
+                )
+              : null,
+        ),
+      );
+    return;
+  }
+
   messenger
     ?..hideCurrentSnackBar()
     ..showSnackBar(
@@ -128,9 +186,10 @@ Future<void> enrichTracksFlow(
       key: enrichScopeSettingKey,
       value: chosen.storageValue,
     );
-    final report = trackIds.length == 1
-        ? await core.enrichTrack(trackId: trackIds.single)
-        : await core.enrichTracks(trackIds: Int64List.fromList(trackIds));
+    final ids = [for (final t in resolvedTargets) t.trackId];
+    final report = ids.length == 1
+        ? await core.enrichTrack(trackId: ids.single)
+        : await core.enrichTracks(trackIds: Int64List.fromList(ids));
     result = SnackBar(
       content: Text(EnrichActionStrings.result(report)),
       action: report.queued > 0 && context.mounted
@@ -142,6 +201,7 @@ Future<void> enrichTracksFlow(
             )
           : null,
     );
+    onCompleted?.call();
   } catch (error) {
     result = SnackBar(
       content: Text(
@@ -159,23 +219,40 @@ Future<void> enrichTracksFlow(
 }
 
 /// 从资料库中收集缺失封面或歌词的曲目（每批最多 50 首），按所选范围执行补全。
+///
+/// 仅补全封面时按专辑去重：同一张缺封面的专辑只查一首代表曲目，避免重复请求与重复候选。
 Future<void> enrichMissingFromLibraryFlow(
   BuildContext context, {
   EnrichScope? scope,
   int batchLimit = 50,
+  VoidCallback? onCompleted,
 }) async {
   final chosen = scope ?? await showEnrichScopeDialog(context);
   if (chosen == null || !context.mounted) return;
 
-  final ids = <int>{};
+  final targets = <int, EnrichTarget>{};
+  final seenAlbums = <int>{};
   try {
     if (chosen == EnrichScope.all || chosen == EnrichScope.artwork) {
       final rows = await core.libraryHealthPage(
         kind: HealthIssueKindDto.missingCover,
         offset: 0,
-        limit: batchLimit,
+        limit: batchLimit * 2,
       );
-      ids.addAll(rows.map((e) => e.trackId));
+      for (final row in rows) {
+        final albumId = row.albumId?.toInt();
+        // 仅补全封面时同专辑只查一首，应用后会同时挂到整张专辑。
+        if (chosen == EnrichScope.artwork &&
+            albumId != null &&
+            !seenAlbums.add(albumId)) {
+          continue;
+        }
+        targets.putIfAbsent(
+          row.trackId,
+          () => EnrichTarget(trackId: row.trackId, title: row.title),
+        );
+        if (targets.length >= batchLimit) break;
+      }
     }
     if (chosen == EnrichScope.all || chosen == EnrichScope.lyrics) {
       final rows = await core.libraryHealthPage(
@@ -183,7 +260,13 @@ Future<void> enrichMissingFromLibraryFlow(
         offset: 0,
         limit: batchLimit,
       );
-      ids.addAll(rows.map((e) => e.trackId));
+      for (final row in rows) {
+        targets.putIfAbsent(
+          row.trackId,
+          () => EnrichTarget(trackId: row.trackId, title: row.title),
+        );
+        if (targets.length >= batchLimit) break;
+      }
     }
   } catch (error) {
     if (!context.mounted) return;
@@ -200,11 +283,20 @@ Future<void> enrichMissingFromLibraryFlow(
   }
 
   if (!context.mounted) return;
-  if (ids.isEmpty) {
+  if (targets.isEmpty) {
     ScaffoldMessenger.maybeOf(context)
       ?..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(EnrichActionStrings.batchNoneMissing)));
+      ..showSnackBar(
+        SnackBar(content: Text(EnrichActionStrings.batchNoneMissing)),
+      );
     return;
   }
-  await enrichTracksFlow(context, ids.take(batchLimit).toList(), scope: chosen);
+  final list = targets.values.take(batchLimit).toList();
+  await enrichTracksFlow(
+    context,
+    [for (final t in list) t.trackId],
+    scope: chosen,
+    targets: list,
+    onCompleted: onCompleted,
+  );
 }

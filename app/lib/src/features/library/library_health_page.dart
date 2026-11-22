@@ -6,6 +6,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/downloads_models.dart';
 import 'package:lekis/src/features/enrich/enrich_actions.dart';
+import 'package:lekis/src/features/enrich/enrich_progress.dart';
 import 'package:lekis/src/features/library/album_detail_page.dart';
 import 'package:lekis/src/features/library/library_health_providers.dart';
 import 'package:lekis/src/features/library/track_sources_sheet.dart';
@@ -50,6 +51,7 @@ class LibraryHealthPage extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _SectionTabs(),
+            EnrichProgressBanner(),
             Expanded(
               child: TabBarView(children: [_DuplicatesTab(), _HealthTab()]),
             ),
@@ -775,7 +777,7 @@ class _HealthTab extends ConsumerWidget {
   }
 }
 
-class _HealthHeader extends StatelessWidget {
+class _HealthHeader extends ConsumerWidget {
   const _HealthHeader({
     required this.summary,
     required this.selected,
@@ -791,9 +793,14 @@ class _HealthHeader extends StatelessWidget {
   final VoidCallback onScan;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.lekisColors;
+    final enriching = ref.watch(enrichProgressProvider)?.running == true;
     final tracks = summary?.totalTracks.toInt();
+    void refreshAfterEnrich() {
+      ref.invalidate(libraryHealthSummaryProvider);
+      ref.invalidate(healthEntriesProvider);
+    }
     BigInt? countOf(HealthTabKind kind) => switch (kind) {
       HealthTabKind.missingCover => summary?.missingCover,
       HealthTabKind.missingLyrics => summary?.missingLyrics,
@@ -870,10 +877,13 @@ class _HealthHeader extends StatelessWidget {
                 padding: const EdgeInsets.only(right: settingsRowInset),
                 child: FilledButton.tonalIcon(
                   key: const ValueKey('health.enrich-missing-covers'),
-                  onPressed: () => enrichMissingFromLibraryFlow(
-                    context,
-                    scope: EnrichScope.artwork,
-                  ),
+                  onPressed: enriching
+                      ? null
+                      : () => enrichMissingFromLibraryFlow(
+                            context,
+                            scope: EnrichScope.artwork,
+                            onCompleted: refreshAfterEnrich,
+                          ),
                   icon: const Icon(Icons.image_search_outlined, size: 18),
                   label: Text(
                     context.l10n.pick('补全缺失封面', 'Fetch Missing Covers'),
@@ -886,10 +896,13 @@ class _HealthHeader extends StatelessWidget {
                 padding: const EdgeInsets.only(right: settingsRowInset),
                 child: FilledButton.tonalIcon(
                   key: const ValueKey('health.enrich-missing-lyrics'),
-                  onPressed: () => enrichMissingFromLibraryFlow(
-                    context,
-                    scope: EnrichScope.lyrics,
-                  ),
+                  onPressed: enriching
+                      ? null
+                      : () => enrichMissingFromLibraryFlow(
+                            context,
+                            scope: EnrichScope.lyrics,
+                            onCompleted: refreshAfterEnrich,
+                          ),
                   icon: const Icon(Icons.lyrics_outlined, size: 18),
                   label: Text(
                     context.l10n.pick('补全缺失歌词', 'Fetch Missing Lyrics'),

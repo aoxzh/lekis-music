@@ -27,6 +27,7 @@ TrackDto track({
   loved: false,
   rating: null,
   playCount: 0,
+  isLocal: true,
 );
 
 void main() {

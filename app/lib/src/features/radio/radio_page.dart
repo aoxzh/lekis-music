@@ -303,7 +303,6 @@ class _RadioPageState extends ConsumerState<RadioPage> {
                         _applyBrowse();
                       },
                     ),
-              border: const OutlineInputBorder(),
               isDense: true,
             ),
           ),

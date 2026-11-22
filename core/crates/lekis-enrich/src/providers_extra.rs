@@ -11,6 +11,7 @@
 
 use crate::cache::{cache_key, TtlCache};
 use crate::http;
+use crate::providers::clean_acg_query;
 use crate::scoring::score_match;
 use crate::throttle::{Backoff, RateLimiter};
 use crate::{ArtworkPayload, ArtworkProvider, Candidate, LyricsPayload, LyricsProvider, TrackHint};
@@ -338,7 +339,31 @@ impl ArtworkProvider for NetEaseArtwork {
             return Ok(Vec::new());
         };
 
-        let candidates = parse_netease_artwork(self.name(), hint, &body)?;
+        let mut candidates = parse_netease_artwork(self.name(), hint, &body)?;
+        // ACG / OST 曲目常见带 `(TV Size)`、`[FLAC]`、多 CV 后缀，原串未命中时用清洗后的关键词兜底。
+        if candidates.is_empty() {
+            let cleaned = clean_acg_query(&query);
+            if !cleaned.is_empty() && cleaned != query {
+                let mut fallback_url = http::join(&self.base_url, "/api/search/get")?;
+                fallback_url
+                    .query_pairs_mut()
+                    .append_pair("s", &cleaned)
+                    .append_pair("type", "10")
+                    .append_pair("limit", "6");
+                if let Some(fb_body) = fetch_with_headers(
+                    &self.client,
+                    &self.limiter,
+                    &self.backoff,
+                    fallback_url,
+                    NETEASE_HEADERS,
+                    "NetEase /api/search/get (album fallback)",
+                )
+                .await?
+                {
+                    candidates = parse_netease_artwork(self.name(), hint, &fb_body)?;
+                }
+            }
+        }
         if !candidates.is_empty() {
             self.cache.insert(key, candidates.clone());
         }
@@ -1271,6 +1296,178 @@ impl LyricsProvider for LyricsOvh {
     }
 }
 
+// ============================================================================
+// VocaDB Public API（免 Key，Vocaloid / 日语同人 / ACG 独立专辑封面）
+// ============================================================================
+
+/// VocaDB 公开专辑封面提供方（免 Key，擅长 Vocaloid / 日语同人 / ACG 作品）。
+pub struct VocaDbArtwork {
+    base_url: String,
+    client: reqwest::Client,
+    limiter: RateLimiter,
+    backoff: Backoff,
+    cache: TtlCache<Vec<Candidate<ArtworkPayload>>>,
+}
+
+impl VocaDbArtwork {
+    /// 官方公开 API 地址。
+    pub const DEFAULT_BASE_URL: &'static str = "https://vocadb.net";
+
+    /// 用官方地址创建。
+    pub fn new() -> Result<Self> {
+        Self::with_base_url(Self::DEFAULT_BASE_URL)
+    }
+
+    /// 用自定义地址创建。
+    pub fn with_base_url(base_url: &str) -> Result<Self> {
+        let base_url = base_url.trim().trim_end_matches('/').to_string();
+        if base_url.is_empty() {
+            return Err(LekisError::invalid("VocaDB 地址为空"));
+        }
+        Ok(Self {
+            base_url,
+            client: http::client()?,
+            limiter: RateLimiter::new(Duration::from_millis(800)),
+            backoff: Backoff::new(Duration::from_secs(1), Duration::from_secs(30)),
+            cache: TtlCache::new(),
+        })
+    }
+}
+
+#[async_trait]
+impl ArtworkProvider for VocaDbArtwork {
+    fn name(&self) -> &str {
+        "vocadb"
+    }
+
+    async fn find_artwork(&self, hint: &TrackHint) -> Result<Vec<Candidate<ArtworkPayload>>> {
+        let raw_target = hint
+            .album
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| hint.title.trim());
+        let query = clean_acg_query(raw_target);
+        if query.is_empty() {
+            return Ok(Vec::new());
+        }
+        let key = cache_key(&format!("{}/albums", self.base_url), hint);
+        if let Some(cached) = self.cache.get(&key) {
+            return Ok(cached);
+        }
+
+        let mut url = http::join(&self.base_url, "/api/albums")?;
+        url.query_pairs_mut()
+            .append_pair("query", &query)
+            .append_pair("fields", "MainPicture")
+            .append_pair("maxResults", "5")
+            .append_pair("nameMatchMode", "Auto");
+        let Some(body) = fetch_with_headers(
+            &self.client,
+            &self.limiter,
+            &self.backoff,
+            url,
+            &[],
+            "VocaDB /api/albums",
+        )
+        .await?
+        else {
+            return Ok(Vec::new());
+        };
+
+        let candidates = parse_vocadb_artwork(self.name(), hint, &body)?;
+        if !candidates.is_empty() {
+            self.cache.insert(key, candidates.clone());
+        }
+        Ok(candidates)
+    }
+}
+
+fn parse_vocadb_artwork(
+    source: &str,
+    hint: &TrackHint,
+    body: &str,
+) -> Result<Vec<Candidate<ArtworkPayload>>> {
+    #[derive(Deserialize)]
+    struct Resp {
+        #[serde(default)]
+        items: Vec<AlbumItem>,
+    }
+    #[derive(Deserialize)]
+    struct AlbumItem {
+        #[serde(default)]
+        name: String,
+        #[serde(rename = "artistString", default)]
+        artist_string: String,
+        #[serde(rename = "mainPicture", default)]
+        main_picture: Option<Picture>,
+    }
+    #[derive(Deserialize)]
+    struct Picture {
+        #[serde(rename = "urlOriginal", default)]
+        url_original: Option<String>,
+        #[serde(rename = "urlThumb", default)]
+        url_thumb: Option<String>,
+    }
+
+    let resp: Resp = serde_json::from_str(body).map_err(decode)?;
+    let mut out = Vec::new();
+    for item in resp.items {
+        let Some(pic) = item.main_picture else {
+            continue;
+        };
+        let Some(url) = pic
+            .url_original
+            .filter(|s| !s.trim().is_empty())
+            .or_else(|| pic.url_thumb.filter(|s| !s.trim().is_empty()))
+        else {
+            continue;
+        };
+        let album_hint = TrackHint {
+            title: hint
+                .album
+                .clone()
+                .filter(|a| !a.trim().is_empty())
+                .unwrap_or_else(|| hint.title.clone()),
+            artists: hint.artists.clone(),
+            album: hint.album.clone(),
+            duration_ms: 0,
+            mbid_recording: None,
+            mbid_release: None,
+        };
+        let confidence = as_confidence(score_match(
+            &album_hint,
+            &item.name,
+            &item.artist_string,
+            Some(&item.name),
+            0,
+        ));
+        let matched = TrackHint {
+            title: hint.title.clone(),
+            artists: if item.artist_string.is_empty() {
+                Vec::new()
+            } else {
+                vec![item.artist_string]
+            },
+            album: Some(item.name),
+            duration_ms: hint.duration_ms,
+            mbid_recording: None,
+            mbid_release: None,
+        };
+        out.push(Candidate {
+            payload: ArtworkPayload {
+                url: to_https(url.trim()),
+                width: None,
+                height: None,
+            },
+            source: source.to_string(),
+            matched,
+            provider_confidence: confidence,
+        });
+    }
+    Ok(sort_and_filter(out, hint))
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -1373,5 +1570,39 @@ mod tests {
         assert!(!cleaned.contains("[id:"));
         assert!(!cleaned.contains("[hash:"));
         assert!(cleaned.contains("[00:01.00]故事的小黄花"));
+    }
+
+    #[test]
+    fn cleans_acg_version_noise_and_parses_vocadb() {
+        assert_eq!(
+            clean_acg_query("青春コンプレックス (TV Size) [FLAC]"),
+            "青春コンプレックス"
+        );
+        assert_eq!(
+            clean_acg_query("メルト (feat. 初音ミク)"),
+            "メルト"
+        );
+        let hint = TrackHint {
+            title: "メルト".into(),
+            artists: vec!["ryo".into()],
+            album: Some("supercell".into()),
+            duration_ms: 258_000,
+            ..Default::default()
+        };
+        let json = r#"{
+            "items": [{
+                "name": "supercell",
+                "artistString": "ryo feat. 初音ミク",
+                "mainPicture": {
+                    "urlOriginal": "https://static.vocadb.net/img/album/mainOrig/123.jpg"
+                }
+            }]
+        }"#;
+        let out = parse_vocadb_artwork("vocadb", &hint, json).unwrap();
+        assert_eq!(out.len(), 1);
+        assert_eq!(
+            out[0].payload.url,
+            "https://static.vocadb.net/img/album/mainOrig/123.jpg"
+        );
     }
 }

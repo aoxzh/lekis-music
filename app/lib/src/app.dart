@@ -1,6 +1,7 @@
 // Root widget: themes, scroll behaviour and the navigation shell.
 
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -40,11 +41,27 @@ class LekisApp extends ConsumerWidget {
       themeMode: themeMode,
       themeAnimationDuration: LekisMotion.normal,
       scrollBehavior: const _LekisScrollBehavior(),
-      // 窗口标题栏跟随应用的深浅色，而不是 Windows 的；同步注入 LekisLocale 驱动双语切换。
-      builder: (context, child) => LekisLocale(
-        locale: Localizations.localeOf(context),
-        child: WindowCaptionSync(child: child ?? const SizedBox.shrink()),
-      ),
+      // 窗口标题栏与移动端系统状态栏图标跟随应用的深浅色（含未挂载 AppBar 的页面）；
+      // 同步注入 LekisLocale 驱动双语切换。
+      builder: (context, child) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final overlay =
+            (isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
+                .copyWith(
+                  statusBarColor: Colors.transparent,
+                  systemNavigationBarColor: Colors.transparent,
+                  systemNavigationBarIconBrightness: isDark
+                      ? Brightness.light
+                      : Brightness.dark,
+                );
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: overlay,
+          child: LekisLocale(
+            locale: Localizations.localeOf(context),
+            child: WindowCaptionSync(child: child ?? const SizedBox.shrink()),
+          ),
+        );
+      },
       // 空格播放/暂停、媒体键等快捷键在整个应用里生效。
       home: const PerfProbe(child: PlayerShortcuts(child: AppShell())),
     );

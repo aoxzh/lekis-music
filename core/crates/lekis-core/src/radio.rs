@@ -698,6 +698,7 @@ pub(crate) fn station_track(station: &RadioStation) -> Track {
         replaygain: Default::default(),
         artwork_id: None,
         overlay: None,
+        is_local: false,
     }
 }
 
@@ -728,6 +729,7 @@ pub(crate) fn station_track_row(station: &RadioStation) -> TrackRow {
         artwork_id: None,
         quality_badge,
         loved: station.favorite,
+        is_local: false,
     }
 }
 

@@ -53,6 +53,7 @@ final _track = TrackDto(
   genres: const [],
   loved: true,
   playCount: 5,
+  isLocal: false,
 );
 
 const _bilingualLyrics = LyricsDto(

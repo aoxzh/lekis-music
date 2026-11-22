@@ -14,6 +14,7 @@ TrackRowDto _row(int index) => TrackRowDto(
   albumTitle: '月面',
   durationMs: BigInt.from(180000),
   loved: false,
+  isLocal: false,
 );
 
 class _FakePlayback extends PlaybackController {

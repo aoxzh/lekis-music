@@ -400,6 +400,7 @@ impl RemoteMedia {
             replaygain: Default::default(),
             artwork_id: None,
             overlay: None,
+            is_local: false,
         }
     }
 
@@ -414,6 +415,7 @@ impl RemoteMedia {
             artwork_id: None,
             quality_badge: None,
             loved: false,
+            is_local: false,
         }
     }
 }

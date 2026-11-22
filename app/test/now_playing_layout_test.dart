@@ -51,6 +51,7 @@ final _track = TrackDto(
   genres: const [],
   loved: false,
   playCount: 0,
+  isLocal: false,
 );
 
 ProviderContainer _container({

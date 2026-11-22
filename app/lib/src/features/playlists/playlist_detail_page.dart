@@ -149,8 +149,12 @@ class _StaticPlaylistBody extends ConsumerWidget {
     final entries = ref.watch(playlistEntriesProvider(playlist.id));
     final gutter = pageGutterOf(context);
     final rows = entries.value ?? const <PlaylistEntryDto>[];
-    final downloadIds = rows
+    final playableIds = rows
         .where((entry) => entry.track != null)
+        .map((entry) => entry.track!.id)
+        .toList(growable: false);
+    final downloadIds = rows
+        .where((entry) => entry.track != null && !entry.track!.isLocal)
         .map((entry) => entry.track!.id)
         .toList(growable: false);
 
@@ -177,7 +181,7 @@ class _StaticPlaylistBody extends ConsumerWidget {
                   ? null
                   : () => startDownloads(context, ref, downloadIds),
               onExport: () => exportPlaylistM3uFlow(context, playlist),
-              queueTrackIds: downloadIds,
+              queueTrackIds: playableIds,
             ),
           ),
         ),

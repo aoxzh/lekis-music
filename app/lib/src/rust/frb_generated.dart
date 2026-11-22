@@ -10107,8 +10107,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TrackDto dco_decode_track_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 17)
-      throw Exception('unexpected arr length: expect 17 but see ${arr.length}');
+    if (arr.length != 18)
+      throw Exception('unexpected arr length: expect 18 but see ${arr.length}');
     return TrackDto(
       id: dco_decode_i_64(arr[0]),
       uid: dco_decode_String(arr[1]),
@@ -10127,6 +10127,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       loved: dco_decode_bool(arr[14]),
       rating: dco_decode_opt_box_autoadd_i_64(arr[15]),
       playCount: dco_decode_i_64(arr[16]),
+      isLocal: dco_decode_bool(arr[17]),
     );
   }
 
@@ -10165,8 +10166,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TrackRowDto dco_decode_track_row_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 8)
-      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
     return TrackRowDto(
       id: dco_decode_i_64(arr[0]),
       title: dco_decode_String(arr[1]),
@@ -10176,6 +10177,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       artworkId: dco_decode_opt_box_autoadd_i_64(arr[5]),
       qualityBadge: dco_decode_opt_String(arr[6]),
       loved: dco_decode_bool(arr[7]),
+      isLocal: dco_decode_bool(arr[8]),
     );
   }
 
@@ -13405,6 +13407,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_loved = sse_decode_bool(deserializer);
     var var_rating = sse_decode_opt_box_autoadd_i_64(deserializer);
     var var_playCount = sse_decode_i_64(deserializer);
+    var var_isLocal = sse_decode_bool(deserializer);
     return TrackDto(
       id: var_id,
       uid: var_uid,
@@ -13423,6 +13426,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       loved: var_loved,
       rating: var_rating,
       playCount: var_playCount,
+      isLocal: var_isLocal,
     );
   }
 
@@ -13475,6 +13479,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_artworkId = sse_decode_opt_box_autoadd_i_64(deserializer);
     var var_qualityBadge = sse_decode_opt_String(deserializer);
     var var_loved = sse_decode_bool(deserializer);
+    var var_isLocal = sse_decode_bool(deserializer);
     return TrackRowDto(
       id: var_id,
       title: var_title,
@@ -13484,6 +13489,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       artworkId: var_artworkId,
       qualityBadge: var_qualityBadge,
       loved: var_loved,
+      isLocal: var_isLocal,
     );
   }
 
@@ -16296,6 +16302,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.loved, serializer);
     sse_encode_opt_box_autoadd_i_64(self.rating, serializer);
     sse_encode_i_64(self.playCount, serializer);
+    sse_encode_bool(self.isLocal, serializer);
   }
 
   @protected
@@ -16336,6 +16343,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_i_64(self.artworkId, serializer);
     sse_encode_opt_String(self.qualityBadge, serializer);
     sse_encode_bool(self.loved, serializer);
+    sse_encode_bool(self.isLocal, serializer);
   }
 
   @protected

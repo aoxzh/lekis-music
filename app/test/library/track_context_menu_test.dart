@@ -36,6 +36,7 @@ void main() {
                 artistLine: 'Artist',
                 durationMs: BigInt.from(180000),
                 loved: false,
+                isLocal: false,
               ),
               leadingNumber: 1,
               onTap: () {},

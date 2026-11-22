@@ -238,23 +238,24 @@ class TrackTile extends ConsumerWidget {
           title: Text(UnifiedStrings.menuTitle),
         ),
       ),
-      PopupMenuItem(
-        value: _TrackMenuAction.download,
-        child: ListTile(
-          dense: true,
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(
-            downloadState == null
-                ? Icons.download_for_offline_outlined
-                : downloadState == OfflineStateDto.ready
-                ? Icons.delete_outline_rounded
-                : downloadState == OfflineStateDto.failed
-                ? Icons.refresh_rounded
-                : Icons.download_done_rounded,
+      if (!track.isLocal || downloadState != null)
+        PopupMenuItem(
+          value: _TrackMenuAction.download,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              downloadState == null
+                  ? Icons.download_for_offline_outlined
+                  : downloadState == OfflineStateDto.ready
+                  ? Icons.delete_outline_rounded
+                  : downloadState == OfflineStateDto.failed
+                  ? Icons.refresh_rounded
+                  : Icons.download_done_rounded,
+            ),
+            title: Text(downloadMenuLabel(downloadState)),
           ),
-          title: Text(downloadMenuLabel(downloadState)),
         ),
-      ),
     ];
 
     // Right-click (mouse, trackpad, stylus button) opens the same menu at

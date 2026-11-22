@@ -20,6 +20,7 @@ use lekis_enrich::artwork_ingest;
 use lekis_enrich::providers::{CoverArtArchive, ITunes, Lrclib};
 use lekis_enrich::providers_extra::{
     DeezerArtwork, KugouLyrics, LyricsOvh, MusicBrainzCoverArt, NetEaseArtwork, NetEaseLyrics,
+    VocaDbArtwork,
 };
 use lekis_enrich::{
     decide, ArtworkPayload, ArtworkProvider, Candidate, Decision, LyricsPayload, LyricsProvider,
@@ -95,6 +96,9 @@ impl EnrichPipeline {
             artwork_providers.push(Box::new(p));
         }
         if let Ok(p) = MusicBrainzCoverArt::new() {
+            artwork_providers.push(Box::new(p));
+        }
+        if let Ok(p) = VocaDbArtwork::new() {
             artwork_providers.push(Box::new(p));
         }
 
@@ -243,12 +247,11 @@ impl EnrichPipeline {
     ) -> Result<EnrichReport> {
         let mut report = EnrichReport::default();
         let mut queued: Vec<NewEnrichCandidate> = Vec::new();
-        let mut applied = false;
 
         for candidate in candidates.into_iter().take(MAX_PROVIDERS_PER_KIND) {
             let score = lekis_enrich::scoring::score(hint, &candidate);
             match decide(score) {
-                Decision::AutoApply if !applied => {
+                Decision::AutoApply => {
                     let lyrics = Lyrics {
                         format: candidate.payload.format,
                         content: candidate.payload.content,
@@ -258,9 +261,10 @@ impl EnrichPipeline {
                     };
                     library.save_lyrics(track_id, lyrics).await?;
                     report.auto_applied += 1;
-                    applied = true;
+                    // 已自动补全到高置信度歌词，不再把其余低顺位候选塞进待确认队列。
+                    break;
                 }
-                Decision::AutoApply | Decision::Review => {
+                Decision::Review => {
                     queued.push(NewEnrichCandidate {
                         track_id: Some(track_id),
                         album_id: None,
@@ -292,7 +296,6 @@ impl EnrichPipeline {
     ) -> Result<EnrichReport> {
         let mut report = EnrichReport::default();
         let mut queued: Vec<NewEnrichCandidate> = Vec::new();
-        let mut applied = false;
 
         for candidate in candidates.into_iter().take(MAX_PROVIDERS_PER_KIND) {
             let score = lekis_enrich::scoring::score(hint, &candidate);
@@ -304,7 +307,7 @@ impl EnrichPipeline {
             .to_string();
 
             match decide(score) {
-                Decision::AutoApply if !applied => match store_artwork(
+                Decision::AutoApply => match store_artwork(
                     &self.cache_dir,
                     library,
                     ArtworkTarget {
@@ -319,27 +322,21 @@ impl EnrichPipeline {
                 {
                     Ok(_) => {
                         report.auto_applied += 1;
-                        applied = true;
+                        // 封面已成功落盘并绑定曲目与专辑，立刻结束，不再把其它候选塞进待确认队列。
+                        break;
                     }
                     Err(e) => {
-                        // 下载失败（网络抖动、图太大）时降级进待确认队列，
-                        // 用户手动确认时还能再试一次。
+                        // 下载/解码失败的失效图直接跳过，避免把破图放进待确认误导用户。
                         tracing::warn!(
                             target: "lekis_core::enrich",
+                            provider = %candidate.source,
                             code = %e.code.as_str(),
-                            "封面下载/处理失败，转入待确认"
+                            "高置信度封面下载/处理失败，跳过并尝试下一条候选"
                         );
-                        queued.push(NewEnrichCandidate {
-                            track_id: Some(track.id),
-                            album_id: track.album_id,
-                            kind: "artwork".into(),
-                            payload_json,
-                            source: candidate.source,
-                            score,
-                        });
+                        report.discarded += 1;
                     }
                 },
-                Decision::AutoApply | Decision::Review => queued.push(NewEnrichCandidate {
+                Decision::Review => queued.push(NewEnrichCandidate {
                     track_id: Some(track.id),
                     album_id: track.album_id,
                     kind: "artwork".into(),
@@ -437,6 +434,8 @@ pub(crate) async fn store_artwork_bytes(
                 .await?;
         }
     }
+    // 封面落盘生效后，自动清理该曲目及所属专辑下所有已过期的待确认封面候选。
+    let _ = library.dismiss_stale_artwork_candidates().await;
     Ok(artwork_id)
 }
 

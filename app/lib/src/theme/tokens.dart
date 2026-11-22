@@ -391,7 +391,7 @@ abstract final class LekisPalette {
   static const Color lightAccent = Color(0xFF4F46C8);
   static const Color lightOnAccent = Color(0xFFFFFFFF);
   static const Color lightAccentSoft = Color(0xFFE8E5FF);
-  static const Color lightMoon = Color(0xFFB9821F);
+  static const Color lightMoon = Color(0xFF8C5E08);
   static const Color lightAurora = Color(0xFF1F7A6B);
   static const Color lightDanger = Color(0xFFC03A4E);
   static const Color lightScrim = Color(0x66000000);

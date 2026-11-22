@@ -10,6 +10,7 @@ import '../library/widgets/empty_state.dart';
 import '../settings/widgets/settings_widgets.dart';
 import '../sources/common.dart';
 import 'enrich_actions.dart';
+import 'enrich_progress.dart';
 import 'enrich_providers.dart';
 import 'strings.dart';
 import 'widgets/candidate_card.dart';
@@ -47,41 +48,50 @@ class EnrichReviewPage extends ConsumerWidget {
           ),
         ],
       ],
-      body: queue.when(
-        skipLoadingOnReload: true,
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => LekisEmptyState(
-          title: EnrichStrings.loadFailed,
-          message: describeCoreError(e),
-          action: TextButton.icon(
-            onPressed: () => ref.read(enrichQueueProvider.notifier).reload(),
-            icon: const Icon(Icons.refresh),
-            label: Text(EnrichStrings.retry),
-          ),
-        ),
-        data: (list) => list.isEmpty
-            ? LekisEmptyState(
-                title: EnrichStrings.emptyTitle,
-                message: EnrichStrings.emptyBody,
-                action: FilledButton.tonalIcon(
-                  onPressed: () => enrichMissingFromLibraryFlow(context),
-                  icon: const Icon(Icons.auto_fix_high_outlined),
-                  label: Text(EnrichActionStrings.action),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const EnrichProgressBanner(showReviewAction: false),
+          Expanded(
+            child: queue.when(
+              skipLoadingOnReload: true,
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => LekisEmptyState(
+                title: EnrichStrings.loadFailed,
+                message: describeCoreError(e),
+                action: TextButton.icon(
+                  onPressed: () =>
+                      ref.read(enrichQueueProvider.notifier).reload(),
+                  icon: const Icon(Icons.refresh),
+                  label: Text(EnrichStrings.retry),
                 ),
-              )
-            : SettingsScrollView(
-                slivers: [
-                  SliverList.separated(
-                    itemCount: list.length,
-                    separatorBuilder: (_, _) =>
-                        const SizedBox(height: LekisSpacing.md),
-                    itemBuilder: (_, i) => CandidateCard(
-                      key: ValueKey(list[i].id),
-                      candidate: list[i],
-                    ),
-                  ),
-                ],
               ),
+              data: (list) => list.isEmpty
+                  ? LekisEmptyState(
+                      title: EnrichStrings.emptyTitle,
+                      message: EnrichStrings.emptyBody,
+                      action: FilledButton.tonalIcon(
+                        onPressed: () => enrichMissingFromLibraryFlow(context),
+                        icon: const Icon(Icons.auto_fix_high_outlined),
+                        label: Text(EnrichActionStrings.action),
+                      ),
+                    )
+                  : SettingsScrollView(
+                      slivers: [
+                        SliverList.separated(
+                          itemCount: list.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: LekisSpacing.md),
+                          itemBuilder: (_, i) => CandidateCard(
+                            key: ValueKey(list[i].id),
+                            candidate: list[i],
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ],
       ),
     );
   }

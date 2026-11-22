@@ -1873,6 +1873,7 @@ impl LekisCore {
                     artwork_id: None,
                     quality_badge: None,
                     loved: false,
+                    is_local: false,
                 });
             }
             Ok(rows)
@@ -2090,18 +2091,24 @@ impl LekisCore {
         Ok(report)
     }
 
-    /// 待确认队列里的一页候选。
+    /// 待确认队列里的一页候选（拉取前先自动清理已有封面的过期封面候选）。
     pub async fn pending_candidates(&self, limit: u32) -> Result<Vec<EnrichCandidateRow>> {
         let s = self.services.clone();
-        self.run(async move { s.library.list_pending_candidates(limit).await })
-            .await
+        self.run(async move {
+            let _ = s.library.dismiss_stale_artwork_candidates().await;
+            s.library.list_pending_candidates(limit).await
+        })
+        .await
     }
 
     /// 待确认候选总数（"待确认 (N)" 角标用）。
     pub async fn pending_candidate_count(&self) -> Result<u64> {
         let s = self.services.clone();
-        self.run(async move { s.library.pending_candidate_count().await })
-            .await
+        self.run(async move {
+            let _ = s.library.dismiss_stale_artwork_candidates().await;
+            s.library.pending_candidate_count().await
+        })
+        .await
     }
 
     /// 接受一条候选：把内容真正写进库（歌词 / 覆盖层），再改状态。

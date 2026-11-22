@@ -11386,6 +11386,7 @@ impl SseDecode for crate::api::dto::TrackDto {
         let mut var_loved = <bool>::sse_decode(deserializer);
         let mut var_rating = <Option<i64>>::sse_decode(deserializer);
         let mut var_playCount = <i64>::sse_decode(deserializer);
+        let mut var_isLocal = <bool>::sse_decode(deserializer);
         return crate::api::dto::TrackDto {
             id: var_id,
             uid: var_uid,
@@ -11404,6 +11405,7 @@ impl SseDecode for crate::api::dto::TrackDto {
             loved: var_loved,
             rating: var_rating,
             play_count: var_playCount,
+            is_local: var_isLocal,
         };
     }
 }
@@ -11457,6 +11459,7 @@ impl SseDecode for crate::api::dto::TrackRowDto {
         let mut var_artworkId = <Option<i64>>::sse_decode(deserializer);
         let mut var_qualityBadge = <Option<String>>::sse_decode(deserializer);
         let mut var_loved = <bool>::sse_decode(deserializer);
+        let mut var_isLocal = <bool>::sse_decode(deserializer);
         return crate::api::dto::TrackRowDto {
             id: var_id,
             title: var_title,
@@ -11466,6 +11469,7 @@ impl SseDecode for crate::api::dto::TrackRowDto {
             artwork_id: var_artworkId,
             quality_badge: var_qualityBadge,
             loved: var_loved,
+            is_local: var_isLocal,
         };
     }
 }
@@ -14649,6 +14653,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::dto::TrackDto {
             self.loved.into_into_dart().into_dart(),
             self.rating.into_into_dart().into_dart(),
             self.play_count.into_into_dart().into_dart(),
+            self.is_local.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -14720,6 +14725,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::dto::TrackRowDto {
             self.artwork_id.into_into_dart().into_dart(),
             self.quality_badge.into_into_dart().into_dart(),
             self.loved.into_into_dart().into_dart(),
+            self.is_local.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -17272,6 +17278,7 @@ impl SseEncode for crate::api::dto::TrackDto {
         <bool>::sse_encode(self.loved, serializer);
         <Option<i64>>::sse_encode(self.rating, serializer);
         <i64>::sse_encode(self.play_count, serializer);
+        <bool>::sse_encode(self.is_local, serializer);
     }
 }
 
@@ -17309,6 +17316,7 @@ impl SseEncode for crate::api::dto::TrackRowDto {
         <Option<i64>>::sse_encode(self.artwork_id, serializer);
         <Option<String>>::sse_encode(self.quality_badge, serializer);
         <bool>::sse_encode(self.loved, serializer);
+        <bool>::sse_encode(self.is_local, serializer);
     }
 }
 

@@ -29,7 +29,9 @@ impl Library {
                 .prepare_cached(
                     "SELECT t.id, t.title, t.artist_line, a.title, t.duration_ms,
                             COALESCE(t.artwork_id, a.artwork_id), t.quality_badge,
-                            COALESCE(u.loved, 0), t.overlay_json, t.tag_overrides_json
+                            COALESCE(u.loved, 0), t.overlay_json, t.tag_overrides_json,
+                            EXISTS(SELECT 1 FROM track_file tf JOIN source src ON src.id = tf.source_id
+                                   WHERE tf.track_id = t.id AND src.kind = 'local')
                      FROM search_index s
                      JOIN track t ON t.id = s.ref_id
                      LEFT JOIN album a ON a.id = t.album_id

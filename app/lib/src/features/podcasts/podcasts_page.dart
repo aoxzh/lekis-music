@@ -473,7 +473,6 @@ class _DiscoverView extends ConsumerWidget {
                                 onSubmit('');
                               },
                             ),
-                      border: const OutlineInputBorder(),
                       isDense: true,
                     ),
                   ),

@@ -503,6 +503,9 @@ pub struct Track {
     pub artwork_id: Option<ArtworkId>,
     /// 用户 / 补全结果的覆盖层（`None` 字段沿用文件标签）。
     pub overlay: Option<TrackOverlay>,
+    /// 是否已存在本地文件副本（来自 `SourceKind::Local`）；本地曲目无需离线下载。
+    #[serde(default)]
+    pub is_local: bool,
 }
 
 /// 曲目（列表用的精简版）。大列表只返回这个，详情页再取 [`Track`]。
@@ -524,6 +527,9 @@ pub struct TrackRow {
     pub quality_badge: Option<String>,
     /// 是否已收藏。
     pub loved: bool,
+    /// 是否已存在本地文件副本（来自 `SourceKind::Local`）；本地曲目无需离线下载。
+    #[serde(default)]
+    pub is_local: bool,
 }
 
 /// 专辑。

@@ -447,6 +447,8 @@ pub struct TrackRowDto {
     pub artwork_id: Option<i64>,
     pub quality_badge: Option<String>,
     pub loved: bool,
+    /// 是否已存在本地文件副本（来自本机文件夹音源）。
+    pub is_local: bool,
 }
 
 impl From<t::TrackRow> for TrackRowDto {
@@ -460,6 +462,7 @@ impl From<t::TrackRow> for TrackRowDto {
             artwork_id: r.artwork_id.map(|a| a.0),
             quality_badge: r.quality_badge,
             loved: r.loved,
+            is_local: r.is_local,
         }
     }
 }
@@ -741,6 +744,8 @@ pub struct TrackDto {
     pub rating: Option<i64>,
     /// 播放次数。
     pub play_count: i64,
+    /// 是否已存在本地文件副本（来自本机文件夹音源）。
+    pub is_local: bool,
 }
 
 impl From<(t::Track, lekis_core::TrackUserState)> for TrackDto {
@@ -773,6 +778,7 @@ impl From<t::Track> for TrackDto {
             loved: false,
             rating: None,
             play_count: 0,
+            is_local: tr.is_local,
         }
     }
 }

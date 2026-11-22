@@ -29,6 +29,13 @@ const DB_INTERVAL: Duration = Duration::from_millis(1_000);
 pub(crate) async fn schedule(s: &Arc<Services>, track_id: TrackId) -> Result<()> {
     // 曲目必须存在；离线记录可以不存在（第一次下载）。
     let files = s.library.track_files(track_id).await?;
+    if files
+        .iter()
+        .any(|f| f.source_kind == lekis_types::SourceKind::Local)
+    {
+        // 本机已经存在本地文件副本，无需重复下载到离线缓存。
+        return Ok(());
+    }
     let first = files
         .first()
         .ok_or_else(|| LekisError::not_found(format!("no playable file for track {track_id}")))?;

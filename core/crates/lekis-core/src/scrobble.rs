@@ -974,6 +974,7 @@ mod tests {
             replaygain: Default::default(),
             artwork_id: None,
             overlay: None,
+            is_local: false,
         };
         let mut run = TrackRun::new(TrackId(1), Some(track));
         run.played_ms = 19_000;

@@ -195,6 +195,18 @@ class _Labeled extends StatelessWidget {
 /// 缩略图边长：列表封面的两倍。
 const double _thumb = LekisSizes.listArtwork * 2;
 
+/// 封面预览 HTTP 请求头：网易云 126.net CDN 会对 Flutter 默认 `Dart/*` UA 返回 403。
+Map<String, String> _artworkHeaders(String url) {
+  final lower = url.toLowerCase();
+  if (lower.contains('music.126.net') || lower.contains('music.163.com')) {
+    return const {
+      'User-Agent': 'Lekis/0.1',
+      'Referer': 'https://music.163.com/',
+    };
+  }
+  return const {'User-Agent': 'Lekis/0.1'};
+}
+
 class _ArtworkCompare extends StatelessWidget {
   const _ArtworkCompare({required this.currentFile, required this.proposal});
 
@@ -213,7 +225,10 @@ class _ArtworkCompare extends StatelessWidget {
       children: [
         _Labeled(
           label: EnrichStrings.current,
-          child: _Thumb(image: file == null ? null : FileImage(File(file))),
+          child: _Thumb(
+            image: file == null ? null : FileImage(File(file)),
+            emptyIcon: Icons.album_outlined,
+          ),
         ),
         Icon(Icons.arrow_forward, color: context.lekisColors.onSurfaceVariant),
         _Labeled(
@@ -221,7 +236,13 @@ class _ArtworkCompare extends StatelessWidget {
           caption: w != null && h != null
               ? EnrichStrings.dimensions(w, h)
               : null,
-          child: _Thumb(image: NetworkImage(proposal.url)),
+          child: _Thumb(
+            image: NetworkImage(
+              proposal.url,
+              headers: _artworkHeaders(proposal.url),
+            ),
+            emptyIcon: Icons.cloud_off_outlined,
+          ),
         ),
       ],
     );
@@ -229,20 +250,19 @@ class _ArtworkCompare extends StatelessWidget {
 }
 
 class _Thumb extends StatelessWidget {
-  const _Thumb({required this.image});
+  const _Thumb({
+    required this.image,
+    this.emptyIcon = Icons.image_not_supported_outlined,
+  });
   final ImageProvider? image;
+  final IconData emptyIcon;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.lekisColors;
-    final placeholder = ColoredBox(
+    Widget box(IconData icon) => ColoredBox(
       color: colors.surfaceVariant,
-      child: Center(
-        child: Icon(
-          Icons.image_not_supported_outlined,
-          color: colors.onSurfaceVariant,
-        ),
-      ),
+      child: Center(child: Icon(icon, color: colors.onSurfaceVariant)),
     );
     final img = image;
     return ClipRRect(
@@ -250,12 +270,12 @@ class _Thumb extends StatelessWidget {
       child: SizedBox.square(
         dimension: _thumb,
         child: img == null
-            ? placeholder
+            ? box(emptyIcon)
             : Image(
                 image: img,
                 fit: BoxFit.cover,
                 semanticLabel: EnrichStrings.kindArtwork,
-                errorBuilder: (_, _, _) => placeholder,
+                errorBuilder: (_, _, _) => box(Icons.cloud_off_outlined),
                 frameBuilder: (_, child, frame, sync) => sync || frame != null
                     ? child
                     : ColoredBox(color: colors.surfaceVariant),

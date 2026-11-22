@@ -193,8 +193,10 @@ class _HomeHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
+    final isDark = theme.brightness == Brightness.dark;
     final l10n = context.l10n;
     final showMark = !ShellChrome.showsBrandMarkOf(context);
+    final statsFg = isDark ? colors.moon : colors.accent;
     final titleText = Text(
       showMark ? l10n.brandShort : l10n.navHome,
       maxLines: 1,
@@ -239,7 +241,7 @@ class _HomeHeader extends StatelessWidget {
                   Text(
                     l10n.listeningStats,
                     style: theme.textTheme.labelLarge?.copyWith(
-                      color: colors.moon,
+                      color: statsFg,
                     ),
                   ),
                 ],
@@ -676,7 +678,10 @@ class _QuickMixCapsule extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.lekisColors;
     final theme = Theme.of(context);
-    final fg = accent ? colors.moon : theme.colorScheme.onSurface;
+    final isDark = theme.brightness == Brightness.dark;
+    final fg = accent
+        ? (isDark ? colors.moon : colors.accent)
+        : theme.colorScheme.onSurface;
 
     return LekisGlassPill(
       accent: accent,

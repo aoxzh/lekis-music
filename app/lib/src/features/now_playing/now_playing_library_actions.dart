@@ -156,16 +156,17 @@ class _MoreButton extends ConsumerWidget {
               rating > 0 ? '评分（$rating 星）' : '评分',
             ),
           ),
-        PopupMenuItem(
-          value: _MoreAction.download,
-          child: item(switch (downloadState) {
-            null => Icons.download_for_offline_outlined,
-            OfflineStateDto.ready => Icons.delete_outline_rounded,
-            OfflineStateDto.failed => Icons.refresh_rounded,
-            OfflineStateDto.downloading => Icons.close_rounded,
-            OfflineStateDto.queued => Icons.download_rounded,
-          }, downloadMenuLabel(downloadState)),
-        ),
+        if (!track.isLocal || downloadState != null)
+          PopupMenuItem(
+            value: _MoreAction.download,
+            child: item(switch (downloadState) {
+              null => Icons.download_for_offline_outlined,
+              OfflineStateDto.ready => Icons.delete_outline_rounded,
+              OfflineStateDto.failed => Icons.refresh_rounded,
+              OfflineStateDto.downloading => Icons.close_rounded,
+              OfflineStateDto.queued => Icons.download_rounded,
+            }, downloadMenuLabel(downloadState)),
+          ),
         PopupMenuItem(
           value: _MoreAction.addToPlaylist,
           child: item(Icons.playlist_add_rounded, '添加到歌单'),

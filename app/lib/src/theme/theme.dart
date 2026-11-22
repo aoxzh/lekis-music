@@ -243,6 +243,11 @@ ThemeData _buildTheme({
   final onMedia = surfaceStyle.onMedia;
   final inverseInk = inverseText ?? surface;
   final selectedFg = selectedForeground ?? colors.accent;
+  // 浅色/深色选中胶囊（accentSoft 底色）上的前景色：浅色用品牌靛紫（5.6:1），
+  // 深色提亮到柔和薰衣草白（6.7:1），避免纯靛紫落在深紫底上对比度偏低。
+  final selectedOnSoftFg = onMedia
+      ? selectedFg
+      : (isDark ? Color.lerp(selectedFg, onSurface, 0.45)! : selectedFg);
   final scheme = ColorScheme(
     brightness: brightness,
     primary: colors.accent,
@@ -343,7 +348,7 @@ ThemeData _buildTheme({
     ),
     hintStyle: textTheme.bodyLarge!.copyWith(
       color: colors.onSurfaceVariant.withValues(
-        alpha: colors.onSurfaceVariant.a * 0.75,
+        alpha: colors.onSurfaceVariant.a * (isDark ? 0.78 : 0.90),
       ),
     ),
     helperStyle: textTheme.bodySmall,
@@ -576,7 +581,7 @@ ThemeData _buildTheme({
         ),
         foregroundColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)
-              ? selectedFg
+              ? selectedOnSoftFg
               : colors.onSurfaceVariant,
         ),
         textStyle: WidgetStatePropertyAll(textTheme.labelLarge),
@@ -585,15 +590,30 @@ ThemeData _buildTheme({
     chipTheme: ChipThemeData(
       backgroundColor: colors.surfaceVariant,
       selectedColor: colors.accentSoft,
+      secondarySelectedColor: colors.accentSoft,
       disabledColor: disabledBg,
-      side: BorderSide.none,
+      side: WidgetStateBorderSide.resolveWith(
+        (states) => BorderSide(
+          color: states.contains(WidgetState.selected)
+              ? selectedOnSoftFg.withValues(alpha: isDark ? 0.50 : 0.35)
+              : colors.outline,
+        ),
+      ),
       shape: const StadiumBorder(),
       showCheckmark: false,
-      checkmarkColor: selectedFg,
-      labelStyle: WidgetStateTextStyle.resolveWith(
-        (states) => textTheme.labelMedium!.copyWith(
-          color: states.contains(WidgetState.selected) ? selectedFg : onSurface,
-        ),
+      checkmarkColor: selectedOnSoftFg,
+      // RawChip 只解析 labelStyle.color（WidgetStateColor），不会解析 WidgetStateTextStyle；
+      // 同时显式提供 secondaryLabelStyle 给 ChoiceChip 的选中态，保证浅/深色下文字都清晰可读。
+      labelStyle: textTheme.labelMedium!.copyWith(
+        color: WidgetStateColor.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) return disabledFg;
+          if (states.contains(WidgetState.selected)) return selectedOnSoftFg;
+          return onSurface;
+        }),
+      ),
+      secondaryLabelStyle: textTheme.labelMedium!.copyWith(
+        color: selectedOnSoftFg,
+        fontWeight: FontWeight.w600,
       ),
       iconTheme: IconThemeData(
         color: colors.onSurfaceVariant,

@@ -107,6 +107,10 @@ class AlbumDetailView extends ConsumerWidget {
                   album: album,
                   heroTag: heroTag,
                   trackIds: [for (final row in rows) row.id],
+                  downloadableTrackIds: [
+                    for (final row in rows)
+                      if (!row.isLocal) row.id,
+                  ],
                   onPlay: rows.isEmpty ? null : () => actions.playRows(rows),
                   onShuffle: rows.isEmpty
                       ? null
@@ -149,6 +153,7 @@ class _AlbumHeader extends ConsumerWidget {
     required this.album,
     required this.heroTag,
     required this.trackIds,
+    required this.downloadableTrackIds,
     required this.onPlay,
     required this.onShuffle,
   });
@@ -156,6 +161,7 @@ class _AlbumHeader extends ConsumerWidget {
   final AlbumDto album;
   final Object? heroTag;
   final List<int> trackIds;
+  final List<int> downloadableTrackIds;
   final VoidCallback? onPlay;
   final VoidCallback? onShuffle;
 
@@ -235,8 +241,11 @@ class _AlbumHeader extends ConsumerWidget {
                 albumId: album.id.toInt(),
               ),
               trailing: [
-                if (trackIds.isNotEmpty)
-                  BatchDownloadButton(trackIds: trackIds, tooltip: '下载整张专辑'),
+                if (downloadableTrackIds.isNotEmpty)
+                  BatchDownloadButton(
+                    trackIds: downloadableTrackIds,
+                    tooltip: '下载整张专辑',
+                  ),
               ],
             ),
           ],

@@ -87,6 +87,7 @@ TrackDto _track(int id) => TrackDto(
   genres: const [],
   loved: false,
   playCount: 0,
+  isLocal: false,
 );
 
 PaletteDto _palette(int primary, int secondary, int onPrimary) => PaletteDto(
