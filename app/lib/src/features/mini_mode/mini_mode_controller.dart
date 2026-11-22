@@ -136,30 +136,33 @@ class _NativeMiniWindowGateway implements MiniWindowGateway {
 
   Window? _cached;
 
-  /// The app's main window. `getCurrent()` only answers while the app is the
-  /// active window (Win32 `GetActiveWindow`), so the window is remembered
-  /// once found, and otherwise looked up among this process's windows.
+  /// The app's main window, remembered once found.
+  ///
+  /// Only `getCurrent()` is trusted: it is Win32 `GetActiveWindow()`, which
+  /// answers for this thread's own window and nothing else. It is null while
+  /// the app is not active, but mini mode is only ever entered from a click
+  /// inside the app. `getAll()` must not be used here: on Windows it lists
+  /// every visible top-level window on the desktop, other apps' included.
   Window? get _window {
     final cached = _cached;
     if (cached != null) return cached;
     try {
-      final manager = WindowManager.instance;
-      final window = manager.getCurrent() ?? manager.getAll().firstOrNull;
-      return _cached = window;
+      return _cached = WindowManager.instance.getCurrent();
     } catch (_) {
       return null;
     }
   }
 
+  // Deliberately does not resolve the window: at the first frame the window
+  // is not shown (so not active) yet.
   @override
   bool get isAvailable =>
-      !kIsWeb &&
-      (Platform.isWindows || Platform.isMacOS || Platform.isLinux) &&
-      _window != null;
+      !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
 
   @override
   FullWindowSnapshot capture() {
-    final w = _window!;
+    final w = _window;
+    if (w == null) throw StateError('the app window is not active');
     return FullWindowSnapshot(
       bounds: w.bounds.toRect(),
       maximized: w.isMaximized,
