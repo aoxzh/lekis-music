@@ -162,7 +162,7 @@ class _LekisTabBarState extends State<LekisTabBar> {
           ),
         ),
     ];
-    return Padding(
+    final row = Padding(
       padding: vertical
           ? const EdgeInsets.symmetric(vertical: inset)
           : const EdgeInsets.symmetric(horizontal: inset),
@@ -171,6 +171,58 @@ class _LekisTabBarState extends State<LekisTabBar> {
         child: vertical ? Column(children: items) : Row(children: items),
       ),
     );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final main = vertical ? constraints.maxHeight : constraints.maxWidth;
+        final rects = _selectionRects(main);
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            for (final destination in LekisDestination.values)
+              Positioned.fromRect(
+                rect: rects[destination.index],
+                child: IgnorePointer(
+                  child: _SelectionBackdrop(
+                    selected: destination == widget.selected,
+                    style: widget.style.resolved,
+                    reducedMotion: reduced,
+                  ),
+                ),
+              ),
+            row,
+          ],
+        );
+      },
+    );
+  }
+
+  /// Where each slot's selection block sits, concentric with the capsule.
+  ///
+  /// The block keeps the same gap ([LekisTabBarTokens.innerInset]) to the
+  /// capsule on every side it faces, and its radius is the capsule's minus
+  /// that gap, so its ends follow the capsule's curve (Telegram / iOS 26).
+  /// Six slots are narrower than the bar is thick, so the block is allowed
+  /// to be a little wider than its slot (never narrower than a pill) and is
+  /// clamped inside the capsule at either end.
+  List<Rect> _selectionRects(double main) {
+    const gap = LekisTabBarTokens.innerInset;
+    const cross = _thickness - gap * 2;
+    final count = LekisDestination.values.length;
+    final slot = (main - gap * 2) / count;
+    final along = math.min(
+      main - gap * 2,
+      math.max(slot - LekisTabBarTokens.pillInset * 2, cross * 1.2),
+    );
+    return [
+      for (var i = 0; i < count; i++)
+        () {
+          final center = gap + (i + 0.5) * slot;
+          final start = (center - along / 2).clamp(gap, main - gap - along);
+          return _vertical
+              ? Rect.fromLTWH(gap, start, cross, along)
+              : Rect.fromLTWH(start, gap, along, cross);
+        }(),
+    ];
   }
 }
 
@@ -223,18 +275,6 @@ class _TabItem extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Telegram-style selection: one subtle tint per slot, fading and
-            // scaling in place. No travelling pill, no shadow.
-            Positioned.fill(
-              child: Padding(
-                padding: const EdgeInsets.all(LekisTabBarTokens.pillInset),
-                child: _SelectionBackdrop(
-                  selected: selected,
-                  style: style,
-                  reducedMotion: reducedMotion,
-                ),
-              ),
-            ),
             Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -296,7 +336,8 @@ class _TabItem extends StatelessWidget {
   }
 }
 
-/// The active slot's tinted block. It cross-fades in place: no travelling
+/// A slot's tinted selection block, laid out by
+/// [_LekisTabBarState._selectionRects]. It cross-fades in place: no travelling
 /// pill and no shadow, so the bar reads as one calm surface while the icon
 /// and label carry the selection.
 class _SelectionBackdrop extends StatelessWidget {
