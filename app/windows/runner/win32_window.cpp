@@ -121,11 +121,16 @@ void WindowClassRegistrar::UnregisterWindowClass() {
 
 Win32Window::Win32Window() {
   ++g_active_window_count;
+  background_brush_ = CreateSolidBrush(RGB(14, 14, 19));
 }
 
 Win32Window::~Win32Window() {
   --g_active_window_count;
   Destroy();
+  if (background_brush_ != nullptr) {
+    DeleteObject(background_brush_);
+    background_brush_ = nullptr;
+  }
 }
 
 bool Win32Window::Create(const std::wstring& title,
@@ -225,13 +230,36 @@ Win32Window::MessageHandler(HWND hwnd,
 
       return 0;
     }
-    case WM_SIZE: {
-      RECT rect = GetClientArea();
-      if (child_content_ != nullptr) {
-        // Size and position the child window.
-        MoveWindow(child_content_, rect.left, rect.top, rect.right - rect.left,
-                   rect.bottom - rect.top, TRUE);
+    case WM_ENTERSIZEMOVE:
+      in_size_move_ = true;
+      pending_resize_ = false;
+      return 0;
+
+    case WM_EXITSIZEMOVE:
+      in_size_move_ = false;
+      if (pending_resize_) {
+        pending_resize_ = false;
+        SyncChildSize();
       }
+      return 0;
+
+    case WM_ERASEBKGND:
+      if (background_brush_ != nullptr) {
+        RECT rect = GetClientArea();
+        FillRect(reinterpret_cast<HDC>(wparam), &rect, background_brush_);
+        return 1;
+      }
+      break;
+
+    case WM_SIZE: {
+      if (wparam == SIZE_MINIMIZED) {
+        return 0;
+      }
+      if (in_size_move_) {
+        pending_resize_ = true;
+        return 0;
+      }
+      SyncChildSize();
       return 0;
     }
 
@@ -264,6 +292,20 @@ void Win32Window::Destroy() {
 Win32Window* Win32Window::GetThisFromHandle(HWND const window) noexcept {
   return reinterpret_cast<Win32Window*>(
       GetWindowLongPtr(window, GWLP_USERDATA));
+}
+
+void Win32Window::SyncChildSize() {
+  if (child_content_ == nullptr || window_handle_ == nullptr ||
+      IsIconic(window_handle_)) {
+    return;
+  }
+  RECT rect = GetClientArea();
+  const int width = rect.right - rect.left;
+  const int height = rect.bottom - rect.top;
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+  MoveWindow(child_content_, rect.left, rect.top, width, height, TRUE);
 }
 
 void Win32Window::SetChildContent(HWND content) {

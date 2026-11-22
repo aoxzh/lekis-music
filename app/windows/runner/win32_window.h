@@ -90,13 +90,26 @@ class Win32Window {
   // Update the window frame's theme to match the system theme.
   static void UpdateTheme(HWND const window);
 
+  // Syncs child Flutter view size to the current non-zero client area.
+  void SyncChildSize();
+
   bool quit_on_close_ = false;
+
+  // Defer child HWND MoveWindow during interactive drag-resize to avoid
+  // hammering ANGLE D3D11 ResizeBuffers on every mouse pixel (Intel Arc B390
+  // igd10umt64xe.DLL crashes under rapid SwapChain reallocation).
+  bool in_size_move_ = false;
+  bool pending_resize_ = false;
 
   // window handle for top level window.
   HWND window_handle_ = nullptr;
 
   // window handle for hosted content.
   HWND child_content_ = nullptr;
+
+  // Dark backdrop brush matching LekisPalette.darkBackground (#0E0E13) so
+  // exposed strips during deferred drag-resize never flash white.
+  HBRUSH background_brush_ = nullptr;
 };
 
 #endif  // RUNNER_WIN32_WINDOW_H_
