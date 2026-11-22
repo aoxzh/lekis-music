@@ -142,9 +142,16 @@ String pickReleaseDownloadUrl(
           firstMatch((n) => n.endsWith('.exe') || n.endsWith('.msix')) ??
           fallbackReleaseUrl,
     'macos' =>
-      firstMatch((n) => n.endsWith('.dmg')) ?? fallbackReleaseUrl,
+      firstMatch((n) => n.contains('macos') && (n.endsWith('.dmg') || n.endsWith('.zip'))) ??
+          fallbackReleaseUrl,
     'linux' =>
-      firstMatch((n) => n.endsWith('.appimage') || n.endsWith('.deb')) ??
+      firstMatch(
+            (n) =>
+                n.contains('linux') &&
+                (n.endsWith('.tar.gz') ||
+                    n.endsWith('.appimage') ||
+                    n.endsWith('.deb')),
+          ) ??
           fallbackReleaseUrl,
     _ => fallbackReleaseUrl,
   };
