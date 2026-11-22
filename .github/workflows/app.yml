@@ -93,6 +93,8 @@ jobs:
         with:
           workspaces: core
 
+      - uses: gradle/actions/setup-gradle@v4
+
       - name: Build release APK (arm64)
         working-directory: app
         run: flutter build apk --release --target-platform android-arm64
@@ -102,7 +104,8 @@ jobs:
           set -euo pipefail
           apk=app/build/app/outputs/flutter-apk/app-release.apk
           test -f "$apk"
-          unzip -l "$apk" | grep -q 'lib/arm64-v8a/liblekis_bridge.so' \
+          apk_files=$(unzip -Z1 "$apk")
+          grep -Fxq 'lib/arm64-v8a/liblekis_bridge.so' <<<"$apk_files" \
             || { echo '::error::APK is missing lib/arm64-v8a/liblekis_bridge.so'; exit 1; }
 
       - name: Upload APK
