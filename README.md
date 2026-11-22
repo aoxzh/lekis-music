@@ -279,6 +279,19 @@ All library metadata, playlists, and settings stay **100% on your device** (Wind
 
 </details>
 
+<details>
+<summary><strong>Why do notification media controls look plain on vivo / iQOO OriginOS? / 为什么 vivo / iQOO OriginOS 的通知栏播放控件看起来这么简陋、不支持原子岛？</strong></summary>
+
+Lekis implements Android's standard `MediaSession` + `MediaStyle` media notification protocol, which automatically renders the modern media player card (cover backdrop, progress bar, output switcher) on stock Android, Pixel, Samsung One UI, Xiaomi HyperOS, and OPPO ColorOS.
+
+On **vivo / iQOO OriginOS**, however, SystemUI disables AOSP's standard `MediaDataManager` media card for third-party players and restricts **Origin Player (原子随身听)** and **Origin Island (原子岛)** to a closed system allowlist / OEM-private verification (`com.vivo.musicwidgetmix`). Even open-source players that spoof allowlisted package names are blocked on newer OriginOS versions. As a result, OriginOS falls back to rendering a legacy basic notification card — this is an OriginOS system restriction rather than a missing feature in Lekis, and we do not ship package-spoofed workarounds.
+
+月兔音乐完整实现了 Android 标准的 `MediaSession` + `MediaStyle` 媒体通知协议，在原生 Android、Pixel、三星 One UI、小米澎湃OS、OPPO ColorOS 上都会由系统自动渲染现代媒体播放卡片（封面背景、进度条、切歌与音频输出切换）。
+
+但 **vivo / iQOO OriginOS** 的 SystemUI 停用了 AOSP 原生的 `MediaDataManager` 媒体卡片，并将**原子随身听**与**原子岛**（`com.vivo.musicwidgetmix`）限制在封闭的系统白名单与厂商校验内（新版 OriginOS 甚至连伪装白名单包名也会被拦截为空白卡片）。因此第三方开源播放器在 OriginOS 上只能被系统降级渲染成左侧通知栏里的基础样式卡片——这并非我们故意把控件做丑或未适配，而是 OriginOS 的系统限制，我们也不打算通过伪装其他商业 App 包名的方式去硬绕。
+
+</details>
+
 ---
 
 ## Documentation · 文档导航

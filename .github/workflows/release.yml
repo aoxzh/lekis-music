@@ -122,34 +122,30 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       # --target-platform android-arm64 只编 arm64-v8a 这一套 Rust 核心。
-      - name: Build release APKs (arm64-v8a + vivo OriginOS)
+      - name: Build release APK (arm64-v8a)
         working-directory: app
         run: |
           set -euo pipefail
           flutter build apk --release --target-platform android-arm64
           mkdir -p ../dist
           cp build/app/outputs/flutter-apk/app-release.apk "../dist/lekis-$VERSION-android-arm64.apk"
-          # vivo / iQOO OriginOS 原子岛与原子随身听专版（复用已编译的 Rust .so）
-          flutter build apk --release --target-platform android-arm64 --dart-define=VIVO_ORIGIN=true
-          cp build/app/outputs/flutter-apk/app-release.apk "../dist/lekis-$VERSION-android-arm64-vivo-origin.apk"
 
-      - name: Verify APKs (Rust core present, not debug-signed)
+      - name: Verify APK (Rust core present, not debug-signed)
         run: |
           set -euo pipefail
+          apk=dist/lekis-$VERSION-android-arm64.apk
+          echo "== $apk"
+          apk_files=$(unzip -Z1 "$apk")
+          grep -Fxq 'lib/arm64-v8a/liblekis_bridge.so' <<<"$apk_files" \
+            || { echo "::error::$apk is missing lib/arm64-v8a/liblekis_bridge.so"; exit 1; }
           apksigner=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | sort -V | tail -n1)
-          for apk in "dist/lekis-$VERSION-android-arm64.apk" "dist/lekis-$VERSION-android-arm64-vivo-origin.apk"; do
-            echo "== $apk"
-            apk_files=$(unzip -Z1 "$apk")
-            grep -Fxq 'lib/arm64-v8a/liblekis_bridge.so' <<<"$apk_files" \
-              || { echo "::error::$apk is missing lib/arm64-v8a/liblekis_bridge.so"; exit 1; }
-            certs=$("$apksigner" verify --print-certs "$apk")
-            echo "$certs" | grep -E 'Signer #1 certificate (DN|SHA-256)' || echo "$certs"
-            # workflow_dispatch 没有 secrets 时允许 debug 签名，标签构建不允许。
-            if [[ "$GITHUB_REF" == refs/tags/* ]] && grep -q 'CN=Android Debug' <<<"$certs"; then
-              echo "::error::$apk is signed with the debug key"
-              exit 1
-            fi
-          done
+          certs=$("$apksigner" verify --print-certs "$apk")
+          echo "$certs" | grep -E 'Signer #1 certificate (DN|SHA-256)' || echo "$certs"
+          # workflow_dispatch 没有 secrets 时允许 debug 签名，标签构建不允许。
+          if [[ "$GITHUB_REF" == refs/tags/* ]] && grep -q 'CN=Android Debug' <<<"$certs"; then
+            echo "::error::$apk is signed with the debug key"
+            exit 1
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

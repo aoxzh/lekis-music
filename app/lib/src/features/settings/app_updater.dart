@@ -4,9 +4,6 @@ import 'dart:io';
 /// Current application version (kept in sync with `app/pubspec.yaml`).
 const String kLekisAppVersion = '0.2.1';
 
-/// Whether this Android build targets vivo / iQOO OriginOS (`--dart-define=VIVO_ORIGIN=true`).
-const bool kLekisVivoOrigin = bool.fromEnvironment('VIVO_ORIGIN');
-
 const String kLekisReleasesApiUrl =
     'https://api.github.com/repos/aoxzh/lekis-music/releases?per_page=10';
 const String kLekisReleasesPageUrl =
@@ -165,22 +162,8 @@ ReleaseAssetMatch pickReleaseAsset(
 
   final matched = switch (os) {
     'android' =>
-      kLekisVivoOrigin
-          ? firstMatch(
-                (n) => n.endsWith('.apk') && n.contains('vivo-origin'),
-              ) ??
-              firstMatch((n) => n.endsWith('.apk') && n.contains('arm64')) ??
-              firstMatch((n) => n.endsWith('.apk'))
-          : firstMatch(
-                (n) =>
-                    n.endsWith('.apk') &&
-                    n.contains('arm64') &&
-                    !n.contains('vivo-origin'),
-              ) ??
-              firstMatch(
-                (n) => n.endsWith('.apk') && !n.contains('vivo-origin'),
-              ) ??
-              firstMatch((n) => n.endsWith('.apk')),
+      firstMatch((n) => n.endsWith('.apk') && n.contains('arm64')) ??
+          firstMatch((n) => n.endsWith('.apk')),
     'windows' =>
       firstMatch((n) => n.contains('windows') && n.endsWith('.zip')) ??
           firstMatch((n) => n.endsWith('.exe') || n.endsWith('.msix')),
