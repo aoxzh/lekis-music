@@ -16,6 +16,9 @@ class AppUpdateInfo {
     required this.downloadUrl,
     required this.notes,
     required this.isPrerelease,
+    this.assetName,
+    this.assetSize,
+    this.checksumsUrl,
   });
 
   final String version;
@@ -23,6 +26,9 @@ class AppUpdateInfo {
   final String downloadUrl;
   final String notes;
   final bool isPrerelease;
+  final String? assetName;
+  final int? assetSize;
+  final String? checksumsUrl;
 }
 
 sealed class AppUpdateCheckResult {
@@ -107,58 +113,110 @@ class _ParsedVersion {
   }
 }
 
-/// Picks the best platform asset download URL from a GitHub Release's `assets`.
-String pickReleaseDownloadUrl(
+typedef ReleaseAssetMatch = ({
+  String downloadUrl,
+  String? assetName,
+  int? assetSize,
+  String? checksumsUrl,
+});
+
+/// Picks the best platform asset and `SHA256SUMS.txt` URL from a GitHub
+/// Release's `assets`.
+ReleaseAssetMatch pickReleaseAsset(
   List<dynamic> assets,
   String fallbackReleaseUrl, {
   String? platformOverride,
 }) {
   final os = platformOverride ?? Platform.operatingSystem;
-  final urls = <({String name, String url})>[];
+  final entries =
+      <({String rawName, String lowerName, String url, int? size})>[];
+  String? checksumsUrl;
   for (final item in assets) {
     if (item is Map<String, dynamic>) {
-      final name = (item['name'] as String?)?.toLowerCase() ?? '';
+      final rawName = (item['name'] as String?)?.trim() ?? '';
+      final lowerName = rawName.toLowerCase();
       final url = (item['browser_download_url'] as String?) ?? '';
-      if (name.isNotEmpty && url.isNotEmpty) {
-        urls.add((name: name, url: url));
+      final size = (item['size'] as num?)?.toInt();
+      if (rawName.isNotEmpty && url.isNotEmpty) {
+        if (lowerName == 'sha256sums.txt') {
+          checksumsUrl = url;
+        }
+        entries.add((
+          rawName: rawName,
+          lowerName: lowerName,
+          url: url,
+          size: size,
+        ));
       }
     }
   }
 
-  String? firstMatch(bool Function(String name) test) {
-    for (final a in urls) {
-      if (test(a.name)) return a.url;
+  ({String rawName, String lowerName, String url, int? size})? firstMatch(
+    bool Function(String lowerName) test,
+  ) {
+    for (final a in entries) {
+      if (test(a.lowerName)) return a;
     }
     return null;
   }
 
-  return switch (os) {
+  final matched = switch (os) {
     'android' =>
       firstMatch((n) => n.endsWith('.apk') && n.contains('arm64')) ??
-          firstMatch((n) => n.endsWith('.apk')) ??
-          fallbackReleaseUrl,
+          firstMatch((n) => n.endsWith('.apk')),
     'windows' =>
       firstMatch((n) => n.contains('windows') && n.endsWith('.zip')) ??
-          firstMatch((n) => n.endsWith('.exe') || n.endsWith('.msix')) ??
-          fallbackReleaseUrl,
-    'macos' =>
-      firstMatch(
-            (n) =>
-                n.contains('macos') &&
-                (n.endsWith('.dmg') || n.endsWith('.zip')),
-          ) ??
-          fallbackReleaseUrl,
-    'linux' =>
-      firstMatch(
-            (n) =>
-                n.contains('linux') &&
-                (n.endsWith('.tar.gz') ||
-                    n.endsWith('.appimage') ||
-                    n.endsWith('.deb')),
-          ) ??
-          fallbackReleaseUrl,
-    _ => fallbackReleaseUrl,
+          firstMatch((n) => n.endsWith('.exe') || n.endsWith('.msix')),
+    'macos' => firstMatch(
+      (n) =>
+          n.contains('macos') && (n.endsWith('.dmg') || n.endsWith('.zip')),
+    ),
+    'linux' => firstMatch(
+      (n) =>
+          n.contains('linux') &&
+          (n.endsWith('.tar.gz') ||
+              n.endsWith('.appimage') ||
+              n.endsWith('.deb')),
+    ),
+    _ => null,
   };
+
+  return (
+    downloadUrl: matched?.url ?? fallbackReleaseUrl,
+    assetName: matched?.rawName,
+    assetSize: matched?.size,
+    checksumsUrl: checksumsUrl,
+  );
+}
+
+/// Picks the best platform asset download URL from a GitHub Release's `assets`.
+String pickReleaseDownloadUrl(
+  List<dynamic> assets,
+  String fallbackReleaseUrl, {
+  String? platformOverride,
+}) => pickReleaseAsset(
+  assets,
+  fallbackReleaseUrl,
+  platformOverride: platformOverride,
+).downloadUrl;
+
+/// Parses `sha256sum` output (`<64-hex>  <filename>` or `*<filename>`) into a
+/// map of lowercased filename → lowercased hex digest.
+Map<String, String> parseSha256Sums(String body) {
+  final result = <String, String>{};
+  final pattern = RegExp(r'^([0-9a-fA-F]{64})\s+\*?(.+?)\s*$');
+  for (final rawLine in body.split('\n')) {
+    final line = rawLine.trim();
+    if (line.isEmpty || line.startsWith('#')) continue;
+    final match = pattern.firstMatch(line);
+    if (match == null) continue;
+    final hash = match.group(1)!.toLowerCase();
+    final name = match.group(2)!.trim();
+    if (name.isNotEmpty) {
+      result[name.toLowerCase()] = hash;
+    }
+  }
+  return result;
 }
 
 /// Whether a build at [currentVersion] should be offered GitHub
@@ -209,16 +267,19 @@ Future<AppUpdateCheckResult> checkForAppUpdate({
       final htmlUrl =
           (entry['html_url'] as String?)?.trim() ?? kLekisReleasesPageUrl;
       final assets = (entry['assets'] as List?) ?? const [];
-      final downloadUrl = pickReleaseDownloadUrl(assets, htmlUrl);
+      final asset = pickReleaseAsset(assets, htmlUrl);
       final notes = ((entry['body'] as String?) ?? '').trim();
 
       if (newest == null || compareSemVer(cleanVersion, newest.version) > 0) {
         newest = AppUpdateInfo(
           version: cleanVersion,
           releaseUrl: htmlUrl,
-          downloadUrl: downloadUrl,
+          downloadUrl: asset.downloadUrl,
           notes: notes,
           isPrerelease: isPre,
+          assetName: asset.assetName,
+          assetSize: asset.assetSize,
+          checksumsUrl: asset.checksumsUrl,
         );
       }
     }

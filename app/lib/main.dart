@@ -8,6 +8,7 @@ import 'package:lekis/src/app.dart';
 import 'package:lekis/src/bridge/core_init.dart';
 import 'package:lekis/src/features/now_playing/now_playing_style.dart';
 import 'package:lekis/src/features/player/playback_session.dart';
+import 'package:lekis/src/features/settings/app_updater_provider.dart';
 import 'package:lekis/src/features/settings/desktop_tray_settings.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/features/settings/theme_preference.dart';
@@ -91,4 +92,7 @@ Future<void> _startBackgroundServices(
   // 首帧之后再恢复上次的播放会话（输出设备/模式已就绪）。恢复是暂停状态，
   // 不会自动出声；没有保存过会话时什么也不做。
   await container.read(playbackSessionProvider).restore();
+
+  // 桌面端启动后静默检查一次新版本，不阻塞首帧。
+  scheduleStartupUpdateCheck(container);
 }

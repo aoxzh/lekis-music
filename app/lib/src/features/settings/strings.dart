@@ -312,7 +312,28 @@ abstract final class SettingsStrings {
       L10n.tr('已是最新版本（v$v）', 'You are up to date (v$v)');
   static String updateAvailableTitle(String v) =>
       L10n.tr('发现新版本 v$v', 'Update Available: v$v');
+  static String updateAvailableSubtitle(String v) =>
+      L10n.tr('新版本 v$v 可用，点击更新', 'Version v$v is available — tap to update');
+  static String updateReadySubtitle(String v) => L10n.tr(
+    'v$v 已下载就绪，点击立即重启更新',
+    'v$v is ready — tap to restart and update',
+  );
   static String get downloadUpdate => L10n.tr('立即下载升级', 'Download Update');
+  static String get downloadAndUpdate => L10n.tr('下载并更新', 'Download & Update');
+  static String get restartToUpdate => L10n.tr('立即重启更新', 'Restart to Update');
+  static String get restartingToUpdate =>
+      L10n.tr('正在重启并应用更新…', 'Restarting to apply update…');
+  static String get updateReadyHint => L10n.tr(
+    '新版本已校验并解压完成，重启应用即可生效。',
+    'Verified and unpacked. Restart Lekis to finish updating.',
+  );
+  static String get verifyingUpdate =>
+      L10n.tr('正在校验 SHA-256…', 'Verifying SHA-256…');
+  static String get extractingUpdate => L10n.tr('正在解压更新包…', 'Extracting update…');
+  static String get downloadingUpdate => L10n.tr('正在下载更新…', 'Downloading update…');
+  static String get later => L10n.tr('稍后', 'Later');
+  static String get retry => L10n.tr('重试', 'Retry');
+  static String get cancel => L10n.tr('取消', 'Cancel');
   static String get viewReleasePage => L10n.tr('查看发布页', 'Release Notes');
   static String get updateCheckFailed =>
       L10n.tr('检查更新失败，请稍后重试', 'Update check failed. Please try again later.');
