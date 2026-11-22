@@ -147,7 +147,7 @@ abstract final class SettingsStrings {
   static String get themeSystem => L10n.tr('跟随系统', 'System');
   static String get themeLight => L10n.tr('浅色', 'Light');
   static String get themeDark => L10n.tr('深色', 'Dark');
-  static String get themeOled => L10n.tr('纯黑', 'OLED Black');
+  static String get themeOled => L10n.tr('纯黑', 'OLED');
   static String get themeOledHint =>
       L10n.tr('纯黑适合 OLED 屏幕，更省电', 'True black saves power on OLED displays');
   static String get language => L10n.tr('语言', 'Language');

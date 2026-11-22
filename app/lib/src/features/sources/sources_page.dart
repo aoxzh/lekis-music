@@ -12,6 +12,7 @@ import '../../layout/adaptive_two_pane.dart';
 import '../../theme/tokens.dart';
 import '../library/widgets/page_gutter.dart';
 import 'common.dart';
+import 'sources_providers.dart';
 import 'strings.dart';
 import 'widgets/add_source.dart';
 import 'widgets/source_detail.dart';
@@ -77,6 +78,9 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
   Widget build(BuildContext context) {
     final compact = context.isCompactWidth;
     final twoPane = isWideLayout(context);
+    final hasSources = ref
+        .watch(sourcesProvider)
+        .maybeWhen(data: (items) => items.isNotEmpty, orElse: () => false);
     final selection = _selection;
     final selectedId = selection is _Source ? selection.id : null;
 
@@ -85,7 +89,7 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
       onOpen: _open,
       onAdd: _add,
       // Room for the extended FAB below the last row on phones.
-      bottomClearance: compact
+      bottomClearance: compact && hasSources
           ? LekisSizes.touchTargetMin + LekisSpacing.xl
           : 0,
     );
@@ -127,7 +131,7 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
               ],
             ),
           ),
-          floatingActionButton: compact
+          floatingActionButton: compact && hasSources
               ? Padding(
                   // The shell may float its mini player / tab bar over the
                   // page and report them in MediaQuery.padding (not

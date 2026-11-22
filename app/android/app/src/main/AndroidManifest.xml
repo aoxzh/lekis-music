@@ -49,6 +49,11 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.APP_MUSIC"/>
+            </intent-filter>
         </activity>
         <!-- 系统媒体会话（audio_service）：MediaBrowserService + 媒体按键（蓝牙 / 线控） -->
         <service
@@ -58,7 +63,10 @@
             tools:ignore="Instantiatable">
             <intent-filter>
                 <action android:name="android.media.browse.MediaBrowserService"/>
-                <!-- vivo / iQOO OriginOS 原子随身听 / 原子岛（com.vivo.musicwidgetmix）支持声明 -->
+                <action android:name="android.intent.action.MEDIA_BUTTON"/>
+            </intent-filter>
+            <!-- vivo / iQOO OriginOS 原子随身听 / 原子岛（com.vivo.musicwidgetmix）独立声明 -->
+            <intent-filter>
                 <action android:name="com.vivo.musicwidgetmix.support.service"/>
             </intent-filter>
         </service>

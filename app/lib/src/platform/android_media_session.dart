@@ -308,19 +308,28 @@ class LekisAudioHandler extends BaseAudioHandler with SeekHandler {
       final overlay = track.overlay;
       final artists = overlay?.artists ?? track.artists;
       final ms = durationMs > 0 ? durationMs : track.durationMs.toInt();
+      final snap = core.playbackSnapshot();
+      final vivoLoopMode = switch ((snap.shuffle, snap.repeat)) {
+        (ShuffleModeDto.off, RepeatModeDto.one) => 2, // LOOP_MODE_SINGLE
+        (ShuffleModeDto.off, _) => 1, // LOOP_MODE_LIST
+        _ => 3, // LOOP_MODE_RANDOM
+      };
       mediaItem.add(
         MediaItem(
-          id: trackId.toString(),
+          id: 'track:$trackId',
           title: overlay?.title ?? track.title,
           artist: artists.isEmpty ? null : artists.join(', '),
           album: overlay?.albumTitle ?? track.albumTitle,
           duration: ms > 0 ? Duration(milliseconds: ms) : null,
           artUri: artUri,
-          extras: const {
-            // vivo / iQOO OriginOS 原子随身听与原子岛（com.vivo.musicwidgetmix）能力位图：
-            // play_control(0) | music_info(1) | music_image(2) | seek_position(4)
+          rating: const Rating.newHeartRating(false),
+          extras: {
+            // vivo / iQOO OriginOS 原子随身听与原子岛（com.vivo.musicwidgetmix）协议字段：
+            // play_control(0) | music_info(1) | music_image(2) | seek_position(4) |
+            // favorite(6) | loop_mode(7)
             'vivomusicmix.media.metadata.support_event':
-                (1 << 0) | (1 << 1) | (1 << 2) | (1 << 4),
+                (1 << 0) | (1 << 1) | (1 << 2) | (1 << 4) | (1 << 6) | (1 << 7),
+            'vivomusicmix.media.metadata.LOOP_MODE': vivoLoopMode,
           },
         ),
       );

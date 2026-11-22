@@ -540,26 +540,47 @@ class _AppearanceSection extends ConsumerWidget {
             hint: SettingsStrings.themeOledHint,
             child: SegmentedButton<ThemePreference>(
               showSelectedIcon: false,
+              style: const ButtonStyle(
+                padding: WidgetStatePropertyAll(
+                  EdgeInsets.symmetric(horizontal: 6),
+                ),
+              ),
               segments: [
                 ButtonSegment(
                   value: ThemePreference.system,
-                  label: Text(SettingsStrings.themeSystem),
-                  icon: Icon(Icons.brightness_auto_outlined),
+                  label: Text(
+                    SettingsStrings.themeSystem,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.fade,
+                  ),
                 ),
                 ButtonSegment(
                   value: ThemePreference.light,
-                  label: Text(SettingsStrings.themeLight),
-                  icon: Icon(Icons.light_mode_outlined),
+                  label: Text(
+                    SettingsStrings.themeLight,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.fade,
+                  ),
                 ),
                 ButtonSegment(
                   value: ThemePreference.dark,
-                  label: Text(SettingsStrings.themeDark),
-                  icon: Icon(Icons.dark_mode_outlined),
+                  label: Text(
+                    SettingsStrings.themeDark,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.fade,
+                  ),
                 ),
                 ButtonSegment(
                   value: ThemePreference.oledBlack,
-                  label: Text(SettingsStrings.themeOled),
-                  icon: Icon(Icons.contrast),
+                  label: Text(
+                    SettingsStrings.themeOled,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.fade,
+                  ),
                 ),
               ],
               selected: {pref},
