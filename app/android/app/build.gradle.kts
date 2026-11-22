@@ -92,8 +92,13 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "dev.lekis.music"
+        // vivo / iQOO OriginOS 原子随身听与原子岛专版：通过 ORG_GRADLE_PROJECT_vivoOrigin=true 或
+        // -PvivoOrigin=true 启用，将 applicationId 切换为 OriginOS 白名单包名（默认 com.tencent.qqmusic，
+        // 可用 vivoOriginPackage 覆盖）。普通版本保持 dev.lekis.music。
+        val vivoOrigin = (project.findProperty("vivoOrigin") as? String)?.toBoolean() == true
+        val vivoOriginPackage = (project.findProperty("vivoOriginPackage") as? String)
+            ?.takeIf { it.isNotBlank() } ?: "com.tencent.qqmusic"
+        applicationId = if (vivoOrigin) vivoOriginPackage else "dev.lekis.music"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 26

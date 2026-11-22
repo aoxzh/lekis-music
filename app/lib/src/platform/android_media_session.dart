@@ -316,6 +316,12 @@ class LekisAudioHandler extends BaseAudioHandler with SeekHandler {
           album: overlay?.albumTitle ?? track.albumTitle,
           duration: ms > 0 ? Duration(milliseconds: ms) : null,
           artUri: artUri,
+          extras: const {
+            // vivo / iQOO OriginOS 原子随身听与原子岛（com.vivo.musicwidgetmix）能力位图：
+            // play_control(0) | music_info(1) | music_image(2) | seek_position(4)
+            'vivomusicmix.media.metadata.support_event':
+                (1 << 0) | (1 << 1) | (1 << 2) | (1 << 4),
+          },
         ),
       );
     } catch (e) {

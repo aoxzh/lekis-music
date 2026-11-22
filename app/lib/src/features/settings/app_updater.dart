@@ -162,7 +162,13 @@ ReleaseAssetMatch pickReleaseAsset(
 
   final matched = switch (os) {
     'android' =>
-      firstMatch((n) => n.endsWith('.apk') && n.contains('arm64')) ??
+      firstMatch(
+            (n) =>
+                n.endsWith('.apk') &&
+                n.contains('arm64') &&
+                !n.contains('vivo-origin'),
+          ) ??
+          firstMatch((n) => n.endsWith('.apk') && !n.contains('vivo-origin')) ??
           firstMatch((n) => n.endsWith('.apk')),
     'windows' =>
       firstMatch((n) => n.contains('windows') && n.endsWith('.zip')) ??

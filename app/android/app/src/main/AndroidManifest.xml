@@ -58,6 +58,8 @@
             tools:ignore="Instantiatable">
             <intent-filter>
                 <action android:name="android.media.browse.MediaBrowserService"/>
+                <!-- vivo / iQOO OriginOS 原子随身听 / 原子岛（com.vivo.musicwidgetmix）支持声明 -->
+                <action android:name="com.vivo.musicwidgetmix.support.service"/>
             </intent-filter>
         </service>
         <receiver
