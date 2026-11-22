@@ -18,14 +18,23 @@ void main() {
     });
   });
 
+  group('includesPrereleases', () {
+    test('0.x and suffixed versions see pre-releases, 1.x stable does not', () {
+      expect(includesPrereleases('0.2.0'), isTrue);
+      expect(includesPrereleases('0.1.0-alpha.2'), isTrue);
+      expect(includesPrereleases('1.0.0-rc.1'), isTrue);
+      expect(includesPrereleases('1.0.0'), isFalse);
+    });
+  });
+
   group('pickReleaseDownloadUrl', () {
     const assets = [
       {
-        'name': 'lekis-0.1.0-alpha.2-android-arm64-v8a.apk',
+        'name': 'lekis-0.2.0-android-arm64.apk',
         'browser_download_url': 'https://example.com/app.apk',
       },
       {
-        'name': 'lekis-0.1.0-alpha.2-windows-x64.zip',
+        'name': 'lekis-0.2.0-windows-x64.zip',
         'browser_download_url': 'https://example.com/win.zip',
       },
     ];

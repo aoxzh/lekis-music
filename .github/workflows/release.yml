@@ -1,8 +1,8 @@
 name: release
 
-# 推送 v* 标签（例如 v0.1.0-alpha.1）时：构建签名的 Android arm64-v8a APK 和 Windows x64
+# 推送 v* 标签（例如 v0.2.0）时：构建签名的 Android arm64-v8a APK 和 Windows x64
 # 免安装 zip，然后创建 pre-release 草稿（draft），人工确认内容后再点发布。
-# 版本号带 "-"（alpha / beta / rc）时标成 pre-release。
+# 1.0 之前的 0.x 版本都是预览版，标成 pre-release；版本号带 "-"（beta / rc）时同样标成 pre-release。
 #
 # Android 只编设备 ABI：不传 --target-platform 时 Flutter 会把 arm / arm64 / x64 三套 Rust
 # 核心各编一遍（见 tools/dev-android.ps1），所以这里固定 android-arm64。
@@ -57,7 +57,7 @@ jobs:
               exit 1
             fi
           fi
-          if [[ "$version" == *-* ]]; then prerelease=true; else prerelease=false; fi
+          if [[ "$version" == *-* || "$version" == 0.* ]]; then prerelease=true; else prerelease=false; fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
           echo "version $version (pre-release: $prerelease)"
@@ -128,12 +128,12 @@ jobs:
           set -euo pipefail
           flutter build apk --release --target-platform android-arm64
           mkdir -p ../dist
-          cp build/app/outputs/flutter-apk/app-release.apk "../dist/lekis-$VERSION-android-arm64-v8a.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "../dist/lekis-$VERSION-android-arm64.apk"
 
       - name: Verify APK (Rust core present, not debug-signed)
         run: |
           set -euo pipefail
-          apk=dist/lekis-$VERSION-android-arm64-v8a.apk
+          apk=dist/lekis-$VERSION-android-arm64.apk
           echo "== $apk"
           apk_files=$(unzip -Z1 "$apk")
           grep -Fxq 'lib/arm64-v8a/liblekis_bridge.so' <<<"$apk_files" \

@@ -1,0 +1,5 @@
+- USB DAC bit-perfect output (Android 14+) with a live status line
+- Covers fly into album pages, animated queue and playlist edits, skeleton loading, predictive back
+- Narrow-screen track rows no longer squeeze titles
+- Cleaner floating tab bar selection and edge
+- Remaining Chinese text in the English UI translated
