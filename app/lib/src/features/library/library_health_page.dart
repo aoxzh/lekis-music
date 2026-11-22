@@ -5,6 +5,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/downloads_models.dart';
+import 'package:lekis/src/features/enrich/enrich_actions.dart';
 import 'package:lekis/src/features/library/album_detail_page.dart';
 import 'package:lekis/src/features/library/library_health_providers.dart';
 import 'package:lekis/src/features/library/track_sources_sheet.dart';
@@ -13,6 +14,7 @@ import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/settings/widgets/settings_widgets.dart';
 import 'package:lekis/src/features/sources/common.dart'
     show describeCoreError, showFeatureSnack;
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
@@ -28,13 +30,14 @@ class LibraryHealthPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     return DefaultTabController(
       length: 2,
       child: SettingsScaffold(
-        title: '资料库检查',
+        title: l10n.pick('资料库检查', 'Library Health'),
         actions: [
           IconButton(
-            tooltip: '重新统计',
+            tooltip: l10n.pick('重新统计', 'Refresh'),
             onPressed: () {
               ref.invalidate(libraryHealthSummaryProvider);
               ref.invalidate(duplicateGroupListProvider);
@@ -62,21 +65,24 @@ class _SectionTabs extends StatelessWidget {
   const _SectionTabs();
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final inset = settingsContentPadding(context, constraints.maxWidth);
-      return TabBar(
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        dividerHeight: 0,
-        padding: EdgeInsets.only(left: inset.left, right: inset.right),
-        tabs: const [
-          Tab(text: '重复歌曲'),
-          Tab(text: '库健康'),
-        ],
-      );
-    },
-  );
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final inset = settingsContentPadding(context, constraints.maxWidth);
+        return TabBar(
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          dividerHeight: 0,
+          padding: EdgeInsets.only(left: inset.left, right: inset.right),
+          tabs: [
+            Tab(text: l10n.pick('重复歌曲', 'Duplicates')),
+            Tab(text: l10n.pick('库健康', 'Health')),
+          ],
+        );
+      },
+    );
+  }
 }
 
 /// 分页列表的公共外壳：设置页的边距、平铺行、行间分隔线。
@@ -200,15 +206,25 @@ class _DuplicateGroupRow extends ConsumerStatefulWidget {
 class _DuplicateGroupRowState extends ConsumerState<_DuplicateGroupRow> {
   bool _merging = false;
 
+  List<int> _absorbableIds(DuplicateGroupDto group) {
+    final keepId = group.keepTrackId;
+    return {
+      for (final t in group.tracks)
+        if (t.trackId != keepId) t.trackId,
+    }.toList(growable: false);
+  }
+
   Future<void> _mergeGroup() async {
     if (_merging) return;
     final group = widget.group;
     final keepId = group.keepTrackId;
-    final absorb = [
-      for (final t in group.tracks)
-        if (t.trackId != keepId) t.trackId,
-    ];
-    if (absorb.isEmpty) return;
+    final absorb = _absorbableIds(group);
+    if (absorb.isEmpty) {
+      if (mounted) {
+        showFeatureSnack(context, UnifiedStrings.alreadyMerged);
+      }
+      return;
+    }
     setState(() => _merging = true);
     try {
       final merged = await ref
@@ -217,7 +233,12 @@ class _DuplicateGroupRowState extends ConsumerState<_DuplicateGroupRow> {
       ref.invalidate(libraryHealthSummaryProvider);
       ref.invalidate(duplicateGroupListProvider);
       if (mounted) {
-        showFeatureSnack(context, UnifiedStrings.mergeDone(merged));
+        showFeatureSnack(
+          context,
+          merged > 0
+              ? UnifiedStrings.mergeDone(merged)
+              : UnifiedStrings.alreadyMerged,
+        );
       }
     } catch (e) {
       if (mounted) showFeatureSnack(context, describeCoreError(e));
@@ -228,9 +249,12 @@ class _DuplicateGroupRowState extends ConsumerState<_DuplicateGroupRow> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final group = widget.group;
     final theme = Theme.of(context);
     final colors = context.lekisColors;
+    final absorbable = _absorbableIds(group);
+    final alreadyUnified = absorbable.isEmpty;
     DuplicateTrackDto? keep;
     for (final track in group.tracks) {
       if (track.suggestedKeep) {
@@ -238,16 +262,21 @@ class _DuplicateGroupRowState extends ConsumerState<_DuplicateGroupRow> {
         break;
       }
     }
-    final title = group.title.trim().isEmpty ? '未知标题' : group.title;
-    final artist = group.artistLine.trim().isEmpty ? '未知艺人' : group.artistLine;
+    final title = group.title.trim().isEmpty
+        ? l10n.pick('未知标题', 'Unknown Title')
+        : group.title;
+    final artist = group.artistLine.trim().isEmpty
+        ? l10n.unknownArtist
+        : group.artistLine;
     final album = group.albumTitle?.trim();
     final parts = <String>[
       artist,
       if (album != null && album.isNotEmpty) album,
-      '${group.tracks.length} 个版本',
+      l10n.pick('${group.tracks.length} 个版本', '${group.tracks.length} copies'),
+      if (alreadyUnified) UnifiedStrings.alreadyMerged,
     ];
     if (keep != null && keep.format != null) {
-      parts.add('建议保留 ${keep.format}');
+      parts.add(l10n.pick('建议保留 ${keep.format}', 'Keep ${keep.format}'));
     }
     return ExpansionTile(
       shape: const Border(),
@@ -279,19 +308,46 @@ class _DuplicateGroupRowState extends ConsumerState<_DuplicateGroupRow> {
               settingsRowInset,
               LekisSpacing.md,
             ),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.tonalIcon(
-                key: ValueKey('duplicate.merge.${group.keepTrackId}'),
-                onPressed: _merging ? null : _mergeGroup,
-                icon: _merging
-                    ? const SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.merge_rounded, size: 18),
-                label: const Text(UnifiedStrings.mergeAction),
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (alreadyUnified) ...[
+                  Icon(
+                    Icons.check_circle_outline_rounded,
+                    size: 16,
+                    color: colors.accent,
+                  ),
+                  const SizedBox(width: LekisSpacing.xs),
+                  Text(
+                    UnifiedStrings.alreadyMerged,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(width: LekisSpacing.md),
+                  OutlinedButton.icon(
+                    key: ValueKey('duplicate.sources.${group.keepTrackId}'),
+                    onPressed: () => showTrackSourcesSheet(
+                      context,
+                      trackId: group.keepTrackId,
+                      trackTitle: title,
+                    ),
+                    icon: const Icon(Icons.layers_outlined, size: 18),
+                    label: Text(UnifiedStrings.menuTitle),
+                  ),
+                ] else
+                  FilledButton.tonalIcon(
+                    key: ValueKey('duplicate.merge.${group.keepTrackId}'),
+                    onPressed: _merging ? null : _mergeGroup,
+                    icon: _merging
+                        ? const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.merge_rounded, size: 18),
+                    label: Text(UnifiedStrings.mergeAction),
+                  ),
+              ],
             ),
           ),
       ],
@@ -537,26 +593,34 @@ class _HealthHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SettingsSection(
-          title: '扫描',
+          title: context.l10n.pick('扫描', 'Scan'),
           children: [
             SettingsTile(
               icon: Icons.health_and_safety_outlined,
-              title: tracks == null ? '正在读取资料库…' : '资料库共 $tracks 首曲目',
-              subtitle: const Text(
-                '扫描只检查每个文件能否打开并读取 1 个字节；不做频谱分析，也不会修改文件。'
-                'NAS 上的大资料库可能需要几分钟。',
+              title: tracks == null
+                  ? context.l10n.pick('正在读取资料库…', 'Loading library…')
+                  : context.l10n.pick('资料库共 $tracks 首曲目', '$tracks tracks in library'),
+              subtitle: Text(
+                context.l10n.pick(
+                  '扫描只检查每个文件能否打开并读取 1 个字节；不做频谱分析，也不会修改文件。'
+                      'NAS 上的大资料库可能需要几分钟。',
+                  'Checks that every file can be opened and read; never modifies audio files.',
+                ),
               ),
               trailing: scanning
                   ? const SizedBox.square(
                       dimension: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : TextButton(onPressed: onScan, child: const Text('扫描损坏文件')),
+                  : TextButton(
+                      onPressed: onScan,
+                      child: Text(context.l10n.pick('扫描损坏文件', 'Scan Files')),
+                    ),
             ),
           ],
         ),
         SettingsSection(
-          title: '问题类型',
+          title: context.l10n.pick('问题类型', 'Categories'),
           children: [
             for (final kind in HealthTabKind.values)
               Semantics(
@@ -585,7 +649,43 @@ class _HealthHeader extends StatelessWidget {
               ),
           ],
         ),
-        SettingsSectionHeader(selected.label),
+        Row(
+          children: [
+            Expanded(child: SettingsSectionHeader(selected.label)),
+            if (selected == HealthTabKind.missingCover &&
+                (summary?.missingCover.toInt() ?? 0) > 0)
+              Padding(
+                padding: const EdgeInsets.only(right: settingsRowInset),
+                child: FilledButton.tonalIcon(
+                  key: const ValueKey('health.enrich-missing-covers'),
+                  onPressed: () => enrichMissingFromLibraryFlow(
+                    context,
+                    scope: EnrichScope.artwork,
+                  ),
+                  icon: const Icon(Icons.image_search_outlined, size: 18),
+                  label: Text(
+                    context.l10n.pick('补全缺失封面', 'Fetch Missing Covers'),
+                  ),
+                ),
+              ),
+            if (selected == HealthTabKind.missingLyrics &&
+                (summary?.missingLyrics.toInt() ?? 0) > 0)
+              Padding(
+                padding: const EdgeInsets.only(right: settingsRowInset),
+                child: FilledButton.tonalIcon(
+                  key: const ValueKey('health.enrich-missing-lyrics'),
+                  onPressed: () => enrichMissingFromLibraryFlow(
+                    context,
+                    scope: EnrichScope.lyrics,
+                  ),
+                  icon: const Icon(Icons.lyrics_outlined, size: 18),
+                  label: Text(
+                    context.l10n.pick('补全缺失歌词', 'Fetch Missing Lyrics'),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ],
     );
   }
@@ -650,12 +750,37 @@ class _HealthEntryRow extends ConsumerWidget {
       ),
       trailing: entry.kind == HealthIssueKindDto.unreadable
           ? null
-          : IconButton(
-              tooltip: '播放',
-              onPressed: () => ref.read(playerActionsProvider).playTracks([
-                entry.trackId.toInt(),
-              ]),
-              icon: const Icon(Icons.play_arrow_rounded),
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (entry.kind == HealthIssueKindDto.missingCover)
+                  IconButton(
+                    tooltip: context.l10n.pick('补全封面', 'Fetch Cover'),
+                    onPressed: () => enrichTracksFlow(
+                      context,
+                      [entry.trackId.toInt()],
+                      scope: EnrichScope.artwork,
+                    ),
+                    icon: const Icon(Icons.image_search_outlined),
+                  )
+                else if (entry.kind == HealthIssueKindDto.missingLyrics)
+                  IconButton(
+                    tooltip: context.l10n.pick('补全歌词', 'Fetch Lyrics'),
+                    onPressed: () => enrichTracksFlow(
+                      context,
+                      [entry.trackId.toInt()],
+                      scope: EnrichScope.lyrics,
+                    ),
+                    icon: const Icon(Icons.lyrics_outlined),
+                  ),
+                IconButton(
+                  tooltip: context.l10n.pick('播放', 'Play'),
+                  onPressed: () => ref.read(playerActionsProvider).playTracks([
+                    entry.trackId.toInt(),
+                  ]),
+                  icon: const Icon(Icons.play_arrow_rounded),
+                ),
+              ],
             ),
       onTap: entry.albumId == null
           ? null

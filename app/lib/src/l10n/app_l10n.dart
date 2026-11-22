@@ -1,27 +1,77 @@
 // 轻量级中英双语本地化层（简体中文默认，English 完整对照）。
 //
-// 通过 [LekisLocale]（由 [LekisApp] 注入）驱动 `context.l10n`；
+// 通过 [LekisLocale]（由 [LekisApp] 注入）驱动 `context.l10n` 与静态文案表 `L10n.tr(zh, en)`；
 // 无 [LekisLocale] 祖先（如未配置本地化的独立组件测试）时默认返回简体中文，
 // 保证所有默认中文体验与既有组件测试 100% 稳定。
 
 import 'package:material_ui/material_ui.dart';
 
-class LekisLocale extends InheritedWidget {
-  const LekisLocale({super.key, required this.locale, required super.child});
+class LekisLocale extends StatefulWidget {
+  const LekisLocale({super.key, required this.locale, required this.child});
+
+  final Locale locale;
+  final Widget child;
+
+  static Locale? maybeOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<_LekisLocaleScope>()
+          ?.locale;
+
+  @override
+  State<LekisLocale> createState() => _LekisLocaleState();
+}
+
+class _LekisLocaleState extends State<LekisLocale> {
+  Locale? _previous;
+
+  @override
+  void initState() {
+    super.initState();
+    _previous = L10n._activeLocale;
+    L10n._activeLocale = widget.locale;
+  }
+
+  @override
+  void didUpdateWidget(LekisLocale oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    L10n._activeLocale = widget.locale;
+  }
+
+  @override
+  void dispose() {
+    L10n._activeLocale = _previous;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    L10n._activeLocale = widget.locale;
+    return _LekisLocaleScope(locale: widget.locale, child: widget.child);
+  }
+}
+
+class _LekisLocaleScope extends InheritedWidget {
+  const _LekisLocaleScope({required this.locale, required super.child});
 
   final Locale locale;
 
-  static Locale? maybeOf(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<LekisLocale>()?.locale;
-
   @override
-  bool updateShouldNotify(LekisLocale oldWidget) => locale != oldWidget.locale;
+  bool updateShouldNotify(_LekisLocaleScope oldWidget) =>
+      locale != oldWidget.locale;
 }
 
 class L10n {
   const L10n({required this.isEnglish});
 
+  static Locale? _activeLocale;
+
   final bool isEnglish;
+
+  /// 当前生效语种是否为英文（供静态文案表与枚举 label 使用）。
+  static bool get isEnglishActive => _activeLocale?.languageCode == 'en';
+
+  /// 静态中英双语选择，配合 [LekisLocale] 实时切换。
+  static String tr(String zh, String en) => isEnglishActive ? en : zh;
 
   static L10n of(BuildContext context) {
     final locale = LekisLocale.maybeOf(context);
@@ -51,6 +101,7 @@ class L10n {
   String get quickShuffle => pick('随机漫游', 'Shuffle All');
   String get quickLiked => pick('我的喜欢', 'Liked');
   String get quickMostPlayed => pick('常听精选', 'Top Tracks');
+  String get unknownArtist => pick('未知艺人', 'Unknown Artist');
   String get welcomeTitle => pick('欢迎使用 Lekis', 'Welcome to Lekis');
   String get welcomeMessage => pick(
     '先在“音源”里添加音乐，首页会展示最近添加和常听的歌曲。',
@@ -85,6 +136,7 @@ class L10n {
   String get mute => pick('静音', 'Mute');
   String get unmute => pick('取消静音', 'Unmute');
   String get noLyrics => pick('暂无歌词', 'No Lyrics');
+  String get notPlaying => pick('未在播放', 'Not Playing');
   String volumeTooltip(int pct) => pick('音量 $pct%', 'Volume $pct%');
 
   // 设置：通用与外观

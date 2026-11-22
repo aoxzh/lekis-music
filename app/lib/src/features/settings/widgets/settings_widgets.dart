@@ -12,6 +12,7 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
+import '../../../l10n/app_l10n.dart';
 import '../../../platform/ui_profile.dart';
 import '../../../theme/theme.dart';
 import '../../library/widgets/page_gutter.dart';
@@ -659,8 +660,8 @@ class SettingsBlockTile extends StatelessWidget {
 
 /// 设置控件自己的几处文案。
 abstract final class SettingsWidgetStrings {
-  static const on = '开';
-  static const off = '关';
+  static String get on => L10n.tr('开', 'On');
+  static String get off => L10n.tr('关', 'Off');
 }
 
 /// 下拉框里的一个选项。

@@ -81,7 +81,7 @@ class _AddRadioDialogState extends ConsumerState<AddRadioDialog> {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
     return AlertDialog(
-      title: const Text(RadioStrings.addCustom),
+      title: Text(RadioStrings.addCustom),
       content: SizedBox(
         width: 460,
         child: SingleChildScrollView(
@@ -101,7 +101,7 @@ class _AddRadioDialogState extends ConsumerState<AddRadioDialog> {
                 controller: _name,
                 autofocus: true,
                 textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: RadioStrings.fieldName,
                   hintText: RadioStrings.fieldNameHint,
                   border: OutlineInputBorder(),
@@ -113,7 +113,7 @@ class _AddRadioDialogState extends ConsumerState<AddRadioDialog> {
                 minLines: 2,
                 maxLines: 5,
                 keyboardType: TextInputType.url,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: RadioStrings.fieldAddress,
                   hintText: RadioStrings.fieldAddressHint,
                   helperText: '仅支持 http:// 和 https://；不会保存任何账号密码。',
@@ -127,7 +127,7 @@ class _AddRadioDialogState extends ConsumerState<AddRadioDialog> {
                 keyboardType: TextInputType.url,
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _submit(),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: RadioStrings.fieldHomepage,
                   hintText: RadioStrings.fieldHomepageHint,
                   border: OutlineInputBorder(),
@@ -149,7 +149,7 @@ class _AddRadioDialogState extends ConsumerState<AddRadioDialog> {
       actions: [
         TextButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(),
-          child: const Text(RadioStrings.cancel),
+          child: Text(RadioStrings.cancel),
         ),
         FilledButton(
           onPressed: _saving ? null : _submit,

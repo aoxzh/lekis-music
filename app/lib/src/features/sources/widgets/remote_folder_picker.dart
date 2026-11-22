@@ -162,7 +162,7 @@ class _RemoteFolderBrowserState extends State<RemoteFolderBrowser> {
             ),
             onPressed: listing == null ? null : () => widget.onPick(_path),
             icon: const Icon(Icons.check),
-            label: const Text(SourcesStrings.browseUseThis),
+            label: Text(SourcesStrings.browseUseThis),
           ),
         ],
       ),
@@ -195,12 +195,12 @@ class _RemoteFolderBrowserState extends State<RemoteFolderBrowser> {
               children: [
                 OutlinedButton(
                   onPressed: () => _open(_path),
-                  child: const Text(SourcesStrings.retry),
+                  child: Text(SourcesStrings.retry),
                 ),
                 if (_path.isNotEmpty)
                   TextButton(
                     onPressed: () => _open(''),
-                    child: const Text(SourcesStrings.browseRoot),
+                    child: Text(SourcesStrings.browseRoot),
                   ),
               ],
             ),

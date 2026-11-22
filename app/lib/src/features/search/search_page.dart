@@ -9,6 +9,7 @@ import 'package:lekis/src/features/library/widgets/shelf.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/search/search_providers.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
@@ -39,6 +40,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final gutter = pageGutterOf(context);
     final query = ref.watch(searchQueryProvider);
     final results = ref.watch(searchResultsProvider);
@@ -53,12 +55,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       child: SearchBar(
         controller: _text,
         autoFocus: _isDesktop,
-        hintText: '歌曲、专辑、艺人',
+        hintText: l10n.pick('歌曲、专辑、艺人', 'Songs, albums, artists'),
         leading: const Icon(Icons.search_rounded),
         trailing: [
           if (query.isNotEmpty)
             IconButton(
-              tooltip: '清除',
+              tooltip: l10n.pick('清除', 'Clear'),
               onPressed: () {
                 _text.clear();
                 _set('');
@@ -74,7 +76,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
     Widget body;
     if (query.trim().isEmpty) {
-      body = const _Hint(text: '搜索你的资料库', message: '输入歌名、专辑、艺人，或直接输入拼音。');
+      body = _Hint(
+        text: l10n.pick('搜索你的资料库', 'Search Your Library'),
+        message: l10n.pick(
+          '输入歌名、专辑、艺人，或直接输入拼音。',
+          'Type a song, album, or artist name.',
+        ),
+      );
     } else {
       final data = results.value;
       if (data == null) {
@@ -87,7 +95,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       } else if (data.tracks.isEmpty &&
           data.albums.isEmpty &&
           data.artists.isEmpty) {
-        body = _Hint(text: '没有找到“${query.trim()}”', message: '换一个关键词，或检查一下拼写。');
+        body = _Hint(
+          text: l10n.pick('没有找到“${query.trim()}”', 'No results for "${query.trim()}"'),
+          message: l10n.pick('换一个关键词，或检查一下拼写。', 'Try another keyword or check spelling.'),
+        );
       } else {
         body = _Results(results: data, stale: results.isLoading);
       }
@@ -132,12 +143,14 @@ class _Results extends ConsumerWidget {
       ),
     );
 
+    final l10n = context.l10n;
     return AnimatedOpacity(
       opacity: stale ? 0.6 : 1,
       duration: LekisMotion.fast,
       child: CustomScrollView(
         slivers: [
-          if (tracks.isNotEmpty) SliverToBoxAdapter(child: sectionTitle('歌曲')),
+          if (tracks.isNotEmpty)
+            SliverToBoxAdapter(child: sectionTitle(l10n.segSongs)),
           SliverPadding(
             padding: EdgeInsets.symmetric(horizontal: gutter - LekisSpacing.sm),
             sliver: SliverFixedExtentList.builder(
@@ -153,7 +166,7 @@ class _Results extends ConsumerWidget {
           if (results.albums.isNotEmpty)
             SliverToBoxAdapter(
               child: ArtworkShelf(
-                title: '专辑',
+                title: l10n.segAlbums,
                 itemCount: results.albums.length,
                 itemBuilder: (context, i) => AlbumCard(
                   album: results.albums[i],
@@ -164,7 +177,7 @@ class _Results extends ConsumerWidget {
               ),
             ),
           if (results.artists.isNotEmpty)
-            SliverToBoxAdapter(child: sectionTitle('艺人')),
+            SliverToBoxAdapter(child: sectionTitle(l10n.segArtists)),
           SliverPadding(
             padding: EdgeInsets.symmetric(horizontal: gutter - LekisSpacing.sm),
             sliver: SliverList.builder(

@@ -229,10 +229,8 @@ class _LekisTabBarState extends State<LekisTabBar>
     final liquid = widget.style.resolved == TabBarStyle.liquid;
     final count = LekisDestination.values.length;
     const inset = LekisTabBarTokens.innerInset;
-    final pillInset = liquid ? LekisTabBarTokens.pillInset : LekisSpacing.sm;
-    final pillHeight = liquid
-        ? LekisTabBarTokens.height - LekisSpacing.sm
-        : LekisSizes.touchTargetMin;
+    const pillInset = LekisTabBarTokens.pillInset;
+    const pillHeight = LekisTabBarTokens.height - LekisSpacing.sm;
 
     final vertical = _vertical;
     return LayoutBuilder(
@@ -300,7 +298,7 @@ class _LekisTabBarState extends State<LekisTabBar>
                             : BoxDecoration(
                                 color: colors.accentSoft,
                                 borderRadius: BorderRadius.circular(
-                                  LekisRadius.md,
+                                  math.min(pillW, pillH) / 2,
                                 ),
                               ),
                         child: liquid

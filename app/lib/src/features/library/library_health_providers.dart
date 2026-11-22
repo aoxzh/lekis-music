@@ -5,6 +5,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 
@@ -33,16 +34,23 @@ final duplicateGroupListProvider =
     });
 
 enum HealthTabKind {
-  missingCover(HealthIssueKindDto.missingCover, '缺封面'),
-  missingLyrics(HealthIssueKindDto.missingLyrics, '缺歌词'),
-  missingTags(HealthIssueKindDto.missingTags, '无标签'),
-  fakeLossless(HealthIssueKindDto.fakeLossless, '疑似假无损'),
-  unreadable(HealthIssueKindDto.unreadable, '损坏 / 不可读');
+  missingCover(HealthIssueKindDto.missingCover),
+  missingLyrics(HealthIssueKindDto.missingLyrics),
+  missingTags(HealthIssueKindDto.missingTags),
+  fakeLossless(HealthIssueKindDto.fakeLossless),
+  unreadable(HealthIssueKindDto.unreadable);
 
-  const HealthTabKind(this.kind, this.label);
+  const HealthTabKind(this.kind);
 
   final HealthIssueKindDto kind;
-  final String label;
+
+  String get label => switch (this) {
+    HealthTabKind.missingCover => L10n.tr('缺封面', 'Missing Artwork'),
+    HealthTabKind.missingLyrics => L10n.tr('缺歌词', 'Missing Lyrics'),
+    HealthTabKind.missingTags => L10n.tr('无标签', 'Missing Tags'),
+    HealthTabKind.fakeLossless => L10n.tr('疑似假无损', 'Suspected Fake Lossless'),
+    HealthTabKind.unreadable => L10n.tr('损坏 / 不可读', 'Unreadable Files'),
+  };
 }
 
 class HealthKindController extends Notifier<HealthTabKind> {

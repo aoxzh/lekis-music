@@ -211,7 +211,7 @@ class TrackTile extends ConsumerWidget {
           title: Text('编辑标签'),
         ),
       ),
-      const PopupMenuItem(
+      PopupMenuItem(
         value: _TrackMenuAction.enrich,
         child: ListTile(
           dense: true,
@@ -229,7 +229,7 @@ class TrackTile extends ConsumerWidget {
           title: Text(ArtworkActionStrings.change),
         ),
       ),
-      const PopupMenuItem(
+      PopupMenuItem(
         value: _TrackMenuAction.sources,
         child: ListTile(
           dense: true,

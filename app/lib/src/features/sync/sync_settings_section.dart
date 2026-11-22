@@ -38,7 +38,7 @@ class _SyncChannelSection extends ConsumerWidget {
       title: SyncStrings.sectionChannel,
       children: [
         if (eligible.isEmpty)
-          const SettingsTile(
+          SettingsTile(
             icon: Icons.folder_off_outlined,
             title: SyncStrings.noFilesystemSources,
             subtitle: Text(SyncStrings.addSourceHint),
@@ -51,7 +51,7 @@ class _SyncChannelSection extends ConsumerWidget {
             subtitle: SyncStrings.channelHint,
             value: selectedId,
             choices: [
-              const SettingsChoice<int?>(null, SyncStrings.sourceNone),
+              SettingsChoice<int?>(null, SyncStrings.sourceNone),
               for (final s in eligible) SettingsChoice<int?>(s.id, s.name),
             ],
             onChanged: (id) =>
@@ -135,10 +135,10 @@ class _SyncStatusSection extends ConsumerWidget {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.sync_rounded, size: 18),
-            label: const Text(SyncStrings.syncNow),
+            label: Text(SyncStrings.syncNow),
           ),
         ),
-        const SettingsTile(
+        SettingsTile(
           icon: Icons.info_outline_rounded,
           title: SyncStrings.whatIsSyncedTitle,
           subtitle: Text(SyncStrings.whatIsSyncedBody),

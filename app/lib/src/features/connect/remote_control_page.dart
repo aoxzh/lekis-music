@@ -127,7 +127,7 @@ class _RemoteControlPageState extends ConsumerState<RemoteControlPage> {
                 ref.read(activeRemoteProvider.notifier).clear();
                 Navigator.of(context).maybePop();
               },
-              child: const Text(ConnectStrings.stopControlling),
+              child: Text(ConnectStrings.stopControlling),
             ),
           const SizedBox(width: LekisSpacing.sm),
         ],

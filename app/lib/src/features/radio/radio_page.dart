@@ -105,16 +105,16 @@ class _RadioPageState extends ConsumerState<RadioPage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text(RadioStrings.deleteTitle),
+        title: Text(RadioStrings.deleteTitle),
         content: Text(RadioStrings.deleteBody(station.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(RadioStrings.cancel),
+            child: Text(RadioStrings.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(RadioStrings.delete),
+            child: Text(RadioStrings.delete),
           ),
         ],
       ),
@@ -217,7 +217,7 @@ class _RadioPageState extends ConsumerState<RadioPage> {
                   scrollDirection: Axis.horizontal,
                   child: SegmentedButton<_RadioTab>(
                     showSelectedIcon: false,
-                    segments: const [
+                    segments: [
                       ButtonSegment(
                         value: _RadioTab.popular,
                         label: Text(RadioStrings.tabPopular),
@@ -463,7 +463,7 @@ class _RadioPageState extends ConsumerState<RadioPage> {
         child: OutlinedButton.icon(
           onPressed: _loadMore,
           icon: const Icon(Icons.expand_more_rounded),
-          label: const Text(RadioStrings.loadMore),
+          label: Text(RadioStrings.loadMore),
         ),
       ),
     );
@@ -491,7 +491,7 @@ class _RadioPageState extends ConsumerState<RadioPage> {
                 ? FilledButton.tonalIcon(
                     onPressed: _addCustom,
                     icon: const Icon(Icons.add_rounded),
-                    label: const Text(RadioStrings.addCustom),
+                    label: Text(RadioStrings.addCustom),
                   )
                 : null,
           );
@@ -592,7 +592,7 @@ class _ErrorState extends StatelessWidget {
       action: FilledButton.icon(
         onPressed: onRetry,
         icon: const Icon(Icons.refresh_rounded),
-        label: const Text(RadioStrings.retry),
+        label: Text(RadioStrings.retry),
       ),
     );
   }

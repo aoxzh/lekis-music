@@ -164,7 +164,7 @@ class _SourceDetailState extends ConsumerState<SourceDetail> {
                   ),
                   onPressed: busy ? null : () => _edit(context, source),
                   icon: const Icon(Icons.edit_outlined),
-                  label: const Text(SourcesStrings.edit),
+                  label: Text(SourcesStrings.edit),
                 ),
                 FilledButton.tonalIcon(
                   style: FilledButton.styleFrom(
@@ -174,7 +174,7 @@ class _SourceDetailState extends ConsumerState<SourceDetail> {
                       ? null
                       : () => _rescan(context, source),
                   icon: const Icon(Icons.refresh),
-                  label: const Text(SourcesStrings.rescan),
+                  label: Text(SourcesStrings.rescan),
                 ),
                 if (source.kind.isFilesystem)
                   OutlinedButton.icon(
@@ -183,7 +183,7 @@ class _SourceDetailState extends ConsumerState<SourceDetail> {
                     ),
                     onPressed: busy ? null : () => _sync(context),
                     icon: const Icon(Icons.sync),
-                    label: const Text(SourcesStrings.syncNow),
+                    label: Text(SourcesStrings.syncNow),
                   ),
                 TextButton.icon(
                   style: TextButton.styleFrom(
@@ -199,7 +199,7 @@ class _SourceDetailState extends ConsumerState<SourceDetail> {
                           ),
                         )
                       : const Icon(Icons.delete_outline),
-                  label: const Text(SourcesStrings.deleteSource),
+                  label: Text(SourcesStrings.deleteSource),
                 ),
               ],
             ),
@@ -253,19 +253,19 @@ class _SourceDetailState extends ConsumerState<SourceDetail> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text(SourcesStrings.deleteTitle),
+        title: Text(SourcesStrings.deleteTitle),
         content: Text(SourcesStrings.deleteBody(source.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text(SourcesStrings.cancel),
+            child: Text(SourcesStrings.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: context.lekisColors.danger,
             ),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text(SourcesStrings.delete),
+            child: Text(SourcesStrings.delete),
           ),
         ],
       ),
@@ -337,12 +337,12 @@ Future<void> showAndroidPermissionDialog(BuildContext context) =>
       context: context,
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.folder_off_outlined),
-        title: const Text(SourcesStrings.androidPermissionTitle),
-        content: const Text(SourcesStrings.androidPermissionBody),
+        title: Text(SourcesStrings.androidPermissionTitle),
+        content: Text(SourcesStrings.androidPermissionBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text(SourcesStrings.ok),
+            child: Text(SourcesStrings.ok),
           ),
         ],
       ),

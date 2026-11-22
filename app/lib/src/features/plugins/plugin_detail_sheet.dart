@@ -131,7 +131,7 @@ class _PluginDetailSheetState extends State<_PluginDetailSheet> {
               _ErrorBox(message: plugin.error!),
             ],
             const SizedBox(height: LekisSpacing.lg),
-            const SettingsSectionHeader(PluginStrings.info),
+            SettingsSectionHeader(PluginStrings.info),
             _DetailTable(
               rows: [
                 (PluginStrings.kind, pluginKindsLabel(plugin.kinds)),
@@ -150,7 +150,7 @@ class _PluginDetailSheetState extends State<_PluginDetailSheet> {
               ],
             ),
             const SizedBox(height: LekisSpacing.xl),
-            const SettingsSectionHeader(PluginStrings.settings),
+            SettingsSectionHeader(PluginStrings.settings),
             if (plugin.error != null)
               Text(
                 PluginStrings.invalidManifest,
@@ -181,7 +181,7 @@ class _PluginDetailSheetState extends State<_PluginDetailSheet> {
                         TextButton.icon(
                           onPressed: _retry,
                           icon: const Icon(Icons.refresh),
-                          label: const Text(PluginStrings.retry),
+                          label: Text(PluginStrings.retry),
                         ),
                       ],
                     );
@@ -406,7 +406,7 @@ class _SettingsEditorState extends State<_SettingsEditor> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.save_outlined),
-            label: const Text(PluginStrings.saveSettings),
+            label: Text(PluginStrings.saveSettings),
           ),
         ),
       ],

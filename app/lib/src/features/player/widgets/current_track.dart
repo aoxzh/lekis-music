@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -44,7 +45,7 @@ class CurrentTrackText extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final track = ref.watch(currentTrackProvider).value;
-    final title = track?.title ?? '未在播放';
+    final title = track?.title ?? context.l10n.notPlaying;
     final subtitle = track == null
         ? ''
         : [

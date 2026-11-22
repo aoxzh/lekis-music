@@ -44,19 +44,19 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text(PluginStrings.removeTitle),
+        title: Text(PluginStrings.removeTitle),
         content: Text(PluginStrings.removeBody(plugin.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(PluginStrings.cancel),
+            child: Text(PluginStrings.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: context.lekisColors.danger,
             ),
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(PluginStrings.confirmRemove),
+            child: Text(PluginStrings.confirmRemove),
           ),
         ],
       ),
@@ -243,12 +243,12 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
     final action = await showDialog<_DirectoryAction>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text(PluginStrings.pluginDir),
+        title: Text(PluginStrings.pluginDir),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(PluginStrings.pluginDirHint),
+            Text(PluginStrings.pluginDirHint),
             const SizedBox(height: LekisSpacing.md),
             SelectableText(path),
           ],
@@ -257,15 +257,15 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
           if (Platform.isWindows || Platform.isLinux)
             TextButton(
               onPressed: () => Navigator.of(context).pop(_DirectoryAction.open),
-              child: const Text(PluginStrings.openInExplorer),
+              child: Text(PluginStrings.openInExplorer),
             ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(_DirectoryAction.copy),
-            child: const Text(PluginStrings.copyPath),
+            child: Text(PluginStrings.copyPath),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text(PluginStrings.close),
+            child: Text(PluginStrings.close),
           ),
         ],
       ),
@@ -339,7 +339,7 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
                   onPressed: () =>
                       ref.read(pluginListProvider.notifier).reload(),
                   icon: const Icon(Icons.refresh_rounded),
-                  label: const Text(PluginStrings.retry),
+                  label: Text(PluginStrings.retry),
                 ),
               ),
               data: (list) => list.isEmpty
@@ -354,12 +354,12 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
                           FilledButton.icon(
                             onPressed: _installing ? null : _installZip,
                             icon: const Icon(Icons.folder_zip_outlined),
-                            label: const Text(PluginStrings.installZip),
+                            label: Text(PluginStrings.installZip),
                           ),
                           OutlinedButton.icon(
                             onPressed: _installing ? null : _installFolder,
                             icon: const Icon(Icons.folder_open_outlined),
-                            label: const Text(PluginStrings.installFolder),
+                            label: Text(PluginStrings.installFolder),
                           ),
                         ],
                       ),

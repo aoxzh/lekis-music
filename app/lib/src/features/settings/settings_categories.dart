@@ -42,88 +42,113 @@ import 'widgets/settings_widgets.dart';
 
 /// 设置首页（手机）/ 左侧导航（桌面）里的分组，按这个顺序排列。
 enum SettingsCategoryGroup {
-  music(SettingsStrings.groupMusic),
-  general(SettingsStrings.groupGeneral),
-  more(SettingsStrings.groupMore);
+  music,
+  general,
+  more;
 
-  const SettingsCategoryGroup(this.title);
-  final String title;
-
-  String titleOf(BuildContext context) => switch (this) {
-    SettingsCategoryGroup.music => context.l10n.groupMusic,
-    SettingsCategoryGroup.general => context.l10n.groupGeneral,
-    SettingsCategoryGroup.more => context.l10n.groupMore,
+  String get title => switch (this) {
+    SettingsCategoryGroup.music => SettingsStrings.groupMusic,
+    SettingsCategoryGroup.general => SettingsStrings.groupGeneral,
+    SettingsCategoryGroup.more => SettingsStrings.groupMore,
   };
+
+  String titleOf(BuildContext context) {
+    context.l10n;
+    return title;
+  }
 }
 
 /// 顶层列表里可以进入的二级分类。
-///
-/// **加一个分类只要在这里加一行**（例如多设备同步）：
-///
-/// ```dart
-/// sync(SettingsStrings.sync, SettingsStrings.syncHint, Icons.devices_rounded,
-///     SettingsCategoryGroup.music, _syncSections),
-/// ```
-///
-/// 再写一个返回若干 [SettingsSection] 的顶层函数 `_syncSections`。手机首页、
-/// 桌面左侧导航、桌面搜索（标题 + 说明 + [keywords]）都会自动带上它；
-/// 同一分组内按这里的声明顺序排列。
 enum SettingsCategory {
   organize(
-    SettingsStrings.organize,
-    SettingsStrings.organizeHint,
     Icons.health_and_safety_outlined,
     SettingsCategoryGroup.music,
     _organizeSections,
-    keywords: [SettingsStrings.libraryHealth, SettingsStrings.enrichReview],
   ),
   sync(
-    SyncStrings.title,
-    SyncStrings.hint,
     Icons.sync_rounded,
     SettingsCategoryGroup.music,
     buildSyncSettingsSections,
-    keywords: [
+  ),
+  connect(
+    Icons.devices_rounded,
+    SettingsCategoryGroup.general,
+    _connectSections,
+  ),
+  playback(
+    Icons.play_circle_outline_rounded,
+    SettingsCategoryGroup.general,
+    _playbackSections,
+  ),
+  appearance(
+    Icons.palette_outlined,
+    SettingsCategoryGroup.general,
+    _appearanceSections,
+  ),
+  advanced(
+    Icons.tune_rounded,
+    SettingsCategoryGroup.more,
+    _advancedSections,
+  ),
+  about(
+    Icons.info_outline_rounded,
+    SettingsCategoryGroup.more,
+    _aboutSections,
+  );
+
+  const SettingsCategory(this.icon, this.group, this._sections);
+
+  final IconData icon;
+  final SettingsCategoryGroup group;
+  final List<Widget> Function() _sections;
+
+  String get title => switch (this) {
+    SettingsCategory.organize => SettingsStrings.organize,
+    SettingsCategory.sync => SyncStrings.title,
+    SettingsCategory.connect => ConnectStrings.title,
+    SettingsCategory.playback => SettingsStrings.playback,
+    SettingsCategory.appearance => SettingsStrings.appearance,
+    SettingsCategory.advanced => SettingsStrings.advanced,
+    SettingsCategory.about => SettingsStrings.about,
+  };
+
+  String get hint => switch (this) {
+    SettingsCategory.organize => SettingsStrings.organizeHint,
+    SettingsCategory.sync => SyncStrings.hint,
+    SettingsCategory.connect => ConnectStrings.nearbyHint,
+    SettingsCategory.playback => SettingsStrings.playbackHint,
+    SettingsCategory.appearance =>
+      UiProfile.current.isDesktop
+          ? SettingsStrings.appearanceHintDesktop
+          : SettingsStrings.appearanceHint,
+    SettingsCategory.advanced => SettingsStrings.advancedHint,
+    SettingsCategory.about => SettingsStrings.aboutHint,
+  };
+
+  List<String> get keywords => switch (this) {
+    SettingsCategory.organize => [
+      SettingsStrings.libraryHealth,
+      SettingsStrings.enrichReview,
+    ],
+    SettingsCategory.sync => [
       SyncStrings.sectionChannel,
       SyncStrings.syncNow,
       SyncStrings.autoOnLaunch,
     ],
-  ),
-  connect(
-    ConnectStrings.title,
-    ConnectStrings.nearbyHint,
-    Icons.devices_rounded,
-    SettingsCategoryGroup.general,
-    _connectSections,
-    keywords: [
+    SettingsCategory.connect => [
       ConnectStrings.nearby,
       ConnectStrings.allowControl,
       ConnectStrings.playHere,
       ConnectStrings.remote,
     ],
-  ),
-  playback(
-    SettingsStrings.playback,
-    SettingsStrings.playbackHint,
-    Icons.play_circle_outline_rounded,
-    SettingsCategoryGroup.general,
-    _playbackSections,
-    keywords: [
+    SettingsCategory.playback => [
       SettingsStrings.outputDevice,
       SettingsStrings.gapless,
       SettingsStrings.normalize,
       SettingsStrings.sleepTimer,
       EqualizerStrings.title,
     ],
-  ),
-  appearance(
-    SettingsStrings.appearance,
-    SettingsStrings.appearanceHint,
-    Icons.palette_outlined,
-    SettingsCategoryGroup.general,
-    _appearanceSections,
-    desktopHint: SettingsStrings.appearanceHintDesktop,
-    keywords: [
+    SettingsCategory.appearance => [
       SettingsStrings.theme,
       SettingsStrings.themeDark,
       SettingsStrings.themeLight,
@@ -138,14 +163,7 @@ enum SettingsCategory {
       SettingsStrings.lyricsSparks,
       DesktopLyricsStrings.title,
     ],
-  ),
-  advanced(
-    SettingsStrings.advanced,
-    SettingsStrings.advancedHint,
-    Icons.tune_rounded,
-    SettingsCategoryGroup.more,
-    _advancedSections,
-    keywords: [
+    SettingsCategory.advanced => [
       SettingsStrings.outputMode,
       SettingsStrings.replayGain,
       SettingsStrings.scrobbling,
@@ -154,54 +172,15 @@ enum SettingsCategory {
       SettingsStrings.backup,
       SettingsStrings.diagnosticLogs,
     ],
-  ),
-  about(
-    SettingsStrings.about,
-    SettingsStrings.aboutHint,
-    Icons.info_outline_rounded,
-    SettingsCategoryGroup.more,
-    _aboutSections,
-    keywords: [SettingsStrings.coreVersion, SettingsStrings.deviceId],
-  );
-
-  const SettingsCategory(
-    this.title,
-    this._hint,
-    this.icon,
-    this.group,
-    this._sections, {
-    this.keywords = const [],
-    this.desktopHint,
-  });
-
-  final String title;
-  final String _hint;
-  final IconData icon;
-  final SettingsCategoryGroup group;
-  final List<Widget> Function() _sections;
-
-  /// Extra words the desktop settings search matches (row titles).
-  final List<String> keywords;
-
-  /// Replaces [hint] on desktop when the mobile one names options that are
-  /// hidden there (e.g. the tab bar style).
-  final String? desktopHint;
-
-  /// One-line summary under the title.
-  String get hint =>
-      UiProfile.current.isDesktop ? (desktopHint ?? _hint) : _hint;
+    SettingsCategory.about => [
+      SettingsStrings.coreVersion,
+      SettingsStrings.deviceId,
+    ],
+  };
 
   String titleOf(BuildContext context) {
-    final l10n = context.l10n;
-    return switch (this) {
-      SettingsCategory.organize => l10n.organize,
-      SettingsCategory.sync => l10n.multiDeviceSync,
-      SettingsCategory.connect => l10n.connect,
-      SettingsCategory.playback => l10n.playback,
-      SettingsCategory.appearance => l10n.appearance,
-      SettingsCategory.advanced => l10n.advanced,
-      SettingsCategory.about => l10n.about,
-    };
+    context.l10n;
+    return title;
   }
 
   /// 这个分类的内容（若干分组）。
@@ -269,7 +248,7 @@ class _OrganizeSection extends ConsumerWidget {
         SettingsTile(
           icon: Icons.health_and_safety_outlined,
           title: SettingsStrings.libraryHealth,
-          subtitle: const Text(SettingsStrings.libraryHealthHint),
+          subtitle: Text(SettingsStrings.libraryHealthHint),
           chevron: true,
           onTap: () => Navigator.of(context).push(LibraryHealthPage.route()),
         ),
@@ -330,7 +309,7 @@ class _PlaybackSection extends ConsumerWidget {
               const SizedBox(width: LekisSpacing.xs),
             ],
             choices: [
-              const SettingsChoice<String?>(
+              SettingsChoice<String?>(
                 null,
                 SettingsStrings.systemDefault,
               ),
@@ -367,7 +346,7 @@ class _PlaybackSection extends ConsumerWidget {
                     onChanged: (id) =>
                         settingsGuard(context, () => notifier.selectDevice(id)),
                     items: [
-                      const DropdownMenuItem<String?>(
+                      DropdownMenuItem<String?>(
                         value: null,
                         child: Text(SettingsStrings.systemDefault),
                       ),
@@ -419,7 +398,7 @@ class _PlaybackSection extends ConsumerWidget {
         SettingsTile(
           icon: Icons.graphic_eq_rounded,
           title: EqualizerStrings.title,
-          subtitle: const Text(EqualizerStrings.entryHint),
+          subtitle: Text(EqualizerStrings.entryHint),
           chevron: true,
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute<void>(builder: (_) => const EqualizerPage()),
@@ -493,11 +472,11 @@ class _AppearanceSection extends ConsumerWidget {
       children: [
         if (profile.desktopSettings) ...[
           SettingsDropdownTile<ThemePreference>(
-            key: const ValueKey('settings-theme'),
+            key: ValueKey('settings-theme'),
             icon: Icons.palette_outlined,
             title: SettingsStrings.theme,
             value: pref,
-            choices: const [
+            choices: [
               SettingsChoice(
                 ThemePreference.system,
                 SettingsStrings.themeSystem,
@@ -544,7 +523,7 @@ class _AppearanceSection extends ConsumerWidget {
             hint: SettingsStrings.themeOledHint,
             child: SegmentedButton<ThemePreference>(
               showSelectedIcon: false,
-              segments: const [
+              segments: [
                 ButtonSegment(
                   value: ThemePreference.system,
                   label: Text(SettingsStrings.themeSystem),
@@ -640,13 +619,13 @@ class _AppearanceSection extends ConsumerWidget {
             ),
           ),
           SettingsBlockTile(
-            key: const ValueKey('settings-nav-bar-position'),
+            key: ValueKey('settings-nav-bar-position'),
             icon: Icons.view_quilt_outlined,
             title: SettingsStrings.navBarPosition,
             hint: SettingsStrings.navBarPositionHint,
             child: SegmentedButton<NavBarPosition>(
               showSelectedIcon: false,
-              segments: const [
+              segments: [
                 ButtonSegment(
                   value: NavBarPosition.bottom,
                   label: Text(SettingsStrings.navBarBottom),
@@ -765,7 +744,7 @@ class _AudioOutputSection extends ConsumerWidget {
                 : '${SettingsStrings.modeSharedHint}${SettingsStrings.exclusiveUnsupported}。',
             value: output.mode,
             choices: [
-              const SettingsChoice(
+              SettingsChoice(
                 OutputModeDto.shared,
                 SettingsStrings.modeShared,
               ),
@@ -782,7 +761,7 @@ class _AudioOutputSection extends ConsumerWidget {
             title: SettingsStrings.replayGain,
             subtitle: SettingsStrings.replayGainHint,
             value: replayGain,
-            choices: const [
+            choices: [
               SettingsChoice(ReplayGainMode.track, SettingsStrings.rgTrack),
               SettingsChoice(ReplayGainMode.album, SettingsStrings.rgAlbum),
               SettingsChoice(ReplayGainMode.off, SettingsStrings.rgOff),
@@ -811,14 +790,14 @@ class _AudioOutputSection extends ConsumerWidget {
           child: SegmentedButton<OutputModeDto>(
             showSelectedIcon: false,
             segments: [
-              const ButtonSegment(
+              ButtonSegment(
                 value: OutputModeDto.shared,
                 label: Text(SettingsStrings.modeShared),
                 icon: Icon(Icons.speaker_group_outlined),
               ),
               ButtonSegment(
                 value: OutputModeDto.exclusive,
-                label: const Text(SettingsStrings.modeExclusive),
+                label: Text(SettingsStrings.modeExclusive),
                 icon: const Icon(Icons.graphic_eq),
                 enabled: output.exclusiveSupported,
               ),
@@ -834,7 +813,7 @@ class _AudioOutputSection extends ConsumerWidget {
           hint: SettingsStrings.replayGainHint,
           child: SegmentedButton<ReplayGainMode>(
             showSelectedIcon: false,
-            segments: const [
+            segments: [
               ButtonSegment(
                 value: ReplayGainMode.track,
                 label: Text(SettingsStrings.rgTrack),
@@ -866,7 +845,7 @@ class _ServicesSection extends StatelessWidget {
   const _ServicesSection();
 
   @override
-  Widget build(BuildContext context) => const SettingsSection(
+  Widget build(BuildContext context) => SettingsSection(
     title: SettingsStrings.servicesGroup,
     children: [ScrobbleSettingsTile(), PluginsSettingsTile()],
   );
@@ -907,7 +886,7 @@ class _DiagnosticsSection extends StatelessWidget {
       SettingsTile(
         icon: Icons.receipt_long_outlined,
         title: SettingsStrings.diagnosticLogs,
-        subtitle: const Text(SettingsStrings.diagnosticLogsHint),
+        subtitle: Text(SettingsStrings.diagnosticLogsHint),
         chevron: true,
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => const DiagnosticLogsPage()),

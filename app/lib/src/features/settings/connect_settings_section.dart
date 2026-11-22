@@ -43,7 +43,7 @@ class ConnectSettingsSection extends ConsumerWidget {
     );
 
     if (state == null) {
-      return const SettingsSection(
+      return SettingsSection(
         title: ConnectStrings.title,
         children: [
           SettingsTile(
@@ -239,12 +239,12 @@ class ConnectSettingsSection extends ConsumerWidget {
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text(ConnectStrings.renameTitle),
+        title: Text(ConnectStrings.renameTitle),
         content: TextField(
           controller: controller,
           autofocus: true,
           maxLength: 40,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: ConnectStrings.thisDevice,
             hintText: ConnectStrings.renameHint,
           ),
@@ -253,7 +253,7 @@ class ConnectSettingsSection extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text(ConnectStrings.cancel),
+            child: Text(ConnectStrings.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(controller.text),
@@ -312,7 +312,7 @@ Future<String?> showPairingCodeDialog(
   return showDialog<String>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text(ConnectStrings.pairTitle),
+      title: Text(ConnectStrings.pairTitle),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -327,7 +327,7 @@ Future<String?> showPairingCodeDialog(
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.headlineSmall
                 ?.copyWith(letterSpacing: 8),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: ConnectStrings.pairCodeLabel,
               counterText: '',
             ),
@@ -338,11 +338,11 @@ Future<String?> showPairingCodeDialog(
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text(ConnectStrings.cancel),
+          child: Text(ConnectStrings.cancel),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(controller.text),
-          child: const Text(ConnectStrings.pairConfirm),
+          child: Text(ConnectStrings.pairConfirm),
         ),
       ],
     ),
@@ -356,14 +356,14 @@ Future<(String, int)?> showAddByAddressDialog(BuildContext context) {
   return showDialog<(String, int)>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text(ConnectStrings.addByAddress),
+      title: Text(ConnectStrings.addByAddress),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
             controller: host,
             autofocus: true,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: ConnectStrings.host,
               hintText: ConnectStrings.hostHint,
             ),
@@ -372,14 +372,14 @@ Future<(String, int)?> showAddByAddressDialog(BuildContext context) {
           TextField(
             controller: port,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: ConnectStrings.port),
+            decoration: InputDecoration(labelText: ConnectStrings.port),
           ),
         ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text(ConnectStrings.cancel),
+          child: Text(ConnectStrings.cancel),
         ),
         FilledButton(
           onPressed: () {
@@ -388,7 +388,7 @@ Future<(String, int)?> showAddByAddressDialog(BuildContext context) {
             if (h.isEmpty || p <= 0) return;
             Navigator.of(context).pop((h, p));
           },
-          child: const Text(ConnectStrings.add),
+          child: Text(ConnectStrings.add),
         ),
       ],
     ),
@@ -435,7 +435,7 @@ class _ConnectPairingHostState extends ConsumerState<ConnectPairingHost> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text(ConnectStrings.incomingPairing),
+        title: Text(ConnectStrings.incomingPairing),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -458,7 +458,7 @@ class _ConnectPairingHostState extends ConsumerState<ConnectPairingHost> {
             onPressed: () {
               ref.read(connectProvider.notifier).dismissPairing();
             },
-            child: const Text(ConnectStrings.close),
+            child: Text(ConnectStrings.close),
           ),
         ],
       ),

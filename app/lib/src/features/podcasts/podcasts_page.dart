@@ -172,7 +172,7 @@ class _PodcastsPageState extends ConsumerState<PodcastsPage> {
                 Navigator.of(context).push<void>(RadioPage.route());
             }
           },
-          itemBuilder: (_) => const [
+          itemBuilder: (_) => [
             PopupMenuItem(
               value: 'import',
               child: ListTile(
@@ -216,7 +216,7 @@ class _PodcastsPageState extends ConsumerState<PodcastsPage> {
                   alignment: Alignment.centerLeft,
                   child: SegmentedButton<PodcastTab>(
                     showSelectedIcon: false,
-                    segments: const [
+                    segments: [
                       ButtonSegment(
                         value: PodcastTab.subscriptions,
                         label: Text(PodcastStrings.tabSubscriptions),
@@ -328,12 +328,12 @@ class _SubscriptionsView extends ConsumerWidget {
                 FilledButton.icon(
                   onPressed: onDiscover,
                   icon: const Icon(Icons.explore_rounded),
-                  label: const Text(PodcastStrings.goDiscover),
+                  label: Text(PodcastStrings.goDiscover),
                 ),
                 OutlinedButton.icon(
                   onPressed: onImport,
                   icon: const Icon(Icons.file_download_outlined),
-                  label: const Text(PodcastStrings.importOpml),
+                  label: Text(PodcastStrings.importOpml),
                 ),
               ],
             ),
@@ -622,7 +622,7 @@ class _AddFeedDialogState extends State<_AddFeedDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text(PodcastStrings.addByUrl),
+    title: Text(PodcastStrings.addByUrl),
     content: Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -647,11 +647,11 @@ class _AddFeedDialogState extends State<_AddFeedDialog> {
     actions: [
       TextButton(
         onPressed: () => Navigator.of(context).pop(),
-        child: const Text(PodcastStrings.cancel),
+        child: Text(PodcastStrings.cancel),
       ),
       FilledButton(
         onPressed: () => Navigator.of(context).pop(_controller.text),
-        child: const Text(PodcastStrings.add),
+        child: Text(PodcastStrings.add),
       ),
     ],
   );
@@ -671,7 +671,7 @@ class _ErrorState extends StatelessWidget {
     action: FilledButton.icon(
       onPressed: onRetry,
       icon: const Icon(Icons.refresh_rounded),
-      label: const Text(PodcastStrings.retry),
+      label: Text(PodcastStrings.retry),
     ),
   );
 }

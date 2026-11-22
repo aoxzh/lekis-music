@@ -5,6 +5,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
     show Int64List;
 import 'package:material_ui/material_ui.dart';
 
+import '../../l10n/app_l10n.dart';
 import '../../rust/api/core.dart' as core;
 import '../../rust/api/dto.dart';
 import '../../theme/tokens.dart';
@@ -14,18 +15,24 @@ import '../sources/common.dart' show describeCoreError, showFeatureSnack;
 import '../sources/source_kind_info.dart';
 
 abstract final class UnifiedStrings {
-  static const menuTitle = '来源与音质';
-  static const sheetTitle = '曲目来源';
-  static const preferred = '当前首选';
-  static const unreachable = '当前不可达';
-  static const splitAction = '拆分';
-  static const splitTooltip = '拆分为独立曲目';
-  static const splitDone = '已拆分为独立曲目';
-  static const mergeAction = '合并为同一首歌';
-  static String mergeDone(int count) => '已合并 $count 个版本为同一首歌（不删磁盘文件）';
-  static const empty = '没有找到这首歌的来源文件';
-  static const multiSourceHint =
-      '播放时按「可用性 > 就近程度 > 音质」自动选源；若误把两首不同的歌合到一起，可点右侧「拆分」。';
+  static String get menuTitle => L10n.tr('来源与音质', 'Sources & Quality');
+  static String get sheetTitle => L10n.tr('曲目来源', 'Track Sources');
+  static String get preferred => L10n.tr('当前首选', 'Preferred');
+  static String get unreachable => L10n.tr('当前不可达', 'Unreachable');
+  static String get splitAction => L10n.tr('拆分', 'Split');
+  static String get splitTooltip => L10n.tr('拆分为独立曲目', 'Split into separate track');
+  static String get splitDone => L10n.tr('已拆分为独立曲目', 'Split into a separate track');
+  static String get mergeAction => L10n.tr('合并为同一首歌', 'Merge as Same Track');
+  static String get alreadyMerged => L10n.tr('已合并为同一首歌', 'Already Unified');
+  static String mergeDone(int count) => L10n.tr(
+    '已合并 $count 个版本为同一首歌（不删磁盘文件）',
+    'Merged $count versions into one track (files kept on disk)',
+  );
+  static String get empty => L10n.tr('没有找到这首歌的来源文件', 'No source files found');
+  static String get multiSourceHint => L10n.tr(
+    '播放时按「可用性 > 就近程度 > 音质」自动选源；若误把两首不同的歌合到一起，可点右侧「拆分」。',
+    'Playback auto-picks by availability > locality > quality; tap Split if two different songs were merged.',
+  );
 }
 
 /// 供 UI 与单测注入的统一资料库操作入口。
@@ -309,7 +316,7 @@ class _TrackSourcesViewState extends ConsumerState<TrackSourcesView> {
                             TextButton(
                               key: ValueKey('track-source.split.$index'),
                               onPressed: _busy ? null : () => _split(entry),
-                              child: const Text(UnifiedStrings.splitAction),
+                              child: Text(UnifiedStrings.splitAction),
                             ),
                         ],
                       ),

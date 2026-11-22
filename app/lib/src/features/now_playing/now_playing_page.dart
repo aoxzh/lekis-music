@@ -612,7 +612,7 @@ class _TopBar extends StatelessWidget {
         children: [
           IconButton(
             key: const ValueKey('now-playing.top-bar.close'),
-            tooltip: '关闭',
+            tooltip: context.l10n.pick('关闭', 'Close'),
             constraints: const BoxConstraints(
               minWidth: LekisSizes.touchTargetMin,
               minHeight: LekisSizes.touchTargetMin,
@@ -840,7 +840,7 @@ class _NowPlayingTitle extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          track?.title ?? '未在播放',
+          track?.title ?? context.l10n.notPlaying,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.titleLarge?.copyWith(

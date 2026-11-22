@@ -7,6 +7,7 @@ import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_panel.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
@@ -43,7 +44,7 @@ class QueueList extends ConsumerWidget {
       ),
       error: (e, _) => Center(
         child: Text(
-          '队列加载失败',
+          context.l10n.pick('队列加载失败', 'Failed to load queue'),
           style: theme.textTheme.bodySmall?.copyWith(
             color: colors.onSurfaceVariant,
           ),
@@ -53,7 +54,7 @@ class QueueList extends ConsumerWidget {
         if (items.isEmpty) {
           return Center(
             child: Text(
-              '队列为空',
+              context.l10n.pick('队列为空', 'Queue is empty'),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colors.onSurfaceVariant,
               ),
@@ -144,7 +145,7 @@ class QueueList extends ConsumerWidget {
                         size: 18,
                       ),
                     PopupMenuButton<String>(
-                      tooltip: '队列操作',
+                      tooltip: context.l10n.pick('队列操作', 'Queue actions'),
                       icon: Icon(
                         Icons.more_horiz_rounded,
                         size: 18,
@@ -163,9 +164,15 @@ class QueueList extends ConsumerWidget {
                             actions.removeQueueAt(actualIndex);
                         }
                       },
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'playlist', child: Text('添加到歌单')),
-                        PopupMenuItem(value: 'remove', child: Text('从队列移除')),
+                      itemBuilder: (_) => [
+                        PopupMenuItem(
+                          value: 'playlist',
+                          child: Text(context.l10n.pick('添加到歌单', 'Add to Playlist')),
+                        ),
+                        PopupMenuItem(
+                          value: 'remove',
+                          child: Text(context.l10n.pick('从队列移除', 'Remove from Queue')),
+                        ),
                       ],
                     ),
                     ReorderableDragStartListener(
@@ -223,10 +230,13 @@ Future<void> _showQueueBottomSheet(BuildContext context) {
               );
               return Row(
                 children: [
-                  Text('播放队列', style: Theme.of(context).textTheme.titleLarge),
+                  Text(
+                    context.l10n.queue,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                   const SizedBox(width: LekisSpacing.sm),
                   Text(
-                    '$length 首',
+                    context.l10n.pick('$length 首', '$length tracks'),
                     style: Theme.of(context).textTheme.bodySmall
                         ?.copyWith(color: context.lekisColors.onSurfaceVariant),
                   ),

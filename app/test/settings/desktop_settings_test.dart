@@ -149,7 +149,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(
           find.byKey(
-            const ValueKey('settings-choice-${SettingsStrings.themeOled}'),
+            ValueKey('settings-choice-${SettingsStrings.themeOled}'),
           ),
           findsOneWidget,
         );

@@ -4,21 +4,30 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../l10n/app_l10n.dart';
 import 'player_providers.dart';
 
 enum SleepTimerKind {
-  off('off', '关闭', null),
-  endOfTrack('end_of_track', '放完这首', null),
-  min15('15', '15 分钟', Duration(minutes: 15)),
-  min30('30', '30 分钟', Duration(minutes: 30)),
-  min60('60', '60 分钟', Duration(hours: 1)),
-  min90('90', '90 分钟', Duration(minutes: 90));
+  off('off', null),
+  endOfTrack('end_of_track', null),
+  min15('15', Duration(minutes: 15)),
+  min30('30', Duration(minutes: 30)),
+  min60('60', Duration(hours: 1)),
+  min90('90', Duration(minutes: 90));
 
-  const SleepTimerKind(this.id, this.label, this.duration);
+  const SleepTimerKind(this.id, this.duration);
 
   final String id;
-  final String label;
   final Duration? duration;
+
+  String get label => switch (this) {
+    SleepTimerKind.off => L10n.tr('关闭', 'Off'),
+    SleepTimerKind.endOfTrack => L10n.tr('放完这首', 'End of Track'),
+    SleepTimerKind.min15 => L10n.tr('15 分钟', '15 min'),
+    SleepTimerKind.min30 => L10n.tr('30 分钟', '30 min'),
+    SleepTimerKind.min60 => L10n.tr('60 分钟', '60 min'),
+    SleepTimerKind.min90 => L10n.tr('90 分钟', '90 min'),
+  };
 }
 
 class SleepTimerState {

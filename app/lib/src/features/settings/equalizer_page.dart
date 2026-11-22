@@ -3,6 +3,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../l10n/app_l10n.dart';
 import '../../rust/api/dto.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/lekis_slider.dart';
@@ -14,46 +15,66 @@ import 'widgets/settings_widgets.dart';
 /// 页面文案。
 abstract final class EqualizerStrings {
   /// 页面标题。
-  static const title = '均衡器';
+  static String get title => L10n.tr('均衡器', 'Equalizer');
 
   /// 设置页入口说明。
-  static const entryHint = '10 段图形均衡器、preamp 与 AutoEQ 风格耳机预设';
+  static String get entryHint => L10n.tr(
+    '10 段图形均衡器、preamp 与 AutoEQ 风格耳机预设',
+    '10-band graphic EQ, preamp & AutoEQ-style headphone presets',
+  );
 
   /// 启用开关。
-  static const general = '开关与预设';
-  static const enabled = '启用均衡器';
-  static const enabledHint = '关闭时完全旁路，不改变任何样本';
+  static String get general => L10n.tr('开关与预设', 'Power & Preset');
+  static String get enabled => L10n.tr('启用均衡器', 'Enable Equalizer');
+  static String get enabledHint =>
+      L10n.tr('关闭时完全旁路，不改变任何样本', 'Completely bypassed when off');
 
   /// 预设。
-  static const preset = '预设';
-  static const aboutPresets = '关于预设';
-  static const custom = '自定义 / 平直';
-  static const currentPreset = '当前预设';
-  static const presetSource = '预设是 AutoEQ 风格的近似补偿曲线，不是官方测量数据；佩戴方式和固件都会影响实际听感。';
-  static const presetApplied = '已应用预设';
+  static String get preset => L10n.tr('预设', 'Preset');
+  static String get aboutPresets => L10n.tr('关于预设', 'About Presets');
+  static String get custom => L10n.tr('自定义 / 平直', 'Custom / Flat');
+  static String get currentPreset => L10n.tr('当前预设', 'Current Preset');
+  static String get presetSource => L10n.tr(
+    '预设是 AutoEQ 风格的近似补偿曲线，不是官方测量数据；佩戴方式和固件都会影响实际听感。',
+    'Presets are approximate AutoEQ-style curves; fit and firmware affect perceived sound.',
+  );
+  static String get presetApplied => L10n.tr('已应用预设', 'Preset applied');
 
   /// preamp。
-  static const preamp = '前级增益（preamp）';
-  static const preampHint = '整体增减音量，给频段提升留出余量，避免削波';
+  static String get preamp => L10n.tr('前级增益（preamp）', 'Preamp');
+  static String get preampHint => L10n.tr(
+    '整体增减音量，给频段提升留出余量，避免削波',
+    'Adjust overall gain to leave headroom and avoid clipping',
+  );
 
   /// 频段。
-  static const bands = '频段增益';
+  static String get bands => L10n.tr('频段增益', 'Bands');
   static const bandRange = '31 Hz – 16 kHz';
-  static const bandsHint = '上下拖动滑杆微调；手动调整后会变为“自定义”。';
+  static String get bandsHint => L10n.tr(
+    '上下拖动滑杆微调；手动调整后会变为“自定义”。',
+    'Drag sliders to adjust; manual changes switch to Custom.',
+  );
 
   /// 按钮。
-  static const reset = '重置为平直';
-  static const retry = '重试';
+  static String get reset => L10n.tr('重置为平直', 'Reset Flat');
+  static String get retry => L10n.tr('重试', 'Retry');
 
   /// 说明。
-  static const sharedOnly = '均衡器仅在共享输出模式生效';
-  static const sharedOnlyHint = '独占 / 比特完美模式会跳过 DSP，以保持源码位模式；需要 EQ 时请切换到共享模式。';
-  static const exclusiveActive = '当前是独占输出模式，均衡器不会生效。切回共享模式后会自动应用。';
+  static String get sharedOnly =>
+      L10n.tr('均衡器仅在共享输出模式生效', 'EQ applies in Shared output mode only');
+  static String get sharedOnlyHint => L10n.tr(
+    '独占 / 比特完美模式会跳过 DSP，以保持源码位模式；需要 EQ 时请切换到共享模式。',
+    'Exclusive / bit-perfect mode bypasses DSP; switch to Shared mode to use EQ.',
+  );
+  static String get exclusiveActive => L10n.tr(
+    '当前是独占输出模式，均衡器不会生效。切回共享模式后会自动应用。',
+    'Exclusive output mode is active, so EQ is bypassed until you switch back to Shared.',
+  );
 
   /// 错误。
-  static const loadFailed = '读取均衡器设置失败';
-  static const saveFailed = '保存均衡器设置失败';
-  static const unavailable = '均衡器设置暂不可用';
+  static String get loadFailed => L10n.tr('读取均衡器设置失败', 'Failed to load EQ');
+  static String get saveFailed => L10n.tr('保存均衡器设置失败', 'Failed to save EQ');
+  static String get unavailable => L10n.tr('均衡器设置暂不可用', 'EQ unavailable');
 }
 
 /// 均衡器页面。
@@ -94,7 +115,7 @@ class _LoadError extends ConsumerWidget {
           const SizedBox(height: LekisSpacing.lg),
           FilledButton(
             onPressed: () => ref.read(equalizerProvider.notifier).reload(),
-            child: const Text(EqualizerStrings.retry),
+            child: Text(EqualizerStrings.retry),
           ),
         ],
       ),
@@ -142,7 +163,7 @@ class _EqualizerBody extends ConsumerWidget {
                 underline: const SizedBox.shrink(),
                 borderRadius: BorderRadius.circular(LekisRadius.md),
                 items: [
-                  const DropdownMenuItem<String>(
+                  DropdownMenuItem<String>(
                     value: '',
                     child: Text(EqualizerStrings.custom),
                   ),
@@ -197,7 +218,7 @@ class _EqualizerBody extends ConsumerWidget {
                     ? null
                     : () => _guard(context, notifier.resetFlat),
                 icon: const Icon(Icons.restart_alt_rounded),
-                label: const Text(EqualizerStrings.reset),
+                label: Text(EqualizerStrings.reset),
               ),
               child: SizedBox(
                 height: 246,
@@ -258,7 +279,7 @@ class _EqualizerBody extends ConsumerWidget {
             SettingsTile(
               icon: Icons.science_outlined,
               title: EqualizerStrings.aboutPresets,
-              subtitle: const Text(EqualizerStrings.presetSource),
+              subtitle: Text(EqualizerStrings.presetSource),
             ),
           ],
         ),

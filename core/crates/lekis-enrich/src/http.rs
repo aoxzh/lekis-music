@@ -72,7 +72,21 @@ pub(crate) async fn get_text(
     url: reqwest::Url,
     what: &str,
 ) -> Result<Option<String>> {
-    let response = client.get(url).send().await.map_err(network)?;
+    get_text_with_headers(client, url, &[], what).await
+}
+
+/// 带自定义请求头的 GET（例如网易云公开接口需要 `Referer`）。
+pub(crate) async fn get_text_with_headers(
+    client: &reqwest::Client,
+    url: reqwest::Url,
+    headers: &[(&str, &str)],
+    what: &str,
+) -> Result<Option<String>> {
+    let mut req = client.get(url);
+    for (k, v) in headers {
+        req = req.header(*k, *v);
+    }
+    let response = req.send().await.map_err(network)?;
     let code = response.status();
     if code.is_success() {
         return response.text().await.map(Some).map_err(network);

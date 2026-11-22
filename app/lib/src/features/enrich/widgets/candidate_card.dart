@@ -85,7 +85,7 @@ class CandidateCard extends ConsumerWidget {
                   ),
                   onPressed: () => _act(context, ref, accept: false),
                   icon: const Icon(Icons.close),
-                  label: const Text(EnrichStrings.reject),
+                  label: Text(EnrichStrings.reject),
                 ),
                 const SizedBox(width: LekisSpacing.sm),
                 FilledButton.tonalIcon(
@@ -96,7 +96,7 @@ class CandidateCard extends ConsumerWidget {
                       ? null
                       : () => _act(context, ref, accept: true),
                   icon: const Icon(Icons.check),
-                  label: const Text(EnrichStrings.accept),
+                  label: Text(EnrichStrings.accept),
                 ),
               ],
             ),

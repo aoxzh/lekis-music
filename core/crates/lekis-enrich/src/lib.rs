@@ -23,6 +23,7 @@ pub mod artwork_ingest;
 pub mod cache;
 pub mod http;
 pub mod providers;
+pub mod providers_extra;
 pub mod scoring;
 pub mod scrobble;
 pub mod throttle;

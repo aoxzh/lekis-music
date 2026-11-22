@@ -38,17 +38,26 @@ final class UnknownProposal extends EnrichProposal {
 }
 
 enum TagField {
-  title(EnrichStrings.tagTitle, 'title'),
-  artists(EnrichStrings.tagArtists, 'artists'),
-  albumTitle(EnrichStrings.tagAlbum, 'album_title'),
-  year(EnrichStrings.tagYear, 'year'),
-  trackNo(EnrichStrings.tagTrackNo, 'track_no'),
-  discNo(EnrichStrings.tagDiscNo, 'disc_no'),
-  genres(EnrichStrings.tagGenres, 'genres');
+  title('title'),
+  artists('artists'),
+  albumTitle('album_title'),
+  year('year'),
+  trackNo('track_no'),
+  discNo('disc_no'),
+  genres('genres');
 
-  const TagField(this.label, this.jsonKey);
-  final String label;
+  const TagField(this.jsonKey);
   final String jsonKey;
+
+  String get label => switch (this) {
+    TagField.title => EnrichStrings.tagTitle,
+    TagField.artists => EnrichStrings.tagArtists,
+    TagField.albumTitle => EnrichStrings.tagAlbum,
+    TagField.year => EnrichStrings.tagYear,
+    TagField.trackNo => EnrichStrings.tagTrackNo,
+    TagField.discNo => EnrichStrings.tagDiscNo,
+    TagField.genres => EnrichStrings.tagGenres,
+  };
 }
 
 String _display(Object? v) => switch (v) {

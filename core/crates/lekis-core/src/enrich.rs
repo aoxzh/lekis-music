@@ -18,15 +18,21 @@
 use crate::config::CoreConfig;
 use lekis_enrich::artwork_ingest;
 use lekis_enrich::providers::{CoverArtArchive, ITunes, Lrclib};
+use lekis_enrich::providers_extra::{
+    DeezerArtwork, KugouLyrics, LyricsOvh, MusicBrainzCoverArt, NetEaseArtwork, NetEaseLyrics,
+};
 use lekis_enrich::{
     decide, ArtworkPayload, ArtworkProvider, Candidate, Decision, LyricsPayload, LyricsProvider,
-    TrackHint,
+    TrackHint, AUTO_APPLY_THRESHOLD,
 };
 use lekis_library::{cache_relative_path, Library, NewEnrichCandidate};
 use lekis_types::*;
 
-/// 一次补全最多问多少个提供方（防止插件没完没了地加）。
-const MAX_PROVIDERS_PER_KIND: usize = 4;
+/// 一次补全最多保留多少条候选。
+const MAX_PROVIDERS_PER_KIND: usize = 8;
+
+/// 补全范围设置键：`all`（默认）/ `artwork`（仅封面）/ `lyrics`（仅歌词）。
+const ENRICH_SCOPE_SETTING_KEY: &str = "enrich.scope";
 
 /// 缓存里为每张封面生成的尺寸档位（ENR-12：列表 128/256、网格 512、正在播放页 1024）。
 const ARTWORK_TIERS: [u32; 4] = artwork_ingest::THUMBNAIL_WIDTHS;
@@ -51,108 +57,173 @@ impl EnrichReport {
     }
 }
 
-/// 补全流水线。持有提供方实例（它们内部有 HTTP 连接池、限速器和缓存）。
+/// 补全流水线。持有所有免 Key 提供方实例（内部有连接池、限速器和缓存）。
 pub(crate) struct EnrichPipeline {
-    lrclib: Option<Lrclib>,
-    cover_art: Option<CoverArtArchive>,
-    itunes: Option<ITunes>,
+    lyrics_providers: Vec<Box<dyn LyricsProvider>>,
+    artwork_providers: Vec<Box<dyn ArtworkProvider>>,
     cache_dir: std::path::PathBuf,
 }
 
 impl EnrichPipeline {
     /// 构造流水线。某个提供方构造失败（比如 TLS 初始化不了）时跳过它，不影响其它。
     pub(crate) fn new(config: &CoreConfig) -> Self {
-        let build = |what: &str| -> Option<()> {
-            tracing::debug!(target: "lekis_core::enrich", "准备提供方 {what}");
-            Some(())
-        };
-        let lrclib = match build("lrclib") {
-            Some(()) => Lrclib::new().ok(),
-            None => None,
-        };
-        if lrclib.is_none() {
-            tracing::warn!(target: "lekis_core::enrich", "LRCLIB 提供方不可用，跳过歌词补全");
+        let mut lyrics_providers: Vec<Box<dyn LyricsProvider>> = Vec::new();
+        if let Ok(p) = Lrclib::new() {
+            lyrics_providers.push(Box::new(p));
         }
-        let cover_art = CoverArtArchive::new().ok();
-        let itunes = ITunes::new().ok();
+        if let Ok(p) = NetEaseLyrics::new() {
+            lyrics_providers.push(Box::new(p));
+        }
+        if let Ok(p) = KugouLyrics::new() {
+            lyrics_providers.push(Box::new(p));
+        }
+        if let Ok(p) = LyricsOvh::new() {
+            lyrics_providers.push(Box::new(p));
+        }
+
+        let mut artwork_providers: Vec<Box<dyn ArtworkProvider>> = Vec::new();
+        if let Ok(p) = CoverArtArchive::new() {
+            artwork_providers.push(Box::new(p));
+        }
+        if let Ok(p) = ITunes::new() {
+            artwork_providers.push(Box::new(p));
+        }
+        if let Ok(p) = DeezerArtwork::new() {
+            artwork_providers.push(Box::new(p));
+        }
+        if let Ok(p) = NetEaseArtwork::new() {
+            artwork_providers.push(Box::new(p));
+        }
+        if let Ok(p) = MusicBrainzCoverArt::new() {
+            artwork_providers.push(Box::new(p));
+        }
+
         Self {
-            lrclib,
-            cover_art,
-            itunes,
+            lyrics_providers,
+            artwork_providers,
             cache_dir: config.cache_dir.clone(),
         }
     }
 
-    /// 只查歌词（LRCLIB）。播放时按需调用，不碰封面。
+    async fn query_lyrics_cascade(&self, hint: &TrackHint) -> Vec<Candidate<LyricsPayload>> {
+        let mut all = Vec::new();
+        for provider in &self.lyrics_providers {
+            match provider.find_lyrics(hint).await {
+                Ok(list) => {
+                    let has_synced_hit = list.iter().any(|c| {
+                        c.payload.format == LyricsFormat::Lrc
+                            && lekis_enrich::scoring::score(hint, c) >= AUTO_APPLY_THRESHOLD
+                    });
+                    all.extend(list);
+                    if has_synced_hit {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        target: "lekis_core::enrich",
+                        provider = provider.name(),
+                        code = %e.code.as_str(),
+                        "歌词提供方查询失败，继续下一个"
+                    );
+                }
+            }
+        }
+        all.sort_by(|a, b| {
+            let sa = lekis_enrich::scoring::score(hint, a)
+                + if a.payload.format == LyricsFormat::Lrc {
+                    0.05
+                } else {
+                    0.0
+                };
+            let sb = lekis_enrich::scoring::score(hint, b)
+                + if b.payload.format == LyricsFormat::Lrc {
+                    0.05
+                } else {
+                    0.0
+                };
+            sb.total_cmp(&sa)
+        });
+        all
+    }
+
+    async fn query_artwork_cascade(&self, hint: &TrackHint) -> Vec<Candidate<ArtworkPayload>> {
+        let mut all = Vec::new();
+        for provider in &self.artwork_providers {
+            match provider.find_artwork(hint).await {
+                Ok(list) => {
+                    let has_strong_hit = list
+                        .iter()
+                        .any(|c| lekis_enrich::scoring::score(hint, c) >= AUTO_APPLY_THRESHOLD);
+                    all.extend(list);
+                    if has_strong_hit {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        target: "lekis_core::enrich",
+                        provider = provider.name(),
+                        code = %e.code.as_str(),
+                        "封面提供方查询失败，继续下一个"
+                    );
+                }
+            }
+        }
+        all.sort_by(|a, b| {
+            lekis_enrich::scoring::score(hint, b)
+                .total_cmp(&lekis_enrich::scoring::score(hint, a))
+        });
+        all
+    }
+
+    /// 只查歌词（按优先级级联所有免 Key 歌词源）。播放时按需调用，不碰封面。
     pub(crate) async fn fetch_lyrics(&self, library: &Library, track_id: TrackId) -> Result<()> {
-        let Some(provider) = &self.lrclib else {
+        if self.lyrics_providers.is_empty() {
             return Ok(());
-        };
+        }
         if library.active_lyrics(track_id).await?.is_some() {
             return Ok(());
         }
         let track = library.get_track(track_id).await?;
         let hint = hint_for(&track, library).await?;
-        let candidates = provider.find_lyrics(&hint).await?;
+        let candidates = self.query_lyrics_cascade(&hint).await;
         self.apply_lyrics(library, track_id, &hint, candidates)
             .await?;
         Ok(())
     }
 
-    /// 对一首歌跑一次补全。
+    /// 对一首歌跑一次补全（遵守 `enrich.scope`：`all` / `artwork` / `lyrics`）。
     pub(crate) async fn enrich_track(
         &self,
         library: &Library,
         track_id: TrackId,
     ) -> Result<EnrichReport> {
+        let scope = library
+            .get_setting(ENRICH_SCOPE_SETTING_KEY)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "all".to_string());
+        let want_lyrics = scope != "artwork";
+        let want_artwork = scope != "lyrics";
+
         let track = library.get_track(track_id).await?;
         let hint = hint_for(&track, library).await?;
         let mut report = EnrichReport::default();
 
         // ---- 歌词（ENR-03）----
-        if library.active_lyrics(track_id).await?.is_none() {
-            if let Some(provider) = &self.lrclib {
-                match provider.find_lyrics(&hint).await {
-                    Ok(candidates) => {
-                        report.absorb(
-                            self.apply_lyrics(library, track_id, &hint, candidates)
-                                .await?,
-                        );
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            target: "lekis_core::enrich",
-                            code = %e.code.as_str(),
-                            "LRCLIB 歌词查询失败"
-                        );
-                    }
-                }
-            }
+        if want_lyrics && library.active_lyrics(track_id).await?.is_none() {
+            let candidates = self.query_lyrics_cascade(&hint).await;
+            report.absorb(
+                self.apply_lyrics(library, track_id, &hint, candidates)
+                    .await?,
+            );
         }
 
         // ---- 封面（ENR-01）----
-        if library.effective_artwork_id(track_id).await?.is_none() {
-            let mut artwork_candidates: Vec<Candidate<ArtworkPayload>> = Vec::new();
-            if let Some(provider) = &self.cover_art {
-                match provider.find_artwork(&hint).await {
-                    Ok(list) => artwork_candidates.extend(list),
-                    Err(e) => tracing::warn!(
-                        target: "lekis_core::enrich",
-                        code = %e.code.as_str(),
-                        "Cover Art Archive 查询失败"
-                    ),
-                }
-            }
-            if let Some(provider) = &self.itunes {
-                match provider.find_artwork(&hint).await {
-                    Ok(list) => artwork_candidates.extend(list),
-                    Err(e) => tracing::warn!(
-                        target: "lekis_core::enrich",
-                        code = %e.code.as_str(),
-                        "iTunes 查询失败"
-                    ),
-                }
-            }
+        if want_artwork && library.effective_artwork_id(track_id).await?.is_none() {
+            let artwork_candidates = self.query_artwork_cascade(&hint).await;
             report.absorb(
                 self.apply_artwork(library, &track, &hint, artwork_candidates)
                     .await?,

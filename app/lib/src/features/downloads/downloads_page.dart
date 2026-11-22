@@ -8,6 +8,7 @@ import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/settings/widgets/settings_widgets.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
@@ -73,12 +74,13 @@ class DownloadsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final async = ref.watch(downloadsProvider);
     return SettingsScaffold(
-      title: '下载',
+      title: l10n.pick('下载', 'Downloads'),
       actions: [
         PopupMenuButton<String>(
-          tooltip: '批量下载',
+          tooltip: l10n.pick('批量下载', 'Batch Download'),
           onSelected: (value) {
             switch (value) {
               case 'loved':
@@ -87,25 +89,25 @@ class DownloadsPage extends ConsumerWidget {
                 _downloadMostPlayed(context, ref);
             }
           },
-          itemBuilder: (_) => const [
+          itemBuilder: (_) => [
             PopupMenuItem(
               value: 'loved',
               child: ListTile(
-                leading: Icon(Icons.favorite_outline),
-                title: Text('下载收藏'),
+                leading: const Icon(Icons.favorite_outline),
+                title: Text(l10n.pick('下载收藏', 'Download Liked')),
               ),
             ),
             PopupMenuItem(
               value: 'most-played',
               child: ListTile(
-                leading: Icon(Icons.trending_up_rounded),
-                title: Text('下载最常听 50 首'),
+                leading: const Icon(Icons.trending_up_rounded),
+                title: Text(l10n.pick('下载最常听 50 首', 'Download Top 50')),
               ),
             ),
           ],
         ),
         IconButton(
-          tooltip: '刷新',
+          tooltip: l10n.pick('刷新', 'Refresh'),
           onPressed: () => ref.read(downloadsProvider.notifier).refresh(),
           icon: const Icon(Icons.refresh_rounded),
         ),

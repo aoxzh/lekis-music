@@ -108,7 +108,7 @@ class _PodcastDetailPageState extends ConsumerState<PodcastDetailPage> {
                 _run(() => ref.read(podcastActionsProvider).markAllPlayed(id));
               }
             },
-            itemBuilder: (_) => const [
+            itemBuilder: (_) => [
               PopupMenuItem(
                 value: 'all-played',
                 child: Text(PodcastStrings.markAllPlayed),
@@ -134,7 +134,7 @@ class _PodcastDetailPageState extends ConsumerState<PodcastDetailPage> {
       action: FilledButton.icon(
         onPressed: _open,
         icon: const Icon(Icons.refresh_rounded),
-        label: const Text(PodcastStrings.retry),
+        label: Text(PodcastStrings.retry),
       ),
     );
   }
@@ -328,13 +328,13 @@ class _Header extends StatelessWidget {
                         OutlinedButton.icon(
                           onPressed: busy ? null : onToggleSubscribe,
                           icon: const Icon(Icons.check_rounded),
-                          label: const Text(PodcastStrings.subscribed),
+                          label: Text(PodcastStrings.subscribed),
                         )
                       else
                         FilledButton.icon(
                           onPressed: busy ? null : onToggleSubscribe,
                           icon: const Icon(Icons.add_rounded),
-                          label: const Text(PodcastStrings.subscribe),
+                          label: Text(PodcastStrings.subscribe),
                         ),
                       IconButton(
                         tooltip: 'RSS',

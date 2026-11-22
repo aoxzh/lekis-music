@@ -142,7 +142,7 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
                   child: FloatingActionButton.extended(
                     onPressed: _add,
                     icon: const Icon(Icons.add),
-                    label: const Text(SourcesStrings.addSource),
+                    label: Text(SourcesStrings.addSource),
                   ),
                 )
               : null,
@@ -192,7 +192,7 @@ class _Header extends StatelessWidget {
                 ),
                 onPressed: add,
                 icon: const Icon(Icons.add),
-                label: const Text(SourcesStrings.addSource),
+                label: Text(SourcesStrings.addSource),
               ),
           ],
         ),

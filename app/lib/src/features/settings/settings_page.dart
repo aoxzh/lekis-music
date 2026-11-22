@@ -224,7 +224,7 @@ class SettingsSetupCard extends StatelessWidget {
                 onPressed: () =>
                     AppShell.select(context, LekisDestination.sources),
                 icon: const Icon(Icons.add),
-                label: const Text(SettingsStrings.setupAction),
+                label: Text(SettingsStrings.setupAction),
               ),
             ],
           ),

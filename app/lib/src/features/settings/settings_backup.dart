@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/now_playing/now_playing_style.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/features/settings/theme_preference.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/l10n/app_locale.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/shell/nav_bar_position.dart';
@@ -43,19 +44,30 @@ class SettingsBackupSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     return SettingsSection(
       title: SettingsStrings.backup,
       children: [
         SettingsTile(
           icon: Icons.upload_file_outlined,
-          title: '导出设置',
-          subtitle: const Text('生成 JSON 并复制到剪贴板（不含密码和播放历史）'),
+          title: l10n.pick('导出设置', 'Export Settings'),
+          subtitle: Text(
+            l10n.pick(
+              '生成 JSON 并复制到剪贴板（不含密码和播放历史）',
+              'Copy settings JSON to clipboard (excludes passwords & history)',
+            ),
+          ),
           onTap: () => _export(context),
         ),
         SettingsTile(
           icon: Icons.download_outlined,
-          title: '导入设置',
-          subtitle: const Text('粘贴之前导出的 JSON，覆盖当前设置'),
+          title: l10n.pick('导入设置', 'Import Settings'),
+          subtitle: Text(
+            l10n.pick(
+              '粘贴之前导出的 JSON，覆盖当前设置',
+              'Paste exported JSON to restore settings',
+            ),
+          ),
           onTap: () => _import(context, ref),
         ),
       ],

@@ -29,7 +29,7 @@ final class FolderPickFailed extends FolderPickResult {
 /// 打开系统文件夹选择器。
 Future<FolderPickResult> pickMusicFolder() async {
   if (Platform.isAndroid && !await ensureAudioPermission()) {
-    return const FolderPickFailed(SourcesStrings.audioPermissionDenied);
+    return FolderPickFailed(SourcesStrings.audioPermissionDenied);
   }
   try {
     // 核心的 LocalVfs 只认文件系统路径，所以这里仍用 getDirectoryPath 而不是
@@ -41,11 +41,11 @@ Future<FolderPickResult> pickMusicFolder() async {
     if (path == null || path.isEmpty) return const FolderPickCancelled();
     // 核心的本地音源按普通文件路径读；SAF 的 content:// 树还不支持。
     if (path.startsWith('content://')) {
-      return const FolderPickFailed(SourcesStrings.androidContentUri);
+      return FolderPickFailed(SourcesStrings.androidContentUri);
     }
     return FolderPicked(path);
   } catch (_) {
-    return const FolderPickFailed(SourcesStrings.folderPickFailed);
+    return FolderPickFailed(SourcesStrings.folderPickFailed);
   }
 }
 

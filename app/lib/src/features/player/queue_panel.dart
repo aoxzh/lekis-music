@@ -9,6 +9,7 @@ import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/layout/window_size.dart';
 import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/rust/api/dto.dart';
@@ -153,7 +154,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel> {
                 builder: (context, _) {
                   if (queueLength == 0) {
                     return _QueueEmpty(
-                      message: '队列为空',
+                      message: context.l10n.pick('队列为空', 'Queue is empty'),
                       colors: colors,
                       theme: theme,
                     );
@@ -164,7 +165,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            '队列加载失败',
+                            context.l10n.pick('队列加载失败', 'Failed to load queue'),
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: colors.onSurfaceVariant,
                             ),
@@ -172,7 +173,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel> {
                           const SizedBox(height: LekisSpacing.sm),
                           TextButton(
                             onPressed: list.retry,
-                            child: const Text('重试'),
+                            child: Text(context.l10n.pick('重试', 'Retry')),
                           ),
                         ],
                       ),
@@ -283,13 +284,13 @@ class _QueueHeader extends StatelessWidget {
               color: colors.onSurfaceVariant,
             ),
             const SizedBox(width: LekisSpacing.sm),
-            Text('播放队列', style: theme.textTheme.titleMedium),
+            Text(context.l10n.queue, style: theme.textTheme.titleMedium),
             const SizedBox(width: LekisSpacing.sm),
             _CountBadge(count: length),
             const Spacer(),
             if (onClose != null)
               IconButton(
-                tooltip: '关闭播放队列',
+                tooltip: context.l10n.hideQueue,
                 constraints: const BoxConstraints(
                   minWidth: LekisSizes.touchTargetMin,
                   minHeight: LekisSizes.touchTargetMin,

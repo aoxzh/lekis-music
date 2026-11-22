@@ -259,13 +259,13 @@ class ConnectRemoteStrip extends ConsumerWidget {
                 TextButton(
                   style: TextButton.styleFrom(foregroundColor: onAccent),
                   onPressed: () => openRemoteControl(context, device.deviceId),
-                  child: const Text(ConnectStrings.controlOnly),
+                  child: Text(ConnectStrings.controlOnly),
                 ),
                 TextButton(
                   style: TextButton.styleFrom(foregroundColor: onAccent),
                   onPressed: () =>
                       ref.read(activeRemoteProvider.notifier).clear(),
-                  child: const Text(ConnectStrings.backToThisDevice),
+                  child: Text(ConnectStrings.backToThisDevice),
                 ),
               ],
             ),

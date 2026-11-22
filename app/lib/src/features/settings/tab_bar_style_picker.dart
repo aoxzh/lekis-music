@@ -222,9 +222,7 @@ class _MiniTabBar extends StatelessWidget {
                   width: _miniPillSize,
                   height: _miniPillSize,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(
-                      liquid ? LekisRadius.pill : LekisRadius.xs,
-                    ),
+                    borderRadius: BorderRadius.circular(LekisRadius.pill),
                     color: liquid ? null : colors.accentSoft,
                     gradient: liquid
                         ? LinearGradient(

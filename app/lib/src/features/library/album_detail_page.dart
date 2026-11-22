@@ -363,7 +363,7 @@ class PlayShuffleButtons extends StatelessWidget {
               ),
               if (onEnrich != null) ...[
                 const PopupMenuDivider(),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'enrich',
                   child: ListTile(
                     dense: true,

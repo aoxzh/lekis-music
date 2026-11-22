@@ -84,7 +84,7 @@ class AddSourcePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text(SourcesStrings.addSource)),
+    appBar: AppBar(title: Text(SourcesStrings.addSource)),
     body: AddSourcePane(onDone: (id) => Navigator.of(context).pop(id)),
   );
 }
@@ -97,7 +97,7 @@ class EditSourcePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text(SourcesStrings.editSource)),
+    appBar: AppBar(title: Text(SourcesStrings.editSource)),
     body: SourceForm(
       kind: source.kind,
       existing: source,
@@ -753,7 +753,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
                         minimumSize: const Size(0, LekisSizes.touchTargetMin),
                       ),
                       onPressed: _busy || _testing ? null : widget.onBack,
-                      child: const Text(SourcesStrings.cancel),
+                      child: Text(SourcesStrings.cancel),
                     ),
                     // 本地文件夹没有“连接”可测，选好文件夹直接添加即可。
                     if (_isNetwork)
@@ -828,8 +828,8 @@ class _SourceFormState extends ConsumerState<SourceForm> {
         tilePadding: EdgeInsets.zero,
         childrenPadding: const EdgeInsets.only(bottom: LekisSpacing.sm),
         initiallyExpanded: _alternates.text.trim().isNotEmpty,
-        title: const Text(SourcesStrings.moreOptions),
-        subtitle: const Text(SourcesStrings.moreOptionsHint),
+        title: Text(SourcesStrings.moreOptions),
+        subtitle: Text(SourcesStrings.moreOptionsHint),
         children: [
           TextFormField(
             controller: _alternates,
@@ -964,7 +964,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
           alignment: Alignment.centerLeft,
           child: TextButton(
             onPressed: _busy || _testing ? null : _cancelReplaceSecret,
-            child: const Text(SourcesStrings.keepPassword),
+            child: Text(SourcesStrings.keepPassword),
           ),
         ),
       ],
@@ -972,9 +972,11 @@ class _SourceFormState extends ConsumerState<SourceForm> {
   }
 
   Widget _savedCredentialTile({
-    String notice = SourcesStrings.credentialSavedNotice,
-    String replaceLabel = SourcesStrings.replacePassword,
+    String? notice,
+    String? replaceLabel,
   }) {
+    final resolvedNotice = notice ?? SourcesStrings.credentialSavedNotice;
+    final resolvedReplace = replaceLabel ?? SourcesStrings.replacePassword;
     final colors = context.lekisColors;
     final theme = Theme.of(context);
     return Container(
@@ -989,7 +991,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
           const SizedBox(width: LekisSpacing.md),
           Expanded(
             child: Text(
-              notice,
+              resolvedNotice,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colors.onSurfaceVariant,
               ),
@@ -1003,7 +1005,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
             onPressed: _busy || _testing
                 ? null
                 : () => setState(() => _replaceSecret = true),
-            child: Text(replaceLabel),
+            child: Text(resolvedReplace),
           ),
         ],
       ),
@@ -1086,8 +1088,8 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     // 先填账号，再列共享：枚举共享本身就要登录。
     SwitchListTile(
       contentPadding: EdgeInsets.zero,
-      title: const Text(SourcesStrings.guest),
-      subtitle: const Text(SourcesStrings.guestHint),
+      title: Text(SourcesStrings.guest),
+      subtitle: Text(SourcesStrings.guestHint),
       value: _guest,
       onChanged: _busy || _testing
           ? null
@@ -1195,8 +1197,8 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     Align(
       alignment: Alignment.centerLeft,
       child: SegmentedButton<bool>(
-        key: const ValueKey('sftp-auth-mode'),
-        segments: const [
+        key: ValueKey('sftp-auth-mode'),
+        segments: [
           ButtonSegment(
             value: false,
             icon: Icon(Icons.password),
@@ -1289,7 +1291,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
           alignment: Alignment.centerLeft,
           child: TextButton(
             onPressed: _busy || _testing ? null : _cancelReplaceSecret,
-            child: const Text(SourcesStrings.keepKey),
+            child: Text(SourcesStrings.keepKey),
           ),
         ),
       ],

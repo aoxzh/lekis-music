@@ -1,12 +1,15 @@
-// 补全确认页：自动找到但把握不大的封面 / 歌词 / 标签，在这里逐条确认。
+// 补全确认页：自动找到但把握不大的封面 / 歌词 / 标签，在这里逐条确认；
+// 同时提供「补全封面 / 歌词」入口，支持选择仅补全封面、仅补全歌词或全部补全。
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../l10n/app_l10n.dart';
 import '../../theme/tokens.dart';
 import '../library/widgets/empty_state.dart';
 import '../settings/widgets/settings_widgets.dart';
 import '../sources/common.dart';
+import 'enrich_actions.dart';
 import 'enrich_providers.dart';
 import 'strings.dart';
 import 'widgets/candidate_card.dart';
@@ -16,6 +19,7 @@ class EnrichReviewPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    context.l10n;
     final queue = ref.watch(enrichQueueProvider);
     final count = ref.watch(enrichPendingCountProvider) ?? queue.value?.length;
     final hasItems = (queue.value?.isNotEmpty ?? false);
@@ -25,15 +29,23 @@ class EnrichReviewPage extends ConsumerWidget {
           ? EnrichStrings.title
           : EnrichStrings.titleWithCount(count),
       actions: [
-        if (hasItems)
+        OutlinedButton.icon(
+          key: const ValueKey('enrich.start-batch'),
+          onPressed: () => enrichMissingFromLibraryFlow(context),
+          icon: const Icon(Icons.auto_fix_high_outlined, size: 18),
+          label: Text(EnrichActionStrings.action),
+        ),
+        if (hasItems) ...[
+          const SizedBox(width: LekisSpacing.xs),
           FilledButton.tonalIcon(
             style: FilledButton.styleFrom(
               minimumSize: const Size(0, LekisSizes.touchTargetMin),
             ),
             onPressed: () => _acceptAll(context, ref, count ?? 0),
             icon: const Icon(Icons.done_all),
-            label: const Text(EnrichStrings.acceptAll),
+            label: Text(EnrichStrings.acceptAll),
           ),
+        ],
       ],
       body: queue.when(
         skipLoadingOnReload: true,
@@ -44,13 +56,18 @@ class EnrichReviewPage extends ConsumerWidget {
           action: TextButton.icon(
             onPressed: () => ref.read(enrichQueueProvider.notifier).reload(),
             icon: const Icon(Icons.refresh),
-            label: const Text(EnrichStrings.retry),
+            label: Text(EnrichStrings.retry),
           ),
         ),
         data: (list) => list.isEmpty
-            ? const LekisEmptyState(
+            ? LekisEmptyState(
                 title: EnrichStrings.emptyTitle,
                 message: EnrichStrings.emptyBody,
+                action: FilledButton.tonalIcon(
+                  onPressed: () => enrichMissingFromLibraryFlow(context),
+                  icon: const Icon(Icons.auto_fix_high_outlined),
+                  label: Text(EnrichActionStrings.action),
+                ),
               )
             : SettingsScrollView(
                 slivers: [
@@ -73,17 +90,17 @@ class EnrichReviewPage extends ConsumerWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text(EnrichStrings.acceptAllConfirmTitle),
+        title: Text(EnrichStrings.acceptAllConfirmTitle),
         content: Text(EnrichStrings.acceptAllConfirmBody(n)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(EnrichStrings.cancel),
+            child: Text(EnrichStrings.cancel),
           ),
           FilledButton(
             autofocus: true,
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(EnrichStrings.confirm),
+            child: Text(EnrichStrings.confirm),
           ),
         ],
       ),

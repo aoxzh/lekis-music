@@ -1,67 +1,84 @@
-// 播客页面的全部中文文案（SRC-12）。
+// 播客页面的全部双语文案（SRC-12）。
+
+import '../../l10n/app_l10n.dart';
 
 abstract final class PodcastStrings {
-  static const title = '播客';
-  static const eyebrow = '播客';
+  static String get title => L10n.tr('播客', 'Podcasts');
+  static String get eyebrow => L10n.tr('播客', 'PODCASTS');
 
-  static const tabSubscriptions = '订阅';
-  static const tabDiscover = '发现';
+  static String get tabSubscriptions => L10n.tr('订阅', 'Subscriptions');
+  static String get tabDiscover => L10n.tr('发现', 'Discover');
 
-  static const searchHint = '搜索播客，或粘贴 RSS / Apple Podcasts 链接';
-  static const clear = '清除';
-  static const refresh = '刷新';
-  static const refreshAll = '刷新全部订阅';
-  static const retry = '重试';
-  static const region = '地区';
-  static const allGenres = '全部';
-  static const topCharts = '排行榜';
-  static const searchResults = '搜索结果';
+  static String get searchHint =>
+      L10n.tr('搜索播客，或粘贴 RSS 链接', 'Search podcasts or paste an RSS URL');
+  static String get clear => L10n.tr('清除', 'Clear');
+  static String get refresh => L10n.tr('刷新', 'Refresh');
+  static String get refreshAll => L10n.tr('刷新全部订阅', 'Refresh All');
+  static String get retry => L10n.tr('重试', 'Retry');
+  static String get region => L10n.tr('地区', 'Region');
+  static String get allGenres => L10n.tr('全部', 'All');
+  static String get topCharts => L10n.tr('排行榜', 'Top Charts');
+  static String get searchResults => L10n.tr('搜索结果', 'Search Results');
 
-  static const addByUrl = '通过 RSS 地址添加';
+  static String get addByUrl => L10n.tr('通过 RSS 地址添加', 'Add by RSS URL');
   static const addByUrlHint = 'https://example.com/feed.xml';
-  static const addByUrlBody =
-      '支持 RSS / Atom 地址、feed:// 链接和 Apple Podcasts 网页链接。';
-  static const add = '添加';
-  static const cancel = '取消';
-  static const importOpml = '导入 OPML';
-  static const exportOpml = '导出 OPML';
-  static const radio = '网络电台';
-  static const more = '更多';
+  static String get addByUrlBody =>
+      L10n.tr('支持 RSS / Atom 地址与 feed:// 链接。', 'Supports RSS / Atom and feed:// URLs.');
+  static String get add => L10n.tr('添加', 'Add');
+  static String get cancel => L10n.tr('取消', 'Cancel');
+  static String get importOpml => L10n.tr('导入 OPML', 'Import OPML');
+  static String get exportOpml => L10n.tr('导出 OPML', 'Export OPML');
+  static String get radio => L10n.tr('网络电台', 'Internet Radio');
+  static String get more => L10n.tr('更多', 'More');
 
-  static const subscribe = '订阅';
-  static const subscribed = '已订阅';
-  static const unsubscribe = '取消订阅';
-  static const subscribedDone = '已订阅';
-  static const unsubscribedDone = '已取消订阅';
-  static const markPlayed = '标记为已播放';
-  static const markUnplayed = '标记为未播放';
-  static const markAllPlayed = '全部标记为已播放';
-  static const played = '已播放';
-  static const play = '播放';
-  static const resume = '继续';
-  static const openLink = '复制单集链接';
-  static const linkCopied = '已复制链接';
+  static String get subscribe => L10n.tr('订阅', 'Subscribe');
+  static String get subscribed => L10n.tr('已订阅', 'Subscribed');
+  static String get unsubscribe => L10n.tr('取消订阅', 'Unsubscribe');
+  static String get subscribedDone => L10n.tr('已订阅', 'Subscribed');
+  static String get unsubscribedDone => L10n.tr('已取消订阅', 'Unsubscribed');
+  static String get markPlayed => L10n.tr('标记为已播放', 'Mark as Played');
+  static String get markUnplayed => L10n.tr('标记为未播放', 'Mark as Unplayed');
+  static String get markAllPlayed => L10n.tr('全部标记为已播放', 'Mark All Played');
+  static String get played => L10n.tr('已播放', 'Played');
+  static String get play => L10n.tr('播放', 'Play');
+  static String get resume => L10n.tr('继续', 'Resume');
+  static String get openLink => L10n.tr('复制单集链接', 'Copy Episode Link');
+  static String get linkCopied => L10n.tr('已复制链接', 'Link copied');
 
-  static const continueListening = '继续收听';
-  static const latestEpisodes = '最新单集';
-  static const mySubscriptions = '我的订阅';
-  static const episodes = '单集';
-  static const loadMore = '加载更多';
+  static String get continueListening => L10n.tr('继续收听', 'Continue Listening');
+  static String get latestEpisodes => L10n.tr('最新单集', 'Latest Episodes');
+  static String get mySubscriptions => L10n.tr('我的订阅', 'My Subscriptions');
+  static String get episodes => L10n.tr('单集', 'Episodes');
+  static String get loadMore => L10n.tr('加载更多', 'Load More');
 
-  static const subscriptionsEmpty = '还没有订阅播客';
-  static const subscriptionsEmptyBody =
-      '去「发现」看看排行榜，或者搜索、粘贴 RSS 地址添加节目。也可以导入其他播客应用导出的 OPML。';
-  static const goDiscover = '去发现';
-  static const searchEmpty = '没有找到节目';
-  static const searchEmptyBody = '换一个关键词试试，或直接粘贴节目的 RSS 地址。';
-  static const chartEmpty = '这个地区暂时没有排行榜数据';
-  static const episodesEmpty = '这个节目还没有可播放的单集';
-  static const loadFailed = '播客加载失败';
-  static const networkHint = '检查网络连接；目录数据来自 Apple Podcasts，节目内容来自节目自己的 RSS。';
-  static const actionFailed = '操作失败';
-  static const opening = '正在读取节目…';
+  static String get subscriptionsEmpty => L10n.tr('还没有订阅播客', 'No Subscriptions Yet');
+  static String get subscriptionsEmptyBody => L10n.tr(
+    '去「发现」看看排行榜，或者搜索、粘贴 RSS 地址添加节目。也可以导入其他播客应用导出的 OPML。',
+    'Explore charts in Discover, search, paste an RSS feed URL, or import an OPML file.',
+  );
+  static String get goDiscover => L10n.tr('去发现', 'Explore Discover');
+  static String get searchEmpty => L10n.tr('没有找到节目', 'No Shows Found');
+  static String get searchEmptyBody =>
+      L10n.tr('换一个关键词试试，或直接粘贴节目的 RSS 地址。', 'Try another keyword or paste an RSS URL.');
+  static String get chartEmpty =>
+      L10n.tr('这个地区暂时没有排行榜数据', 'No chart data for this region');
+  static String get episodesEmpty =>
+      L10n.tr('这个节目还没有可播放的单集', 'No playable episodes yet');
+  static String get loadFailed => L10n.tr('播客加载失败', 'Failed to load podcasts');
+  static String get networkHint => L10n.tr(
+    '检查网络连接；节目内容来自节目自己的 RSS。',
+    'Check your network connection; episodes are fetched directly from their RSS feeds.',
+  );
+  static String get actionFailed => L10n.tr('操作失败', 'Action failed');
+  static String get opening => L10n.tr('正在读取节目…', 'Loading show…');
 
   static String refreshReport(int refreshed, int failed, int added) {
+    if (L10n.isEnglishActive) {
+      final parts = <String>['Refreshed $refreshed'];
+      if (added > 0) parts.add('$added new');
+      if (failed > 0) parts.add('$failed failed');
+      return parts.join(', ');
+    }
     final parts = <String>['已刷新 $refreshed 个节目'];
     if (added > 0) parts.add('新增 $added 集');
     if (failed > 0) parts.add('$failed 个失败');
@@ -69,57 +86,63 @@ abstract final class PodcastStrings {
   }
 
   static String importReport(int added, int already, int failed) {
+    if (L10n.isEnglishActive) {
+      final parts = <String>['Subscribed $added'];
+      if (already > 0) parts.add('$already existing');
+      if (failed > 0) parts.add('$failed failed');
+      return parts.join(', ');
+    }
     final parts = <String>['新订阅 $added 个'];
     if (already > 0) parts.add('$already 个已订阅');
     if (failed > 0) parts.add('$failed 个暂时读取失败');
     return parts.join('，');
   }
 
-  static String exported(String name) => '已保存 $name';
-  static String unplayedCount(int n) => '$n 集未听';
-  static String episodeCount(int n) => '$n 集';
-  static String lastError(String e) => '上次刷新失败：$e';
+  static String exported(String name) => L10n.tr('已保存 $name', 'Saved $name');
+  static String unplayedCount(int n) => L10n.tr('$n 集未听', '$n unplayed');
+  static String episodeCount(int n) => L10n.tr('$n 集', '$n episodes');
+  static String lastError(String e) => L10n.tr('上次刷新失败：$e', 'Last refresh failed: $e');
 }
 
-/// Apple Podcasts 的地区（目录 / 排行榜按地区区分）。
-const podcastRegions = <(String, String)>[
-  ('CN', '中国大陆'),
-  ('HK', '香港'),
-  ('TW', '台湾地区'),
-  ('SG', '新加坡'),
-  ('MY', '马来西亚'),
-  ('US', '美国'),
-  ('GB', '英国'),
-  ('CA', '加拿大'),
-  ('AU', '澳大利亚'),
-  ('JP', '日本'),
-  ('KR', '韩国'),
-  ('DE', '德国'),
-  ('FR', '法国'),
-  ('ES', '西班牙'),
-  ('IT', '意大利'),
-  ('BR', '巴西'),
-  ('IN', '印度'),
+/// 播客目录地区列表。
+List<(String, String)> get podcastRegions => [
+  ('CN', L10n.tr('中国大陆', 'China')),
+  ('HK', L10n.tr('香港', 'Hong Kong')),
+  ('TW', L10n.tr('台湾地区', 'Taiwan')),
+  ('SG', L10n.tr('新加坡', 'Singapore')),
+  ('MY', L10n.tr('马来西亚', 'Malaysia')),
+  ('US', L10n.tr('美国', 'United States')),
+  ('GB', L10n.tr('英国', 'United Kingdom')),
+  ('CA', L10n.tr('加拿大', 'Canada')),
+  ('AU', L10n.tr('澳大利亚', 'Australia')),
+  ('JP', L10n.tr('日本', 'Japan')),
+  ('KR', L10n.tr('韩国', 'South Korea')),
+  ('DE', L10n.tr('德国', 'Germany')),
+  ('FR', L10n.tr('法国', 'France')),
+  ('ES', L10n.tr('西班牙', 'Spain')),
+  ('IT', L10n.tr('意大利', 'Italy')),
+  ('BR', L10n.tr('巴西', 'Brazil')),
+  ('IN', L10n.tr('印度', 'India')),
 ];
 
-/// Apple Podcasts 的顶级分类 ID。
-const podcastGenres = <(int, String)>[
-  (1321, '商业'),
-  (1318, '科技'),
-  (1324, '社会与文化'),
-  (1303, '喜剧'),
-  (1489, '新闻'),
-  (1304, '教育'),
-  (1487, '历史'),
-  (1301, '艺术'),
-  (1309, '电视与电影'),
-  (1310, '音乐'),
-  (1533, '科学'),
-  (1512, '健康'),
-  (1502, '休闲'),
-  (1305, '儿童与家庭'),
-  (1488, '真实罪案'),
-  (1483, '小说'),
-  (1545, '体育'),
-  (1314, '宗教与灵修'),
+/// 播客分类 ID。
+List<(int, String)> get podcastGenres => [
+  (1321, L10n.tr('商业', 'Business')),
+  (1318, L10n.tr('科技', 'Technology')),
+  (1324, L10n.tr('社会与文化', 'Society & Culture')),
+  (1303, L10n.tr('喜剧', 'Comedy')),
+  (1489, L10n.tr('新闻', 'News')),
+  (1304, L10n.tr('教育', 'Education')),
+  (1487, L10n.tr('历史', 'History')),
+  (1301, L10n.tr('艺术', 'Arts')),
+  (1309, L10n.tr('电视与电影', 'TV & Film')),
+  (1310, L10n.tr('音乐', 'Music')),
+  (1533, L10n.tr('科学', 'Science')),
+  (1512, L10n.tr('健康', 'Health')),
+  (1502, L10n.tr('休闲', 'Leisure')),
+  (1305, L10n.tr('儿童与家庭', 'Kids & Family')),
+  (1488, L10n.tr('真实罪案', 'True Crime')),
+  (1483, L10n.tr('小说', 'Fiction')),
+  (1545, L10n.tr('体育', 'Sports')),
+  (1314, L10n.tr('宗教与灵修', 'Religion & Spirituality')),
 ];

@@ -387,7 +387,7 @@ class TrackShelf extends ConsumerWidget {
         // Every card keeps the second line: a missing artist reads as
         // "unknown" instead of leaving a ragged gap in the shelf.
         final subtitle = artist.isEmpty
-            ? '未知艺人'
+            ? context.l10n.unknownArtist
             : artist == t.title
             ? null
             : artist;
@@ -458,7 +458,7 @@ class _ResumeHero extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              '继续收听',
+              context.l10n.continueListening,
               style: theme.textTheme.labelSmall?.copyWith(
                 color: colors.moon,
                 letterSpacing: 1.4,

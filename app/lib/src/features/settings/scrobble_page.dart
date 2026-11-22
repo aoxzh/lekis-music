@@ -50,7 +50,7 @@ class ScrobbleSettingsPage extends StatelessWidget {
   const ScrobbleSettingsPage({super.key});
 
   @override
-  Widget build(BuildContext context) => const SettingsScaffold(
+  Widget build(BuildContext context) => SettingsScaffold(
     title: SettingsStrings.scrobbling,
     body: SettingsListView(children: [ScrobbleSettingsSection()]),
   );
@@ -188,7 +188,7 @@ class _ScrobbleSettingsSectionState
     final colors = context.lekisColors;
     final theme = Theme.of(context);
     if (settings == null) {
-      return const SettingsSection(
+      return SettingsSection(
         title: SettingsStrings.scrobbling,
         children: [
           SettingsTile(
@@ -221,9 +221,9 @@ class _ScrobbleSettingsSectionState
           title: SettingsStrings.scrobbleService,
           trailing: DropdownButton<String>(
             value: _service,
-            underline: const SizedBox.shrink(),
+            underline: SizedBox.shrink(),
             borderRadius: BorderRadius.circular(LekisRadius.md),
-            items: const [
+            items: [
               DropdownMenuItem(
                 value: 'lastfm',
                 child: Text(SettingsStrings.scrobbleLastFm),
@@ -252,7 +252,7 @@ class _ScrobbleSettingsSectionState
             children: [
               TextFormField(
                 controller: _username,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: SettingsStrings.scrobbleUsername,
                   isDense: true,
                 ),
@@ -309,7 +309,7 @@ class _ScrobbleSettingsSectionState
             children: [
               FilledButton(
                 onPressed: () => _save(snack: true),
-                child: const Text(SettingsStrings.scrobbleSave),
+                child: Text(SettingsStrings.scrobbleSave),
               ),
               OutlinedButton(
                 onPressed: state.testing ? null : _test,
@@ -318,11 +318,11 @@ class _ScrobbleSettingsSectionState
                         dimension: LekisSpacing.lg,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text(SettingsStrings.scrobbleTest),
+                    : Text(SettingsStrings.scrobbleTest),
               ),
               TextButton(
                 onPressed: _clearSecrets,
-                child: const Text(SettingsStrings.scrobbleClearSecrets),
+                child: Text(SettingsStrings.scrobbleClearSecrets),
               ),
             ],
           ),
