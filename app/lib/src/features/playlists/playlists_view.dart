@@ -13,6 +13,7 @@ import 'package:lekis/src/features/playlists/smart_rules_model.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:material_ui/material_ui.dart';
 
 class PlaylistsView extends ConsumerWidget {
@@ -105,8 +106,17 @@ class PlaylistsView extends ConsumerWidget {
           ),
         ),
         Expanded(
-          child: playlists.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+          child: playlists.whenSkeleton(
+            // ListTile with a subtitle (72) + the 1 px row padding each side.
+            skeleton: SkeletonListView(
+              padding: EdgeInsets.fromLTRB(
+                gutter - LekisSpacing.sm,
+                LekisSpacing.xs,
+                gutter - LekisSpacing.sm,
+                0,
+              ),
+              itemHeight: 74,
+            ),
             error: (e, _) => Center(
               child: Padding(
                 padding: const EdgeInsets.all(LekisSpacing.xl),

@@ -9,6 +9,7 @@ import 'package:lekis/src/features/sources/common.dart';
 import 'package:lekis/src/features/stats/listening_stats_providers.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:material_ui/material_ui.dart';
 
 class ListeningStatsPage extends ConsumerStatefulWidget {
@@ -87,11 +88,8 @@ class _ListeningStatsPageState extends ConsumerState<ListeningStatsPage> {
                     ),
                   ),
                   const SizedBox(height: LekisSpacing.lg),
-                  summary.when(
-                    loading: () => const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 64),
-                      child: Center(child: CircularProgressIndicator()),
-                    ),
+                  summary.whenSkeleton(
+                    skeleton: const _StatsSkeleton(),
                     error: (e, _) => Card(
                       child: ListTile(
                         leading: const Icon(Icons.error_outline),
@@ -109,6 +107,37 @@ class _ListeningStatsPageState extends ConsumerState<ListeningStatsPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Loading layout of [_StatsBody]: totals card, two bar charts, top list.
+class _StatsSkeleton extends StatelessWidget {
+  const _StatsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    const card = LekisRadius.md;
+    Widget title(double width) => Padding(
+      padding: const EdgeInsets.only(bottom: LekisSpacing.sm),
+      child: LekisSkeleton.line(width: width, height: LekisSpacing.lg),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const LekisSkeleton(height: 132, radius: card),
+        const SizedBox(height: LekisSpacing.lg),
+        title(72),
+        // _BucketBars: 150 bars + 20 / 14 padding.
+        const LekisSkeleton(height: 184, radius: card),
+        const SizedBox(height: LekisSpacing.lg),
+        title(112),
+        const LekisSkeleton(height: 184, radius: card),
+        const SizedBox(height: LekisSpacing.lg),
+        title(96),
+        for (var i = 0; i < 5; i++)
+          SkeletonListTile(index: i, leadingSize: 40, circle: true),
+      ],
     );
   }
 }

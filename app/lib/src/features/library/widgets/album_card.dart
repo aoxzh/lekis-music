@@ -2,6 +2,7 @@ import 'dart:ui' show lerpDouble;
 
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/rust/api/dto.dart';
+import 'package:lekis/src/shell/nav_icon.dart' show lekisReduceMotion;
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -164,9 +165,15 @@ class AlbumArtHero extends StatelessWidget {
     required this.tag,
     this.radius,
     this.elevation = 0,
+    this.landing = false,
   });
 
   final AlbumDto album;
+
+  /// The page end of the flight (album detail). Its spot stays empty while
+  /// the cover is in the air: a grey tile waiting there reads as a ghost of
+  /// the cover before it lands.
+  final bool landing;
 
   /// `null` → no hero (e.g. the detail pane of a two-pane layout).
   final Object? tag;
@@ -222,13 +229,16 @@ class AlbumArtHero extends StatelessWidget {
         builder: (context, constraints) {
           final t = animation.value;
           final side = constraints.biggest.shortestSide;
-          final scale = side <= 0 ? 1.0 : pageSide / side;
+          // Fly the card's own artwork: it is already decoded at card size,
+          // while the page-size image may not be yet on a first open (the
+          // shuttle would fly an empty tile and the cover pop in after).
+          final scale = side <= 0 ? 1.0 : cardSide / side;
           final r = lerpDouble(cardRadius, pageRadius, t)! * scale;
           final e = lerpDouble(card.elevation, page.elevation, t)!;
           return FittedBox(
             child: SizedBox.square(
-              dimension: pageSide,
-              child: _frame(context, page.album, r, e * scale),
+              dimension: cardSide,
+              child: _frame(context, card.album, r, e * scale),
             ),
           );
         },
@@ -236,15 +246,40 @@ class AlbumArtHero extends StatelessWidget {
     );
   }
 
+  /// Straight-line flight (the default Material arc swoops on a grid → page
+  /// path; a card that opens grows towards its spot).
+  static RectTween _rectTween(Rect? begin, Rect? end) =>
+      RectTween(begin: begin, end: end);
+
+  /// What stays behind while the cover is in the air: an empty artwork slot
+  /// rather than a hole in the grid; nothing at the landing spot on the page.
+  Widget _placeholder(BuildContext context, Size size, Widget child) {
+    if (landing) return SizedBox.fromSize(size: size);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: context.lekisColors.surfaceVariant,
+        borderRadius: BorderRadius.circular(_radiusFor(size.shortestSide)),
+      ),
+      child: SizedBox.fromSize(size: size),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Reduced motion: no flight; the page simply fades in.
+    final t = lekisReduceMotion(context) ? null : tag;
     return LayoutBuilder(
       builder: (context, constraints) {
         final side = constraints.biggest.shortestSide;
         final content = _frame(context, album, _radiusFor(side), elevation);
-        final t = tag;
         if (t == null) return content;
-        return Hero(tag: t, flightShuttleBuilder: _shuttle, child: content);
+        return Hero(
+          tag: t,
+          createRectTween: _rectTween,
+          flightShuttleBuilder: _shuttle,
+          placeholderBuilder: _placeholder,
+          child: content,
+        );
       },
     );
   }

@@ -6,6 +6,7 @@ import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:material_ui/material_ui.dart';
 
 class PlaybackHistoryPage extends ConsumerWidget {
@@ -16,8 +17,8 @@ class PlaybackHistoryPage extends ConsumerWidget {
     final history = ref.watch(_historyProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('播放历史')),
-      body: history.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+      body: history.whenSkeleton(
+        skeleton: const SkeletonTrackListView(top: LekisSpacing.sm),
         error: (e, _) => Center(child: Text('读取失败：$e')),
         data: (tracks) {
           if (tracks.isEmpty) {

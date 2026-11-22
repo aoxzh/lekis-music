@@ -10,6 +10,7 @@ import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:material_ui/material_ui.dart';
 
 class ArtistDetailPage extends StatelessWidget {
@@ -43,17 +44,21 @@ class ArtistDetailView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final artist = ref.watch(artistProvider(artistId));
-    final albums =
-        ref.watch(artistAlbumsProvider(artistId)).value ?? const <AlbumDto>[];
-    final tracks =
-        ref.watch(artistTracksProvider(artistId)).value ??
-        const <TrackRowDto>[];
+    final albumsAsync = ref.watch(artistAlbumsProvider(artistId));
+    final tracksAsync = ref.watch(artistTracksProvider(artistId));
+    final albums = albumsAsync.value ?? const <AlbumDto>[];
+    final tracks = tracksAsync.value ?? const <TrackRowDto>[];
     final gutter = pageGutterOf(context);
     final theme = Theme.of(context);
     final actions = ref.read(playerActionsProvider);
 
-    return artist.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+    return artist.whenSkeleton(
+      skeleton: const _ArtistSkeleton(),
+      // Albums and songs arrive with the header instead of popping in.
+      waitFor: [
+        albumsAsync,
+        tracksAsync,
+      ].any((a) => !a.hasValue && !a.hasError),
       error: (e, _) => LoadErrorView(
         error: e,
         onRetry: () => ref.invalidate(artistProvider(artistId)),
@@ -129,6 +134,77 @@ class ArtistDetailView extends ConsumerWidget {
               padding: EdgeInsets.only(bottom: scrollEndPadding(context)),
             ),
           ],
+        );
+      },
+    );
+  }
+}
+
+/// Loading layout of [ArtistDetailView]: header, an albums shelf, songs.
+class _ArtistSkeleton extends StatelessWidget {
+  const _ArtistSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final gutter = pageGutterOf(context);
+    final landscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final row = landscape || constraints.maxWidth >= _ArtistHeader._rowFrom;
+        final avatar = row
+            ? _ArtistHeader._compactAvatar
+            : LekisSizes.gridArtworkMin;
+        final name = LekisSkeleton.line(
+          width: LekisSizes.gridArtworkMin,
+          height: LekisSpacing.xl,
+        );
+        const buttons = LekisSkeleton(
+          width: LekisSizes.gridArtworkMin * 1.4,
+          height: LekisSizes.buttonHeight,
+          radius: LekisRadius.button,
+        );
+        final header = row
+            ? Row(
+                children: [
+                  LekisSkeleton.circle(size: avatar),
+                  const SizedBox(width: LekisSpacing.xl),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      name,
+                      const SizedBox(height: LekisSpacing.md),
+                      buttons,
+                    ],
+                  ),
+                ],
+              )
+            : Column(
+                children: [
+                  LekisSkeleton.circle(size: avatar),
+                  const SizedBox(height: LekisSpacing.lg),
+                  name,
+                  const SizedBox(height: LekisSpacing.lg),
+                  buttons,
+                ],
+              );
+        return SkeletonTrackListView(
+          header: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  gutter,
+                  LekisSpacing.lg,
+                  gutter,
+                  0,
+                ),
+                child: header,
+              ),
+              const SkeletonShelf(titleWidth: 56),
+              const SizedBox(height: LekisSpacing.xl),
+            ],
+          ),
         );
       },
     );

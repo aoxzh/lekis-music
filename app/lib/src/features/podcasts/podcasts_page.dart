@@ -18,6 +18,7 @@ import 'package:lekis/src/features/radio/radio_page.dart';
 import 'package:lekis/src/features/settings/widgets/settings_widgets.dart';
 import 'package:lekis/src/features/sources/common.dart';
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:material_ui/material_ui.dart';
 
 enum PodcastTab { subscriptions, discover }
@@ -307,8 +308,8 @@ class _SubscriptionsView extends ConsumerWidget {
           ),
         );
 
-    return subs.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+    return subs.whenSkeleton(
+      skeleton: _podcastListSkeleton(gutter, top: LekisSpacing.md),
       error: (e, _) => _ErrorState(
         error: e,
         onRetry: () => ref.invalidate(podcastSubscriptionsProvider),
@@ -401,6 +402,19 @@ class _SubscriptionsView extends ConsumerWidget {
     );
   }
 }
+
+/// Rows shaped like the podcast tiles: a two-line ListTile (72) plus 2 px
+/// row padding above and below.
+Widget _podcastListSkeleton(double gutter, {double top = 0}) =>
+    SkeletonListView(
+      padding: EdgeInsets.fromLTRB(
+        gutter - LekisSpacing.sm,
+        top,
+        gutter - LekisSpacing.sm,
+        0,
+      ),
+      itemHeight: 76,
+    );
 
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader(this.title, this.gutter);
@@ -525,8 +539,8 @@ class _DiscoverView extends ConsumerWidget {
           ),
         ),
         Expanded(
-          child: results.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+          child: results.whenSkeleton(
+            skeleton: _podcastListSkeleton(gutter),
             error: (e, _) => _ErrorState(
               error: e,
               onRetry: () => ref.invalidate(

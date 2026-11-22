@@ -1,5 +1,7 @@
 // 歌单详情：普通歌单可增删 / 上下移动；智能歌单展示实时规则结果。
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/library/artwork_actions.dart';
@@ -15,7 +17,10 @@ import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/features/playlists/smart_playlist_editor_page.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
+import 'package:lekis/src/shell/nav_icon.dart' show lekisReduceMotion;
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/list_motion.dart';
+import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:lekis/src/features/player/queue_actions.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -112,7 +117,9 @@ class _PlaylistDetailViewState extends ConsumerState<PlaylistDetailView> {
     }
     final playlist = loaded.value;
     if (playlist == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const LekisDelayedSkeleton(
+        child: SkeletonTrackListView(top: LekisSpacing.lg),
+      );
     }
     return playlist.kind == PlaylistKindDto.smart
         ? _SmartPlaylistBody(playlist: playlist)
@@ -193,8 +200,14 @@ class _StaticPlaylistBody extends ConsumerWidget {
             ),
           )
         else if (entries.isLoading && rows.isEmpty)
-          const SliverToBoxAdapter(
-            child: Center(child: CircularProgressIndicator()),
+          SliverToBoxAdapter(
+            child: LekisDelayedSkeleton(
+              child: SkeletonTrackList(
+                padding: EdgeInsets.symmetric(
+                  horizontal: gutter - LekisSpacing.sm,
+                ),
+              ),
+            ),
           )
         else if (rows.isEmpty)
           SliverFillRemaining(
@@ -204,21 +217,12 @@ class _StaticPlaylistBody extends ConsumerWidget {
         else
           SliverPadding(
             padding: EdgeInsets.symmetric(horizontal: gutter - LekisSpacing.sm),
-            sliver: SliverList.builder(
-              itemCount: rows.length,
-              itemBuilder: (context, i) => _PlaylistEntryTile(
-                entry: rows[i],
-                index: i,
-                canMoveUp: !busy && i > 0,
-                canMoveDown: !busy && i < rows.length - 1,
-                onPlay: rows[i].track == null
-                    ? null
-                    : () =>
-                          playPlaylistContext(context, playlist, startIndex: i),
-                onMoveUp: () => onMove(rows, i, true),
-                onMoveDown: () => onMove(rows, i, false),
-                onRemove: () => onRemove(rows[i]),
-              ),
+            sliver: _PlaylistEntryList(
+              playlist: playlist,
+              rows: rows,
+              busy: busy,
+              onMove: onMove,
+              onRemove: onRemove,
             ),
           ),
         SliverPadding(
@@ -275,8 +279,14 @@ class _SmartPlaylistBody extends ConsumerWidget {
             ),
           )
         else if (tracks.isLoading && rows.isEmpty)
-          const SliverToBoxAdapter(
-            child: Center(child: CircularProgressIndicator()),
+          SliverToBoxAdapter(
+            child: LekisDelayedSkeleton(
+              child: SkeletonTrackList(
+                padding: EdgeInsets.symmetric(
+                  horizontal: gutter - LekisSpacing.sm,
+                ),
+              ),
+            ),
           )
         else if (rows.isEmpty)
           SliverFillRemaining(
@@ -491,6 +501,129 @@ class _PlaylistHeader extends ConsumerWidget {
             const SizedBox(width: LekisSpacing.xl),
             Expanded(child: info),
           ],
+        );
+      },
+    );
+  }
+}
+
+/// Entries of a static playlist. Moves slide the two rows past each other,
+/// removals collapse the row before the core is asked, and rows that the
+/// refreshed list adds fade in.
+class _PlaylistEntryList extends StatefulWidget {
+  const _PlaylistEntryList({
+    required this.playlist,
+    required this.rows,
+    required this.busy,
+    required this.onMove,
+    required this.onRemove,
+  });
+
+  final PlaylistDto playlist;
+  final List<PlaylistEntryDto> rows;
+  final bool busy;
+  final Future<void> Function(
+    List<PlaylistEntryDto> entries,
+    int index,
+    bool up,
+  )
+  onMove;
+  final Future<void> Function(PlaylistEntryDto entry) onRemove;
+
+  @override
+  State<_PlaylistEntryList> createState() => _PlaylistEntryListState();
+}
+
+class _PlaylistEntryListState extends State<_PlaylistEntryList>
+    with SingleTickerProviderStateMixin {
+  late final ListMotion _motion = ListMotion(vsync: this);
+  late List<Object> _keys = _keysOf(widget.rows);
+  final Set<Object> _removing = <Object>{};
+  Timer? _removeFallback;
+
+  // Position keys change on every move; the track uid (plus occurrence for
+  // repeats) is what stays put.
+  static List<Object> _keysOf(List<PlaylistEntryDto> rows) =>
+      occurrenceKeys(rows, (entry) => entry.trackUid);
+
+  @override
+  void didUpdateWidget(_PlaylistEntryList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (identical(oldWidget.rows, widget.rows)) return;
+    final keys = _keysOf(widget.rows);
+    // Collapsed rows already left the screen; diff without them.
+    final shown = [
+      for (final k in _keys)
+        if (!_removing.contains(k)) k,
+    ];
+    _motion.listChanged(
+      old: (i) => shown[i],
+      oldLength: shown.length,
+      now: (i) => keys[i],
+      nowLength: keys.length,
+      animate: !lekisReduceMotion(context),
+    );
+    final present = keys.toSet();
+    _removing.removeWhere((k) => !present.contains(k));
+    _keys = keys;
+  }
+
+  @override
+  void dispose() {
+    _removeFallback?.cancel();
+    _motion.dispose();
+    super.dispose();
+  }
+
+  Future<void> _remove(Object key, PlaylistEntryDto entry) async {
+    if (_removing.contains(key)) return;
+    setState(() => _removing.add(key));
+    if (!lekisReduceMotion(context)) {
+      await Future<void>.delayed(ListRowCollapse.duration);
+    }
+    if (!mounted) return;
+    await widget.onRemove(entry);
+    // Failed (the error was already shown): the row is still listed once
+    // the refresh lands, so open it back up.
+    _removeFallback?.cancel();
+    _removeFallback = Timer(const Duration(seconds: 2), () {
+      if (mounted && _removing.contains(key) && _keys.contains(key)) {
+        setState(() => _removing.remove(key));
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = widget.rows;
+    final busy = widget.busy;
+    return SliverList.builder(
+      itemCount: rows.length,
+      itemBuilder: (context, i) {
+        final key = _keys[i];
+        return ListMotionRow(
+          key: ValueKey(key),
+          motion: _motion,
+          index: i,
+          child: ListRowCollapse(
+            collapsed: _removing.contains(key),
+            child: _PlaylistEntryTile(
+              entry: rows[i],
+              index: i,
+              canMoveUp: !busy && i > 0,
+              canMoveDown: !busy && i < rows.length - 1,
+              onPlay: rows[i].track == null
+                  ? null
+                  : () => playPlaylistContext(
+                      context,
+                      widget.playlist,
+                      startIndex: i,
+                    ),
+              onMoveUp: () => widget.onMove(rows, i, true),
+              onMoveDown: () => widget.onMove(rows, i, false),
+              onRemove: () => _remove(key, rows[i]),
+            ),
+          ),
         );
       },
     );

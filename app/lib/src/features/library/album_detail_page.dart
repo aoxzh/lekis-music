@@ -12,6 +12,8 @@ import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_actions.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/skeleton.dart';
+import 'package:lekis/src/widgets/route_entrance.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Album detail as its own page (compact windows).
@@ -38,6 +40,9 @@ class AlbumDetailPage extends StatelessWidget {
     AlbumDto? initialAlbum,
   }) => MaterialPageRoute<void>(
     settings: RouteSettings(name: '/album/$albumId'),
+    // Live page during the transition, so the header and track list can
+    // settle in behind the cover flight (RouteEntrance).
+    allowSnapshotting: false,
     builder: (_) => AlbumDetailPage(
       albumId: albumId,
       heroTag: heroTag,
@@ -84,7 +89,12 @@ class AlbumDetailView extends ConsumerWidget {
               error: loaded.error!,
               onRetry: () => ref.invalidate(albumProvider(albumId)),
             )
-          : const Center(child: CircularProgressIndicator());
+          : const LekisDelayedSkeleton(
+              child: SkeletonTrackListView(
+                top: LekisSpacing.lg,
+                numbered: true,
+              ),
+            );
     }
 
     return Builder(
@@ -119,22 +129,32 @@ class AlbumDetailView extends ConsumerWidget {
               ),
             ),
             if (tracks.isLoading && rows.isEmpty)
-              const SliverToBoxAdapter(
-                child: Center(child: CircularProgressIndicator()),
+              SliverToBoxAdapter(
+                child: LekisDelayedSkeleton(
+                  child: SkeletonTrackList(
+                    numbered: true,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: gutter - LekisSpacing.sm,
+                    ),
+                  ),
+                ),
               ),
             if (tracks.hasError)
               SliverToBoxAdapter(child: LoadErrorView(error: tracks.error!)),
-            SliverPadding(
-              padding: EdgeInsets.symmetric(
-                horizontal: gutter - LekisSpacing.sm,
-              ),
-              sliver: SliverFixedExtentList.builder(
-                itemExtent: TrackTile.extent,
-                itemCount: rows.length,
-                itemBuilder: (context, i) => TrackTile(
-                  track: rows[i],
-                  leadingNumber: i + 1,
-                  onTap: () => actions.playRows(rows, start: i),
+            RouteEntrance.sliver(
+              order: 2,
+              sliver: SliverPadding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: gutter - LekisSpacing.sm,
+                ),
+                sliver: SliverFixedExtentList.builder(
+                  itemExtent: TrackTile.extent,
+                  itemCount: rows.length,
+                  itemBuilder: (context, i) => TrackTile(
+                    track: rows[i],
+                    leadingNumber: i + 1,
+                    onTap: () => actions.playRows(rows, start: i),
+                  ),
                 ),
               ),
             ),
@@ -207,53 +227,69 @@ class _AlbumHeader extends ConsumerWidget {
           crossAxisAlignment: align,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Semantics(
-              header: true,
-              child: Text(
-                album.title,
-                textAlign: textAlign,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const SizedBox(height: LekisSpacing.xs),
-            artistLink,
-            const SizedBox(height: LekisSpacing.xs),
-            Text(
-              meta,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
+            RouteEntrance(
+              child: Column(
+                crossAxisAlignment: align,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      album.title,
+                      textAlign: textAlign,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: LekisSpacing.xs),
+                  artistLink,
+                  const SizedBox(height: LekisSpacing.xs),
+                  Text(
+                    meta,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: LekisSpacing.lg),
-            PlayShuffleButtons(
-              onPlay: onPlay,
-              onShuffle: onShuffle,
-              alignment: wide ? WrapAlignment.start : WrapAlignment.center,
-              queueTrackIds: trackIds,
-              onEnrich: trackIds.isEmpty
-                  ? null
-                  : () => enrichTracksFlow(context, trackIds),
-              onChangeArtwork: () => changeArtworkFlow(
-                context,
-                trackIds: trackIds,
-                albumId: album.id.toInt(),
+            RouteEntrance(
+              order: 1,
+              child: PlayShuffleButtons(
+                onPlay: onPlay,
+                onShuffle: onShuffle,
+                alignment: wide ? WrapAlignment.start : WrapAlignment.center,
+                queueTrackIds: trackIds,
+                onEnrich: trackIds.isEmpty
+                    ? null
+                    : () => enrichTracksFlow(context, trackIds),
+                onChangeArtwork: () => changeArtworkFlow(
+                  context,
+                  trackIds: trackIds,
+                  albumId: album.id.toInt(),
+                ),
+                trailing: [
+                  if (downloadableTrackIds.isNotEmpty)
+                    BatchDownloadButton(
+                      trackIds: downloadableTrackIds,
+                      tooltip: '下载整张专辑',
+                    ),
+                ],
               ),
-              trailing: [
-                if (downloadableTrackIds.isNotEmpty)
-                  BatchDownloadButton(
-                    trackIds: downloadableTrackIds,
-                    tooltip: '下载整张专辑',
-                  ),
-              ],
             ),
           ],
         );
 
         final art = SizedBox.square(
           dimension: artSize,
-          child: AlbumArtHero(album: album, tag: heroTag, elevation: 6),
+          child: AlbumArtHero(
+            album: album,
+            tag: heroTag,
+            elevation: 6,
+            landing: true,
+          ),
         );
 
         if (wide) {

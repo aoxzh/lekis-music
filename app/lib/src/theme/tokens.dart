@@ -159,6 +159,15 @@ abstract final class LekisMotion {
   /// Liquid tab bar selection: Telegram's in-place tint grows over 320 ms.
   static const Duration navSelection = Duration(milliseconds: 320);
 
+  /// One highlight sweep across a loading skeleton.
+  static const Duration shimmerPeriod = Duration(milliseconds: 1400);
+
+  /// Loads that finish sooner than this never show a skeleton (no flash).
+  static const Duration skeletonDelay = Duration(milliseconds: 120);
+
+  /// Skeleton → content cross-fade.
+  static const Duration contentFade = Duration(milliseconds: 200);
+
   static SpringDescription _spring(double stiffness, double dampingRatio) =>
       SpringDescription.withDampingRatio(
         mass: 1,

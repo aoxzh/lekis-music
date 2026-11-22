@@ -24,6 +24,7 @@ import 'package:lekis/src/shell/tab_bar_style.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/brand_mark.dart';
 import 'package:lekis/src/widgets/liquid_glass.dart';
+import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Home: continue listening, recently added, most played.
@@ -33,11 +34,22 @@ class HomePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final empty = ref.watch(libraryIsEmptyProvider).value ?? false;
-    final recentAlbums =
-        ref.watch(recentlyAddedAlbumsProvider).value ?? const [];
-    final recent = ref.watch(recentlyAddedProvider).value ?? const [];
-    final played = ref.watch(recentlyPlayedProvider).value ?? const [];
-    final most = ref.watch(mostPlayedProvider).value ?? const [];
+    final recentAlbumsAsync = ref.watch(recentlyAddedAlbumsProvider);
+    final recentAsync = ref.watch(recentlyAddedProvider);
+    final playedAsync = ref.watch(recentlyPlayedProvider);
+    final mostAsync = ref.watch(mostPlayedProvider);
+    final recentAlbums = recentAlbumsAsync.value ?? const [];
+    final recent = recentAsync.value ?? const [];
+    final played = playedAsync.value ?? const [];
+    final most = mostAsync.value ?? const [];
+    // Shelves wait for their first answer behind skeletons; refreshes keep
+    // the previous rows (`value`) and never go back to the skeleton.
+    final shelvesLoading = [
+      recentAlbumsAsync,
+      recentAsync,
+      playedAsync,
+      mostAsync,
+    ].any((a) => !a.hasValue && !a.hasError);
     final lovedCount = ref.watch(lovedCountProvider).value ?? 0;
     final quickGenres = ref.watch(homeQuickGenresProvider).value ?? const [];
     final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
@@ -125,39 +137,49 @@ class HomePage extends ConsumerWidget {
                         ),
                         sliver: const SliverToBoxAdapter(child: _ResumeHero()),
                       ),
-                    if (played.isNotEmpty)
-                      SliverToBoxAdapter(
-                        child: TrackShelf(
-                          title: l10n.recentlyPlayed,
-                          tracks: played,
-                          trailing: TextButton(
-                            onPressed: () => Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => const PlaybackHistoryPage(),
+                    SliverToBoxAdapter(
+                      child: LekisLoadingSwitcher(
+                        loading: shelvesLoading,
+                        skeleton: const Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SkeletonShelf(),
+                            SkeletonShelf(titleWidth: 120),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (played.isNotEmpty)
+                              TrackShelf(
+                                title: l10n.recentlyPlayed,
+                                tracks: played,
+                                trailing: TextButton(
+                                  onPressed: () => Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) =>
+                                          const PlaybackHistoryPage(),
+                                    ),
+                                  ),
+                                  child: Text(l10n.seeAll),
+                                ),
                               ),
-                            ),
-                            child: Text(l10n.seeAll),
-                          ),
+                            if (recentAlbums.isNotEmpty)
+                              AlbumShelf(
+                                title: l10n.recentlyAdded,
+                                albums: recentAlbums,
+                              )
+                            else if (recent.isNotEmpty)
+                              TrackShelf(
+                                title: l10n.recentlyAdded,
+                                tracks: recent,
+                              ),
+                            if (most.isNotEmpty)
+                              TrackShelf(title: l10n.mostPlayed, tracks: most),
+                          ],
                         ),
                       ),
-                    if (recentAlbums.isNotEmpty)
-                      SliverToBoxAdapter(
-                        child: AlbumShelf(
-                          title: l10n.recentlyAdded,
-                          albums: recentAlbums,
-                        ),
-                      )
-                    else if (recent.isNotEmpty)
-                      SliverToBoxAdapter(
-                        child: TrackShelf(
-                          title: l10n.recentlyAdded,
-                          tracks: recent,
-                        ),
-                      ),
-                    if (most.isNotEmpty)
-                      SliverToBoxAdapter(
-                        child: TrackShelf(title: l10n.mostPlayed, tracks: most),
-                      ),
+                    ),
                     SliverPadding(
                       padding: EdgeInsets.only(
                         bottom: scrollEndPadding(context),
@@ -232,17 +254,11 @@ class _HomeHeader extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.insights_outlined,
-                    size: 18,
-                    color: colors.accent,
-                  ),
+                  Icon(Icons.insights_outlined, size: 18, color: colors.accent),
                   const SizedBox(width: LekisSpacing.xs),
                   Text(
                     l10n.listeningStats,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: statsFg,
-                    ),
+                    style: theme.textTheme.labelLarge?.copyWith(color: statsFg),
                   ),
                 ],
               ),

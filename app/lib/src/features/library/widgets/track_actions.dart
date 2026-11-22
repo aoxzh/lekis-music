@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
+import 'package:lekis/src/shell/nav_icon.dart' show lekisReduceMotion;
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
@@ -55,12 +56,49 @@ class LovedButton extends ConsumerWidget {
           _showActionFailure(context, '更新收藏失败，请稍后再试');
         }
       },
-      icon: Icon(
-        loved ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-        size: size,
-        color: loved ? colors.accent : colors.onSurfaceVariant,
+      icon: AnimatedSwitcher(
+        duration: lekisReduceMotion(context)
+            ? Duration.zero
+            : _heartPopDuration,
+        reverseDuration: lekisReduceMotion(context)
+            ? Duration.zero
+            : LekisMotion.fast,
+        transitionBuilder: _heartTransition,
+        child: Icon(
+          loved ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+          key: ValueKey(loved),
+          size: size,
+          color: loved ? colors.accent : colors.onSurfaceVariant,
+        ),
       ),
     );
+  }
+
+  static const Duration _heartPopDuration = Duration(milliseconds: 280);
+
+  /// A filled heart pops in (0.7 → 1.15 → 1, no wobble); everything else
+  /// just cross-fades.
+  static final Animatable<double> _pop = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 0.7,
+        end: 1.15,
+      ).chain(CurveTween(curve: Curves.easeOutCubic)),
+      weight: 55,
+    ),
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 1.15,
+        end: 1.0,
+      ).chain(CurveTween(curve: Curves.easeInOutCubic)),
+      weight: 45,
+    ),
+  ]);
+
+  static Widget _heartTransition(Widget child, Animation<double> animation) {
+    final fade = FadeTransition(opacity: animation, child: child);
+    if (child.key != const ValueKey(true)) return fade;
+    return ScaleTransition(scale: _pop.animate(animation), child: fade);
   }
 }
 

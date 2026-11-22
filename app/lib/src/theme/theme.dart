@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../platform/ui_profile.dart';
+import 'page_transitions.dart';
 import 'tokens.dart';
 
 export 'tokens.dart';
@@ -811,11 +812,12 @@ ThemeData _buildTheme({
       ),
       textStyle: textTheme.bodySmall!.copyWith(color: onSurface),
     ),
+    // Fade forwards (+ predictive back on Android), reduced-motion aware.
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {
-        TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
-        TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
-        TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.android: LekisPageTransitionsBuilder(),
+        TargetPlatform.windows: LekisPageTransitionsBuilder(),
+        TargetPlatform.linux: LekisPageTransitionsBuilder(),
       },
     ),
     // Touch density on mobile, mouse density on desktop.

@@ -94,6 +94,9 @@ void main() {
       await tester.tap(find.byTooltip('队列操作').at(1));
       await tester.pumpAndSettle();
       await tester.tap(find.text('从队列移除'));
+      await tester.pump();
+      // The row collapses first; the core is asked once it is out of sight.
+      expect(actions.removed, isEmpty);
       await tester.pumpAndSettle();
       expect(actions.removed, [5]);
 

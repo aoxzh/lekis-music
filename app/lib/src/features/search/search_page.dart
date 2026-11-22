@@ -13,6 +13,7 @@ import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Search across songs, albums and artists (debounced).
@@ -75,6 +76,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     );
 
     Widget body;
+    var loading = false;
     if (query.trim().isEmpty) {
       body = _Hint(
         text: l10n.pick('搜索你的资料库', 'Search Your Library'),
@@ -86,18 +88,25 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     } else {
       final data = results.value;
       if (data == null) {
-        body = results.hasError && !results.isLoading
-            ? LoadErrorView(
+        loading = !(results.hasError && !results.isLoading);
+        body = loading
+            ? const SizedBox.shrink()
+            : LoadErrorView(
                 error: results.error!,
                 onRetry: () => ref.invalidate(searchResultsProvider),
-              )
-            : const Center(child: CircularProgressIndicator());
+              );
       } else if (data.tracks.isEmpty &&
           data.albums.isEmpty &&
           data.artists.isEmpty) {
         body = _Hint(
-          text: l10n.pick('没有找到“${query.trim()}”', 'No results for "${query.trim()}"'),
-          message: l10n.pick('换一个关键词，或检查一下拼写。', 'Try another keyword or check spelling.'),
+          text: l10n.pick(
+            '没有找到“${query.trim()}”',
+            'No results for "${query.trim()}"',
+          ),
+          message: l10n.pick(
+            '换一个关键词，或检查一下拼写。',
+            'Try another keyword or check spelling.',
+          ),
         );
       } else {
         body = _Results(results: data, stale: results.isLoading);
@@ -111,7 +120,32 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             field,
-            Expanded(child: body),
+            Expanded(
+              child: LekisLoadingSwitcher(
+                loading: loading,
+                skeleton: SkeletonTrackListView(
+                  header: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      gutter,
+                      LekisSpacing.xl,
+                      gutter,
+                      LekisSpacing.sm,
+                    ),
+                    child: const SizedBox(
+                      height: LekisSpacing.xl + LekisSpacing.xs,
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: LekisSkeleton.line(
+                          width: LekisSpacing.xxxl,
+                          height: LekisSpacing.lg + LekisSpacing.xxs,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                child: body,
+              ),
+            ),
           ],
         ),
       ),

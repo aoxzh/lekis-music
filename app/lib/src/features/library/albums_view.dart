@@ -7,6 +7,7 @@ import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Largest album tile side: wider windows get more columns instead of
@@ -54,52 +55,90 @@ class _AlbumGridState extends ConsumerState<AlbumGrid> {
     return ListenableBuilder(
       listenable: list,
       builder: (context, _) {
-        if (list.error != null) {
-          return LoadErrorView(error: list.error!, onRetry: list.retry);
-        }
-        if (list.isEmpty) return const LibraryEmptyState();
-        if (list.isInitialLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final usable = constraints.maxWidth - gutter * 2;
-            final cols = albumGridColumns(usable);
-            final cellWidth = ((usable - LekisSpacing.lg * (cols - 1)) / cols)
-                .clamp(1.0, double.infinity);
-            final cellHeight =
-                cellWidth + ArtworkCardFrame.textBlockHeight(context);
-            return Scrollbar(
-              controller: _controller,
-              interactive: true,
-              child: GridView.builder(
-                controller: _controller,
-                padding: EdgeInsets.fromLTRB(
-                  gutter,
-                  LekisSpacing.sm,
-                  gutter,
-                  scrollEndPadding(context),
-                ),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: cols,
-                  mainAxisSpacing: LekisSpacing.lg,
-                  crossAxisSpacing: LekisSpacing.lg,
-                  childAspectRatio: cellWidth / cellHeight,
-                ),
-                itemCount: list.itemCount,
-                itemBuilder: (context, i) {
-                  final album = list.itemAt(i);
-                  if (album == null) return const AlbumCardPlaceholder();
-                  return AlbumCard(
-                    album: album,
-                    selected: album.id == widget.selectedId,
-                    heroTag: AlbumHeroTag(album.id, AlbumGrid.heroScope),
-                    onTap: () => widget.onOpen(album),
-                  );
-                },
-              ),
+        final loading =
+            list.isInitialLoading && list.error == null && !list.isEmpty;
+        return LekisLoadingSwitcher(
+          loading: loading,
+          skeleton: _grid(
+            context,
+            gutter,
+            itemCount: 60,
+            physics: const NeverScrollableScrollPhysics(),
+            itemBuilder: (context, i) => SkeletonAlbumCard(index: i),
+          ),
+          child: loading
+              ? const SizedBox.shrink()
+              : _body(context, list, gutter),
+        );
+      },
+    );
+  }
+
+  Widget _body(BuildContext context, PagedList<AlbumDto> list, double gutter) {
+    if (list.error != null) {
+      return LoadErrorView(error: list.error!, onRetry: list.retry);
+    }
+    if (list.isEmpty) return const LibraryEmptyState();
+    return Scrollbar(
+      controller: _controller,
+      interactive: true,
+      // Cells of pages still loading shimmer from one shared ticker.
+      child: LekisShimmer(
+        child: _grid(
+          context,
+          gutter,
+          controller: _controller,
+          itemCount: list.itemCount,
+          itemBuilder: (context, i) {
+            final album = list.itemAt(i);
+            if (album == null) return SkeletonAlbumCard(index: i);
+            return AlbumCard(
+              album: album,
+              selected: album.id == widget.selectedId,
+              heroTag: AlbumHeroTag(album.id, AlbumGrid.heroScope),
+              onTap: () => widget.onOpen(album),
             );
           },
+        ),
+      ),
+    );
+  }
+
+  /// The grid layout shared by the content and its skeleton, so cells land
+  /// exactly where the skeleton cells were.
+  Widget _grid(
+    BuildContext context,
+    double gutter, {
+    required int itemCount,
+    required NullableIndexedWidgetBuilder itemBuilder,
+    ScrollController? controller,
+    ScrollPhysics? physics,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final usable = constraints.maxWidth - gutter * 2;
+        final cols = albumGridColumns(usable);
+        final cellWidth = ((usable - LekisSpacing.lg * (cols - 1)) / cols)
+            .clamp(1.0, double.infinity);
+        final cellHeight =
+            cellWidth + ArtworkCardFrame.textBlockHeight(context);
+        return GridView.builder(
+          controller: controller,
+          physics: physics,
+          padding: EdgeInsets.fromLTRB(
+            gutter,
+            LekisSpacing.sm,
+            gutter,
+            scrollEndPadding(context),
+          ),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: cols,
+            mainAxisSpacing: LekisSpacing.lg,
+            crossAxisSpacing: LekisSpacing.lg,
+            childAspectRatio: cellWidth / cellHeight,
+          ),
+          itemCount: itemCount,
+          itemBuilder: itemBuilder,
         );
       },
     );

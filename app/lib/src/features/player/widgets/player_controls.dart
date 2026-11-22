@@ -6,6 +6,7 @@ import 'package:lekis/src/features/library/widgets/track_tile.dart'
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/rust/api/dto.dart';
+import 'package:lekis/src/shell/nav_icon.dart' show lekisReduceMotion;
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/lekis_slider.dart';
 import 'package:material_ui/material_ui.dart';
@@ -84,10 +85,19 @@ class PlayPauseButton extends ConsumerWidget {
       playbackProvider.select((s) => (s.isPlaying, s.hasTrack, s.isBuffering)),
     );
     final actions = ref.read(playerActionsProvider);
+    // Glyph swap: a quick scale-from-0.6 + fade (from 0 read as a blink);
+    // instant under reduced motion.
     final icon = AnimatedSwitcher(
-      duration: LekisMotion.fast,
-      transitionBuilder: (child, anim) =>
-          ScaleTransition(scale: anim, child: child),
+      duration: lekisReduceMotion(context) ? Duration.zero : LekisMotion.fast,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, anim) => FadeTransition(
+        opacity: anim,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.6, end: 1).animate(anim),
+          child: child,
+        ),
+      ),
       child: Icon(
         isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
         key: ValueKey(isPlaying),

@@ -7,13 +7,17 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/library/library_providers.dart'
+    show PagedList;
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/layout/window_size.dart';
 import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/rust/api/dto.dart';
+import 'package:lekis/src/shell/nav_icon.dart' show lekisReduceMotion;
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/list_motion.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Paged queue list with current-item highlight and explicit row actions.
@@ -44,8 +48,15 @@ class QueuePanel extends ConsumerStatefulWidget {
   ConsumerState<QueuePanel> createState() => _QueuePanelState();
 }
 
-class _QueuePanelState extends ConsumerState<QueuePanel> {
+class _QueuePanelState extends ConsumerState<QueuePanel>
+    with SingleTickerProviderStateMixin {
   final _scroll = ScrollController();
+  late final ListMotion _motion = ListMotion(vsync: this);
+
+  /// The list on screen. Each queue edit rebuilds [queueListProvider]; the
+  /// previous rows stay up until the new list has its first page, then the
+  /// rows slide / fade to their new places instead of flashing a spinner.
+  PagedList<TrackRowDto>? _shown;
   final Set<int> _removing = <int>{};
   Timer? _removeDelay;
   Timer? _removeFallback;
@@ -56,7 +67,27 @@ class _QueuePanelState extends ConsumerState<QueuePanel> {
     _removeDelay?.cancel();
     _removeFallback?.cancel();
     _scroll.dispose();
+    _motion.dispose();
     super.dispose();
+  }
+
+  PagedList<TrackRowDto> _present(PagedList<TrackRowDto> latest) {
+    final shown = _shown;
+    if (identical(latest, shown)) return latest;
+    if (shown == null) return _shown = latest;
+    if (latest.isInitialLoading) return shown;
+    if (latest.error == null) {
+      _motion.listChanged(
+        old: (i) => shown.itemAt(i)?.id,
+        oldLength: shown.itemCount,
+        now: (i) => latest.itemAt(i)?.id,
+        nowLength: latest.itemCount,
+        animate: !lekisReduceMotion(context),
+      );
+    }
+    // Rows faded out for removal are gone from the new list.
+    _removing.clear();
+    return _shown = latest;
   }
 
   void _scheduleJump(int? currentIndex, int rowCount) {
@@ -99,10 +130,11 @@ class _QueuePanelState extends ConsumerState<QueuePanel> {
       previous,
       next,
     ) {
+      // The faded-out rows stay hidden until the rebuilt list is shown
+      // ([_present]); only the pending timers are stale now.
       if (previous != null && previous != next && mounted) {
         _removeDelay?.cancel();
         _removeFallback?.cancel();
-        setState(_removing.clear);
       }
     });
 
@@ -114,7 +146,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel> {
     final currentIndex = ref.watch(
       playbackProvider.select((s) => s.queueIndex),
     );
-    final list = ref.watch(queueListProvider);
+    final latest = ref.watch(queueListProvider);
     // Over artwork the page behind is already blurred: the panel is the
     // theme's translucent glass fill with its rim, not an opaque sheet.
     final surface = context.lekisSurface;
@@ -150,8 +182,9 @@ class _QueuePanelState extends ConsumerState<QueuePanel> {
             ],
             Expanded(
               child: ListenableBuilder(
-                listenable: list,
+                listenable: latest,
                 builder: (context, _) {
+                  final list = _present(latest);
                   if (queueLength == 0) {
                     return _QueueEmpty(
                       message: context.l10n.pick('队列为空', 'Queue is empty'),
@@ -205,11 +238,10 @@ class _QueuePanelState extends ConsumerState<QueuePanel> {
                           return _QueueRowPlaceholder(colors: colors);
                         }
                         final removing = _removing.contains(index);
-                        return _QueueRowEntrance(
+                        return ListMotionRow(
                           key: ValueKey('queue-panel.entry-$index-${row.id}'),
-                          duration: MediaQuery.disableAnimationsOf(context)
-                              ? Duration.zero
-                              : LekisMotion.normal,
+                          motion: _motion,
+                          index: index,
                           child: AnimatedSlide(
                             offset: removing
                                 ? const Offset(0.15, 0)
@@ -471,36 +503,6 @@ class _QueueAction extends StatelessWidget {
       color: destructive ? colors.danger : colors.onSurfaceVariant,
       disabledColor: colors.outline,
       icon: Icon(icon),
-    );
-  }
-}
-
-/// Soft fade / slide for rows that appear while the panel is open.
-class _QueueRowEntrance extends StatelessWidget {
-  const _QueueRowEntrance({
-    super.key,
-    required this.duration,
-    required this.child,
-  });
-
-  final Duration duration;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (duration == Duration.zero) return child;
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: duration,
-      curve: Curves.easeOutCubic,
-      builder: (context, t, child) => Opacity(
-        opacity: t,
-        child: Transform.translate(
-          offset: Offset(LekisSpacing.sm * (1 - t), 0),
-          child: child,
-        ),
-      ),
-      child: child,
     );
   }
 }
