@@ -2,6 +2,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/nav_icon.dart' show lekisReduceMotion;
@@ -39,7 +40,9 @@ class LovedButton extends ConsumerWidget {
         ref.watch(lovedOverridesProvider.select((m) => m[trackId])) ??
         initialLoved;
     return IconButton(
-      tooltip: loved ? '取消喜欢' : '喜欢',
+      tooltip: loved
+          ? context.l10n.pick('取消喜欢', 'Unlike')
+          : context.l10n.pick('喜欢', 'Like'),
       visualDensity: VisualDensity.compact,
       constraints: compact
           ? const BoxConstraints.tightFor(width: 36, height: 36)
@@ -53,7 +56,13 @@ class LovedButton extends ConsumerWidget {
             .read(libraryActionsProvider)
             .setLoved(trackId, !loved);
         if (!ok && context.mounted) {
-          _showActionFailure(context, '更新收藏失败，请稍后再试');
+          _showActionFailure(
+            context,
+            context.l10n.pick(
+              '更新收藏失败，请稍后再试',
+              'Failed to update favorite, please try again later',
+            ),
+          );
         }
       },
       icon: AnimatedSwitcher(
@@ -126,7 +135,9 @@ class RatingStars extends ConsumerWidget {
       children: [
         for (var star = 1; star <= 5; star++)
           IconButton(
-            tooltip: star == rating ? '清除评分' : '$star 星',
+            tooltip: star == rating
+                ? context.l10n.pick('清除评分', 'Clear Rating')
+                : context.l10n.pick('$star 星', '$star stars'),
             visualDensity: VisualDensity.compact,
             constraints: compact
                 ? const BoxConstraints.tightFor(width: 30, height: 30)
@@ -138,7 +149,13 @@ class RatingStars extends ConsumerWidget {
                   .read(libraryActionsProvider)
                   .setRating(trackId, next);
               if (!ok && context.mounted) {
-                _showActionFailure(context, '更新评分失败，请稍后再试');
+                _showActionFailure(
+                  context,
+                  context.l10n.pick(
+                    '更新评分失败，请稍后再试',
+                    'Failed to update rating, please try again later',
+                  ),
+                );
               }
             },
             icon: Icon(
@@ -202,7 +219,10 @@ class _RatingSheetState extends ConsumerState<_RatingSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('评分', style: theme.textTheme.titleLarge),
+            Text(
+              context.l10n.pick('评分', 'Rate'),
+              style: theme.textTheme.titleLarge,
+            ),
             const SizedBox(height: LekisSpacing.xs),
             if (widget.title != null)
               Text(
@@ -223,7 +243,10 @@ class _RatingSheetState extends ConsumerState<_RatingSheet> {
               )
             else if (snapshot.hasError)
               Text(
-                '加载失败：${describeCoreError(snapshot.error!)}',
+                context.l10n.pick(
+                  '加载失败：${describeCoreError(snapshot.error!)}',
+                  'Load failed: ${describeCoreError(snapshot.error!)}',
+                ),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colors.onSurfaceVariant,
                 ),

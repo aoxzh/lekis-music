@@ -18,6 +18,7 @@ import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/album_card.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
@@ -204,7 +205,7 @@ class _CoverFlowPageState extends ConsumerState<CoverFlowPage>
   Widget build(BuildContext context) {
     final list = ref.watch(albumsListProvider(TrackSortDto.title));
     return Scaffold(
-      appBar: AppBar(title: const Text('封面流')),
+      appBar: AppBar(title: Text(context.l10n.pick('封面流', 'Cover Flow'))),
       body: SafeArea(
         // Bottom stays with the page: the shell reports the floating mini
         // player / tab bar through MediaQuery.padding, and the info block
@@ -296,11 +297,11 @@ class _CoverFlowPageState extends ConsumerState<CoverFlowPage>
     return Semantics(
       container: true,
       explicitChildNodes: true,
-      label: '封面流',
+      label: context.l10n.pick('封面流', 'Cover Flow'),
       customSemanticsActions: {
-        const CustomSemanticsAction(label: '上一张'): () =>
+        CustomSemanticsAction(label: context.l10n.pick('上一张', 'Previous')): () =>
             _centre(base - 1, count),
-        const CustomSemanticsAction(label: '下一张'): () =>
+        CustomSemanticsAction(label: context.l10n.pick('下一张', 'Next')): () =>
             _centre(base + 1, count),
       },
       child: GestureDetector(

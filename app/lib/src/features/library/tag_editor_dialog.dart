@@ -6,6 +6,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge.dart' show Int64List;
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/library/tag_editor_model.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
@@ -172,7 +173,10 @@ class _TagEditorDialogState extends ConsumerState<TagEditorDialog> {
       return;
     }
     if (_batch && draft.isEmpty) {
-      setState(() => _formError = '批量编辑至少填写一个字段');
+      setState(() => _formError = L10n.tr(
+          '批量编辑至少填写一个字段',
+          'Fill in at least one field to batch edit',
+        ));
       return;
     }
     setState(() {
@@ -184,7 +188,12 @@ class _TagEditorDialogState extends ConsumerState<TagEditorDialog> {
         final failures = await _saveBatchOverrides(draft);
         if (!mounted) return;
         if (failures.isNotEmpty) {
-          setState(() => _formError = '有 ${failures.length} 首歌保存失败');
+          setState(() => _formError = L10n.tr(
+            '有 ${failures.length} 首歌保存失败',
+            failures.length == 1
+                ? 'Couldn’t save 1 song'
+                : 'Couldn’t save ${failures.length} songs',
+          ));
           return;
         }
       } else {
@@ -202,7 +211,15 @@ class _TagEditorDialogState extends ConsumerState<TagEditorDialog> {
         ..showSnackBar(
           SnackBar(
             content: Text(
-              count == 1 ? '已保存到资料库（未修改文件）' : '已保存 $count 首歌的标签到资料库（未修改文件）',
+              count == 1
+                  ? L10n.tr(
+                      '已保存到资料库（未修改文件）',
+                      'Saved to library (file unchanged)',
+                    )
+                  : L10n.tr(
+                      '已保存 $count 首歌的标签到资料库（未修改文件）',
+                      'Saved tags for $count songs to library (files unchanged)',
+                    ),
             ),
           ),
         );
@@ -258,7 +275,9 @@ class _TagEditorDialogState extends ConsumerState<TagEditorDialog> {
       Navigator.of(context).pop();
       ScaffoldMessenger.maybeOf(context)
         ?..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('已还原为文件里的标签')));
+        ..showSnackBar(SnackBar(
+            content: Text(L10n.tr('已还原为文件里的标签', 'Reverted to file tags')),
+          ));
     } catch (error) {
       if (mounted) setState(() => _formError = describeCoreError(error));
     } finally {
@@ -274,29 +293,39 @@ class _TagEditorDialogState extends ConsumerState<TagEditorDialog> {
       return;
     }
     if (draft.isEmpty) {
-      setState(() => _formError = '请至少填写一个要写入文件的字段');
+      setState(() => _formError = L10n.tr(
+        '请至少填写一个要写入文件的字段',
+        'Fill in at least one field to write to the file',
+      ));
       return;
     }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('写入音频文件？'),
-        content: const SingleChildScrollView(
+        title: Text(L10n.tr('写入音频文件？', 'Write to Audio File?')),
+        content: SingleChildScrollView(
           child: Text(
-            '这一步会修改音频文件本身，不是只改资料库。\n\n'
-            '写入前会在音频同目录生成 <文件名>.lekis-tags-backup.json 备份原标签；'
-            '写入使用临时文件 + 原子替换，失败时会尝试自动恢复。',
+            L10n.tr(
+              '这一步会修改音频文件本身，不是只改资料库。\n\n'
+                  '写入前会在音频同目录生成 <文件名>.lekis-tags-backup.json 备份原标签；'
+                  '写入使用临时文件 + 原子替换，失败时会尝试自动恢复。',
+              'This changes the audio file itself, not just your library.\n\n'
+                  'The original tags are backed up next to the file as '
+                  '<filename>.lekis-tags-backup.json. Writes go through a temporary '
+                  'file and an atomic swap, and are rolled back automatically if '
+                  'something fails.',
+            ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: Text(L10n.tr('取消', 'Cancel')),
           ),
           FilledButton.icon(
             onPressed: () => Navigator.of(context).pop(true),
             icon: const Icon(Icons.save_rounded),
-            label: const Text('确认写入'),
+            label: Text(L10n.tr('确认写入', 'Write')),
           ),
         ],
       ),
@@ -313,7 +342,12 @@ class _TagEditorDialogState extends ConsumerState<TagEditorDialog> {
         final failures = await _saveBatchOverrides(draft);
         if (failures.isNotEmpty) {
           if (!mounted) return;
-          setState(() => _formError = '有 ${failures.length} 首歌保存覆盖层失败，已停止写入');
+          setState(() => _formError = L10n.tr(
+            '有 ${failures.length} 首歌保存覆盖层失败，已停止写入',
+            failures.length == 1
+                ? 'Couldn’t save edits for 1 song. Nothing was written.'
+                : 'Couldn’t save edits for ${failures.length} songs. Nothing was written.',
+          ));
           return;
         }
       } else {
@@ -361,26 +395,31 @@ class _TagEditorDialogState extends ConsumerState<TagEditorDialog> {
     final close = _busy ? null : () => Navigator.of(context).pop();
     final ready = !_loading && _loadError == null;
     return LekisPanel(
-      title: _batch ? '批量编辑标签' : '编辑标签',
+      title: _batch
+          ? L10n.tr('批量编辑标签', 'Edit Tags for Selection')
+          : L10n.tr('编辑标签', 'Edit Tags'),
       subtitle: _batch
-          ? '已选 ${widget.trackIds.length} 首歌曲 · 留空的字段表示不修改'
+          ? L10n.tr(
+              '已选 ${widget.trackIds.length} 首歌曲 · 留空的字段表示不修改',
+              '${widget.trackIds.length} songs selected · Empty fields stay unchanged',
+            )
           : widget.title,
       onClose: close,
       error: _formError,
       actions: [
-        TextButton(onPressed: close, child: const Text('取消')),
+        TextButton(onPressed: close, child: Text(L10n.tr('取消', 'Cancel'))),
         if (!_batch && _hasOverrides)
           TextButton.icon(
             key: const ValueKey('tag-editor.clear-overrides'),
             onPressed: _busy || !ready ? null : _clearOverrides,
             icon: const Icon(Icons.restore_rounded),
-            label: const Text('还原为文件标签'),
+            label: Text(L10n.tr('还原为文件标签', 'Revert to File Tags')),
           ),
         OutlinedButton.icon(
           key: const ValueKey('tag-editor.save-library'),
           onPressed: _busy || !ready ? null : _saveOnly,
           icon: const Icon(Icons.library_add_outlined),
-          label: const Text('仅保存到资料库'),
+          label: Text(L10n.tr('仅保存到资料库', 'Save to Library Only')),
         ),
         FilledButton.icon(
           key: const ValueKey('tag-editor.write-file'),
@@ -388,7 +427,7 @@ class _TagEditorDialogState extends ConsumerState<TagEditorDialog> {
           icon: _busy
               ? const LekisPanelProgress()
               : const Icon(Icons.save_rounded),
-          label: const Text('写入文件'),
+          label: Text(L10n.tr('写入文件', 'Write to File')),
         ),
       ],
       body: _buildBody(theme, colors),
@@ -404,7 +443,7 @@ class _TagEditorDialogState extends ConsumerState<TagEditorDialog> {
     }
     if (_loadError != null) {
       return Text(
-        '加载失败：$_loadError',
+        L10n.tr('加载失败：$_loadError', 'Couldn’t load: $_loadError'),
         style: theme.textTheme.bodyMedium?.copyWith(color: colors.danger),
       );
     }
@@ -427,44 +466,61 @@ class _TagEditorDialogState extends ConsumerState<TagEditorDialog> {
       children: [
         Text(
           _batch
-              ? '填写要统一修改的字段。留空的字段保持每首歌原来的值。'
-              : '“仅保存到资料库”只改显示，不修改文件；留空的字段不会覆盖文件原值。',
+              ? L10n.tr(
+                  '填写要统一修改的字段。留空的字段保持每首歌原来的值。',
+                  'Fill in the fields to change for every song. Empty fields keep each song’s current value.',
+                )
+              : L10n.tr(
+                  '“仅保存到资料库”只改显示，不修改文件；留空的字段不会覆盖文件原值。',
+                  '“Save to Library Only” changes what Lekis shows without touching the file. Empty fields don’t overwrite the file’s values.',
+                ),
           style: theme.textTheme.bodySmall?.copyWith(
             color: colors.onSurfaceVariant,
           ),
         ),
         const SizedBox(height: LekisSpacing.md),
-        section('基本信息'),
-        _field(_title, '标题'),
-        _field(_artist, '艺人', hint: '多个艺人用 “ / ” 分隔'),
-        _field(_album, '专辑'),
-        _field(_albumArtist, '专辑艺人'),
+        section(L10n.tr('基本信息', 'Details')),
+        _field(_title, L10n.tr('标题', 'Title')),
+        _field(
+          _artist,
+          L10n.tr('艺人', 'Artist'),
+          hint: L10n.tr('多个艺人用 “ / ” 分隔', 'Separate multiple artists with “ / ”'),
+        ),
+        _field(_album, L10n.tr('专辑', 'Album')),
+        _field(_albumArtist, L10n.tr('专辑艺人', 'Album Artist')),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: _field(_trackNo, '曲目号', number: true)),
+            Expanded(child: _field(_trackNo, L10n.tr('曲目号', 'Track'), number: true)),
             gap,
-            Expanded(child: _field(_discNo, '碟片号', number: true)),
+            Expanded(child: _field(_discNo, L10n.tr('碟片号', 'Disc'), number: true)),
             gap,
-            Expanded(child: _field(_year, '年份', number: true)),
+            Expanded(child: _field(_year, L10n.tr('年份', 'Year'), number: true)),
           ],
         ),
-        _field(_genre, '流派', hint: '多个流派用 “;” 分隔'),
-        section('创作'),
+        _field(
+          _genre,
+          L10n.tr('流派', 'Genre'),
+          hint: L10n.tr('多个流派用 “;” 分隔', 'Separate multiple genres with “;”'),
+        ),
+        section(L10n.tr('创作', 'Credits')),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: _field(_composer, '作曲')),
+            Expanded(child: _field(_composer, L10n.tr('作曲', 'Composer'))),
             gap,
-            Expanded(child: _field(_lyricist, '作词')),
+            Expanded(child: _field(_lyricist, L10n.tr('作词', 'Lyricist'))),
           ],
         ),
-        _field(_comment, '评论', maxLines: 3),
+        _field(_comment, L10n.tr('评论', 'Comment'), maxLines: 3),
         section('MusicBrainz'),
-        _field(_musicbrainzTrackId, '录音 ID'),
-        _field(_musicbrainzAlbumId, '专辑 ID'),
+        _field(_musicbrainzTrackId, L10n.tr('录音 ID', 'Recording ID')),
+        _field(_musicbrainzAlbumId, L10n.tr('专辑 ID', 'Release ID')),
         Text(
-          '支持 MP3、FLAC、M4A/AAC、OGG/Opus。远程音源与 WAV/APE 等格式不能写回文件。',
+          L10n.tr(
+            '支持 MP3、FLAC、M4A/AAC、OGG/Opus。远程音源与 WAV/APE 等格式不能写回文件。',
+            'Supports MP3, FLAC, M4A/AAC and OGG/Opus. Remote sources and formats like WAV/APE can’t be written back.',
+          ),
           style: theme.textTheme.bodySmall?.copyWith(
             color: colors.onSurfaceVariant,
           ),
@@ -531,10 +587,10 @@ class _TagWriteResultDialogState extends State<_TagWriteResultDialog> {
     return AlertDialog(
       title: Text(
         failed == 0
-            ? '已写入文件'
+            ? L10n.tr('已写入文件', 'Written to File')
             : success == 0
-            ? '写入失败'
-            : '部分写入失败',
+            ? L10n.tr('写入失败', 'Write Failed')
+            : L10n.tr('部分写入失败', 'Some Writes Failed'),
       ),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560),
@@ -544,7 +600,10 @@ class _TagWriteResultDialogState extends State<_TagWriteResultDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '成功 $success 首，失败 $failed 首。',
+                L10n.tr(
+                  '成功 $success 首，失败 $failed 首。',
+                  '$success succeeded, $failed failed.',
+                ),
                 style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: LekisSpacing.md),
@@ -557,7 +616,11 @@ class _TagWriteResultDialogState extends State<_TagWriteResultDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text(_allSuccess ? '关闭' : '稍后处理'),
+          child: Text(
+            _allSuccess
+                ? L10n.tr('关闭', 'Close')
+                : L10n.tr('稍后处理', 'Later'),
+          ),
         ),
       ],
     );
@@ -578,7 +641,9 @@ class _TagWriteResultDialogState extends State<_TagWriteResultDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              _restored.contains(id) ? '曲目 #$id · 已从备份恢复' : '曲目 #$id · 写入成功',
+              _restored.contains(id)
+                  ? L10n.tr('曲目 #$id · 已从备份恢复', 'Track #$id · Restored from backup')
+                  : L10n.tr('曲目 #$id · 写入成功', 'Track #$id · Written'),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: colors.accent,
                 fontWeight: FontWeight.w600,
@@ -587,7 +652,10 @@ class _TagWriteResultDialogState extends State<_TagWriteResultDialog> {
             if (!_restored.contains(id)) ...[
               const SizedBox(height: LekisSpacing.xxs),
               SelectableText(
-                '文件：${result.filePath}\n备份：${result.backupPath}',
+                L10n.tr(
+                  '文件：${result.filePath}\n备份：${result.backupPath}',
+                  'File: ${result.filePath}\nBackup: ${result.backupPath}',
+                ),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colors.onSurfaceVariant,
                 ),
@@ -596,7 +664,10 @@ class _TagWriteResultDialogState extends State<_TagWriteResultDialog> {
                 Padding(
                   padding: const EdgeInsets.only(top: LekisSpacing.xxs),
                   child: Text(
-                    '写入字段：${result.fields.map(tagFieldLabel).join('、')}',
+                    L10n.tr(
+                      '写入字段：${result.fields.map(tagFieldLabel).join('、')}',
+                      'Fields written: ${result.fields.map(tagFieldLabel).join(', ')}',
+                    ),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colors.onSurfaceVariant,
                     ),
@@ -614,7 +685,7 @@ class _TagWriteResultDialogState extends State<_TagWriteResultDialog> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.undo_rounded, size: 18),
-                  label: const Text('从备份恢复'),
+                  label: Text(L10n.tr('从备份恢复', 'Restore from Backup')),
                 ),
               ),
             ],
@@ -628,7 +699,10 @@ class _TagWriteResultDialogState extends State<_TagWriteResultDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '曲目 #$id · ${_kindLabel(item.errorKind)}',
+            L10n.tr(
+              '曲目 #$id · ${_kindLabel(item.errorKind)}',
+              'Track #$id · ${_kindLabel(item.errorKind)}',
+            ),
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.error,
               fontWeight: FontWeight.w600,
@@ -653,7 +727,11 @@ class _TagWriteResultDialogState extends State<_TagWriteResultDialog> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.restore_rounded, size: 18),
-              label: Text(_restored.contains(id) ? '已从备份恢复' : '从备份恢复'),
+              label: Text(
+                _restored.contains(id)
+                    ? L10n.tr('已从备份恢复', 'Restored from Backup')
+                    : L10n.tr('从备份恢复', 'Restore from Backup'),
+              ),
             ),
           ),
         ],
@@ -669,13 +747,27 @@ class _TagWriteResultDialogState extends State<_TagWriteResultDialog> {
       setState(() => _restored.add(trackId));
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text('已从备份恢复：${result.backupPath}')));
+        ..showSnackBar(SnackBar(
+            content: Text(
+              L10n.tr(
+                '已从备份恢复：${result.backupPath}',
+                'Restored from backup: ${result.backupPath}',
+              ),
+            ),
+          ));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(content: Text('恢复失败：${describeCoreError(error)}')),
+          SnackBar(
+            content: Text(
+              L10n.tr(
+                '恢复失败：${describeCoreError(error)}',
+                'Couldn’t restore: ${describeCoreError(error)}',
+              ),
+            ),
+          ),
         );
     } finally {
       if (mounted) setState(() => _restoring.remove(trackId));
@@ -685,13 +777,16 @@ class _TagWriteResultDialogState extends State<_TagWriteResultDialog> {
   static int _id(BatchTagWriteItemDto item) => item.trackId;
 
   static String _kindLabel(ErrorKind? kind) => switch (kind) {
-    ErrorKind.unsupported => '格式或音源不支持',
-    ErrorKind.permissionDenied => '没有写入权限 / 文件只读或被占用',
-    ErrorKind.notFound => '文件或曲目不存在',
-    ErrorKind.decode => '标签写入或校验失败',
-    ErrorKind.invalidArgument => '参数不合法',
-    ErrorKind.io => '文件读写失败',
-    ErrorKind.database => '资料库写入失败',
-    _ => '写入失败',
+    ErrorKind.unsupported => L10n.tr('格式或音源不支持', 'Format or source not supported'),
+    ErrorKind.permissionDenied => L10n.tr(
+      '没有写入权限 / 文件只读或被占用',
+      'No write permission, or the file is read-only or in use',
+    ),
+    ErrorKind.notFound => L10n.tr('文件或曲目不存在', 'File or track not found'),
+    ErrorKind.decode => L10n.tr('标签写入或校验失败', 'Couldn’t write or verify tags'),
+    ErrorKind.invalidArgument => L10n.tr('参数不合法', 'Invalid input'),
+    ErrorKind.io => L10n.tr('文件读写失败', 'Couldn’t read or write the file'),
+    ErrorKind.database => L10n.tr('资料库写入失败', 'Couldn’t update the library'),
+    _ => L10n.tr('写入失败', 'Write failed'),
   };
 }

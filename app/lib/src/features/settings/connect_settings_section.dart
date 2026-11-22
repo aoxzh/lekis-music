@@ -7,6 +7,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../l10n/app_l10n.dart';
 import '../../theme/theme.dart';
 import '../connect/connect_gateway.dart';
 import '../../rust/api/error.dart';
@@ -257,7 +258,7 @@ class ConnectSettingsSection extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(controller.text),
-            child: const Text('保存'),
+            child: Text(context.l10n.pick('保存', 'Save')),
           ),
         ],
       ),

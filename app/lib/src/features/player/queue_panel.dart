@@ -379,7 +379,7 @@ class _QueueRow extends StatelessWidget {
       button: true,
       selected: current,
       label:
-          '${row.title.isEmpty ? '已删除的曲目' : row.title}'
+          '${row.title.isEmpty ? context.l10n.pick('已删除的曲目', 'Deleted track') : row.title}'
           '${row.artistLine.isEmpty ? '' : ', ${row.artistLine}'}',
       child: Material(
         type: MaterialType.transparency,
@@ -419,7 +419,9 @@ class _QueueRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        row.title.isEmpty ? '（已删除）' : row.title,
+                        row.title.isEmpty
+                            ? context.l10n.pick('（已删除）', '(Deleted)')
+                            : row.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodyMedium?.copyWith(
@@ -451,17 +453,17 @@ class _QueueRow extends StatelessWidget {
                   ),
                 _QueueAction(
                   icon: Icons.keyboard_arrow_up_rounded,
-                  tooltip: '上移',
+                  tooltip: context.l10n.pick('上移', 'Move up'),
                   onPressed: onMoveUp,
                 ),
                 _QueueAction(
                   icon: Icons.keyboard_arrow_down_rounded,
-                  tooltip: '下移',
+                  tooltip: context.l10n.pick('下移', 'Move down'),
                   onPressed: onMoveDown,
                 ),
                 _QueueAction(
                   icon: Icons.close_rounded,
-                  tooltip: '从队列移除',
+                  tooltip: context.l10n.pick('从队列移除', 'Remove from Queue'),
                   onPressed: onRemove,
                   destructive: true,
                 ),
@@ -590,7 +592,7 @@ Future<void> showQueueSidePanel(BuildContext context) {
   return showGeneralDialog<void>(
     context: context,
     barrierDismissible: true,
-    barrierLabel: '关闭播放队列',
+    barrierLabel: context.l10n.pick('关闭播放队列', 'Close queue'),
     barrierColor: context.lekisColors.scrim,
     transitionDuration: reduceMotion ? Duration.zero : LekisMotion.normal,
     pageBuilder: (context, _, _) => Theme(

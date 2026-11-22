@@ -182,13 +182,30 @@ class _DuplicatesHeader extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: LekisSpacing.md),
       child: SettingsTile(
         icon: Icons.content_copy_rounded,
-        title: groups == null ? '正在统计重复歌曲…' : '发现 $groups 组重复',
+        title: groups == null
+            ? L10n.tr('正在统计重复歌曲…', 'Counting duplicates…')
+            : L10n.tr(
+                '发现 $groups 组重复',
+                groups == 1 ? '1 duplicate group' : '$groups duplicate groups',
+              ),
         subtitle: Text(
           [
-            if (tracks != null) '资料库共 $tracks 首曲目。',
-            '按规范化后的标题、艺人、专辑和 ±2 秒时长匹配；同一组出现多个 '
-                'MusicBrainz 录音 ID 时视为不同录音。',
-            '建议保留无损、采样率 / 位深 / 比特率更高、文件更大的版本；不会自动删除任何文件。',
+            if (tracks != null)
+              L10n.tr(
+                '资料库共 $tracks 首曲目。',
+                tracks == 1 ? '1 track in library.' : '$tracks tracks in library.',
+              ),
+            L10n.tr(
+              '按规范化后的标题、艺人、专辑和 ±2 秒时长匹配；同一组出现多个 '
+                  'MusicBrainz 录音 ID 时视为不同录音。',
+              'Matched by normalized title, artist, album and duration (±2 s). '
+                  'Different MusicBrainz recording IDs in a group count as different recordings.',
+            ),
+            L10n.tr(
+              '建议保留无损、采样率 / 位深 / 比特率更高、文件更大的版本；不会自动删除任何文件。',
+              'Keep the lossless version with the higher sample rate, bit depth or bitrate '
+                  'and larger file. Nothing is deleted automatically.',
+            ),
           ].join('\n'),
         ),
       ),
@@ -620,7 +637,9 @@ class _DuplicateVersionRow extends ConsumerWidget {
                     runSpacing: LekisSpacing.xs,
                     children: [
                       Text(
-                        keep ? '建议保留' : '建议删除',
+                        keep
+                            ? L10n.tr('建议保留', 'Keep')
+                            : L10n.tr('建议删除', 'Remove'),
                         style: theme.textTheme.labelMedium?.copyWith(
                           color: keep ? colors.accent : colors.onSurfaceVariant,
                           fontWeight: FontWeight.w600,
@@ -678,12 +697,15 @@ class _EmptyDuplicates extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
+    return SizedBox(
       height: 380,
       child: LekisEmptyState(
-        eyebrow: '重复歌曲',
-        title: '没有发现重复歌曲',
-        message: '标签越完整，检测越准确。修改标签后回到这里按刷新重新统计；不会读取或修改音频文件。',
+        eyebrow: L10n.tr('重复歌曲', 'Duplicates'),
+        title: L10n.tr('没有发现重复歌曲', 'No Duplicates Found'),
+        message: L10n.tr(
+          '标签越完整，检测越准确。修改标签后回到这里按刷新重新统计；不会读取或修改音频文件。',
+          'Better tags mean better matches. After editing tags, come back and refresh to recount. Audio files are never read or changed.',
+        ),
       ),
     );
   }
@@ -761,7 +783,12 @@ class _HealthTab extends ConsumerWidget {
       final error = ref.read(healthScanProvider).error;
       showFeatureSnack(
         context,
-        error == null ? '扫描失败' : '扫描失败：${describeCoreError(error)}',
+        error == null
+            ? L10n.tr('扫描失败', 'Scan failed')
+            : L10n.tr(
+                '扫描失败：${describeCoreError(error)}',
+                'Scan failed: ${describeCoreError(error)}',
+              ),
       );
       return;
     }
@@ -771,8 +798,15 @@ class _HealthTab extends ConsumerWidget {
     showFeatureSnack(
       context,
       failed > 0
-          ? '扫描完成：检查 $checked 个文件，$unreadable 个不可读；$failed 个音源打不开'
-          : '扫描完成：检查 $checked 个文件，$unreadable 个不可读',
+          ? L10n.tr(
+              '扫描完成：检查 $checked 个文件，$unreadable 个不可读；$failed 个音源打不开',
+              'Scan complete: $checked files checked, $unreadable unreadable; '
+                  '$failed ${failed == 1 ? 'source' : 'sources'} couldn’t be opened',
+            )
+          : L10n.tr(
+              '扫描完成：检查 $checked 个文件，$unreadable 个不可读',
+              'Scan complete: $checked files checked, $unreadable unreadable',
+            ),
     );
   }
 }
@@ -823,7 +857,8 @@ class _HealthHeader extends ConsumerWidget {
                 context.l10n.pick(
                   '扫描只检查每个文件能否打开并读取 1 个字节；不做频谱分析，也不会修改文件。'
                       'NAS 上的大资料库可能需要几分钟。',
-                  'Checks that every file can be opened and read; never modifies audio files.',
+                  'Checks that every file can be opened and read. No spectral analysis, '
+                      'and files are never modified. Large NAS libraries may take a few minutes.',
                 ),
               ),
               trailing: scanning
@@ -928,8 +963,12 @@ class _HealthEntryRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
-    final title = entry.title.trim().isEmpty ? '未知标题' : entry.title;
-    final artist = entry.artistLine.trim().isEmpty ? '未知艺人' : entry.artistLine;
+    final title = entry.title.trim().isEmpty
+        ? L10n.tr('未知标题', 'Unknown Title')
+        : entry.title;
+    final artist = entry.artistLine.trim().isEmpty
+        ? context.l10n.unknownArtist
+        : entry.artistLine;
     final album = entry.albumTitle?.trim();
     final tech = _trackTech(
       format: entry.format,
@@ -1032,43 +1071,66 @@ class _EmptyHealth extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!summaryLoaded) {
-      return const SizedBox(
+      return SizedBox(
         height: 380,
         child: LekisEmptyState(
-          eyebrow: '库健康',
-          title: '正在读取资料库…',
-          message: '统计完曲目和重复组后，这里会显示缺封面、缺歌词、空标签等问题。',
+          eyebrow: L10n.tr('库健康', 'Library Health'),
+          title: L10n.tr('正在读取资料库…', 'Loading Library…'),
+          message: L10n.tr(
+            '统计完曲目和重复组后，这里会显示缺封面、缺歌词、空标签等问题。',
+            'Once tracks and duplicates are counted, missing artwork, lyrics and tags show up here.',
+          ),
         ),
       );
     }
     if (totalTracks == 0) {
-      return const SizedBox(
+      return SizedBox(
         height: 380,
         child: LekisEmptyState(
-          eyebrow: '库健康',
-          title: '资料库还是空的',
-          message: '先在“音源”里添加本地文件夹或 NAS，扫描完成后就能检查封面、歌词、标签和重复歌曲。',
+          eyebrow: L10n.tr('库健康', 'Library Health'),
+          title: L10n.tr('资料库还是空的', 'Your Library Is Empty'),
+          message: L10n.tr(
+            '先在“音源”里添加本地文件夹或 NAS，扫描完成后就能检查封面、歌词、标签和重复歌曲。',
+            'Add a local folder or NAS in Sources. After the scan you can check artwork, lyrics, tags and duplicates.',
+          ),
         ),
       );
     }
     final message = switch (tab) {
-      HealthTabKind.missingCover => '每首曲目都有封面（曲目封面或专辑封面）。',
-      HealthTabKind.missingLyrics => '没有发现缺少歌词的曲目。',
-      HealthTabKind.missingTags => '标题和艺人都有值，没有发现空标签。',
-      HealthTabKind.fakeLossless => '没有发现码率或文件大小异常低的疑似假无损；这里只做简单启发式，不看频谱。',
-      HealthTabKind.unreadable => '上一轮扫描没有发现损坏或不可读的文件。源文件变化后可以重新扫描。',
+      HealthTabKind.missingCover => L10n.tr(
+        '每首曲目都有封面（曲目封面或专辑封面）。',
+        'Every track has artwork (its own or the album’s).',
+      ),
+      HealthTabKind.missingLyrics => L10n.tr(
+        '没有发现缺少歌词的曲目。',
+        'No tracks are missing lyrics.',
+      ),
+      HealthTabKind.missingTags => L10n.tr(
+        '标题和艺人都有值，没有发现空标签。',
+        'Every track has a title and artist.',
+      ),
+      HealthTabKind.fakeLossless => L10n.tr(
+        '没有发现码率或文件大小异常低的疑似假无损；这里只做简单启发式，不看频谱。',
+        'No suspiciously low bitrates or file sizes found. This is a simple heuristic, not spectral analysis.',
+      ),
+      HealthTabKind.unreadable => L10n.tr(
+        '上一轮扫描没有发现损坏或不可读的文件。源文件变化后可以重新扫描。',
+        'The last scan found no damaged or unreadable files. Scan again if your files change.',
+      ),
     };
     return SizedBox(
       height: 380,
       child: LekisEmptyState(
         eyebrow: tab.label,
-        title: tab == HealthTabKind.unreadable ? '没有不可读文件' : '这一类没有问题',
+        title: tab == HealthTabKind.unreadable
+            ? L10n.tr('没有不可读文件', 'No Unreadable Files')
+            : L10n.tr('这一类没有问题', 'No Issues Here'),
         message: message,
         action: tab == HealthTabKind.unreadable
             ? FilledButton.tonalIcon(
                 onPressed: onScan,
                 icon: const Icon(Icons.health_and_safety_outlined),
-                label: const Text('扫描损坏文件'),
+                label: Text(L10n.tr('扫描损坏文件', 'Scan for Damaged Files')),
               )
             : null,
       ),
@@ -1089,9 +1151,12 @@ class _InlineError extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SettingsTile(
     icon: Icons.error_outline_rounded,
-    title: '读取失败',
+    title: L10n.tr('读取失败', 'Couldn’t Load'),
     subtitle: Text(describeCoreError(error)),
-    trailing: TextButton(onPressed: onRetry, child: const Text('重试')),
+    trailing: TextButton(
+      onPressed: onRetry,
+      child: Text(L10n.tr('重试', 'Try Again')),
+    ),
   );
 }
 
@@ -1121,7 +1186,9 @@ IconData _healthIcon(HealthIssueKindDto kind) => switch (kind) {
   HealthIssueKindDto.unreadable => Icons.broken_image_outlined,
 };
 
-String _displayPath(String path) => path.trim().isEmpty ? '（没有文件路径）' : path;
+String _displayPath(String path) => path.trim().isEmpty
+    ? L10n.tr('（没有文件路径）', '(No file path)')
+    : path;
 
 String _trackTech({
   required String? format,

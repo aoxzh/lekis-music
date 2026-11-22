@@ -195,7 +195,7 @@ class _AlbumsSegment extends ConsumerWidget {
               ),
             )
           : context.fold.isSeparating
-          ? const _PickPrompt(text: '选择一张专辑')
+          ? _PickPrompt(text: context.l10n.pick('选择一张专辑', 'Select an album'))
           : null,
     );
   }
@@ -224,7 +224,7 @@ class _ClosablePane extends ConsumerWidget {
               flat: flat,
               enableLens: false,
               child: IconButton(
-                tooltip: '关闭',
+                tooltip: context.l10n.pick('关闭', 'Close'),
                 onPressed: onClose,
                 icon: const Icon(Icons.close_rounded),
               ),
@@ -257,7 +257,7 @@ class _ArtistsSegment extends ConsumerWidget {
       ),
       secondary: twoPane
           ? (selected == null
-                ? const _PickPrompt(text: '选择一位艺人')
+                ? _PickPrompt(text: context.l10n.pick('选择一位艺人', 'Select an artist'))
                 : ArtistDetailView(key: ValueKey(selected), artistId: selected))
           : null,
     );
@@ -315,13 +315,16 @@ class _SortMenu extends ConsumerWidget {
   const _SortMenu({required this.target});
   final _SortTarget target;
 
-  static const _labels = {
-    TrackSortDto.title: '标题',
-    TrackSortDto.artist: '艺人',
-    TrackSortDto.album: '专辑',
-    TrackSortDto.recentlyAdded: '最近添加',
-    TrackSortDto.mostPlayed: '最常播放',
-  };
+  static String _labelFor(BuildContext context, TrackSortDto sort) {
+    final l10n = context.l10n;
+    return switch (sort) {
+      TrackSortDto.title => l10n.pick('标题', 'Title'),
+      TrackSortDto.artist => l10n.pick('艺人', 'Artist'),
+      TrackSortDto.album => l10n.pick('专辑', 'Album'),
+      TrackSortDto.recentlyAdded => l10n.pick('最近添加', 'Recently Added'),
+      TrackSortDto.mostPlayed => l10n.pick('最常播放', 'Most Played'),
+    };
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -337,7 +340,10 @@ class _SortMenu extends ConsumerWidget {
           ]
         : TrackSortDto.values;
     return PopupMenuButton<TrackSortDto>(
-      tooltip: '排序：${_labels[current]}',
+      tooltip: context.l10n.pick(
+        '排序：${_labelFor(context, current)}',
+        'Sort: ${_labelFor(context, current)}',
+      ),
       icon: const Icon(Icons.sort_rounded),
       initialValue: current,
       onSelected: (v) => ref.read(provider.notifier).set(v),
@@ -346,7 +352,7 @@ class _SortMenu extends ConsumerWidget {
           CheckedPopupMenuItem(
             value: o,
             checked: o == current,
-            child: Text(_labels[o]!),
+            child: Text(_labelFor(context, o)),
           ),
       ],
     );

@@ -10,6 +10,7 @@ import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_actions.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
@@ -206,7 +207,10 @@ class _AlbumHeader extends ConsumerWidget {
         final textAlign = wide ? TextAlign.start : TextAlign.center;
         final meta = [
           if (album.year != null) '${album.year}',
-          '${album.trackCount} 首歌曲',
+          context.l10n.pick(
+            '${album.trackCount} 首歌曲',
+            '${album.trackCount} songs',
+          ),
         ].join(' · ');
 
         final artistLink = InkWell(
@@ -274,7 +278,7 @@ class _AlbumHeader extends ConsumerWidget {
                   if (downloadableTrackIds.isNotEmpty)
                     BatchDownloadButton(
                       trackIds: downloadableTrackIds,
-                      tooltip: '下载整张专辑',
+                      tooltip: context.l10n.pick('下载整张专辑', 'Download Album'),
                     ),
                 ],
               ),
@@ -360,18 +364,18 @@ class PlayShuffleButtons extends StatelessWidget {
           style: buttonStyle,
           onPressed: onPlay,
           icon: const Icon(Icons.play_arrow_rounded),
-          label: const Text('播放'),
+          label: Text(context.l10n.pick('播放', 'Play')),
         ),
         FilledButton.tonalIcon(
           style: buttonStyle,
           onPressed: onShuffle,
           icon: const Icon(Icons.shuffle_rounded),
-          label: const Text('随机播放'),
+          label: Text(context.l10n.pick('随机播放', 'Shuffle')),
         ),
         if (queueTrackIds.isNotEmpty)
           PopupMenuButton<String>(
             key: const ValueKey('play-shuffle.queue-menu'),
-            tooltip: '更多操作',
+            tooltip: context.l10n.pick('更多操作', 'More Actions'),
             icon: const Icon(Icons.more_horiz_rounded),
             onSelected: (value) => switch (value) {
               'next' => queueTracks(
@@ -388,21 +392,21 @@ class PlayShuffleButtons extends StatelessWidget {
               _ => onEnrich?.call(),
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'next',
                 child: ListTile(
                   dense: true,
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.queue_play_next_rounded),
+                  leading: const Icon(Icons.queue_play_next_rounded),
                   title: Text(QueueStrings.playNext),
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'end',
                 child: ListTile(
                   dense: true,
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.add_to_queue_rounded),
+                  leading: const Icon(Icons.add_to_queue_rounded),
                   title: Text(QueueStrings.addToQueue),
                 ),
               ),
@@ -413,18 +417,18 @@ class PlayShuffleButtons extends StatelessWidget {
                   child: ListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.auto_fix_high_rounded),
+                    leading: const Icon(Icons.auto_fix_high_rounded),
                     title: Text(EnrichActionStrings.action),
                   ),
                 ),
               ],
               if (onChangeArtwork != null)
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'artwork',
                   child: ListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.image_outlined),
+                    leading: const Icon(Icons.image_outlined),
                     title: Text(ArtworkActionStrings.change),
                   ),
                 ),

@@ -32,7 +32,7 @@ class LekisApp extends ConsumerWidget {
     final appLocale = ref.watch(appLocaleProvider);
 
     return MaterialApp(
-      title: '月兔音乐',
+      title: L10n.tr('月兔音乐', 'Lekis Music'),
       onGenerateTitle: (context) => context.l10n.appName,
       debugShowCheckedModeBanner: false,
       locale: appLocale.locale,
@@ -99,7 +99,7 @@ class LekisStartupErrorApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '月兔音乐',
+      title: L10n.tr('月兔音乐', 'Lekis Music'),
       onGenerateTitle: (context) => context.l10n.appName,
       debugShowCheckedModeBanner: false,
       theme: lekisLightTheme(),
@@ -121,7 +121,10 @@ class LekisStartupErrorApp extends StatelessWidget {
                         color: context.lekisColors.moon,
                       ),
                       const SizedBox(height: LekisSpacing.lg),
-                      Text('Lekis 启动失败', style: text.titleLarge),
+                      Text(
+                        L10n.tr('Lekis 启动失败', 'Failed to start Lekis'),
+                        style: text.titleLarge,
+                      ),
                       const SizedBox(height: LekisSpacing.sm),
                       SelectableText(
                         '$error',

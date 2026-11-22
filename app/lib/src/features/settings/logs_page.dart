@@ -2,6 +2,7 @@
 // values after common secret keys are masked before they reach this page.
 import 'package:flutter/services.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
@@ -43,8 +44,9 @@ class _DiagnosticLogsPageState extends State<DiagnosticLogsPage> {
   Future<void> _copy() async {
     await Clipboard.setData(ClipboardData(text: _lines.join('\n')));
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('日志已复制')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.l10n.pick('日志已复制', 'Logs copied'))),
+    );
   }
 
   @override
@@ -53,17 +55,17 @@ class _DiagnosticLogsPageState extends State<DiagnosticLogsPage> {
       title: SettingsStrings.diagnosticLogs,
       actions: [
         IconButton(
-          tooltip: '复制',
+          tooltip: context.l10n.pick('复制', 'Copy'),
           onPressed: _lines.isEmpty ? null : _copy,
           icon: const Icon(Icons.copy_all_outlined),
         ),
         IconButton(
-          tooltip: '清空',
+          tooltip: context.l10n.pick('清空', 'Clear'),
           onPressed: _lines.isEmpty ? null : _clear,
           icon: const Icon(Icons.delete_sweep_outlined),
         ),
         IconButton(
-          tooltip: '刷新',
+          tooltip: context.l10n.pick('刷新', 'Refresh'),
           onPressed: _load,
           icon: const Icon(Icons.refresh_rounded),
         ),
@@ -73,7 +75,7 @@ class _DiagnosticLogsPageState extends State<DiagnosticLogsPage> {
           : _lines.isEmpty
           ? Center(
               child: Text(
-                '暂无日志',
+                context.l10n.pick('暂无日志', 'No logs yet'),
                 style: Theme.of(context).textTheme.bodyMedium
                     ?.copyWith(color: context.lekisColors.onSurfaceVariant),
               ),

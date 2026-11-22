@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
@@ -14,15 +15,19 @@ class PlaybackHistoryPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final history = ref.watch(_historyProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('播放历史')),
+      appBar: AppBar(title: Text(l10n.pick('播放历史', 'Playback History'))),
       body: history.whenSkeleton(
         skeleton: const SkeletonTrackListView(top: LekisSpacing.sm),
-        error: (e, _) => Center(child: Text('读取失败：$e')),
+        error: (e, _) =>
+            Center(child: Text(l10n.pick('读取失败：$e', 'Failed to load: $e'))),
         data: (tracks) {
           if (tracks.isEmpty) {
-            return const Center(child: Text('还没有播放记录'));
+            return Center(
+              child: Text(l10n.pick('还没有播放记录', 'No playback history yet')),
+            );
           }
           final gutter = pageGutterOf(context);
           return ListView.builder(

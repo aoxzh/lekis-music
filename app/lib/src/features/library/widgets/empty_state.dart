@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/error.dart';
 import 'package:lekis/src/shell/app_shell.dart';
 import 'package:lekis/src/theme/tokens.dart';
@@ -95,23 +96,29 @@ class _Moonrise extends StatelessWidget {
 class LibraryEmptyState extends StatelessWidget {
   const LibraryEmptyState({
     super.key,
-    this.title = '资料库还是空的',
-    this.message = '在“音源”里添加本地文件夹、NAS 共享或媒体服务器，Lekis 会自动建立索引。',
+    this.title,
+    this.message,
   });
 
-  final String title;
-  final String message;
+  final String? title;
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return LekisEmptyState(
-      eyebrow: '开始使用',
-      title: title,
-      message: message,
+      eyebrow: l10n.pick('开始使用', 'Get Started'),
+      title: title ?? l10n.pick('资料库还是空的', 'Your Library Is Empty'),
+      message:
+          message ??
+          l10n.pick(
+            '在“音源”里添加本地文件夹、NAS 共享或媒体服务器，Lekis 会自动建立索引。',
+            'Add a local folder, NAS share, or media server in Sources and Lekis will index it automatically.',
+          ),
       action: FilledButton.icon(
         onPressed: () => AppShell.select(context, LekisDestination.sources),
         icon: const Icon(Icons.add_rounded),
-        label: const Text('添加音源'),
+        label: Text(l10n.pick('添加音源', 'Add Source')),
       ),
     );
   }
@@ -127,10 +134,11 @@ class LoadErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.lekisColors;
+    final l10n = context.l10n;
     final detail = error is CoreError
         ? (kDebugMode
               ? '${(error as CoreError).kind.name}: ${(error as CoreError).detail}'
-              : '核心返回了错误')
+              : l10n.pick('核心返回了错误', 'Core returned an error'))
         : '$error';
     debugPrint('load failed: $detail');
     return Center(
@@ -141,7 +149,10 @@ class LoadErrorView extends StatelessWidget {
           children: [
             Icon(Icons.error_outline_rounded, color: colors.danger),
             const SizedBox(height: LekisSpacing.sm),
-            Text('加载失败', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              l10n.pick('加载失败', 'Load Failed'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: LekisSpacing.xs),
             Text(
               detail,
@@ -153,7 +164,10 @@ class LoadErrorView extends StatelessWidget {
             ),
             if (onRetry != null) ...[
               const SizedBox(height: LekisSpacing.md),
-              OutlinedButton(onPressed: onRetry, child: const Text('重试')),
+              OutlinedButton(
+                onPressed: onRetry,
+                child: Text(l10n.pick('重试', 'Retry')),
+              ),
             ],
           ],
         ),

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:lekis/src/features/library/widgets/album_card.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
@@ -114,12 +115,12 @@ class _ArtworkShelfState extends State<ArtworkShelf> {
                 // a pointer to click them; phones / tablets swipe the row.
                 if (overflows && _usesPointer()) ...[
                   IconButton(
-                    tooltip: '上一页',
+                    tooltip: context.l10n.pick('上一页', 'Previous page'),
                     onPressed: () => _page(-1),
                     icon: const Icon(Icons.chevron_left_rounded),
                   ),
                   IconButton(
-                    tooltip: '下一页',
+                    tooltip: context.l10n.pick('下一页', 'Next page'),
                     onPressed: () => _page(1),
                     icon: const Icon(Icons.chevron_right_rounded),
                   ),

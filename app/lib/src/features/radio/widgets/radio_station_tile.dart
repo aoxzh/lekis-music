@@ -1,5 +1,6 @@
 // 一个网络电台的列表行：图标、名称、国家 / 语言、编码 / 码率、收藏。
 
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
@@ -61,7 +62,7 @@ class RadioStationTile extends StatelessWidget {
                 Icons.graphic_eq_rounded,
                 size: 18,
                 color: colors.accent,
-                semanticLabel: '正在播放',
+                semanticLabel: context.l10n.pick('正在播放', 'Now playing'),
               ),
             ],
           ],
@@ -101,7 +102,9 @@ class RadioStationTile extends StatelessWidget {
             // 36 dp row actions (like track rows) so custom stations keep
             // room for the name on phones.
             IconButton(
-              tooltip: favorite ? '取消收藏' : '收藏',
+              tooltip: favorite
+                  ? context.l10n.pick('取消收藏', 'Remove from favorites')
+                  : context.l10n.pick('收藏', 'Favorite'),
               visualDensity: VisualDensity.compact,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints.tightFor(width: 36, height: 36),
@@ -115,13 +118,18 @@ class RadioStationTile extends StatelessWidget {
             ),
             if (onDelete != null)
               PopupMenuButton<String>(
-                tooltip: '更多',
+                tooltip: context.l10n.pick('更多', 'More'),
                 onSelected: (value) {
                   if (value == 'delete') onDelete!();
                 },
                 padding: EdgeInsets.zero,
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'delete', child: Text('删除自定义电台')),
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Text(
+                      context.l10n.pick('删除自定义电台', 'Delete custom station'),
+                    ),
+                  ),
                 ],
                 child: const SizedBox(
                   width: 36,

@@ -15,6 +15,7 @@ import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:lekis/src/features/playlists/playlist_strings.dart';
 
 class SmartPlaylistEditorPage extends ConsumerStatefulWidget {
   const SmartPlaylistEditorPage({
@@ -173,7 +174,7 @@ class _SmartPlaylistEditorPageState
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('智能歌单规则'),
+            Text(PlaylistStrings.smartRulesTitle),
             Text(
               widget.name,
               maxLines: 1,
@@ -198,14 +199,14 @@ class _SmartPlaylistEditorPageState
           else
             TextButton(
               onPressed: _loading || _loadError != null ? null : _save,
-              child: const Text('保存'),
+              child: Text(PlaylistStrings.save),
             ),
         ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _loadError != null
-          ? Center(child: Text('规则加载失败：$_loadError'))
+          ? Center(child: Text(PlaylistStrings.rulesLoadFailed(_loadError!)))
           : _buildEditor(context),
     );
   }
@@ -223,7 +224,7 @@ class _SmartPlaylistEditorPageState
       ),
       children: [
         Text(
-          '条件在核心里实时求值；同一分组内 AND / OR 可以任意嵌套。',
+          PlaylistStrings.rulesIntro,
           style: theme.textTheme.bodySmall?.copyWith(
             color: colors.onSurfaceVariant,
           ),
@@ -260,7 +261,7 @@ class _SmartPlaylistEditorPageState
         FilledButton.icon(
           onPressed: _saving ? null : _save,
           icon: const Icon(Icons.check_rounded),
-          label: const Text('保存规则'),
+          label: Text(PlaylistStrings.saveRules),
         ),
       ],
     );
@@ -309,7 +310,7 @@ class _GroupEditor extends StatelessWidget {
               if (isRule)
                 Expanded(
                   child: Text(
-                    '条件',
+                    PlaylistStrings.condition,
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -322,7 +323,7 @@ class _GroupEditor extends StatelessWidget {
                       const Icon(Icons.not_interested_rounded, size: 18),
                       const SizedBox(width: LekisSpacing.xs),
                       Text(
-                        '取反（NOT）',
+                        PlaylistStrings.not,
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
@@ -334,14 +335,14 @@ class _GroupEditor extends StatelessWidget {
                 Expanded(
                   child: SegmentedButton<RuleGroupKindDto>(
                     showSelectedIcon: false,
-                    segments: const [
+                    segments: [
                       ButtonSegment(
                         value: RuleGroupKindDto.all,
-                        label: Text('全部满足 AND'),
+                        label: Text(PlaylistStrings.matchAll),
                       ),
                       ButtonSegment(
                         value: RuleGroupKindDto.any,
-                        label: Text('任意满足 OR'),
+                        label: Text(PlaylistStrings.matchAny),
                       ),
                     ],
                     selected: {group.kind},
@@ -358,7 +359,7 @@ class _GroupEditor extends StatelessWidget {
                 ),
               if (onRemove != null)
                 IconButton(
-                  tooltip: '删除分组',
+                  tooltip: PlaylistStrings.deleteGroup,
                   visualDensity: VisualDensity.compact,
                   onPressed: onRemove,
                   icon: const Icon(Icons.delete_outline_rounded, size: 20),
@@ -378,8 +379,8 @@ class _GroupEditor extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: LekisSpacing.sm),
                 child: Text(
                   group.kind == RuleGroupKindDto.any
-                      ? '空 OR 组匹配不到任何歌曲'
-                      : '空 AND 组不过滤（匹配全部歌曲）',
+                      ? PlaylistStrings.emptyOr
+                      : PlaylistStrings.emptyAnd,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colors.onSurfaceVariant,
                   ),
@@ -433,7 +434,7 @@ class _GroupEditor extends StatelessWidget {
                       onUpdate(_withChildren([...group.rules, child]));
                     },
                     icon: const Icon(Icons.add_rounded),
-                    label: const Text('添加条件'),
+                    label: Text(PlaylistStrings.addCondition),
                   ),
                   if (canNest)
                     OutlinedButton.icon(
@@ -442,7 +443,7 @@ class _GroupEditor extends StatelessWidget {
                         onUpdate(_withChildren([...group.rules, child]));
                       },
                       icon: const Icon(Icons.account_tree_outlined),
-                      label: const Text('添加 OR 分组'),
+                      label: Text(PlaylistStrings.addOrGroup),
                     ),
                 ],
               ),
@@ -452,8 +453,8 @@ class _GroupEditor extends StatelessWidget {
                 padding: const EdgeInsets.only(top: LekisSpacing.sm),
                 child: Text(
                   group.kind == RuleGroupKindDto.any
-                      ? '组内任意一条成立即可'
-                      : '组内全部条件都要成立',
+                      ? PlaylistStrings.anyHolds
+                      : PlaylistStrings.allHold,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colors.onSurfaceVariant,
                   ),
@@ -491,7 +492,10 @@ class _RuleEditor extends StatelessWidget {
           child: DropdownButtonFormField<RuleFieldDto>(
             key: ValueKey('field-${rule.field.name}'),
             initialValue: rule.field,
-            decoration: const InputDecoration(labelText: '字段', isDense: true),
+            decoration: InputDecoration(
+              labelText: PlaylistStrings.field,
+              isDense: true,
+            ),
             items: [
               for (final field in RuleFieldDto.values)
                 DropdownMenuItem(
@@ -511,7 +515,10 @@ class _RuleEditor extends StatelessWidget {
           child: DropdownButtonFormField<RuleOpDto>(
             key: ValueKey('op-${rule.field.name}-${rule.op.name}'),
             initialValue: op,
-            decoration: const InputDecoration(labelText: '条件', isDense: true),
+            decoration: InputDecoration(
+              labelText: PlaylistStrings.condition,
+              isDense: true,
+            ),
             items: [
               for (final value in ops)
                 DropdownMenuItem(
@@ -545,7 +552,7 @@ class _RuleEditor extends StatelessWidget {
         ),
         if (onRemove != null)
           IconButton(
-            tooltip: '删除条件',
+            tooltip: PlaylistStrings.deleteCondition,
             visualDensity: VisualDensity.compact,
             onPressed: onRemove,
             icon: const Icon(Icons.close_rounded, size: 20),
@@ -612,10 +619,13 @@ class _RuleValueEditorState extends State<_RuleValueEditor> {
           : true;
       return DropdownButtonFormField<bool>(
         initialValue: current,
-        decoration: const InputDecoration(labelText: '值', isDense: true),
-        items: const [
-          DropdownMenuItem(value: true, child: Text('是')),
-          DropdownMenuItem(value: false, child: Text('否')),
+        decoration: InputDecoration(
+          labelText: PlaylistStrings.value,
+          isDense: true,
+        ),
+        items: [
+          DropdownMenuItem(value: true, child: Text(PlaylistStrings.yes)),
+          DropdownMenuItem(value: false, child: Text(PlaylistStrings.no)),
         ],
         onChanged: (value) {
           if (value != null) widget.onChanged(RuleValueDto.bool(value));
@@ -631,8 +641,8 @@ class _RuleValueEditorState extends State<_RuleValueEditor> {
               controller: _text,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(
-                labelText: '最小值',
+              decoration: InputDecoration(
+                labelText: PlaylistStrings.min,
                 isDense: true,
               ),
               onChanged: (_) => _emitList(),
@@ -644,8 +654,8 @@ class _RuleValueEditorState extends State<_RuleValueEditor> {
               controller: _high,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(
-                labelText: '最大值',
+              decoration: InputDecoration(
+                labelText: PlaylistStrings.max,
                 isDense: true,
               ),
               onChanged: (_) => _emitList(),
@@ -664,7 +674,7 @@ class _RuleValueEditorState extends State<_RuleValueEditor> {
           ? [FilteringTextInputFormatter.allow(RegExp(r'^-?\d*'))]
           : null,
       decoration: InputDecoration(
-        labelText: listMode ? '值（逗号分隔）' : '值',
+        labelText: listMode ? PlaylistStrings.valueList : PlaylistStrings.value,
         hintText: switch (widget.field) {
           RuleFieldDto.codec => 'flac / mp3 / lossless',
           RuleFieldDto.genre => 'Rock, Jazz',
@@ -742,7 +752,7 @@ class _SettingsCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            '其他设置',
+            PlaylistStrings.otherSettings,
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w600,
             ),
@@ -752,21 +762,21 @@ class _SettingsCard extends StatelessWidget {
             controller: limitController,
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: const InputDecoration(
-              labelText: '最多多少首（留空 = 不限，最大 5000）',
+            decoration: InputDecoration(
+              labelText: PlaylistStrings.limitLabel,
               isDense: true,
             ),
             onChanged: onLimitChanged,
           ),
           const SizedBox(height: LekisSpacing.md),
-          Text('排序', style: theme.textTheme.bodySmall),
+          Text(PlaylistStrings.sort, style: theme.textTheme.bodySmall),
           const SizedBox(height: LekisSpacing.xs),
           Wrap(
             spacing: LekisSpacing.xs,
             runSpacing: LekisSpacing.xs,
             children: [
               ChoiceChip(
-                label: const Text('默认'),
+                label: Text(PlaylistStrings.sortDefault),
                 selected: sort == null,
                 onSelected: (_) => onSortChanged(null),
               ),
@@ -782,7 +792,7 @@ class _SettingsCard extends StatelessWidget {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               dense: true,
-              title: const Text('倒序'),
+              title: Text(PlaylistStrings.descending),
               value: sortDesc,
               onChanged: onSortDescChanged,
             ),
@@ -843,7 +853,7 @@ class _PreviewTracks extends StatelessWidget {
                 vertical: LekisSpacing.xs,
               ),
               child: Text(
-                '还有 $more 首…',
+                PlaylistStrings.moreSongs(more),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colors.onSurfaceVariant,
                 ),
@@ -892,10 +902,10 @@ class _PreviewBar extends StatelessWidget {
           Expanded(
             child: Text(
               error != null
-                  ? '规则无效：$error'
+                  ? PlaylistStrings.rulesInvalid(error!)
                   : counting
-                  ? '正在预览…'
-                  : '预览：匹配 ${count ?? 0} 首',
+                  ? PlaylistStrings.previewing
+                  : PlaylistStrings.previewCount(count ?? 0),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: error != null ? colors.danger : null,
               ),

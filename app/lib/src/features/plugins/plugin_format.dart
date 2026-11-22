@@ -1,19 +1,20 @@
 // 插件清单字段的展示文案。放在单独文件里，设置页和测试都可以直接用。
 
+import '../../l10n/app_l10n.dart';
 import '../../rust/api/dto.dart';
 import 'strings.dart';
 
 /// 插件类型的本地化名称。
 String pluginKindLabel(String kind) => switch (kind) {
-  'source' => '音源',
-  'lyrics' => '歌词',
-  'artwork' => '封面',
-  'metadata' => '元数据',
-  'scrobbler' => '听歌记录',
-  'playlist_importer' => '歌单导入',
-  'theme' => '主题',
-  'lyrics_style' => '歌词样式',
-  'visualizer' => '可视化',
+  'source' => L10n.tr('音源', 'Source'),
+  'lyrics' => L10n.tr('歌词', 'Lyrics'),
+  'artwork' => L10n.tr('封面', 'Artwork'),
+  'metadata' => L10n.tr('元数据', 'Metadata'),
+  'scrobbler' => L10n.tr('听歌记录', 'Scrobbler'),
+  'playlist_importer' => L10n.tr('歌单导入', 'Playlist Importer'),
+  'theme' => L10n.tr('主题', 'Theme'),
+  'lyrics_style' => L10n.tr('歌词样式', 'Lyrics Style'),
+  'visualizer' => L10n.tr('可视化', 'Visualizer'),
   _ => kind.isEmpty ? PluginStrings.invalidManifest : kind,
 };
 
@@ -26,7 +27,7 @@ String pluginKindsLabel(List<String> kinds) => kinds.isEmpty
 String pluginRuntimeLabel(String runtime) => switch (runtime) {
   'js' => 'JavaScript',
   'wasm' => 'WebAssembly',
-  'none' => '无代码（主题）',
+  'none' => L10n.tr('无代码（主题）', 'No Code (Theme)'),
   _ => runtime.isEmpty ? PluginStrings.invalidManifest : runtime,
 };
 

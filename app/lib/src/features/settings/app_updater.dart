@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 /// Current application version (kept in sync with `app/pubspec.yaml`).
-const String kLekisAppVersion = '0.1.0-alpha.2';
+const String kLekisAppVersion = '0.2.0';
 
 const String kLekisReleasesApiUrl =
     'https://api.github.com/repos/aoxzh/lekis-music/releases?per_page=10';
@@ -142,7 +142,11 @@ String pickReleaseDownloadUrl(
           firstMatch((n) => n.endsWith('.exe') || n.endsWith('.msix')) ??
           fallbackReleaseUrl,
     'macos' =>
-      firstMatch((n) => n.contains('macos') && (n.endsWith('.dmg') || n.endsWith('.zip'))) ??
+      firstMatch(
+            (n) =>
+                n.contains('macos') &&
+                (n.endsWith('.dmg') || n.endsWith('.zip')),
+          ) ??
           fallbackReleaseUrl,
     'linux' =>
       firstMatch(
@@ -157,10 +161,19 @@ String pickReleaseDownloadUrl(
   };
 }
 
+/// Whether a build at [currentVersion] should be offered GitHub
+/// pre-releases: every 0.x release is published as a pre-release (see
+/// release.yml), and so is any version with a `-beta` / `-rc` suffix.
+bool includesPrereleases(String currentVersion) {
+  final v = currentVersion.startsWith('v')
+      ? currentVersion.substring(1)
+      : currentVersion;
+  return v.contains('-') || v.startsWith('0.');
+}
+
 /// Queries GitHub Releases to check whether a newer version is available.
 ///
-/// Includes pre-releases when [currentVersion] itself is a pre-release
-/// (e.g. `0.1.0-alpha.1`).
+/// Includes pre-releases per [includesPrereleases].
 Future<AppUpdateCheckResult> checkForAppUpdate({
   String currentVersion = kLekisAppVersion,
 }) async {
@@ -180,7 +193,7 @@ Future<AppUpdateCheckResult> checkForAppUpdate({
       return const AppUpdateError('Unexpected response format');
     }
 
-    final allowPrerelease = currentVersion.contains('-');
+    final allowPrerelease = includesPrereleases(currentVersion);
     AppUpdateInfo? newest;
     for (final entry in decoded) {
       if (entry is! Map<String, dynamic>) continue;

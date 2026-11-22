@@ -9,6 +9,7 @@ import 'package:lekis/src/features/player/player_bar.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_panel.dart';
 import 'package:lekis/src/features/player/widgets/current_track.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/shell/routes.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
@@ -58,6 +59,7 @@ class _LyricsPane extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.lekisColors;
     final theme = Theme.of(context);
+    final l10n = context.l10n;
     final panelColor = Color.alphaBlend(
       colors.surfaceElevated.withValues(alpha: 0.92),
       theme.colorScheme.surface,
@@ -90,15 +92,18 @@ class _LyricsPane extends StatelessWidget {
                     ),
                     const SizedBox(width: LekisSpacing.sm),
                     Expanded(
-                      child: Text('歌词', style: theme.textTheme.titleMedium),
+                      child: Text(
+                        l10n.lyrics,
+                        style: theme.textTheme.titleMedium,
+                      ),
                     ),
                     IconButton(
-                      tooltip: '打开播放页',
+                      tooltip: l10n.pick('打开播放页', 'Open Now Playing'),
                       onPressed: () => openNowPlaying(context),
                       icon: const Icon(Icons.open_in_full_rounded, size: 18),
                     ),
                     IconButton(
-                      tooltip: '关闭歌词',
+                      tooltip: l10n.pick('关闭歌词', 'Close Lyrics'),
                       constraints: const BoxConstraints(
                         minWidth: LekisSizes.touchTargetMin,
                         minHeight: LekisSizes.touchTargetMin,

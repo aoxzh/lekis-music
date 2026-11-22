@@ -3,6 +3,7 @@
 // 单曲编辑：字段预填 "文件标签 → 已有覆盖层"，保存时空字段表示不覆盖。
 // 批量编辑：字段留空表示"保持每首歌原来的值"，只把用户填写的字段合并进各自覆盖层。
 
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 
 /// 一次标签编辑表单的文本值。数字字段也用字符串保存，便于"留空 = 不修改"。
@@ -87,19 +88,19 @@ class TagEditDraft {
   /// 校验数字字段；返回给用户看的中文提示，合法时返回 `null`。
   String? validate() {
     final track = _parseNumber(trackNo);
-    if (track.error != null) return '曲目号：${track.error}';
+    if (track.error != null) return L10n.tr('曲目号：${track.error}', 'Track: ${track.error}');
     if (track.value != null && (track.value! < 1 || track.value! > 9999)) {
-      return '曲目号必须是 1~9999';
+      return L10n.tr('曲目号必须是 1~9999', 'Track must be 1–9999');
     }
     final disc = _parseNumber(discNo);
-    if (disc.error != null) return '碟片号：${disc.error}';
+    if (disc.error != null) return L10n.tr('碟片号：${disc.error}', 'Disc: ${disc.error}');
     if (disc.value != null && (disc.value! < 1 || disc.value! > 9999)) {
-      return '碟片号必须是 1~9999';
+      return L10n.tr('碟片号必须是 1~9999', 'Disc must be 1–9999');
     }
     final year = _parseNumber(this.year);
-    if (year.error != null) return '年份：${year.error}';
+    if (year.error != null) return L10n.tr('年份：${year.error}', 'Year: ${year.error}');
     if (year.value != null && (year.value! < 1000 || year.value! > 9999)) {
-      return '年份必须是 1000~9999';
+      return L10n.tr('年份必须是 1000~9999', 'Year must be 1000–9999');
     }
     return null;
   }
@@ -178,7 +179,7 @@ class TagEditDraft {
     if (trimmed.isEmpty) return (value: null, error: null);
     final parsed = int.tryParse(trimmed);
     if (parsed == null) {
-      return (value: null, error: '请输入整数');
+      return (value: null, error: L10n.tr('请输入整数', 'Enter a whole number'));
     }
     return (value: parsed, error: null);
   }
@@ -186,18 +187,18 @@ class TagEditDraft {
 
 /// 写回结果里字段 key 的中文名。
 String tagFieldLabel(String key) => switch (key) {
-  'title' => '标题',
-  'artist' => '艺人',
-  'album' => '专辑',
-  'album_artist' => '专辑艺人',
-  'track_no' => '曲目号',
-  'disc_no' => '碟片号',
-  'year' => '年份',
-  'genre' => '流派',
-  'comment' => '评论',
-  'composer' => '作曲',
-  'lyricist' => '作词',
-  'musicbrainz_track_id' => 'MusicBrainz 录音 ID',
-  'musicbrainz_album_id' => 'MusicBrainz 专辑 ID',
+  'title' => L10n.tr('标题', 'Title'),
+  'artist' => L10n.tr('艺人', 'Artist'),
+  'album' => L10n.tr('专辑', 'Album'),
+  'album_artist' => L10n.tr('专辑艺人', 'Album Artist'),
+  'track_no' => L10n.tr('曲目号', 'Track'),
+  'disc_no' => L10n.tr('碟片号', 'Disc'),
+  'year' => L10n.tr('年份', 'Year'),
+  'genre' => L10n.tr('流派', 'Genre'),
+  'comment' => L10n.tr('评论', 'Comment'),
+  'composer' => L10n.tr('作曲', 'Composer'),
+  'lyricist' => L10n.tr('作词', 'Lyricist'),
+  'musicbrainz_track_id' => L10n.tr('MusicBrainz 录音 ID', 'MusicBrainz Recording ID'),
+  'musicbrainz_album_id' => L10n.tr('MusicBrainz 专辑 ID', 'MusicBrainz Release ID'),
   _ => key,
 };

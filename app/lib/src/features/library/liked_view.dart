@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/paged_track_list.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
@@ -20,8 +21,11 @@ class LikedSongsView extends ConsumerWidget {
       );
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('播放失败：$e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.l10n.pick('播放失败：$e', 'Playback failed: $e')),
+        ),
+      );
     }
   }
 
@@ -51,14 +55,16 @@ class LikedSongsView extends ConsumerWidget {
                 Semantics(
                   header: true,
                   child: Text(
-                    '喜欢的歌曲',
+                    context.l10n.pick('喜欢的歌曲', 'Liked Songs'),
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
                 Text(
-                  count == null ? '正在统计…' : '$count 首',
+                  count == null
+                      ? context.l10n.pick('正在统计…', 'Counting…')
+                      : context.l10n.pick('$count 首', '$count songs'),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colors.onSurfaceVariant,
                   ),
@@ -69,7 +75,7 @@ class LikedSongsView extends ConsumerWidget {
           FilledButton.tonalIcon(
             onPressed: count == 0 ? null : () => _playAll(context),
             icon: const Icon(Icons.play_arrow_rounded),
-            label: const Text('播放全部'),
+            label: Text(context.l10n.pick('播放全部', 'Play All')),
           ),
         ],
       ),
@@ -101,14 +107,17 @@ class _EmptyLiked extends StatelessWidget {
           ),
           const SizedBox(height: LekisSpacing.sm),
           Text(
-            '还没有喜欢的歌曲',
+            context.l10n.pick('还没有喜欢的歌曲', 'No Liked Songs Yet'),
             style: theme.textTheme.bodyLarge?.copyWith(
               color: colors.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: LekisSpacing.xxs),
           Text(
-            '在歌曲行或正在播放里点一下心形',
+            context.l10n.pick(
+              '在歌曲行或正在播放里点一下心形',
+              'Tap the heart on any song or in Now Playing',
+            ),
             style: theme.textTheme.bodySmall?.copyWith(
               color: colors.onSurfaceVariant,
             ),

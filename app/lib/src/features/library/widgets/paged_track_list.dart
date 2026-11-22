@@ -7,6 +7,7 @@ import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_actions.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/tab_bar_style.dart';
 import 'package:lekis/src/theme/theme.dart';
@@ -230,28 +231,33 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
                         runSpacing: LekisSpacing.xs,
                         children: [
                           Text(
-                            '已选 ${_selected.length} 首',
+                            context.l10n.pick(
+                              '已选 ${_selected.length} 首',
+                              '${_selected.length} selected',
+                            ),
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           TextButton(
                             onPressed: _clearSelection,
-                            child: const Text('取消选择'),
+                            child: Text(context.l10n.pick('取消选择', 'Clear')),
                           ),
                           OutlinedButton.icon(
                             onPressed: () =>
                                 _queueSelected(QueuePlacement.next),
                             icon: const Icon(Icons.queue_play_next_rounded),
-                            label: const Text(QueueStrings.playNext),
+                            label: Text(QueueStrings.playNext),
                           ),
                           OutlinedButton.icon(
                             onPressed: () => _queueSelected(QueuePlacement.end),
                             icon: const Icon(Icons.add_to_queue_rounded),
-                            label: const Text(QueueStrings.addToQueue),
+                            label: Text(QueueStrings.addToQueue),
                           ),
                           FilledButton.icon(
                             onPressed: _editSelectedTags,
                             icon: const Icon(Icons.edit_note_rounded),
-                            label: const Text('批量编辑标签'),
+                            label: Text(
+                              context.l10n.pick('批量编辑标签', 'Batch Edit Tags'),
+                            ),
                           ),
                         ],
                       ),

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/radio/radio_providers.dart';
 import 'package:lekis/src/features/radio/radio_strings.dart';
 import 'package:lekis/src/features/sources/common.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/rust/api/error.dart';
 import 'package:lekis/src/theme/tokens.dart';
@@ -90,7 +91,10 @@ class _AddRadioDialogState extends ConsumerState<AddRadioDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                '支持单条 http/https 流地址，也支持粘贴 M3U / PLS 播放列表。',
+                context.l10n.pick(
+                  '支持单条 http/https 流地址，也支持粘贴 M3U / PLS 播放列表。',
+                  'Supports a single http/https stream URL or pasting an M3U / PLS playlist.',
+                ),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colors.onSurfaceVariant,
                   height: 1.5,
@@ -116,7 +120,10 @@ class _AddRadioDialogState extends ConsumerState<AddRadioDialog> {
                 decoration: InputDecoration(
                   labelText: RadioStrings.fieldAddress,
                   hintText: RadioStrings.fieldAddressHint,
-                  helperText: '仅支持 http:// 和 https://；不会保存任何账号密码。',
+                  helperText: context.l10n.pick(
+                    '仅支持 http:// 和 https://；不会保存任何账号密码。',
+                    'Only http:// and https:// are supported; no credentials are saved.',
+                  ),
                   border: OutlineInputBorder(),
                   alignLabelWithHint: true,
                 ),

@@ -7,6 +7,7 @@ import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/sources/common.dart';
 import 'package:lekis/src/features/stats/listening_stats_providers.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
@@ -30,7 +31,7 @@ class _ListeningStatsPageState extends ConsumerState<ListeningStatsPage> {
     final colors = context.lekisColors;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('听歌统计')),
+      appBar: AppBar(title: Text(context.l10n.pick('听歌统计', 'Listening Stats'))),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(listeningYearsProvider);
@@ -54,23 +55,23 @@ class _ListeningStatsPageState extends ConsumerState<ListeningStatsPage> {
                     children: [
                       Expanded(
                         child: Text(
-                          '你的听歌足迹',
+                          context.l10n.pick('你的听歌足迹', 'Your Listening Footprint'),
                           style: theme.textTheme.headlineSmall,
                         ),
                       ),
                       years.when(
                         data: (items) => DropdownButton<int?>(
                           value: _year,
-                          hint: const Text('全部时间'),
+                          hint: Text(context.l10n.pick('全部时间', 'All Time')),
                           items: [
-                            const DropdownMenuItem<int?>(
+                            DropdownMenuItem<int?>(
                               value: null,
-                              child: Text('全部时间'),
+                              child: Text(context.l10n.pick('全部时间', 'All Time')),
                             ),
                             for (final y in items)
                               DropdownMenuItem<int?>(
                                 value: y,
-                                child: Text('$y 年'),
+                                child: Text(context.l10n.pick('$y 年', '$y')),
                               ),
                           ],
                           onChanged: (v) => setState(() => _year = v),
@@ -82,7 +83,10 @@ class _ListeningStatsPageState extends ConsumerState<ListeningStatsPage> {
                   ),
                   const SizedBox(height: LekisSpacing.sm),
                   Text(
-                    '统计来自本机播放记录；只在本地保存，不包含歌词或文件内容。',
+                    context.l10n.pick(
+                      '统计来自本机播放记录；只在本地保存，不包含歌词或文件内容。',
+                      'Based on local playback history; stored only on this device without lyrics or file contents.',
+                    ),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colors.onSurfaceVariant,
                     ),
@@ -93,7 +97,12 @@ class _ListeningStatsPageState extends ConsumerState<ListeningStatsPage> {
                     error: (e, _) => Card(
                       child: ListTile(
                         leading: const Icon(Icons.error_outline),
-                        title: const Text('读取听歌统计失败'),
+                        title: Text(
+                          context.l10n.pick(
+                            '读取听歌统计失败',
+                            'Failed to load listening stats',
+                          ),
+                        ),
                         subtitle: Text('$e'),
                       ),
                     ),
@@ -158,10 +167,16 @@ class _EmptyStats extends StatelessWidget {
               color: context.lekisColors.onSurfaceVariant,
             ),
             const SizedBox(height: LekisSpacing.md),
-            Text('还没有听歌记录', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              context.l10n.pick('还没有听歌记录', 'No listening history yet'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: LekisSpacing.xs),
             Text(
-              '播放几首歌后，这里会显示听得最多的艺人、专辑和时段。',
+              context.l10n.pick(
+                '播放几首歌后，这里会显示听得最多的艺人、专辑和时段。',
+                'Play a few tracks to see your top artists, albums, and listening hours.',
+              ),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium
                   ?.copyWith(color: context.lekisColors.onSurfaceVariant),
@@ -193,27 +208,27 @@ class _StatsBody extends ConsumerWidget {
               children: [
                 _BigStat(
                   value: _formatHours(hours),
-                  label: '累计收听',
+                  label: context.l10n.pick('累计收听', 'Total Time'),
                   icon: Icons.timer_outlined,
                 ),
                 _BigStat(
                   value: '${summary.totalPlays}',
-                  label: '播放次数',
+                  label: context.l10n.pick('播放次数', 'Plays'),
                   icon: Icons.play_arrow_rounded,
                 ),
                 _BigStat(
                   value: '${summary.uniqueArtists}',
-                  label: '艺人',
+                  label: context.l10n.pick('艺人', 'Artists'),
                   icon: Icons.people_alt_outlined,
                 ),
                 _BigStat(
                   value: '${summary.uniqueAlbums}',
-                  label: '专辑',
+                  label: context.l10n.pick('专辑', 'Albums'),
                   icon: Icons.album_outlined,
                 ),
                 _BigStat(
                   value: '${summary.uniqueTracks}',
-                  label: '曲目',
+                  label: context.l10n.pick('曲目', 'Tracks'),
                   icon: Icons.music_note_outlined,
                 ),
               ],
@@ -221,15 +236,37 @@ class _StatsBody extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: LekisSpacing.lg),
-        Text('每月收听', style: Theme.of(context).textTheme.titleMedium),
+        Text(
+          context.l10n.pick('每月收听', 'Monthly Listening'),
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
         const SizedBox(height: LekisSpacing.sm),
         _BucketBars(
           buckets: summary.months,
-          labelFor: (i) => '${i + 1}月',
+          labelFor: (i) => context.l10n.pick(
+            '${i + 1}月',
+            const [
+              'Jan',
+              'Feb',
+              'Mar',
+              'Apr',
+              'May',
+              'Jun',
+              'Jul',
+              'Aug',
+              'Sep',
+              'Oct',
+              'Nov',
+              'Dec',
+            ][i],
+          ),
           everyLabel: 2,
         ),
         const SizedBox(height: LekisSpacing.lg),
-        Text('一天中的收听时段', style: Theme.of(context).textTheme.titleMedium),
+        Text(
+          context.l10n.pick('一天中的收听时段', 'Listening by Hour'),
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
         const SizedBox(height: LekisSpacing.sm),
         _BucketBars(
           buckets: summary.hours,
@@ -238,7 +275,10 @@ class _StatsBody extends ConsumerWidget {
         ),
         const SizedBox(height: LekisSpacing.lg),
         if (summary.topArtists.isNotEmpty) ...[
-          Text('最常听的艺人', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            context.l10n.pick('最常听的艺人', 'Top Artists'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: LekisSpacing.sm),
           Card(
             child: Column(
@@ -248,7 +288,7 @@ class _StatsBody extends ConsumerWidget {
                     leading: _Rank(index: i + 1),
                     title: Text(a.artist),
                     subtitle: Text(
-                      '${a.plays} 次 · ${_formatHours(a.playedMs.toDouble() / 3600000)}',
+                      '${context.l10n.pick('${a.plays} 次', '${a.plays} plays')} · ${_formatHours(a.playedMs.toDouble() / 3600000)}',
                     ),
                     trailing: const Icon(Icons.chevron_right),
                   ),
@@ -258,7 +298,10 @@ class _StatsBody extends ConsumerWidget {
           const SizedBox(height: LekisSpacing.lg),
         ],
         if (summary.topAlbums.isNotEmpty) ...[
-          Text('最常听的专辑', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            context.l10n.pick('最常听的专辑', 'Top Albums'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: LekisSpacing.sm),
           Card(
             child: Column(
@@ -268,7 +311,7 @@ class _StatsBody extends ConsumerWidget {
                     leading: _Rank(index: i + 1),
                     title: Text(a.title),
                     subtitle: Text(
-                      '${a.artist.isEmpty ? '未知艺人' : a.artist} · ${a.plays} 次',
+                      '${a.artist.isEmpty ? context.l10n.pick('未知艺人', 'Unknown Artist') : a.artist} · ${context.l10n.pick('${a.plays} 次', '${a.plays} plays')}',
                     ),
                   ),
               ],
@@ -277,7 +320,10 @@ class _StatsBody extends ConsumerWidget {
           const SizedBox(height: LekisSpacing.lg),
         ],
         if (summary.topTracks.isNotEmpty) ...[
-          Text('最常听的曲目', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            context.l10n.pick('最常听的曲目', 'Top Tracks'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: LekisSpacing.sm),
           Card(
             child: Column(
@@ -287,9 +333,11 @@ class _StatsBody extends ConsumerWidget {
                     leading: _Rank(index: i + 1),
                     title: Text(item.track.title),
                     subtitle: Text(
-                      '${item.track.artistLine.isEmpty ? '未知艺人' : item.track.artistLine} · ${item.track.albumTitle ?? '未分类'}',
+                      '${item.track.artistLine.isEmpty ? context.l10n.pick('未知艺人', 'Unknown Artist') : item.track.artistLine} · ${item.track.albumTitle ?? context.l10n.pick('未分类', 'Uncategorized')}',
                     ),
-                    trailing: Text('${item.plays} 次'),
+                    trailing: Text(
+                      context.l10n.pick('${item.plays} 次', '${item.plays} plays'),
+                    ),
                     onTap: () => _playFrom(context, ref, i),
                   ),
               ],
@@ -394,7 +442,7 @@ class _BucketBars extends StatelessWidget {
                 Expanded(
                   child: Tooltip(
                     message:
-                        '${labelFor(i)} · ${b.plays} 次 · ${_formatHours(b.playedMs.toDouble() / 3600000)}',
+                        '${labelFor(i)} · ${context.l10n.pick('${b.plays} 次', '${b.plays} plays')} · ${_formatHours(b.playedMs.toDouble() / 3600000)}',
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 2),
                       child: Column(
@@ -455,11 +503,14 @@ class _BucketBars extends StatelessWidget {
 }
 
 String _formatHours(double hours) {
-  if (hours <= 0) return '0 分钟';
+  if (hours <= 0) return L10n.tr('0 分钟', '0m');
   if (hours >= 1) {
     final whole = hours.floor();
     final minutes = ((hours - whole) * 60).round();
-    return minutes == 0 ? '$whole 小时' : '$whole 小时 $minutes 分';
+    return minutes == 0
+        ? L10n.tr('$whole 小时', '${whole}h')
+        : L10n.tr('$whole 小时 $minutes 分', '${whole}h ${minutes}m');
   }
-  return '${(hours * 60).round()} 分钟';
+  final mins = (hours * 60).round();
+  return L10n.tr('$mins 分钟', '${mins}m');
 }

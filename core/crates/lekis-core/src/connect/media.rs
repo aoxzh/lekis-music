@@ -200,7 +200,7 @@ pub(crate) async fn describe_track(
         return Ok(TrackRef {
             uid: format!("radio:{}", station.url),
             title: station.name,
-            artist: "网络电台".into(),
+            artist: lekis_types::tr!("网络电台", "Internet Radio"),
             stream_url: Some(station.url),
             ..Default::default()
         });

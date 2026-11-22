@@ -15,6 +15,7 @@
 
 import 'package:material_ui/material_ui.dart';
 
+import '../l10n/app_l10n.dart';
 import '../layout/window_size.dart';
 import '../platform/ui_profile.dart';
 import '../theme/tokens.dart';
@@ -356,7 +357,7 @@ class LekisPanel extends StatelessWidget {
           ),
           if (onClose != null)
             IconButton(
-              tooltip: '关闭',
+              tooltip: context.l10n.pick('关闭', 'Close'),
               onPressed: onClose,
               icon: const Icon(Icons.close_rounded),
             ),

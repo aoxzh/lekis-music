@@ -10,6 +10,7 @@ import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_actions.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:lekis/src/features/library/widgets/press_feedback.dart';
@@ -171,50 +172,50 @@ class TrackTile extends ConsumerWidget {
     }
 
     List<PopupMenuEntry<_TrackMenuAction>> menuItems() => [
-      const PopupMenuItem(
+      PopupMenuItem(
         value: _TrackMenuAction.playNext,
         child: ListTile(
           dense: true,
           contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.queue_play_next_rounded),
+          leading: const Icon(Icons.queue_play_next_rounded),
           title: Text(QueueStrings.playNext),
         ),
       ),
-      const PopupMenuItem(
+      PopupMenuItem(
         value: _TrackMenuAction.addToQueue,
         child: ListTile(
           dense: true,
           contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.add_to_queue_rounded),
+          leading: const Icon(Icons.add_to_queue_rounded),
           title: Text(QueueStrings.addToQueue),
         ),
       ),
       const PopupMenuDivider(),
-      const PopupMenuItem(
+      PopupMenuItem(
         value: _TrackMenuAction.addToPlaylist,
         child: ListTile(
           dense: true,
           contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.playlist_add_rounded),
-          title: Text('添加到歌单'),
+          leading: const Icon(Icons.playlist_add_rounded),
+          title: Text(context.l10n.pick('添加到歌单', 'Add to Playlist')),
         ),
       ),
-      const PopupMenuItem(
+      PopupMenuItem(
         value: _TrackMenuAction.rate,
         child: ListTile(
           dense: true,
           contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.star_outline_rounded),
-          title: Text('评分'),
+          leading: const Icon(Icons.star_outline_rounded),
+          title: Text(context.l10n.pick('评分', 'Rate')),
         ),
       ),
-      const PopupMenuItem(
+      PopupMenuItem(
         value: _TrackMenuAction.editTags,
         child: ListTile(
           dense: true,
           contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.edit_note_rounded),
-          title: Text('编辑标签'),
+          leading: const Icon(Icons.edit_note_rounded),
+          title: Text(context.l10n.pick('编辑标签', 'Edit Tags')),
         ),
       ),
       PopupMenuItem(
@@ -226,12 +227,12 @@ class TrackTile extends ConsumerWidget {
           title: Text(EnrichActionStrings.action),
         ),
       ),
-      const PopupMenuItem(
+      PopupMenuItem(
         value: _TrackMenuAction.artwork,
         child: ListTile(
           dense: true,
           contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.image_outlined),
+          leading: const Icon(Icons.image_outlined),
           title: Text(ArtworkActionStrings.change),
         ),
       ),
@@ -362,7 +363,7 @@ class TrackTile extends ConsumerWidget {
                           size: LekisSpacing.lg,
                         ),
                         PopupMenuButton<_TrackMenuAction>(
-                          tooltip: '更多操作',
+                          tooltip: context.l10n.pick('更多操作', 'More Actions'),
                           padding: EdgeInsets.zero,
                           onSelected: onMenu,
                           itemBuilder: (_) => menuItems(),

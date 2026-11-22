@@ -728,6 +728,7 @@ async fn get_song(
             .as_ref()
             .map(lekis_types::AudioProps::quality_badge),
         loved: false,
+        is_local: false,
     };
     Ok(ok(json!({ "song": song(&row, Some(&track)) })))
 }
@@ -1821,6 +1822,7 @@ mod tests {
             artwork_id: None,
             quality_badge: None,
             loved: false,
+            is_local: false,
         };
         let value = song(&row, None);
         assert_eq!(value["id"], "7");

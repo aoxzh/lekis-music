@@ -188,7 +188,7 @@ class _SearchingState extends State<_Searching> {
             color: fg.withValues(alpha: LekisType.lyricsInactiveOpacity * 2),
           ),
         ),
-        title: '正在查找歌词…',
+        title: context.l10n.pick('正在查找歌词…', 'Searching for lyrics…'),
       ),
     );
   }
@@ -224,7 +224,7 @@ class _Message extends StatelessWidget {
           : TextButton(
               style: TextButton.styleFrom(foregroundColor: fg),
               onPressed: onRetry,
-              child: const Text('重试'),
+              child: Text(context.l10n.pick('重试', 'Retry')),
             ),
     );
   }
@@ -308,7 +308,7 @@ class _PlainLyrics extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              '歌词未与播放同步',
+              context.l10n.pick('歌词未与播放同步', 'Lyrics are not synced with playback'),
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(
                   alpha: LekisType.lyricsInactiveOpacity,

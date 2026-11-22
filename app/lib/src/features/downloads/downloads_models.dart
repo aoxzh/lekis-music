@@ -4,6 +4,7 @@
 // 方便单测（`app/test/downloads/...`）。
 
 import 'package:flutter/foundation.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 
 /// 一条下载在界面上的完整信息。
@@ -31,7 +32,8 @@ class DownloadEntry {
   int get trackId => download.trackId;
   OfflineStateDto get state => download.state;
 
-  String get title => track?.title ?? '曲目 #$trackId';
+  String get title =>
+      track?.title ?? L10n.tr('曲目 #$trackId', 'Track #$trackId');
   String get subtitle => track?.artists.join(' / ') ?? '';
 
   bool get isActive => state == OfflineStateDto.downloading;
@@ -48,13 +50,25 @@ class DownloadEntry {
   /// 状态的一句话说明。
   String get statusText {
     return switch (state) {
-      OfflineStateDto.queued => '等待下载',
+      OfflineStateDto.queued => L10n.tr('等待下载', 'Queued'),
       OfflineStateDto.downloading =>
         totalBytes > 0
-            ? '正在下载 ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}'
-            : '正在下载 ${formatBytes(downloadedBytes)}',
-      OfflineStateDto.ready => '${formatBytes(downloadedBytes)} · 可离线播放',
-      OfflineStateDto.failed => '下载失败，可重试',
+            ? L10n.tr(
+                '正在下载 ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}',
+                'Downloading ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}',
+              )
+            : L10n.tr(
+                '正在下载 ${formatBytes(downloadedBytes)}',
+                'Downloading ${formatBytes(downloadedBytes)}',
+              ),
+      OfflineStateDto.ready => L10n.tr(
+        '${formatBytes(downloadedBytes)} · 可离线播放',
+        '${formatBytes(downloadedBytes)} · Available offline',
+      ),
+      OfflineStateDto.failed => L10n.tr(
+        '下载失败，可重试',
+        'Download failed, tap to retry',
+      ),
     };
   }
 

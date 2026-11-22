@@ -8,6 +8,7 @@ import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/shelf.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
@@ -87,7 +88,7 @@ class ArtistDetailView extends ConsumerWidget {
             if (albums.isNotEmpty)
               SliverToBoxAdapter(
                 child: ArtworkShelf(
-                  title: '专辑',
+                  title: context.l10n.pick('专辑', 'Albums'),
                   itemCount: albums.length,
                   itemBuilder: (context, i) {
                     final tag = AlbumHeroTag(albums[i].id, 'artist-$artistId');
@@ -114,7 +115,10 @@ class ArtistDetailView extends ConsumerWidget {
                   LekisSpacing.sm,
                 ),
                 sliver: SliverToBoxAdapter(
-                  child: Text('歌曲', style: theme.textTheme.titleLarge),
+                  child: Text(
+                    context.l10n.pick('歌曲', 'Songs'),
+                    style: theme.textTheme.titleLarge,
+                  ),
                 ),
               ),
             SliverPadding(

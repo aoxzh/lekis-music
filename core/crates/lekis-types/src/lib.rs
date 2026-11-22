@@ -5,6 +5,7 @@
 
 pub mod error;
 pub mod event;
+pub mod i18n;
 pub mod ids;
 pub mod model;
 

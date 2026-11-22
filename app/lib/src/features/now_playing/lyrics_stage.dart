@@ -34,6 +34,7 @@ import 'package:lekis/src/features/now_playing/lyrics_classic.dart'
 import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
 import 'package:lekis/src/features/now_playing/lyrics_stage_settings.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -1430,7 +1431,10 @@ class _LyricsStageState extends ConsumerState<LyricsStage>
                         : line.line.translation == null
                         ? line.line.text
                         : '${line.line.text}，${line.line.translation}',
-                    hint: '上下滑动浏览歌词，点按跳到这一句',
+                    hint: context.l10n.pick(
+                      '上下滑动浏览歌词，点按跳到这一句',
+                      'Swipe up or down to browse lyrics, tap to jump to this line',
+                    ),
                     excludeSemantics: true,
                     onTap: line == null
                         ? null
@@ -1467,7 +1471,7 @@ class _LyricsStageState extends ConsumerState<LyricsStage>
                     child: Semantics(
                       key: const ValueKey('stage-interlude'),
                       container: true,
-                      label: '间奏',
+                      label: context.l10n.pick('间奏', 'Instrumental interlude'),
                       child: const SizedBox.expand(),
                     ),
                   ),
@@ -1977,7 +1981,10 @@ class _ManualChip extends StatelessWidget {
     // label style; the button only adds the glyph.
     return ActionChip(
       avatar: Icon(Icons.my_location_rounded, size: LekisSpacing.lg),
-      label: Text('回到当前', style: TextStyle(color: fg)),
+      label: Text(
+        context.l10n.pick('回到当前', 'Back to current'),
+        style: TextStyle(color: fg),
+      ),
       onPressed: onTap,
       visualDensity: VisualDensity.compact,
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,

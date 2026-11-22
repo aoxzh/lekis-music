@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 
@@ -62,5 +63,7 @@ Future<String> _deviceName() async {
   } on Object {
     // Some sandboxes refuse hostname lookup; fall through.
   }
-  return Platform.isAndroid ? 'Android 设备' : Platform.operatingSystem;
+  return Platform.isAndroid
+      ? L10n.tr('Android 设备', 'Android Device')
+      : Platform.operatingSystem;
 }

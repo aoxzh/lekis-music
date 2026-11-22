@@ -7,6 +7,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../features/player/player_providers.dart';
+import '../../l10n/app_l10n.dart';
 
 @immutable
 class DesktopTrayMenuState {
@@ -22,15 +23,18 @@ class DesktopTrayMenuState {
   final bool isPlaying;
   final bool hasTrack;
 
-  String get playPauseLabel => isPlaying ? '暂停' : '播放';
+  String get playPauseLabel => isPlaying
+      ? L10n.tr('暂停', 'Pause')
+      : L10n.tr('播放', 'Play');
 
-  String get previousLabel => '上一首';
+  String get previousLabel => L10n.tr('上一首', 'Previous');
 
-  String get nextLabel => '下一首';
+  String get nextLabel => L10n.tr('下一首', 'Next');
 
-  String get windowLabel => '显示/隐藏主窗口';
+  String get windowLabel =>
+      L10n.tr('显示/隐藏主窗口', 'Show/Hide Window');
 
-  String get quitLabel => '退出';
+  String get quitLabel => L10n.tr('退出', 'Quit');
 
   /// Track-dependent commands are disabled until a queue item exists.
   bool get mediaEnabled => hasTrack;

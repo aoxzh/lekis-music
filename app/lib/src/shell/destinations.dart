@@ -11,18 +11,26 @@ import 'package:lekis/src/features/sources/sources_page.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 
 enum LekisDestination {
-  home('首页', Icons.home_outlined, Icons.home_rounded),
-  library('资料库', Icons.library_music_outlined, Icons.library_music_rounded),
-  search('搜索', Icons.search_rounded, Icons.saved_search_rounded),
-  podcasts('播客', Icons.podcasts_outlined, Icons.podcasts_rounded),
-  sources('音源', Icons.folder_outlined, Icons.folder_rounded),
-  settings('设置', Icons.settings_outlined, Icons.settings_rounded);
+  home('首页', 'Home', Icons.home_outlined, Icons.home_rounded),
+  library(
+    '资料库',
+    'Library',
+    Icons.library_music_outlined,
+    Icons.library_music_rounded,
+  ),
+  search('搜索', 'Search', Icons.search_rounded, Icons.saved_search_rounded),
+  podcasts('播客', 'Podcasts', Icons.podcasts_outlined, Icons.podcasts_rounded),
+  sources('音源', 'Sources', Icons.folder_outlined, Icons.folder_rounded),
+  settings('设置', 'Settings', Icons.settings_outlined, Icons.settings_rounded);
 
-  const LekisDestination(this.label, this.icon, this.selectedIcon);
+  const LekisDestination(this._zh, this._en, this.icon, this.selectedIcon);
 
-  final String label;
+  final String _zh;
+  final String _en;
   final IconData icon;
   final IconData selectedIcon;
+
+  String get label => L10n.tr(_zh, _en);
 
   /// Localized label respecting the active app locale.
   String labelOf(BuildContext context) {

@@ -11,6 +11,7 @@ import 'package:lekis/src/features/now_playing/now_playing_tint.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/widgets/current_track.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/shell/tab_bar_style.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/liquid_glass.dart';
@@ -211,12 +212,15 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer>
         key: const ValueKey('mini-player.semantics'),
         container: true,
         button: true,
-        label: '迷你播放器，轻点打开正在播放，左右滑动切歌',
+        label: context.l10n.pick(
+          '迷你播放器，轻点打开正在播放，左右滑动切歌',
+          'Mini player, tap to open Now Playing, swipe left or right to skip',
+        ),
         onTap: () => openNowPlaying(context),
         customSemanticsActions: {
-          const CustomSemanticsAction(label: '上一首'): () =>
-              ref.read(playerActionsProvider).previous(),
-          const CustomSemanticsAction(label: '下一首'): () =>
+          CustomSemanticsAction(label: context.l10n.pick('上一首', 'Previous')):
+              () => ref.read(playerActionsProvider).previous(),
+          CustomSemanticsAction(label: context.l10n.pick('下一首', 'Next')): () =>
               ref.read(playerActionsProvider).next(),
         },
         child: GestureDetector(
@@ -389,7 +393,7 @@ class _MiniProgressBar extends ConsumerWidget {
     final progress = ref.watch(progressProvider);
     final colors = context.lekisColors;
     return Semantics(
-      label: '播放进度',
+      label: context.l10n.pick('播放进度', 'Playback progress'),
       value: '${(progress * 100).round()}%',
       child: SizedBox(
         height: LekisSpacing.xxs,

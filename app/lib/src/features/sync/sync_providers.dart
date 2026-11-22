@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../bridge/core_events.dart';
+import '../../l10n/app_l10n.dart';
 import '../../rust/api/core.dart' as core;
 import '../../rust/api/dto.dart';
 
@@ -161,8 +162,10 @@ class SyncController extends AsyncNotifier<SyncUiState> {
           '${now.day.toString().padLeft(2, '0')} '
           '${now.hour.toString().padLeft(2, '0')}:'
           '${now.minute.toString().padLeft(2, '0')}';
-      final summary =
-          '$stamp · 推送 ${report.pushed} / 拉取 ${report.pulled} / 应用 ${report.applied}';
+      final summary = L10n.tr(
+        '$stamp · 推送 ${report.pushed} / 拉取 ${report.pulled} / 应用 ${report.applied}',
+        '$stamp · Pushed ${report.pushed} / Pulled ${report.pulled} / Applied ${report.applied}',
+      );
       await gw.setSetting(SyncSettingKeys.lastSummary, summary);
       state = AsyncData(
         (state.value ?? cur).copyWith(

@@ -236,7 +236,9 @@ class _QueueListState extends ConsumerState<QueueList>
                       ),
                     ),
                     title: Text(
-                      row.title.isEmpty ? '（已删除）' : row.title,
+                      row.title.isEmpty
+                          ? context.l10n.pick('（已删除）', '(Deleted)')
+                          : row.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium?.copyWith(
@@ -325,7 +327,10 @@ class _QueueListState extends ConsumerState<QueueList>
                               Icons.drag_handle_rounded,
                               size: 20,
                               color: colors.onSurfaceVariant,
-                              semanticLabel: '拖动排序',
+                              semanticLabel: context.l10n.pick(
+                                '拖动排序',
+                                'Drag to reorder',
+                              ),
                             ),
                           ),
                         ),

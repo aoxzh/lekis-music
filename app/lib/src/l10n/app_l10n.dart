@@ -6,6 +6,8 @@
 
 import 'package:material_ui/material_ui.dart';
 
+import '../rust/api/core.dart' as core;
+
 class LekisLocale extends StatefulWidget {
   const LekisLocale({super.key, required this.locale, required this.child});
 
@@ -22,28 +24,37 @@ class LekisLocale extends StatefulWidget {
 class _LekisLocaleState extends State<LekisLocale> {
   Locale? _previous;
 
+  void _syncLocale(Locale? locale) {
+    L10n._activeLocale = locale;
+    try {
+      core.setUiLanguage(english: locale?.languageCode == 'en');
+    } catch (_) {
+      // 测试环境未初始化 Rust FFI 时忽略。
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _previous = L10n._activeLocale;
-    L10n._activeLocale = widget.locale;
+    _syncLocale(widget.locale);
   }
 
   @override
   void didUpdateWidget(LekisLocale oldWidget) {
     super.didUpdateWidget(oldWidget);
-    L10n._activeLocale = widget.locale;
+    _syncLocale(widget.locale);
   }
 
   @override
   void dispose() {
-    L10n._activeLocale = _previous;
+    _syncLocale(_previous);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    L10n._activeLocale = widget.locale;
+    _syncLocale(widget.locale);
     return _LekisLocaleScope(locale: widget.locale, child: widget.child);
   }
 }

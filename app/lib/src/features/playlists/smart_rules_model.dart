@@ -3,6 +3,7 @@
 // 这里不定义新的规则格式：所有结构都直接用桥接层生成的 `RuleGroupDto` /
 // `SmartRulesDto`，保存时由 Rust 侧转成规范 JSON（SmartRules::to_json）。
 
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 
 enum SmartFieldKind { text, number, boolean }
@@ -17,45 +18,45 @@ SmartFieldKind smartFieldKind(RuleFieldDto field) => switch (field) {
   _ => SmartFieldKind.number,
 };
 
-const Map<RuleFieldDto, String> smartFieldLabels = {
-  RuleFieldDto.title: '标题',
-  RuleFieldDto.artist: '艺人',
-  RuleFieldDto.album: '专辑',
-  RuleFieldDto.genre: '流派',
-  RuleFieldDto.year: '年份',
-  RuleFieldDto.durationMs: '时长（毫秒）',
-  RuleFieldDto.bitrateKbps: '码率（kbps）',
-  RuleFieldDto.sampleRate: '采样率（Hz）',
-  RuleFieldDto.bitDepth: '位深',
-  RuleFieldDto.codec: '编码格式',
-  RuleFieldDto.loved: '喜欢',
-  RuleFieldDto.rating: '评分',
-  RuleFieldDto.playCount: '播放次数',
-  RuleFieldDto.addedAt: '入库时间',
-  RuleFieldDto.lastPlayed: '最近播放',
-  RuleFieldDto.qualityScore: '音质分',
+Map<RuleFieldDto, String> get smartFieldLabels => {
+  RuleFieldDto.title: L10n.tr('标题', 'Title'),
+  RuleFieldDto.artist: L10n.tr('艺人', 'Artist'),
+  RuleFieldDto.album: L10n.tr('专辑', 'Album'),
+  RuleFieldDto.genre: L10n.tr('流派', 'Genre'),
+  RuleFieldDto.year: L10n.tr('年份', 'Year'),
+  RuleFieldDto.durationMs: L10n.tr('时长（毫秒）', 'Duration (ms)'),
+  RuleFieldDto.bitrateKbps: L10n.tr('码率（kbps）', 'Bitrate (kbps)'),
+  RuleFieldDto.sampleRate: L10n.tr('采样率（Hz）', 'Sample Rate (Hz)'),
+  RuleFieldDto.bitDepth: L10n.tr('位深', 'Bit Depth'),
+  RuleFieldDto.codec: L10n.tr('编码格式', 'Codec'),
+  RuleFieldDto.loved: L10n.tr('喜欢', 'Loved'),
+  RuleFieldDto.rating: L10n.tr('评分', 'Rating'),
+  RuleFieldDto.playCount: L10n.tr('播放次数', 'Play Count'),
+  RuleFieldDto.addedAt: L10n.tr('入库时间', 'Date Added'),
+  RuleFieldDto.lastPlayed: L10n.tr('最近播放', 'Last Played'),
+  RuleFieldDto.qualityScore: L10n.tr('音质分', 'Quality Score'),
 };
 
-const Map<RuleOpDto, String> smartOpLabels = {
-  RuleOpDto.eq: '等于',
-  RuleOpDto.ne: '不等于',
-  RuleOpDto.lt: '小于',
-  RuleOpDto.le: '小于等于',
-  RuleOpDto.gt: '大于',
-  RuleOpDto.ge: '大于等于',
-  RuleOpDto.contains: '包含',
-  RuleOpDto.notContains: '不包含',
-  RuleOpDto.in_: '属于',
-  RuleOpDto.notIn: '不属于',
-  RuleOpDto.between: '区间',
+Map<RuleOpDto, String> get smartOpLabels => {
+  RuleOpDto.eq: L10n.tr('等于', 'Equals'),
+  RuleOpDto.ne: L10n.tr('不等于', 'Not Equals'),
+  RuleOpDto.lt: L10n.tr('小于', 'Less Than'),
+  RuleOpDto.le: L10n.tr('小于等于', 'Less or Equal'),
+  RuleOpDto.gt: L10n.tr('大于', 'Greater Than'),
+  RuleOpDto.ge: L10n.tr('大于等于', 'Greater or Equal'),
+  RuleOpDto.contains: L10n.tr('包含', 'Contains'),
+  RuleOpDto.notContains: L10n.tr('不包含', 'Does Not Contain'),
+  RuleOpDto.in_: L10n.tr('属于', 'In'),
+  RuleOpDto.notIn: L10n.tr('不属于', 'Not In'),
+  RuleOpDto.between: L10n.tr('区间', 'Between'),
 };
 
-const Map<TrackSortDto, String> smartSortLabels = {
-  TrackSortDto.title: '标题',
-  TrackSortDto.artist: '艺人',
-  TrackSortDto.album: '专辑',
-  TrackSortDto.recentlyAdded: '最近添加',
-  TrackSortDto.mostPlayed: '最常播放',
+Map<TrackSortDto, String> get smartSortLabels => {
+  TrackSortDto.title: L10n.tr('标题', 'Title'),
+  TrackSortDto.artist: L10n.tr('艺人', 'Artist'),
+  TrackSortDto.album: L10n.tr('专辑', 'Album'),
+  TrackSortDto.recentlyAdded: L10n.tr('最近添加', 'Recently Added'),
+  TrackSortDto.mostPlayed: L10n.tr('最常播放', 'Most Played'),
 };
 
 List<RuleOpDto> smartOpsForField(RuleFieldDto field) =>

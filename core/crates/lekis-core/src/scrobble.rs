@@ -505,8 +505,9 @@ impl Scrobbler {
             else {
                 return (
                     None,
-                    Some(format!(
+                    Some(lekis_types::tr!(
                         "{} 还缺 API key / API secret / session key",
+                        "{} is missing API key / API secret / session key",
                         service.name()
                     )),
                 );
@@ -517,7 +518,14 @@ impl Scrobbler {
         } else {
             let Some(user_token) = self.credentials.get(&credential_ref(service, "user_token"))
             else {
-                return (None, Some(format!("{} 还缺 user token", service.name())));
+                return (
+                    None,
+                    Some(lekis_types::tr!(
+                        "{} 还缺 user token",
+                        "{} is missing user token",
+                        service.name()
+                    )),
+                );
             };
             config = config.with_user_token(user_token);
         }

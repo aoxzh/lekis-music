@@ -10,6 +10,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../l10n/app_l10n.dart';
 import '../../layout/adaptive_two_pane.dart';
 import '../../layout/fold.dart';
 import '../../rust/api/dto.dart';
@@ -484,7 +485,7 @@ class _RemoteControlsState extends State<_RemoteControls> {
         const SizedBox(height: LekisSpacing.md),
         LekisSlider(
           key: const ValueKey('connect.remote.seek'),
-          semanticLabel: '播放进度',
+          semanticLabel: context.l10n.pick('播放进度', 'Playback progress'),
           value: duration <= 0 ? 0 : position.clamp(0, duration).toDouble(),
           max: duration <= 0 ? 1 : duration.toDouble(),
           onChanged: duration <= 0
@@ -519,7 +520,7 @@ class _RemoteControlsState extends State<_RemoteControls> {
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             IconButton(
-              tooltip: '随机播放',
+              tooltip: context.l10n.pick('随机播放', 'Shuffle'),
               isSelected: state.shuffle != ShuffleModeDto.off,
               icon: const Icon(Icons.shuffle_rounded),
               selectedIcon: Icon(Icons.shuffle_rounded, color: colors.accent),
@@ -532,14 +533,16 @@ class _RemoteControlsState extends State<_RemoteControls> {
               ),
             ),
             IconButton(
-              tooltip: '上一首',
+              tooltip: context.l10n.pick('上一首', 'Previous'),
               iconSize: LekisSpacing.xxl,
               icon: const Icon(Icons.skip_previous_rounded),
               onPressed: () => widget.send(const ControlActionDto.previous()),
             ),
             IconButton.filled(
               key: const ValueKey('connect.remote.toggle'),
-              tooltip: _playing ? '暂停' : '播放',
+              tooltip: _playing
+                  ? context.l10n.pick('暂停', 'Pause')
+                  : context.l10n.pick('播放', 'Play'),
               iconSize: LekisSpacing.xxl + LekisSpacing.sm,
               icon: Icon(
                 _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
@@ -547,13 +550,13 @@ class _RemoteControlsState extends State<_RemoteControls> {
               onPressed: () => widget.send(const ControlActionDto.toggle()),
             ),
             IconButton(
-              tooltip: '下一首',
+              tooltip: context.l10n.pick('下一首', 'Next'),
               iconSize: LekisSpacing.xxl,
               icon: const Icon(Icons.skip_next_rounded),
               onPressed: () => widget.send(const ControlActionDto.next()),
             ),
             IconButton(
-              tooltip: '循环',
+              tooltip: context.l10n.pick('循环', 'Repeat'),
               isSelected: state.repeat != RepeatModeDto.off,
               icon: Icon(
                 state.repeat == RepeatModeDto.one

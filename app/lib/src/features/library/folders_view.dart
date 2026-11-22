@@ -10,6 +10,7 @@ import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/paged_track_list.dart';
 import 'package:lekis/src/features/library/widgets/press_feedback.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/layout/adaptive_two_pane.dart';
 import 'package:lekis/src/layout/fold.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
@@ -77,9 +78,15 @@ class FolderRootsList extends ConsumerWidget {
       ),
       data: (roots) {
         if (roots.isEmpty) {
-          return const LibraryEmptyState(
-            title: '还没有可浏览的文件夹',
-            message: '添加并扫描一个音源后，这里会按文件夹显示音乐。',
+          return LibraryEmptyState(
+            title: context.l10n.pick(
+              '还没有可浏览的文件夹',
+              'No Browsable Folders Yet',
+            ),
+            message: context.l10n.pick(
+              '添加并扫描一个音源后，这里会按文件夹显示音乐。',
+              'Add and scan a music source to browse your music by folder.',
+            ),
           );
         }
         return ListView.builder(
@@ -209,7 +216,10 @@ class _FolderChildren extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.sm),
           child: Text(
-            '${listing.folders.length} 个文件夹 · 本目录 ${listing.trackCount} 首',
+            context.l10n.pick(
+              '${listing.folders.length} 个文件夹 · 本目录 ${listing.trackCount} 首',
+              '${listing.folders.length} folders · ${listing.trackCount} songs here',
+            ),
             style: theme.textTheme.bodySmall?.copyWith(
               color: colors.onSurfaceVariant,
               fontFeatures: LekisText.tabularFigures,
@@ -221,7 +231,7 @@ class _FolderChildren extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(LekisSpacing.sm),
             child: Text(
-              '没有子文件夹',
+              context.l10n.pick('没有子文件夹', 'No subfolders'),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: colors.onSurfaceVariant,
               ),
@@ -273,7 +283,7 @@ class FolderBreadcrumb extends StatelessWidget {
     );
 
     final children = <Widget>[
-      crumb('音源', onRoots),
+      crumb(context.l10n.pick('音源', 'Sources'), onRoots),
       Icon(
         Icons.chevron_right_rounded,
         size: LekisSpacing.lg,
@@ -434,7 +444,7 @@ class _FolderHeader extends ConsumerWidget {
           const SizedBox(height: LekisSpacing.xxs),
           listing.when(
             loading: () => Text(
-              '正在读取文件夹…',
+              context.l10n.pick('正在读取文件夹…', 'Loading folder…'),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colors.onSurfaceVariant,
               ),
@@ -449,8 +459,14 @@ class _FolderHeader extends ConsumerWidget {
                 children: [
                   Text(
                     showFolders
-                        ? '${listing.folders.length} 个文件夹 · 本目录 ${listing.trackCount} 首'
-                        : '本目录 ${listing.trackCount} 首',
+                        ? context.l10n.pick(
+                            '${listing.folders.length} 个文件夹 · 本目录 ${listing.trackCount} 首',
+                            '${listing.folders.length} folders · ${listing.trackCount} songs here',
+                          )
+                        : context.l10n.pick(
+                            '本目录 ${listing.trackCount} 首',
+                            '${listing.trackCount} songs here',
+                          ),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colors.onSurfaceVariant,
                       fontFeatures: LekisText.tabularFigures,
@@ -469,7 +485,7 @@ class _FolderHeader extends ConsumerWidget {
                   ] else if (showFolders) ...[
                     const SizedBox(height: LekisSpacing.xs),
                     Text(
-                      '没有子文件夹',
+                      context.l10n.pick('没有子文件夹', 'No subfolders'),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colors.onSurfaceVariant,
                       ),
@@ -516,12 +532,20 @@ class _PlayFolderButton extends ConsumerWidget {
                   .read(playerActionsProvider)
                   .playFolder(location.sourceId, location.path);
               if (!ok && context.mounted) {
-                ScaffoldMessenger.maybeOf(context)
-                    ?.showSnackBar(const SnackBar(content: Text('无法播放这个文件夹')));
+                ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      context.l10n.pick(
+                        '无法播放这个文件夹',
+                        'Cannot play this folder',
+                      ),
+                    ),
+                  ),
+                );
               }
             },
       icon: const Icon(Icons.play_arrow_rounded),
-      label: const Text('播放文件夹'),
+      label: Text(context.l10n.pick('播放文件夹', 'Play Folder')),
     );
   }
 }
@@ -564,7 +588,7 @@ class _FolderRow extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '$count 首',
+                  context.l10n.pick('$count 首', '$count songs'),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colors.onSurfaceVariant,
                     fontFeatures: LekisText.tabularFigures,
@@ -605,7 +629,10 @@ class _NoDirectTracks extends StatelessWidget {
           ),
           const SizedBox(height: LekisSpacing.sm),
           Text(
-            '这个文件夹没有直属曲目',
+            context.l10n.pick(
+              '这个文件夹没有直属曲目',
+              'No songs directly in this folder',
+            ),
             style: Theme.of(context).textTheme.bodyMedium
                 ?.copyWith(color: colors.onSurfaceVariant),
           ),
@@ -627,12 +654,15 @@ class _InlineError extends StatelessWidget {
       children: [
         Expanded(
           child: Text(
-            '读取文件夹失败',
+            context.l10n.pick('读取文件夹失败', 'Failed to read folder'),
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: colors.danger),
           ),
         ),
-        TextButton(onPressed: onRetry, child: const Text('重试')),
+        TextButton(
+          onPressed: onRetry,
+          child: Text(context.l10n.pick('重试', 'Retry')),
+        ),
       ],
     );
   }
@@ -655,7 +685,10 @@ class _PickPrompt extends StatelessWidget {
           ),
           const SizedBox(height: LekisSpacing.sm),
           Text(
-            '选择一个音源，按文件夹浏览',
+            context.l10n.pick(
+              '选择一个音源，按文件夹浏览',
+              'Select a source to browse by folder',
+            ),
             style: Theme.of(context).textTheme.bodyLarge
                 ?.copyWith(color: colors.onSurfaceVariant),
           ),

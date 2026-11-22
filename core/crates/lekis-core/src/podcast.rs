@@ -757,7 +757,7 @@ fn parse_rss_item(item: &Node, base: Option<&Url>) -> Option<PodcastEpisode> {
         episode.title = episode
             .published_at
             .map(format_date)
-            .unwrap_or_else(|| "未命名单集".to_string());
+            .unwrap_or_else(|| lekis_types::tr!("未命名单集", "Untitled Episode"));
     }
     Some(episode)
 }
@@ -835,7 +835,7 @@ fn parse_atom(feed: &Node, feed_url: &str, base: Option<&Url>) -> ParsedFeed {
                 .and_then(|l| l.attr("href"))
                 .and_then(|u| resolve_url(base, u));
             if episode.title.is_empty() {
-                episode.title = "未命名单集".to_string();
+                episode.title = lekis_types::tr!("未命名单集", "Untitled Episode");
             }
             Some(episode)
         })
@@ -1151,7 +1151,7 @@ fn host_of(url: &str) -> String {
     Url::parse(url)
         .ok()
         .and_then(|u| u.host_str().map(str::to_string))
-        .unwrap_or_else(|| "播客".to_string())
+        .unwrap_or_else(|| lekis_types::tr!("播客", "Podcast"))
 }
 
 /// 校验 http/https 地址并规范化。

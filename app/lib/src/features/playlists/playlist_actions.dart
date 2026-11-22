@@ -8,13 +8,14 @@ import 'package:lekis/src/rust/api/error.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:lekis/src/features/playlists/playlist_strings.dart';
 
 /// 弹窗问歌单名；取消或空名字返回 `null`。
 Future<String?> askPlaylistName(
   BuildContext context, {
   required String title,
   String initial = '',
-  String confirm = '确定',
+  String? confirm,
 }) async {
   final controller = TextEditingController(text: initial);
   final result = await showLekisPanel<String>(
@@ -30,11 +31,11 @@ Future<String?> askPlaylistName(
             controller: controller,
             autofocus: true,
             textInputAction: TextInputAction.done,
-            decoration: const InputDecoration(labelText: '歌单名称'),
+            decoration: InputDecoration(labelText: PlaylistStrings.nameLabel),
             onSubmitted: (_) {
               final name = controller.text.trim();
               if (name.isEmpty) {
-                setState(() => error = '名称不能为空');
+                setState(() => error = PlaylistStrings.nameEmpty);
               } else {
                 Navigator.of(context).pop(name);
               }
@@ -43,18 +44,18 @@ Future<String?> askPlaylistName(
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
+              child: Text(PlaylistStrings.cancel),
             ),
             FilledButton(
               onPressed: () {
                 final name = controller.text.trim();
                 if (name.isEmpty) {
-                  setState(() => error = '名称不能为空');
+                  setState(() => error = PlaylistStrings.nameEmpty);
                   return;
                 }
                 Navigator.of(context).pop(name);
               },
-              child: Text(confirm),
+              child: Text(confirm ?? PlaylistStrings.ok),
             ),
           ],
         ),
@@ -72,23 +73,23 @@ Future<bool> confirmDeletePlaylist(
   final ok = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('删除歌单？'),
+      title: Text(PlaylistStrings.deleteTitle),
       content: Text(
         playlist.kind == PlaylistKindDto.smart
-            ? '“${playlist.name}”和它的规则会被删除，曲目文件不受影响。'
-            : '“${playlist.name}”会被删除，曲目文件不受影响。',
+            ? PlaylistStrings.deleteSmartBody(playlist.name)
+            : PlaylistStrings.deleteBody(playlist.name),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('取消'),
+          child: Text(PlaylistStrings.cancel),
         ),
         FilledButton(
           style: FilledButton.styleFrom(
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('删除'),
+          child: Text(PlaylistStrings.delete),
         ),
       ],
     ),
@@ -100,7 +101,7 @@ void showPlaylistError(BuildContext context, Object error) {
   final text = error is CoreError ? error.detail : '$error';
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text('操作失败：$text')));
+    ..showSnackBar(SnackBar(content: Text(PlaylistStrings.actionFailed(text))));
 }
 
 /// 在核心里把整个歌单放进队列（智能歌单会实时求值）。
@@ -133,7 +134,7 @@ Future<bool> deletePlaylistFlow(
     if (context.mounted) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text('已删除“${playlist.name}”')));
+        ..showSnackBar(SnackBar(content: Text(PlaylistStrings.deleted(playlist.name))));
     }
     return true;
   } catch (e) {
@@ -150,9 +151,9 @@ Future<String?> renamePlaylistFlow(
 ) async {
   final name = await askPlaylistName(
     context,
-    title: '重命名歌单',
+    title: PlaylistStrings.renameTitle,
     initial: playlist.name,
-    confirm: '保存',
+    confirm: PlaylistStrings.save,
   );
   if (name == null) return null;
   try {
@@ -168,8 +169,8 @@ Future<String?> renamePlaylistFlow(
 /// 歌单副标题：智能歌单显示"实时规则"，普通歌单显示曲目数。
 String playlistSubtitle(PlaylistDto playlist) =>
     playlist.kind == PlaylistKindDto.smart
-    ? '智能歌单 · 规则实时求值'
-    : '${playlist.trackCount} 首歌曲';
+    ? PlaylistStrings.smartSubtitle
+    : PlaylistStrings.songCount(playlist.trackCount);
 
 /// 长按 / 菜单里用的小标签样式。
 class PlaylistKindChip extends StatelessWidget {
@@ -194,7 +195,7 @@ class PlaylistKindChip extends StatelessWidget {
           vertical: LekisSpacing.xxs,
         ),
         child: Text(
-          smart ? '智能' : '歌单',
+          smart ? PlaylistStrings.kindSmart : PlaylistStrings.kindPlaylist,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
             color: smart ? colors.accent : colors.onSurfaceVariant,
             fontWeight: FontWeight.w600,

@@ -18,6 +18,7 @@
 
 import 'dart:math' as math;
 
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/liquid_glass.dart';
 import 'package:material_ui/material_ui.dart';
@@ -120,7 +121,7 @@ class _LekisTabBarState extends State<LekisTabBar> {
     return Semantics(
       container: true,
       explicitChildNodes: true,
-      label: '主导航',
+      label: context.l10n.pick('主导航', 'Main navigation'),
       child: LekisGlassCapsule(
         key: LekisTabBar.liquidSurfaceKey,
         radius: LekisTabBarTokens.height / 2,
@@ -134,7 +135,7 @@ class _LekisTabBarState extends State<LekisTabBar> {
     return Semantics(
       container: true,
       explicitChildNodes: true,
-      label: '主导航',
+      label: context.l10n.pick('主导航', 'Main navigation'),
       child: LekisGlassCapsule(
         key: LekisTabBar.flatSurfaceKey,
         radius: LekisTabBarTokens.height / 2,

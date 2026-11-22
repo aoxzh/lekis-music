@@ -916,7 +916,7 @@ impl LekisCore {
             name = url::Url::parse(&url)
                 .ok()
                 .and_then(|u| u.host_str().map(str::to_string))
-                .unwrap_or_else(|| "自定义电台".to_string());
+                .unwrap_or_else(|| lekis_types::tr!("自定义电台", "Custom Radio"));
         }
         let s = self.services.clone();
         self.run(async move {

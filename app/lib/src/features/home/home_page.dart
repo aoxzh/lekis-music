@@ -195,11 +195,11 @@ class HomePage extends ConsumerWidget {
 
 String greetingFor(DateTime now) {
   final hour = now.hour;
-  if (hour < 5) return '夜深了';
-  if (hour < 11) return '早上好';
-  if (hour < 14) return '中午好';
-  if (hour < 18) return '下午好';
-  return '晚上好';
+  if (hour < 5) return L10n.tr('夜深了', 'Late Night');
+  if (hour < 11) return L10n.tr('早上好', 'Good Morning');
+  if (hour < 14) return L10n.tr('中午好', 'Good Afternoon');
+  if (hour < 18) return L10n.tr('下午好', 'Good Afternoon');
+  return L10n.tr('晚上好', 'Good Evening');
 }
 
 /// 首页顶部单行标题栏：
@@ -357,8 +357,11 @@ class TrackShelf extends ConsumerWidget {
           title: t.title,
           subtitle: subtitle,
           semanticLabel: artist.isEmpty || artist == t.title
-              ? '播放 ${t.title}'
-              : '播放 ${t.title}，$artist',
+              ? context.l10n.pick('播放 ${t.title}', 'Play ${t.title}')
+              : context.l10n.pick(
+                  '播放 ${t.title}，$artist',
+                  'Play ${t.title}, $artist',
+                ),
         );
       },
     );

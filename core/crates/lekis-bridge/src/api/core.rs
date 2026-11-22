@@ -75,6 +75,12 @@ pub fn core_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// 同步界面语言到核心，让核心返回给界面的默认名称与提示跟随切换。
+#[frb(sync)]
+pub fn set_ui_language(english: bool) {
+    lekis_types::i18n::set_english(english);
+}
+
 // ---- 音源 ----
 
 pub async fn add_source(source: SourceConfigDto) -> Result<i64, CoreError> {

@@ -23,6 +23,7 @@ import 'package:lekis/src/widgets/list_motion.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:lekis/src/features/player/queue_actions.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:lekis/src/features/playlists/playlist_strings.dart';
 
 class PlaylistDetailPage extends StatelessWidget {
   const PlaylistDetailPage({super.key, required this.playlistId});
@@ -113,7 +114,9 @@ class _PlaylistDetailViewState extends ConsumerState<PlaylistDetailView> {
   Widget build(BuildContext context) {
     final loaded = ref.watch(playlistProvider(widget.playlistId));
     if (loaded.hasError) {
-      return Center(child: Text('歌单加载失败：${describeCoreError(loaded.error!)}'));
+      return Center(child: Text(
+          PlaylistStrings.playlistLoadFailed(describeCoreError(loaded.error!)),
+        ));
     }
     final playlist = loaded.value;
     if (playlist == null) {
@@ -178,9 +181,9 @@ class _StaticPlaylistBody extends ConsumerWidget {
           sliver: SliverToBoxAdapter(
             child: _PlaylistHeader(
               playlist: playlist,
-              subtitle:
-                  '${rows.isEmpty ? playlist.trackCount : rows.length} 首'
-                  ' · 可上下移动条目',
+              subtitle: PlaylistStrings.detailSubtitle(
+                rows.isEmpty ? playlist.trackCount : rows.length,
+              ),
               onPlay: rows.any((e) => e.track != null)
                   ? () => playPlaylistContext(context, playlist)
                   : null,
@@ -196,7 +199,9 @@ class _StaticPlaylistBody extends ConsumerWidget {
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.all(gutter),
-              child: Text('条目加载失败：${describeCoreError(entries.error!)}'),
+              child: Text(
+                PlaylistStrings.entriesLoadFailed(describeCoreError(entries.error!)),
+              ),
             ),
           )
         else if (entries.isLoading && rows.isEmpty)
@@ -259,8 +264,8 @@ class _SmartPlaylistBody extends ConsumerWidget {
             child: _PlaylistHeader(
               playlist: playlist,
               subtitle: rules.value == null
-                  ? '智能歌单 · 规则实时求值'
-                  : '智能歌单 · 已匹配 ${rows.length}${rows.length >= 5000 ? '+' : ''} 首',
+                  ? PlaylistStrings.smartSubtitle
+                  : PlaylistStrings.smartMatched(rows.length, rows.length >= 5000),
               onPlay: rows.isEmpty
                   ? null
                   : () => playPlaylistContext(context, playlist),
@@ -275,7 +280,9 @@ class _SmartPlaylistBody extends ConsumerWidget {
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.all(gutter),
-              child: Text('规则求值失败：${describeCoreError(tracks.error!)}'),
+              child: Text(
+                PlaylistStrings.rulesEvalFailed(describeCoreError(tracks.error!)),
+              ),
             ),
           )
         else if (tracks.isLoading && rows.isEmpty)
@@ -400,28 +407,28 @@ class _PlaylistHeader extends ConsumerWidget {
                 FilledButton.icon(
                   onPressed: onPlay,
                   icon: const Icon(Icons.play_arrow_rounded),
-                  label: const Text('播放'),
+                  label: Text(PlaylistStrings.play),
                 ),
                 if (onEditRules != null)
                   OutlinedButton.icon(
                     onPressed: onEditRules,
                     icon: const Icon(Icons.tune_rounded),
-                    label: const Text('编辑规则'),
+                    label: Text(PlaylistStrings.editRules),
                   ),
                 if (onDownload != null)
                   OutlinedButton.icon(
                     onPressed: onDownload,
                     icon: const Icon(Icons.download_for_offline_outlined),
-                    label: const Text('下载歌单'),
+                    label: Text(PlaylistStrings.downloadPlaylist),
                   ),
                 if (onExport != null)
                   OutlinedButton.icon(
                     onPressed: onExport,
                     icon: const Icon(Icons.ios_share_rounded),
-                    label: const Text('导出歌单'),
+                    label: Text(PlaylistStrings.exportPlaylist),
                   ),
                 PopupMenuButton<String>(
-                  tooltip: '歌单操作',
+                  tooltip: PlaylistStrings.playlistActions,
                   onSelected: (value) {
                     switch (value) {
                       case 'next':
@@ -456,7 +463,7 @@ class _PlaylistHeader extends ConsumerWidget {
                     }
                   },
                   itemBuilder: (_) => [
-                    if (queueTrackIds.isNotEmpty) ...const [
+                    if (queueTrackIds.isNotEmpty) ...[
                       PopupMenuItem(
                         value: 'next',
                         child: Text(QueueStrings.playNext),
@@ -465,19 +472,25 @@ class _PlaylistHeader extends ConsumerWidget {
                         value: 'queue',
                         child: Text(QueueStrings.addToQueue),
                       ),
-                      PopupMenuDivider(),
+                      const PopupMenuDivider(),
                     ],
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'cover',
                       child: Text(ArtworkActionStrings.change),
                     ),
                     if (playlist.artworkId != null)
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'cover-remove',
                         child: Text(ArtworkActionStrings.remove),
                       ),
-                    const PopupMenuItem(value: 'rename', child: Text('重命名')),
-                    const PopupMenuItem(value: 'delete', child: Text('删除歌单')),
+                    PopupMenuItem(
+                      value: 'rename',
+                      child: Text(PlaylistStrings.rename),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text(PlaylistStrings.deletePlaylist),
+                    ),
                   ],
                 ),
               ],
@@ -699,7 +712,7 @@ class _PlaylistEntryTile extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        track?.title ?? '（曲目暂时不可用）',
+                        track?.title ?? PlaylistStrings.trackUnavailable,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodyLarge?.copyWith(
@@ -739,18 +752,18 @@ class _PlaylistEntryTile extends StatelessWidget {
                   ),
                 if (!compact) ...[
                   _MiniIconButton(
-                    tooltip: '上移',
+                    tooltip: PlaylistStrings.moveUp,
                     icon: Icons.keyboard_arrow_up_rounded,
                     onPressed: canMoveUp ? onMoveUp : null,
                   ),
                   _MiniIconButton(
-                    tooltip: '下移',
+                    tooltip: PlaylistStrings.moveDown,
                     icon: Icons.keyboard_arrow_down_rounded,
                     onPressed: canMoveDown ? onMoveDown : null,
                   ),
                 ],
                 PopupMenuButton<String>(
-                  tooltip: '条目操作',
+                  tooltip: PlaylistStrings.entryActions,
                   padding: EdgeInsets.zero,
                   onSelected: (value) {
                     switch (value) {
@@ -766,14 +779,17 @@ class _PlaylistEntryTile extends StatelessWidget {
                     PopupMenuItem(
                       value: 'up',
                       enabled: canMoveUp,
-                      child: const Text('上移'),
+                      child: Text(PlaylistStrings.moveUp),
                     ),
                     PopupMenuItem(
                       value: 'down',
                       enabled: canMoveDown,
-                      child: const Text('下移'),
+                      child: Text(PlaylistStrings.moveDown),
                     ),
-                    const PopupMenuItem(value: 'remove', child: Text('从歌单移除')),
+                    PopupMenuItem(
+                      value: 'remove',
+                      child: Text(PlaylistStrings.removeFromPlaylist),
+                    ),
                   ],
                   // A 36 dp row action, matching the heart.
                   child: const SizedBox(
@@ -824,7 +840,7 @@ class _EmptyPlaylistBody extends StatelessWidget {
     final colors = context.lekisColors;
     return Center(
       child: Text(
-        isSmart ? '规则还没有匹配到歌曲' : '歌单是空的，从歌曲行菜单里添加',
+        isSmart ? PlaylistStrings.smartEmpty : PlaylistStrings.staticEmpty,
         style: theme.textTheme.bodyLarge?.copyWith(
           color: colors.onSurfaceVariant,
         ),

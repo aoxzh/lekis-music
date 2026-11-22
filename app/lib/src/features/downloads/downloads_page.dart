@@ -29,27 +29,35 @@ class DownloadsPage extends ConsumerWidget {
   }
 
   Future<void> _downloadLoved(BuildContext context, WidgetRef ref) async {
+    final l10n = context.l10n;
     final ids = await _lovedIds();
     if (!context.mounted) return;
     if (ids.isEmpty) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('还没有收藏的歌曲')));
+        ..showSnackBar(
+          SnackBar(content: Text(l10n.pick('还没有收藏的歌曲', 'No liked songs yet'))),
+        );
       return;
     }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('下载收藏'),
-        content: Text('把 ${ids.length} 首收藏歌曲加入离线队列？已下载的会跳过。'),
+        title: Text(l10n.pick('下载收藏', 'Download Liked')),
+        content: Text(
+          l10n.pick(
+            '把 ${ids.length} 首收藏歌曲加入离线队列？已下载的会跳过。',
+            'Queue ${ids.length} liked songs for offline? Already downloaded ones will be skipped.',
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: Text(l10n.pick('取消', 'Cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('加入下载'),
+            child: Text(l10n.pick('加入下载', 'Download')),
           ),
         ],
       ),
@@ -60,13 +68,18 @@ class DownloadsPage extends ConsumerWidget {
   }
 
   Future<void> _downloadMostPlayed(BuildContext context, WidgetRef ref) async {
+    final l10n = context.l10n;
     final tracks = await core.mostPlayed(limit: 50);
     final ids = tracks.map((track) => track.id).toList(growable: false);
     if (!context.mounted) return;
     if (ids.isEmpty) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('还没有播放记录')));
+        ..showSnackBar(
+          SnackBar(
+            content: Text(l10n.pick('还没有播放记录', 'No playback history yet')),
+          ),
+        );
       return;
     }
     await startDownloads(context, ref, ids);
@@ -135,18 +148,22 @@ class _DownloadsBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     if (state.isEmpty) {
       return RefreshIndicator(
         onRefresh: () => ref.read(downloadsProvider.notifier).refresh(),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          children: const [
+          children: [
             SizedBox(
               height: 420,
               child: LekisEmptyState(
-                eyebrow: '离线',
-                title: '还没有下载',
-                message: '在歌曲、专辑或正在播放里点下载，音乐就会保存到本机，断网也能听。',
+                eyebrow: l10n.pick('离线', 'Offline'),
+                title: l10n.pick('还没有下载', 'No Downloads Yet'),
+                message: l10n.pick(
+                  '在歌曲、专辑或正在播放里点下载，音乐就会保存到本机，断网也能听。',
+                  'Tap download on a song, album, or Now Playing to save music for offline listening.',
+                ),
               ),
             ),
           ],
@@ -171,9 +188,12 @@ class _DownloadsBody extends ConsumerWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           SliverToBoxAdapter(child: _SummaryCard(state: state)),
-          if (state.active.isNotEmpty) section('下载队列', state.active),
-          if (state.failed.isNotEmpty) section('失败', state.failed),
-          if (state.ready.isNotEmpty) section('已下载', state.ready),
+          if (state.active.isNotEmpty)
+            section(l10n.pick('下载队列', 'Queue'), state.active),
+          if (state.failed.isNotEmpty)
+            section(l10n.pick('失败', 'Failed'), state.failed),
+          if (state.ready.isNotEmpty)
+            section(l10n.pick('已下载', 'Downloaded'), state.ready),
         ],
       ),
     );
@@ -187,6 +207,7 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final active = state.active.where((e) => e.isActive).length;
     return Padding(
       padding: const EdgeInsets.only(bottom: LekisSpacing.xl),
@@ -194,10 +215,17 @@ class _SummaryCard extends StatelessWidget {
         children: [
           SettingsTile(
             icon: Icons.offline_pin_outlined,
-            title: '已下载 ${state.readyCount} 首',
+            title: l10n.pick(
+              '已下载 ${state.readyCount} 首',
+              '${state.readyCount} Downloaded',
+            ),
             subtitle: Text(
-              '共 ${formatBytes(state.totalBytes)}'
-              '${active > 0 ? ' · $active 首正在下载' : ''}',
+              l10n.pick(
+                '共 ${formatBytes(state.totalBytes)}'
+                '${active > 0 ? ' · $active 首正在下载' : ''}',
+                '${formatBytes(state.totalBytes)} total'
+                '${active > 0 ? ' · $active downloading' : ''}',
+              ),
             ),
           ),
         ],
@@ -212,19 +240,25 @@ class _DownloadTile extends ConsumerWidget {
   final DownloadEntry entry;
 
   Future<bool> _confirmRemove(BuildContext context) async {
+    final l10n = context.l10n;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('删除下载？'),
-        content: Text('“${entry.title}”的缓存文件会被删除，之后需要重新下载。'),
+        title: Text(l10n.pick('删除下载？', 'Remove Download?')),
+        content: Text(
+          l10n.pick(
+            '“${entry.title}”的缓存文件会被删除，之后需要重新下载。',
+            'The cached file for "${entry.title}" will be deleted and will need to be downloaded again.',
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: Text(l10n.pick('取消', 'Cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('删除'),
+            child: Text(l10n.pick('删除', 'Remove')),
           ),
         ],
       ),
@@ -241,7 +275,14 @@ class _DownloadTile extends ConsumerWidget {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(
-            SnackBar(content: Text('删除下载失败：${describeCoreError(e)}')),
+            SnackBar(
+              content: Text(
+                context.l10n.pick(
+                  '删除下载失败：${describeCoreError(e)}',
+                  'Failed to remove download: ${describeCoreError(e)}',
+                ),
+              ),
+            ),
           );
       }
     }
@@ -249,13 +290,16 @@ class _DownloadTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final theme = Theme.of(context);
     final colors = context.lekisColors;
     final track = entry.track;
     final actions = <Widget>[
       if (entry.isReady || entry.isActive)
         IconButton(
-          tooltip: entry.isActive ? '取消下载' : '播放已下载',
+          tooltip: entry.isActive
+              ? l10n.pick('取消下载', 'Cancel Download')
+              : l10n.pick('播放已下载', 'Play Downloaded'),
           onPressed: entry.isActive
               ? () => ref
                     .read(downloadsProvider.notifier)
@@ -269,14 +313,16 @@ class _DownloadTile extends ConsumerWidget {
         ),
       if (entry.isFailed || entry.isQueued)
         IconButton(
-          tooltip: entry.isQueued ? '开始下载' : '重试',
+          tooltip: entry.isQueued
+              ? l10n.pick('开始下载', 'Start Download')
+              : l10n.pick('重试', 'Retry'),
           onPressed: () =>
               ref.read(downloadsProvider.notifier).retry(entry.trackId),
           icon: const Icon(Icons.refresh_rounded),
         ),
       if (!entry.isActive)
         IconButton(
-          tooltip: '删除下载',
+          tooltip: l10n.pick('删除下载', 'Remove Download'),
           onPressed: () => _remove(context, ref),
           icon: const Icon(Icons.delete_outline_rounded),
         ),

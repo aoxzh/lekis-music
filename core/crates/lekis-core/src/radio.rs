@@ -596,7 +596,7 @@ impl ApiStation {
             Url::parse(&url)
                 .ok()
                 .and_then(|u| u.host_str().map(str::to_string))
-                .unwrap_or_else(|| "网络电台".to_string())
+                .unwrap_or_else(|| lekis_types::tr!("网络电台", "Internet Radio"))
         } else {
             raw_name.trim().to_string()
         };
@@ -666,9 +666,9 @@ pub(crate) fn station_track(station: &RadioStation) -> Track {
         subtitle.push(language.to_string());
     }
     let artist = if subtitle.is_empty() {
-        "网络电台".to_string()
+        lekis_types::tr!("网络电台", "Internet Radio")
     } else {
-        format!("网络电台 · {}", subtitle.join(" / "))
+        lekis_types::tr!("网络电台 · {}", "Internet Radio · {}", subtitle.join(" / "))
     };
     Track {
         id: station.id.track_id(),
@@ -720,7 +720,7 @@ pub(crate) fn station_track_row(station: &RadioStation) -> TrackRow {
         id: station.id.track_id(),
         title: station.name.clone(),
         artist_line: if bits.is_empty() {
-            "网络电台".to_string()
+            lekis_types::tr!("网络电台", "Internet Radio")
         } else {
             bits.join(" / ")
         },

@@ -3,15 +3,28 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/downloads_providers.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
 
-void _showFailure(BuildContext context, String action, Object error) {
+void _showFailure(
+  BuildContext context,
+  String zhAction,
+  String enAction,
+  Object error,
+) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(
-      SnackBar(content: Text('$action失败：${describeCoreError(error)}')),
+      SnackBar(
+        content: Text(
+          context.l10n.pick(
+            '$zhAction失败：${describeCoreError(error)}',
+            '$enAction failed: ${describeCoreError(error)}',
+          ),
+        ),
+      ),
     );
 }
 
@@ -23,7 +36,7 @@ Future<void> startDownload(
   try {
     await ref.read(downloadsProvider.notifier).downloadTrack(trackId);
   } catch (e) {
-    if (context.mounted) _showFailure(context, '下载', e);
+    if (context.mounted) _showFailure(context, '下载', 'Download', e);
   }
 }
 
@@ -36,7 +49,7 @@ Future<void> startDownloads(
   try {
     await ref.read(downloadsProvider.notifier).downloadTracks(trackIds);
   } catch (e) {
-    if (context.mounted) _showFailure(context, '下载', e);
+    if (context.mounted) _showFailure(context, '下载', 'Download', e);
   }
 }
 
@@ -48,17 +61,17 @@ Future<void> removeDownload(
   try {
     await ref.read(downloadsProvider.notifier).removeDownload(trackId);
   } catch (e) {
-    if (context.mounted) _showFailure(context, '删除下载', e);
+    if (context.mounted) _showFailure(context, '删除下载', 'Remove download', e);
   }
 }
 
 /// 曲目菜单里的下载动作文案。
 String downloadMenuLabel(OfflineStateDto? state) => switch (state) {
-  null => '下载',
-  OfflineStateDto.queued => '开始下载',
-  OfflineStateDto.downloading => '取消下载',
-  OfflineStateDto.ready => '删除下载',
-  OfflineStateDto.failed => '重试下载',
+  null => L10n.tr('下载', 'Download'),
+  OfflineStateDto.queued => L10n.tr('开始下载', 'Start Download'),
+  OfflineStateDto.downloading => L10n.tr('取消下载', 'Cancel Download'),
+  OfflineStateDto.ready => L10n.tr('删除下载', 'Remove Download'),
+  OfflineStateDto.failed => L10n.tr('重试下载', 'Retry Download'),
 };
 
 /// 执行菜单动作：未下载 / 失败 / 排队 → 开始；下载中 / 已下载 → 删除。
@@ -92,13 +105,14 @@ class CompactDownloadProgress extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final state = ref.watch(downloadStateProvider(trackId));
     final colors = context.lekisColors;
     if (state == OfflineStateDto.ready) {
       return Padding(
         padding: const EdgeInsets.only(right: LekisSpacing.xs),
         child: Tooltip(
-          message: '已离线缓存',
+          message: l10n.pick('已离线缓存', 'Downloaded for offline'),
           child: Icon(
             Icons.offline_pin_rounded,
             key: downloadedIconKey,
@@ -114,8 +128,11 @@ class CompactDownloadProgress extends ConsumerWidget {
       padding: const EdgeInsets.only(right: LekisSpacing.xs),
       child: Tooltip(
         message: progress == null
-            ? '正在下载'
-            : '正在下载 ${(progress * 100).round()}%',
+            ? l10n.pick('正在下载', 'Downloading')
+            : l10n.pick(
+                '正在下载 ${(progress * 100).round()}%',
+                'Downloading ${(progress * 100).round()}%',
+              ),
         child: SizedBox.square(
           dimension: 16,
           child: CircularProgressIndicator(
@@ -143,6 +160,7 @@ class TrackDownloadButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final state = ref.watch(downloadStateProvider(trackId));
     final progress = ref.watch(downloadProgressProvider(trackId));
     final colors = context.lekisColors;
@@ -156,7 +174,7 @@ class TrackDownloadButton extends ConsumerWidget {
     switch (state) {
       case null:
         return IconButton(
-          tooltip: '下载',
+          tooltip: l10n.pick('下载', 'Download'),
           visualDensity: VisualDensity.compact,
           constraints: constraints,
           padding: EdgeInsets.zero,
@@ -169,7 +187,7 @@ class TrackDownloadButton extends ConsumerWidget {
         );
       case OfflineStateDto.queued:
         return IconButton(
-          tooltip: '开始下载',
+          tooltip: l10n.pick('开始下载', 'Start Download'),
           visualDensity: VisualDensity.compact,
           constraints: constraints,
           padding: EdgeInsets.zero,
@@ -182,7 +200,7 @@ class TrackDownloadButton extends ConsumerWidget {
         );
       case OfflineStateDto.downloading:
         return IconButton(
-          tooltip: '取消下载',
+          tooltip: l10n.pick('取消下载', 'Cancel Download'),
           visualDensity: VisualDensity.compact,
           constraints: constraints,
           padding: EdgeInsets.zero,
@@ -205,7 +223,7 @@ class TrackDownloadButton extends ConsumerWidget {
         );
       case OfflineStateDto.ready:
         return IconButton(
-          tooltip: '已下载',
+          tooltip: l10n.pick('已下载', 'Downloaded'),
           visualDensity: VisualDensity.compact,
           constraints: constraints,
           padding: EdgeInsets.zero,
@@ -214,7 +232,7 @@ class TrackDownloadButton extends ConsumerWidget {
         );
       case OfflineStateDto.failed:
         return IconButton(
-          tooltip: '重试下载',
+          tooltip: l10n.pick('重试下载', 'Retry Download'),
           visualDensity: VisualDensity.compact,
           constraints: constraints,
           padding: EdgeInsets.zero,
@@ -230,20 +248,23 @@ class BatchDownloadButton extends ConsumerWidget {
   const BatchDownloadButton({
     super.key,
     required this.trackIds,
-    this.tooltip = '下载全部',
+    this.tooltip,
   });
 
   final List<int> trackIds;
-  final String tooltip;
+  final String? tooltip;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final downloads = ref.watch(downloadsProvider).value;
     final allReady =
         trackIds.isNotEmpty &&
         trackIds.every((id) => downloads?.entryFor(id)?.isReady ?? false);
     return IconButton(
-      tooltip: allReady ? '已全部下载' : tooltip,
+      tooltip: allReady
+          ? l10n.pick('已全部下载', 'All Downloaded')
+          : (tooltip ?? l10n.pick('下载全部', 'Download All')),
       onPressed: allReady ? null : () => startDownloads(context, ref, trackIds),
       icon: Icon(
         allReady

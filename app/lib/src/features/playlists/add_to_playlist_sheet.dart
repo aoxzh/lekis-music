@@ -9,6 +9,7 @@ import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:lekis/src/features/playlists/playlist_strings.dart';
 
 class _AddResult {
   const _AddResult(this.playlistName, {required this.created});
@@ -42,8 +43,8 @@ Future<void> showAddToPlaylistSheet(
       SnackBar(
         content: Text(
           result.created
-              ? '已新建“${result.playlistName}”并添加'
-              : '已添加到“${result.playlistName}”',
+              ? PlaylistStrings.createdAndAdded(result.playlistName)
+              : PlaylistStrings.addedTo(result.playlistName),
         ),
       ),
     );
@@ -93,7 +94,7 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
         if (mounted) {
           setState(() {
             _busyPlaylist = null;
-            _notice = '“${playlist.name}”里已经有这首歌了';
+            _notice = PlaylistStrings.alreadyIn(playlist.name);
           });
         }
         return;
@@ -108,7 +109,7 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
       if (!mounted) return;
       setState(() {
         _busyPlaylist = null;
-        _notice = '添加失败：${describeCoreError(e)}';
+        _notice = PlaylistStrings.addFailed(describeCoreError(e));
       });
     }
   }
@@ -116,8 +117,8 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
   Future<void> _createAndAdd(_PickerData data) async {
     final name = await askPlaylistName(
       context,
-      title: '新建歌单',
-      confirm: '创建并添加',
+      title: PlaylistStrings.newPlaylist,
+      confirm: PlaylistStrings.createAndAdd,
     );
     if (name == null) return;
     if (!mounted) return;
@@ -134,7 +135,7 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
       if (!mounted) return;
       setState(() {
         _busyPlaylist = null;
-        _notice = '创建失败：${describeCoreError(e)}';
+        _notice = PlaylistStrings.createFailed(describeCoreError(e));
       });
     }
   }
@@ -163,7 +164,7 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('添加到歌单', style: theme.textTheme.titleLarge),
+                        Text(PlaylistStrings.addToPlaylist, style: theme.textTheme.titleLarge),
                         if (widget.trackTitle != null)
                           Text(
                             widget.trackTitle!,
@@ -179,7 +180,7 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
                   TextButton.icon(
                     onPressed: data == null ? null : () => _createAndAdd(data),
                     icon: const Icon(Icons.add_rounded),
-                    label: const Text('新建'),
+                    label: Text(PlaylistStrings.newShort),
                   ),
                 ],
               ),
@@ -209,7 +210,7 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
                   child: Padding(
                     padding: const EdgeInsets.all(LekisSpacing.xl),
                     child: Text(
-                      '加载失败：${describeCoreError(snapshot.error!)}',
+                      PlaylistStrings.loadFailed(describeCoreError(snapshot.error!)),
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: colors.onSurfaceVariant,
@@ -251,7 +252,7 @@ class _PlaylistPickerList extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(LekisSpacing.xl),
           child: Text(
-            '还没有歌单，先新建一个吧',
+            PlaylistStrings.noPlaylistsCreate,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: colors.onSurfaceVariant,
             ),
@@ -277,7 +278,9 @@ class _PlaylistPickerList extends StatelessWidget {
           ),
           title: Text(playlist.name),
           subtitle: Text(
-            smart ? '智能歌单由规则管理，不能手动添加' : '${playlist.trackCount} 首歌曲',
+            smart
+                ? PlaylistStrings.smartNotAddable
+                : PlaylistStrings.songCount(playlist.trackCount),
           ),
           trailing: busy
               ? const SizedBox.square(

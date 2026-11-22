@@ -2,6 +2,7 @@
 
 import 'package:lekis/src/features/podcasts/podcast_providers.dart';
 import 'package:lekis/src/features/podcasts/podcast_strings.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -301,8 +302,14 @@ class PodcastEpisodeTile extends StatelessWidget {
                     Flexible(
                       child: Text(
                         duration > 0
-                            ? '剩余 ${formatEpisodeDuration(duration - position)}'
-                            : '听到 ${formatEpisodeDuration(position)}',
+                            ? context.l10n.pick(
+                                '剩余 ${formatEpisodeDuration(duration - position)}',
+                                '${formatEpisodeDuration(duration - position)} left',
+                              )
+                            : context.l10n.pick(
+                                '听到 ${formatEpisodeDuration(position)}',
+                                'Played ${formatEpisodeDuration(position)}',
+                              ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelSmall?.copyWith(
@@ -343,9 +350,9 @@ String formatEpisodeDate(int ms, {DateTime? now}) {
   final d0 = DateTime(today.year, today.month, today.day);
   final d1 = DateTime(date.year, date.month, date.day);
   final days = d0.difference(d1).inDays;
-  if (days == 0) return '今天';
-  if (days == 1) return '昨天';
-  if (days > 1 && days < 7) return '$days 天前';
+  if (days == 0) return L10n.tr('今天', 'Today');
+  if (days == 1) return L10n.tr('昨天', 'Yesterday');
+  if (days > 1 && days < 7) return L10n.tr('$days 天前', '$days days ago');
   final mm = date.month.toString().padLeft(2, '0');
   final dd = date.day.toString().padLeft(2, '0');
   if (date.year == today.year) return '$mm-$dd';
@@ -355,10 +362,13 @@ String formatEpisodeDate(int ms, {DateTime? now}) {
 /// 时长：`1 小时 5 分`、`45 分钟`、`30 秒`。
 String formatEpisodeDuration(int ms) {
   final totalMinutes = (ms / 60000).round();
-  if (ms < 60000) return '${(ms / 1000).round()} 秒';
+  if (ms < 60000) {
+    final seconds = (ms / 1000).round();
+    return L10n.tr('$seconds 秒', '${seconds}s');
+  }
   final hours = totalMinutes ~/ 60;
   final minutes = totalMinutes % 60;
-  if (hours == 0) return '$minutes 分钟';
-  if (minutes == 0) return '$hours 小时';
-  return '$hours 小时 $minutes 分';
+  if (hours == 0) return L10n.tr('$minutes 分钟', '${minutes}m');
+  if (minutes == 0) return L10n.tr('$hours 小时', '${hours}h');
+  return L10n.tr('$hours 小时 $minutes 分', '${hours}h ${minutes}m');
 }

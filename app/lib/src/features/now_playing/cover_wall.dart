@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
@@ -56,13 +57,16 @@ class _CoverWallState extends ConsumerState<CoverWall> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '封面墙加载失败',
+                  context.l10n.pick('封面墙加载失败', 'Failed to load cover wall'),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: colors.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: LekisSpacing.sm),
-                TextButton(onPressed: list.retry, child: const Text('重试')),
+                TextButton(
+                  onPressed: list.retry,
+                  child: Text(context.l10n.pick('重试', 'Retry')),
+                ),
               ],
             ),
           );
@@ -73,7 +77,7 @@ class _CoverWallState extends ConsumerState<CoverWall> {
         if (list.isEmpty) {
           return Center(
             child: Text(
-              '资料库里还没有专辑',
+              context.l10n.pick('资料库里还没有专辑', 'No albums in library yet'),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: colors.onSurfaceVariant,
               ),
@@ -280,7 +284,10 @@ class _CoverWallTileState extends State<_CoverWallTile> {
 
     return Semantics(
       button: true,
-      label: '播放专辑 ${widget.album.title}',
+      label: context.l10n.pick(
+        '播放专辑 ${widget.album.title}',
+        'Play album ${widget.album.title}',
+      ),
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hovered = true),

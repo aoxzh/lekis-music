@@ -3,6 +3,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../l10n/app_l10n.dart';
 import '../../../rust/api/dto.dart';
 import '../../../theme/tokens.dart';
 import '../../library/widgets/empty_state.dart';
@@ -201,7 +202,7 @@ class _Message extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LekisEmptyState(
-      eyebrow: '音源',
+      eyebrow: context.l10n.pick('音源', 'Sources'),
       title: title,
       message: body,
       maxWidth: featureMaxContentWidth / 2,

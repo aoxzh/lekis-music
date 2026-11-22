@@ -9,6 +9,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../l10n/app_l10n.dart';
 import '../../rust/api/dto.dart';
 import '../../shell/tab_bar_style.dart';
 import '../../theme/theme.dart';
@@ -165,7 +166,9 @@ class ConnectRemoteMiniPlayer extends ConsumerWidget {
                         ),
                         IconButton(
                           key: const ValueKey('connect.remote-mini.toggle'),
-                          tooltip: playing ? '暂停' : '播放',
+                          tooltip: playing
+                              ? context.l10n.pick('暂停', 'Pause')
+                              : context.l10n.pick('播放', 'Play'),
                           onPressed: track == null
                               ? null
                               : () => _toggle(ref, device.deviceId),
@@ -247,7 +250,9 @@ class ConnectRemoteStrip extends ConsumerWidget {
                   ),
                 ),
                 IconButton(
-                  tooltip: playing ? '暂停' : '播放',
+                  tooltip: playing
+                      ? context.l10n.pick('暂停', 'Pause')
+                      : context.l10n.pick('播放', 'Play'),
                   visualDensity: VisualDensity.compact,
                   onPressed: track == null
                       ? null

@@ -15,6 +15,7 @@ import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:lekis/src/features/playlists/playlist_strings.dart';
 
 class PlaylistsView extends ConsumerWidget {
   const PlaylistsView({super.key});
@@ -26,8 +27,10 @@ class PlaylistsView extends ConsumerWidget {
   }) async {
     final name = await askPlaylistName(
       context,
-      title: smart ? '新建智能歌单' : '新建歌单',
-      confirm: '创建',
+      title: smart
+          ? PlaylistStrings.newSmartPlaylist
+          : PlaylistStrings.newPlaylist,
+      confirm: PlaylistStrings.create,
     );
     if (name == null || !context.mounted) return;
     try {
@@ -77,7 +80,7 @@ class PlaylistsView extends ConsumerWidget {
             runSpacing: LekisSpacing.sm,
             children: [
               Text(
-                '我的歌单',
+                PlaylistStrings.myPlaylists,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
@@ -88,17 +91,17 @@ class PlaylistsView extends ConsumerWidget {
                   OutlinedButton.icon(
                     onPressed: () => _create(context, ref, smart: false),
                     icon: const Icon(Icons.playlist_add_rounded),
-                    label: const Text('新建歌单'),
+                    label: Text(PlaylistStrings.newPlaylist),
                   ),
                   FilledButton.tonalIcon(
                     onPressed: () => _create(context, ref, smart: true),
                     icon: const Icon(Icons.auto_awesome_rounded),
-                    label: const Text('新建智能歌单'),
+                    label: Text(PlaylistStrings.newSmartPlaylist),
                   ),
                   OutlinedButton.icon(
                     onPressed: () => _import(context, ref),
                     icon: const Icon(Icons.file_open_rounded),
-                    label: const Text('导入歌单'),
+                    label: Text(PlaylistStrings.importPlaylist),
                   ),
                 ],
               ),
@@ -123,7 +126,7 @@ class PlaylistsView extends ConsumerWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('歌单加载失败', style: theme.textTheme.titleMedium),
+                    Text(PlaylistStrings.listLoadFailed, style: theme.textTheme.titleMedium),
                     const SizedBox(height: LekisSpacing.xs),
                     Text(
                       describeCoreError(e),
@@ -135,7 +138,7 @@ class PlaylistsView extends ConsumerWidget {
                     const SizedBox(height: LekisSpacing.md),
                     OutlinedButton(
                       onPressed: () => ref.invalidate(playlistsProvider),
-                      child: const Text('重试'),
+                      child: Text(PlaylistStrings.retry),
                     ),
                   ],
                 ),
@@ -247,7 +250,7 @@ class _PlaylistTile extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
         trailing: PopupMenuButton<String>(
-          tooltip: '歌单操作',
+          tooltip: PlaylistStrings.playlistActions,
           onSelected: (value) {
             switch (value) {
               case 'open':
@@ -261,11 +264,20 @@ class _PlaylistTile extends StatelessWidget {
             }
           },
           itemBuilder: (_) => [
-            const PopupMenuItem(value: 'open', child: Text('打开')),
-            const PopupMenuItem(value: 'rename', child: Text('重命名')),
+            PopupMenuItem(value: 'open', child: Text(PlaylistStrings.open)),
+            PopupMenuItem(
+              value: 'rename',
+              child: Text(PlaylistStrings.rename),
+            ),
             if (onEditRules != null)
-              const PopupMenuItem(value: 'rules', child: Text('编辑规则')),
-            const PopupMenuItem(value: 'delete', child: Text('删除')),
+              PopupMenuItem(
+                value: 'rules',
+                child: Text(PlaylistStrings.editRules),
+              ),
+            PopupMenuItem(
+              value: 'delete',
+              child: Text(PlaylistStrings.delete),
+            ),
           ],
         ),
       ),
@@ -291,14 +303,14 @@ class _EmptyPlaylists extends StatelessWidget {
           ),
           const SizedBox(height: LekisSpacing.sm),
           Text(
-            '还没有歌单',
+            PlaylistStrings.emptyTitle,
             style: theme.textTheme.bodyLarge?.copyWith(
               color: colors.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: LekisSpacing.xxs),
           Text(
-            '新建普通歌单，或者用规则建一个智能歌单',
+            PlaylistStrings.emptyMessage,
             style: theme.textTheme.bodySmall?.copyWith(
               color: colors.onSurfaceVariant,
             ),

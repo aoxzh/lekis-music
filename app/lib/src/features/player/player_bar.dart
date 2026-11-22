@@ -313,7 +313,11 @@ class _OutputDeviceButton extends ConsumerWidget {
               ),
             );
         return [
-          item(_systemDefault, '跟随系统默认', selected == null),
+          item(
+            _systemDefault,
+            context.l10n.pick('跟随系统默认', 'System default'),
+            selected == null,
+          ),
           if (state.devices.isNotEmpty) const PopupMenuDivider(),
           for (final d in state.devices) item(d.id, d.name, selected == d.id),
         ];
@@ -327,7 +331,16 @@ class _OutputDeviceButton extends ConsumerWidget {
           if (!context.mounted) return;
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
-            ..showSnackBar(const SnackBar(content: Text('切换输出设备失败')));
+            ..showSnackBar(
+              SnackBar(
+                content: Text(
+                  context.l10n.pick(
+                    '切换输出设备失败',
+                    'Failed to switch output device',
+                  ),
+                ),
+              ),
+            );
         }
       },
     );
@@ -355,7 +368,7 @@ class _NowPlayingLink extends StatelessWidget {
     );
     if (!enabled) return link;
     return Tooltip(
-      message: '打开播放页',
+      message: context.l10n.pick('打开播放页', 'Open Now Playing'),
       waitDuration: LekisMotion.slow,
       child: link,
     );
@@ -477,7 +490,10 @@ class _VolumePopoverButtonState extends ConsumerState<_VolumePopoverButton> {
                                   child: LekisSlider(
                                     value: currentVol,
                                     semanticFormatterCallback: (v) =>
-                                        '音量 ${(v * 100).round()}%',
+                                        context.l10n.pick(
+                                          '音量 ${(v * 100).round()}%',
+                                          'Volume ${(v * 100).round()}%',
+                                        ),
                                     onChanged: (v) => ref
                                         .read(playerActionsProvider)
                                         .setVolume(v),

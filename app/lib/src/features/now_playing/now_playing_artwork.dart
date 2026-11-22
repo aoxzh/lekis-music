@@ -8,6 +8,7 @@ import 'package:lekis/src/features/now_playing/now_playing_style.dart';
 import 'package:lekis/src/features/now_playing/now_playing_turntable.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_view.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/platform/ui_profile.dart';
@@ -194,9 +195,13 @@ class _NowPlayingArtworkState extends ConsumerState<NowPlayingArtwork>
       ),
     };
     final actions = ref.read(playerActionsProvider);
+    final l10n = context.l10n;
     final title = track == null
-        ? '封面'
-        : '${track.title}${track.artists.isEmpty ? '' : ' — ${track.artists.join(' / ')}'} 的封面';
+        ? l10n.pick('封面', 'Cover art')
+        : l10n.pick(
+            '${track.title}${track.artists.isEmpty ? '' : ' — ${track.artists.join(' / ')}'} 的封面',
+            'Cover art for ${track.title}${track.artists.isEmpty ? '' : ' by ${track.artists.join(', ')}'}',
+          );
 
     return Center(
       child: AspectRatio(
@@ -211,12 +216,17 @@ class _NowPlayingArtworkState extends ConsumerState<NowPlayingArtwork>
               key: const ValueKey('now-playing.artwork'),
               image: true,
               label: title,
-              hint: '轻点播放或暂停，左右滑动切歌，长按打开播放队列',
+              hint: l10n.pick(
+                '轻点播放或暂停，左右滑动切歌，长按打开播放队列',
+                'Tap to play or pause, swipe left or right to skip, long press to open queue',
+              ),
               onTap: actions.playPause,
               customSemanticsActions: {
-                const CustomSemanticsAction(label: '上一首'): actions.previous,
-                const CustomSemanticsAction(label: '下一首'): actions.next,
-                const CustomSemanticsAction(label: '播放队列'): _openQueue,
+                CustomSemanticsAction(label: l10n.pick('上一首', 'Previous')):
+                    actions.previous,
+                CustomSemanticsAction(label: l10n.pick('下一首', 'Next')):
+                    actions.next,
+                CustomSemanticsAction(label: l10n.queue): _openQueue,
               },
               child: ExcludeSemantics(
                 child: GestureDetector(

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart'
     show formatDuration;
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/nav_icon.dart' show lekisReduceMotion;
@@ -104,7 +105,9 @@ class PlayPauseButton extends ConsumerWidget {
         size: size,
       ),
     );
-    final tooltip = isPlaying ? '暂停' : '播放';
+    final tooltip = isPlaying
+        ? context.l10n.pick('暂停', 'Pause')
+        : context.l10n.pick('播放', 'Play');
     final onPressed = hasTrack ? actions.playPause : null;
     final button = filled
         ? IconButton.filled(
@@ -154,7 +157,7 @@ class NextButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final enabled = ref.watch(playbackProvider.select((s) => s.hasTrack));
     return IconButton(
-      tooltip: '下一首',
+      tooltip: context.l10n.pick('下一首', 'Next'),
       constraints: _touchTarget,
       iconSize: size,
       onPressed: enabled ? ref.read(playerActionsProvider).next : null,
@@ -171,7 +174,7 @@ class PreviousButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final enabled = ref.watch(playbackProvider.select((s) => s.canGoPrevious));
     return IconButton(
-      tooltip: '上一首',
+      tooltip: context.l10n.pick('上一首', 'Previous'),
       constraints: _touchTarget,
       iconSize: size,
       onPressed: enabled ? ref.read(playerActionsProvider).previous : null,
@@ -191,7 +194,9 @@ class ShuffleButton extends ConsumerWidget {
     // Same on/off rule as [RepeatButton]: the theme paints the disc and the
     // selected colour, the widget only swaps the glyph.
     return IconButton(
-      tooltip: on ? '关闭随机播放' : '随机播放',
+      tooltip: on
+          ? context.l10n.pick('关闭随机播放', 'Disable shuffle')
+          : context.l10n.pick('随机播放', 'Shuffle'),
       isSelected: on,
       constraints: _touchTarget,
       onPressed: ref.read(playerActionsProvider).toggleShuffle,
@@ -212,17 +217,17 @@ class RepeatButton extends ConsumerWidget {
       RepeatModeDto.off => (
         Icons.repeat_rounded,
         Icons.repeat_on_rounded,
-        '列表循环',
+        context.l10n.pick('列表循环', 'Repeat all'),
       ),
       RepeatModeDto.all => (
         Icons.repeat_on_rounded,
         Icons.repeat_one_on_rounded,
-        '单曲循环',
+        context.l10n.pick('单曲循环', 'Repeat one'),
       ),
       RepeatModeDto.one => (
         Icons.repeat_one_on_rounded,
         Icons.repeat_rounded,
-        '关闭循环',
+        context.l10n.pick('关闭循环', 'Repeat off'),
       ),
     };
     return IconButton(
@@ -431,7 +436,7 @@ class _VolumeControlState extends ConsumerState<VolumeControl> {
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
-          tooltip: volume == 0 ? '取消静音' : '静音',
+          tooltip: volume == 0 ? context.l10n.unmute : context.l10n.mute,
           constraints: _touchTarget,
           onPressed: () {
             if (volume == 0) {
@@ -448,7 +453,10 @@ class _VolumeControlState extends ConsumerState<VolumeControl> {
             width: widget.width ?? LekisSizes.gridArtworkMin * 0.75,
             child: LekisSlider(
               value: volume.clamp(0.0, 1.0),
-              semanticFormatterCallback: (v) => '音量 ${(v * 100).round()}%',
+              semanticFormatterCallback: (v) => context.l10n.pick(
+                '音量 ${(v * 100).round()}%',
+                'Volume ${(v * 100).round()}%',
+              ),
               onChanged: actions.setVolume,
               trackHeight: LekisSliderGeometry.track,
             ),

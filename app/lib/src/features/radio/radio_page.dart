@@ -10,6 +10,7 @@ import 'package:lekis/src/features/radio/widgets/add_radio_dialog.dart';
 import 'package:lekis/src/features/radio/widgets/radio_station_tile.dart';
 import 'package:lekis/src/features/settings/widgets/settings_widgets.dart';
 import 'package:lekis/src/features/sources/common.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
@@ -410,7 +411,7 @@ class _RadioPageState extends ConsumerState<RadioPage> {
                 _applyBrowse();
               },
               icon: const Icon(Icons.filter_alt_off_rounded),
-              label: const Text('清除筛选'),
+              label: Text(context.l10n.pick('清除筛选', 'Clear Filters')),
             ),
           );
         }
@@ -622,32 +623,32 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-const _fallbackCountries = [
-  RadioFilterOptionDto(name: '中国', value: 'CN', stationCount: 0),
-  RadioFilterOptionDto(name: '美国', value: 'US', stationCount: 0),
-  RadioFilterOptionDto(name: '英国', value: 'GB', stationCount: 0),
-  RadioFilterOptionDto(name: '日本', value: 'JP', stationCount: 0),
-  RadioFilterOptionDto(name: '德国', value: 'DE', stationCount: 0),
-  RadioFilterOptionDto(name: '法国', value: 'FR', stationCount: 0),
-  RadioFilterOptionDto(name: '加拿大', value: 'CA', stationCount: 0),
-  RadioFilterOptionDto(name: '澳大利亚', value: 'AU', stationCount: 0),
-  RadioFilterOptionDto(name: '韩国', value: 'KR', stationCount: 0),
-  RadioFilterOptionDto(name: '台湾地区', value: 'TW', stationCount: 0),
-  RadioFilterOptionDto(name: '香港', value: 'HK', stationCount: 0),
-  RadioFilterOptionDto(name: '新加坡', value: 'SG', stationCount: 0),
+List<RadioFilterOptionDto> get _fallbackCountries => [
+  RadioFilterOptionDto(name: L10n.tr('中国', 'China'), value: 'CN', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('美国', 'United States'), value: 'US', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('英国', 'United Kingdom'), value: 'GB', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('日本', 'Japan'), value: 'JP', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('德国', 'Germany'), value: 'DE', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('法国', 'France'), value: 'FR', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('加拿大', 'Canada'), value: 'CA', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('澳大利亚', 'Australia'), value: 'AU', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('韩国', 'South Korea'), value: 'KR', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('台湾地区', 'Taiwan'), value: 'TW', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('香港', 'Hong Kong'), value: 'HK', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('新加坡', 'Singapore'), value: 'SG', stationCount: 0),
 ];
 
-const _fallbackLanguages = [
-  RadioFilterOptionDto(name: '中文', value: 'chinese', stationCount: 0),
-  RadioFilterOptionDto(name: '英语', value: 'english', stationCount: 0),
-  RadioFilterOptionDto(name: '日语', value: 'japanese', stationCount: 0),
-  RadioFilterOptionDto(name: '韩语', value: 'korean', stationCount: 0),
-  RadioFilterOptionDto(name: '西班牙语', value: 'spanish', stationCount: 0),
-  RadioFilterOptionDto(name: '法语', value: 'french', stationCount: 0),
-  RadioFilterOptionDto(name: '德语', value: 'german', stationCount: 0),
-  RadioFilterOptionDto(name: '意大利语', value: 'italian', stationCount: 0),
-  RadioFilterOptionDto(name: '葡萄牙语', value: 'portuguese', stationCount: 0),
-  RadioFilterOptionDto(name: '俄语', value: 'russian', stationCount: 0),
+List<RadioFilterOptionDto> get _fallbackLanguages => [
+  RadioFilterOptionDto(name: L10n.tr('中文', 'Chinese'), value: 'chinese', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('英语', 'English'), value: 'english', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('日语', 'Japanese'), value: 'japanese', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('韩语', 'Korean'), value: 'korean', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('西班牙语', 'Spanish'), value: 'spanish', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('法语', 'French'), value: 'french', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('德语', 'German'), value: 'german', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('意大利语', 'Italian'), value: 'italian', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('葡萄牙语', 'Portuguese'), value: 'portuguese', stationCount: 0),
+  RadioFilterOptionDto(name: L10n.tr('俄语', 'Russian'), value: 'russian', stationCount: 0),
 ];
 
 const _fallbackTags = [

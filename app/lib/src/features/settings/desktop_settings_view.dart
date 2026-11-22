@@ -247,7 +247,7 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
                 suffixIcon: _search.text.isEmpty
                     ? null
                     : IconButton(
-                        tooltip: '清除',
+                        tooltip: context.l10n.pick('清除', 'Clear'),
                         iconSize: 16,
                         onPressed: _search.clear,
                         icon: const Icon(Icons.close_rounded),

@@ -86,14 +86,14 @@ class SettingsBackupSection extends ConsumerWidget {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('设置已复制'),
+        title: Text(context.l10n.pick('设置已复制', 'Settings Copied')),
         content: SingleChildScrollView(
           child: SelectableText(text, style: _monospace(context)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('关闭'),
+            child: Text(context.l10n.pick('关闭', 'Close')),
           ),
         ],
       ),
@@ -105,26 +105,26 @@ class SettingsBackupSection extends ConsumerWidget {
     final text = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('导入设置'),
+        title: Text(context.l10n.pick('导入设置', 'Import Settings')),
         content: TextField(
           controller: controller,
           autofocus: true,
           minLines: 8,
           maxLines: 14,
           style: _monospace(context),
-          decoration: const InputDecoration(
-            hintText: '粘贴导出的 JSON',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            hintText: context.l10n.pick('粘贴导出的 JSON', 'Paste exported JSON'),
+            border: const OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
+            child: Text(context.l10n.pick('取消', 'Cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(controller.text),
-            child: const Text('导入'),
+            child: Text(context.l10n.pick('导入', 'Import')),
           ),
         ],
       ),
@@ -135,7 +135,12 @@ class SettingsBackupSection extends ConsumerWidget {
     try {
       final decoded = jsonDecode(text);
       if (decoded is! Map<String, dynamic>) {
-        throw const FormatException('顶层必须是 JSON 对象');
+        throw FormatException(
+          L10n.tr(
+            '顶层必须是 JSON 对象',
+            'Top-level value must be a JSON object',
+          ),
+        );
       }
       var applied = 0;
       for (final entry in decoded.entries) {
@@ -175,12 +180,22 @@ class SettingsBackupSection extends ConsumerWidget {
             .set(NowPlayingStyle.fromStorage(npStyle));
       }
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('已导入 $applied 项设置')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.pick('已导入 $applied 项设置', 'Imported $applied settings'),
+          ),
+        ),
+      );
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('导入失败：$e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.pick('导入失败：$e', 'Import failed: $e'),
+          ),
+        ),
+      );
     }
   }
 }

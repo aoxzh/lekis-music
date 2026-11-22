@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1838818929;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1183119883;
 
 // Section: executor
 
@@ -7682,6 +7682,38 @@ fn wire__crate__api__core__set_track_tag_overrides_impl(
         },
     )
 }
+fn wire__crate__api__core__set_ui_language_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "set_ui_language",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_english = <bool>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>({
+                    crate::api::core::set_ui_language(api_english);
+                })?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__usb_output__set_usb_bit_perfect_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -12033,38 +12065,38 @@ fn pde_ffi_dispatcher_primary_impl(
         214 => {
             wire__crate__api__core__set_track_tag_overrides_impl(port, ptr, rust_vec_len, data_len)
         }
-        215 => wire__crate__api__usb_output__set_usb_bit_perfect_impl(
+        216 => wire__crate__api__usb_output__set_usb_bit_perfect_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        217 => {
+        218 => {
             wire__crate__api__core__smart_playlist_tracks_impl(port, ptr, rust_vec_len, data_len)
         }
-        218 => wire__crate__api__core__smart_playlists_impl(port, ptr, rust_vec_len, data_len),
-        219 => wire__crate__api__core__split_track_source_impl(port, ptr, rust_vec_len, data_len),
-        220 => wire__crate__api__core__start_scan_impl(port, ptr, rust_vec_len, data_len),
-        221 => wire__crate__api__core__sync_now_impl(port, ptr, rust_vec_len, data_len),
-        222 => {
+        219 => wire__crate__api__core__smart_playlists_impl(port, ptr, rust_vec_len, data_len),
+        220 => wire__crate__api__core__split_track_source_impl(port, ptr, rust_vec_len, data_len),
+        221 => wire__crate__api__core__start_scan_impl(port, ptr, rust_vec_len, data_len),
+        222 => wire__crate__api__core__sync_now_impl(port, ptr, rust_vec_len, data_len),
+        223 => {
             wire__crate__api__dto__sync_report_dto_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        223 => wire__crate__api__core__test_scrobble_impl(port, ptr, rust_vec_len, data_len),
-        224 => wire__crate__api__core__test_source_impl(port, ptr, rust_vec_len, data_len),
-        225 => wire__crate__api__core__track_index_offsets_impl(port, ptr, rust_vec_len, data_len),
-        226 => {
+        224 => wire__crate__api__core__test_scrobble_impl(port, ptr, rust_vec_len, data_len),
+        225 => wire__crate__api__core__test_source_impl(port, ptr, rust_vec_len, data_len),
+        226 => wire__crate__api__core__track_index_offsets_impl(port, ptr, rust_vec_len, data_len),
+        227 => {
             wire__crate__api__dto__track_overlay_dto_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        227 => wire__crate__api__core__track_sources_impl(port, ptr, rust_vec_len, data_len),
-        228 => wire__crate__api__core__track_tag_overrides_impl(port, ptr, rust_vec_len, data_len),
-        229 => wire__crate__api__dto__track_tag_overrides_dto_default_impl(
+        228 => wire__crate__api__core__track_sources_impl(port, ptr, rust_vec_len, data_len),
+        229 => wire__crate__api__core__track_tag_overrides_impl(port, ptr, rust_vec_len, data_len),
+        230 => wire__crate__api__dto__track_tag_overrides_dto_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        230 => wire__crate__api__core__update_source_impl(port, ptr, rust_vec_len, data_len),
-        232 => wire__crate__api__core__write_track_tags_impl(port, ptr, rust_vec_len, data_len),
+        231 => wire__crate__api__core__update_source_impl(port, ptr, rust_vec_len, data_len),
+        233 => wire__crate__api__core__write_track_tags_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -12164,8 +12196,9 @@ fn pde_ffi_dispatcher_sync_impl(
         202 => wire__crate__api__core__set_output_mode_impl(ptr, rust_vec_len, data_len),
         208 => wire__crate__api__core__set_repeat_impl(ptr, rust_vec_len, data_len),
         211 => wire__crate__api__core__set_shuffle_impl(ptr, rust_vec_len, data_len),
-        216 => wire__crate__api__core__set_volume_impl(ptr, rust_vec_len, data_len),
-        231 => {
+        215 => wire__crate__api__core__set_ui_language_impl(ptr, rust_vec_len, data_len),
+        217 => wire__crate__api__core__set_volume_impl(ptr, rust_vec_len, data_len),
+        232 => {
             wire__crate__api__usb_output__usb_bit_perfect_status_impl(ptr, rust_vec_len, data_len)
         }
         _ => unreachable!(),

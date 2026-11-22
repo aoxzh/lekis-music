@@ -1,6 +1,7 @@
 // Manual lyrics editor (ENR-07): paste/import LRC, choose format, tune offset.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
@@ -74,7 +75,9 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
   Future<void> _save() async {
     final text = _content.text.trim();
     if (text.isEmpty) {
-      setState(() => _error = '歌词内容不能为空');
+      setState(
+        () => _error = context.l10n.pick('歌词内容不能为空', 'Lyrics content cannot be empty'),
+      );
       return;
     }
     setState(() {
@@ -99,7 +102,7 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
       if (!mounted) return;
       setState(() {
         _saving = false;
-        _error = '保存失败：$e';
+        _error = context.l10n.pick('保存失败：$e', 'Save failed: $e');
       });
     }
   }
@@ -118,19 +121,25 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
     final colors = context.lekisColors;
     final close = _saving ? null : () => Navigator.of(context).pop();
     return LekisPanel(
-      title: '编辑歌词',
-      subtitle: '粘贴 LRC / 增强 LRC / TTML，或直接写纯文本。保存后作为“手动”版本立即生效。',
+      title: context.l10n.pick('编辑歌词', 'Edit Lyrics'),
+      subtitle: context.l10n.pick(
+        '粘贴 LRC / 增强 LRC / TTML，或直接写纯文本。保存后作为“手动”版本立即生效。',
+        'Paste LRC / Enhanced LRC / TTML, or write plain text. Takes effect immediately as the "manual" version.',
+      ),
       onClose: close,
       error: _error,
       actions: [
-        TextButton(onPressed: close, child: const Text('取消')),
+        TextButton(
+          onPressed: close,
+          child: Text(context.l10n.pick('取消', 'Cancel')),
+        ),
         FilledButton.icon(
           key: const ValueKey('lyrics-editor.save'),
           onPressed: _saving || _loading ? null : _save,
           icon: _saving
               ? const LekisPanelProgress()
               : const Icon(Icons.check_rounded),
-          label: const Text('保存'),
+          label: Text(context.l10n.pick('保存', 'Save')),
         ),
       ],
       body: _loading
@@ -142,25 +151,29 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                _Label('格式', theme: theme, colors: colors),
+                _Label(
+                  context.l10n.pick('格式', 'Format'),
+                  theme: theme,
+                  colors: colors,
+                ),
                 SegmentedButton<LyricsFormatDto>(
                   showSelectedIcon: false,
-                  segments: const [
-                    ButtonSegment(
+                  segments: [
+                    const ButtonSegment(
                       value: LyricsFormatDto.lrc,
                       label: Text('LRC'),
                     ),
                     ButtonSegment(
                       value: LyricsFormatDto.enhancedLrc,
-                      label: Text('逐字'),
+                      label: Text(context.l10n.pick('逐字', 'Word-by-word')),
                     ),
-                    ButtonSegment(
+                    const ButtonSegment(
                       value: LyricsFormatDto.ttml,
                       label: Text('TTML'),
                     ),
                     ButtonSegment(
                       value: LyricsFormatDto.plain,
-                      label: Text('纯文本'),
+                      label: Text(context.l10n.pick('纯文本', 'Plain text')),
                     ),
                   ],
                   selected: {_format},
@@ -178,14 +191,21 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontFamily: 'monospace',
                   ),
-                  decoration: const InputDecoration(
-                    labelText: '歌词内容',
-                    hintText: '[00:01.00]第一句\n[00:05.00]第二句',
+                  decoration: InputDecoration(
+                    labelText: context.l10n.pick('歌词内容', 'Lyrics content'),
+                    hintText: context.l10n.pick(
+                      '[00:01.00]第一句\n[00:05.00]第二句',
+                      '[00:01.00]First line\n[00:05.00]Second line',
+                    ),
                     alignLabelWithHint: true,
                   ),
                 ),
                 const SizedBox(height: LekisSpacing.lg),
-                _Label('整体偏移', theme: theme, colors: colors),
+                _Label(
+                  context.l10n.pick('整体偏移', 'Global offset'),
+                  theme: theme,
+                  colors: colors,
+                ),
                 Row(
                   children: [
                     Expanded(
@@ -214,14 +234,21 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
                   ],
                 ),
                 Text(
-                  '正值让歌词提前出现，和 LRC 的 [offset:] 一致。',
+                  context.l10n.pick(
+                    '正值让歌词提前出现，和 LRC 的 [offset:] 一致。',
+                    'Positive values make lyrics appear earlier, matching LRC [offset:].',
+                  ),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colors.onSurfaceVariant,
                   ),
                 ),
                 if (_versions.isNotEmpty) ...[
                   const SizedBox(height: LekisSpacing.xl),
-                  _Label('已有版本', theme: theme, colors: colors),
+                  _Label(
+                    context.l10n.pick('已有版本', 'Existing versions'),
+                    theme: theme,
+                    colors: colors,
+                  ),
                   for (final v in _versions.take(6))
                     ListTile(
                       dense: true,
@@ -238,7 +265,12 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
                       title: Text(
                         '${v.lyrics.source} · ${v.lyrics.format.name}',
                       ),
-                      subtitle: Text('${v.lyrics.content.length} 字符'),
+                      subtitle: Text(
+                        context.l10n.pick(
+                          '${v.lyrics.content.length} 字符',
+                          '${v.lyrics.content.length} chars',
+                        ),
+                      ),
                     ),
                 ],
               ],

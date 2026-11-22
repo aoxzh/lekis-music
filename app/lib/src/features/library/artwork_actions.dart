@@ -7,18 +7,23 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge.dart' show Int64List;
 import 'package:lekis/src/features/library/library_actions.dart'
     show describeCoreError;
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:material_ui/material_ui.dart';
 
 abstract final class ArtworkActionStrings {
-  static const change = '更换封面…';
-  static const pickTitle = '选择封面图片';
-  static const changed = '封面已更换';
-  static const failed = '更换封面失败';
-  static const undo = '撤销';
-  static const remove = '移除封面';
-  static const removed = '已移除封面';
-  static const restored = '已恢复原来的封面';
+  static String get change => L10n.tr('更换封面…', 'Change Artwork…');
+  static String get pickTitle => L10n.tr('选择封面图片', 'Choose Artwork Image');
+  static String get changed => L10n.tr('封面已更换', 'Artwork changed');
+  static String get failed => L10n.tr('更换封面失败', 'Couldn’t change artwork');
+  static String get undo => L10n.tr('撤销', 'Undo');
+  static String get remove => L10n.tr('移除封面', 'Remove Artwork');
+  static String get removed => L10n.tr('已移除封面', 'Artwork removed');
+  static String get restored =>
+      L10n.tr('已恢复原来的封面', 'Original artwork restored');
+
+  static String failedWith(String detail) =>
+      L10n.tr('$failed：$detail', '$failed: $detail');
 }
 
 /// 让用户选一张图片，换成 [trackIds]（和 [albumId] 这张专辑）的封面。
@@ -47,7 +52,7 @@ Future<void> changeArtworkFlow(
       ?..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: const Text(ArtworkActionStrings.changed),
+          content: Text(ArtworkActionStrings.changed),
           action: SnackBarAction(
             label: ArtworkActionStrings.undo,
             onPressed: () async {
@@ -55,14 +60,14 @@ Future<void> changeArtworkFlow(
                 await core.restoreArtwork(change: change);
                 say(ArtworkActionStrings.restored);
               } catch (error) {
-                say('${ArtworkActionStrings.failed}：${describeCoreError(error)}');
+                say(ArtworkActionStrings.failedWith(describeCoreError(error)));
               }
             },
           ),
         ),
       );
   } catch (error) {
-    say('${ArtworkActionStrings.failed}：${describeCoreError(error)}');
+    say(ArtworkActionStrings.failedWith(describeCoreError(error)));
   }
 }
 
@@ -109,13 +114,13 @@ Future<void> changePlaylistCoverFlow(
                 );
                 say(ArtworkActionStrings.restored);
               } catch (error) {
-                say('${ArtworkActionStrings.failed}：${describeCoreError(error)}');
+                say(ArtworkActionStrings.failedWith(describeCoreError(error)));
               }
             },
           ),
         ),
       );
   } catch (error) {
-    say('${ArtworkActionStrings.failed}：${describeCoreError(error)}');
+    say(ArtworkActionStrings.failedWith(describeCoreError(error)));
   }
 }

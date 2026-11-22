@@ -23,6 +23,10 @@ String deviceId() => RustLib.instance.api.crateApiCoreDeviceId();
 
 String coreVersion() => RustLib.instance.api.crateApiCoreCoreVersion();
 
+/// 同步界面语言到核心，让核心返回给界面的默认名称与提示跟随切换。
+void setUiLanguage({required bool english}) =>
+    RustLib.instance.api.crateApiCoreSetUiLanguage(english: english);
+
 Future<PlatformInt64> addSource({required SourceConfigDto source}) =>
     RustLib.instance.api.crateApiCoreAddSource(source: source);
 

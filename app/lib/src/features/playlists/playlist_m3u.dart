@@ -17,6 +17,7 @@ import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:lekis/src/features/playlists/playlist_strings.dart';
 
 /// 导入结果的可读摘要（由生成的 DTO 映射而来）。
 class PlaylistImportOutcome {
@@ -53,9 +54,11 @@ class PlaylistImportOutcome {
   int get unmatched => missing.length;
 
   String get summary {
-    if (total == 0) return '文件里没有条目，已创建空歌单。';
-    if (missing.isEmpty) return '已导入 $matched 首歌曲（共 $total 条）。';
-    return '已导入 $matched 首歌曲，${missing.length} 个路径未匹配（共 $total 条）。';
+    if (total == 0) return PlaylistStrings.importSummaryEmpty();
+    if (missing.isEmpty) {
+      return PlaylistStrings.importSummaryAll(matched, total);
+    }
+    return PlaylistStrings.importSummaryPartial(matched, missing.length, total);
   }
 }
 
@@ -90,7 +93,7 @@ String playlistNameFromM3uFile(String fileName) {
   final dot = fileName.lastIndexOf('.');
   final stem = dot > 0 ? fileName.substring(0, dot) : fileName;
   final trimmed = stem.trim();
-  return trimmed.isEmpty ? '导入的歌单' : trimmed;
+  return trimmed.isEmpty ? PlaylistStrings.importedName : trimmed;
 }
 
 /// 数一下 M3U 文本里有多少个真正的路径条目（忽略 `#` 开头的扩展标签）。
@@ -117,30 +120,32 @@ Future<void> exportPlaylistM3uFlow(
   if (playlist.kind != PlaylistKindDto.static_) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('智能歌单没有固定条目，不能导出')));
+      ..showSnackBar(
+        SnackBar(content: Text(PlaylistStrings.smartNotExportable)),
+      );
     return;
   }
 
   final format = await showDialog<_PlaylistExportFormat>(
     context: context,
     builder: (context) => SimpleDialog(
-      title: const Text('导出歌单'),
+      title: Text(PlaylistStrings.exportPlaylist),
       children: [
         SimpleDialogOption(
           onPressed: () => Navigator.of(context).pop(_PlaylistExportFormat.m3u),
-          child: const ListTile(
-            leading: Icon(Icons.playlist_play_rounded),
-            title: Text('M3U8'),
-            subtitle: Text('兼容大多数播放器、车载和 NAS'),
+          child: ListTile(
+            leading: const Icon(Icons.playlist_play_rounded),
+            title: const Text('M3U8'),
+            subtitle: Text(PlaylistStrings.m3uSubtitle),
           ),
         ),
         SimpleDialogOption(
           onPressed: () =>
               Navigator.of(context).pop(_PlaylistExportFormat.xspf),
-          child: const ListTile(
-            leading: Icon(Icons.code_rounded),
-            title: Text('XSPF'),
-            subtitle: Text('XML 格式，保留艺人和标题元数据'),
+          child: ListTile(
+            leading: const Icon(Icons.code_rounded),
+            title: const Text('XSPF'),
+            subtitle: Text(PlaylistStrings.xspfSubtitle),
           ),
         ),
       ],
@@ -170,17 +175,17 @@ Future<void> exportPlaylistM3uFlow(
   final action = await showDialog<_M3uExportAction>(
     context: context,
     builder: (context) => AlertDialog(
-      title: Text('导出 $formatName'),
+      title: Text(PlaylistStrings.exportFormat(formatName)),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('“${playlist.name}”共 $count 个条目。'),
+          Text(PlaylistStrings.exportCount(playlist.name, count)),
           const SizedBox(height: LekisSpacing.sm),
           Text(
             isM3u
-                ? '文件是 UTF-8 编码的 .m3u8，可以复制后粘贴到别处，或直接保存到设备。'
-                : '文件是 UTF-8 编码的 .xspf（XML），适合保留艺人/标题并导入其他播放器。',
+                ? PlaylistStrings.m3uExportHint
+                : PlaylistStrings.xspfExportHint,
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: context.lekisColors.onSurfaceVariant),
           ),
@@ -189,17 +194,17 @@ Future<void> exportPlaylistM3uFlow(
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(PlaylistStrings.cancel),
         ),
         OutlinedButton.icon(
           onPressed: () => Navigator.of(context).pop(_M3uExportAction.copy),
           icon: const Icon(Icons.copy_rounded),
-          label: const Text('复制'),
+          label: Text(PlaylistStrings.copy),
         ),
         FilledButton.icon(
           onPressed: () => Navigator.of(context).pop(_M3uExportAction.save),
           icon: const Icon(Icons.save_alt_rounded),
-          label: const Text('保存文件'),
+          label: Text(PlaylistStrings.saveFile),
         ),
       ],
     ),
@@ -209,7 +214,7 @@ Future<void> exportPlaylistM3uFlow(
   if (action == _M3uExportAction.copy) {
     await Clipboard.setData(ClipboardData(text: text));
     if (context.mounted) {
-      _snack(context, '已复制 $formatName 文本（$count 个条目）');
+      _snack(context, PlaylistStrings.copied(formatName, count));
     }
     return;
   }
@@ -219,14 +224,14 @@ Future<void> exportPlaylistM3uFlow(
       : playlistXspfFileName(playlist.name);
   try {
     final saved = await FilePicker.saveFile(
-      dialogTitle: '导出 $formatName',
+      dialogTitle: PlaylistStrings.exportFormat(formatName),
       fileName: fileName,
       bytes: Uint8List.fromList(utf8.encode(text)),
       mimeType: isM3u ? 'audio/x-mpegurl' : 'application/xspf+xml',
     );
-    if (saved != null && context.mounted) _snack(context, '已保存 $fileName');
+    if (saved != null && context.mounted) _snack(context, PlaylistStrings.saved(fileName));
   } catch (e) {
-    if (context.mounted) _snack(context, '保存失败：$e');
+    if (context.mounted) _snack(context, PlaylistStrings.saveFailed(e));
   }
 }
 
@@ -240,7 +245,7 @@ class PlaylistM3uImportDialog extends StatefulWidget {
 }
 
 class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
-  static const _defaultName = '导入的歌单';
+  static String get _defaultName => PlaylistStrings.importedName;
   final _name = TextEditingController(text: _defaultName);
   final _content = TextEditingController();
   bool _busy = false;
@@ -256,7 +261,7 @@ class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
   Future<void> _pickFile() async {
     try {
       final file = await FilePicker.pickFile(
-        dialogTitle: '选择播放列表',
+        dialogTitle: PlaylistStrings.pickPlaylistFile,
         type: FileType.custom,
         allowedExtensions: const ['m3u', 'm3u8', 'xspf'],
       );
@@ -274,7 +279,7 @@ class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = '读取文件失败：$e');
+      setState(() => _error = PlaylistStrings.readFileFailed(e));
     }
   }
 
@@ -292,11 +297,11 @@ class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
     final name = _name.text.trim();
     final content = _content.text;
     if (name.isEmpty) {
-      setState(() => _error = '歌单名称不能为空');
+      setState(() => _error = PlaylistStrings.nameEmpty);
       return;
     }
     if (content.trim().isEmpty) {
-      setState(() => _error = '请选择歌单文件或粘贴内容');
+      setState(() => _error = PlaylistStrings.importNoContent);
       return;
     }
     setState(() {
@@ -322,7 +327,7 @@ class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AlertDialog(
-      title: const Text('导入歌单'),
+      title: Text(PlaylistStrings.importPlaylist),
       content: SizedBox(
         width: 560,
         child: SingleChildScrollView(
@@ -333,9 +338,9 @@ class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
               TextField(
                 controller: _name,
                 textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: '歌单名称',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: PlaylistStrings.nameLabel,
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: LekisSpacing.md),
@@ -344,13 +349,13 @@ class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
                   OutlinedButton.icon(
                     onPressed: _busy ? null : _pickFile,
                     icon: const Icon(Icons.folder_open_rounded),
-                    label: const Text('选择文件'),
+                    label: Text(PlaylistStrings.chooseFile),
                   ),
                   const SizedBox(width: LekisSpacing.sm),
                   TextButton.icon(
                     onPressed: _busy ? null : _paste,
                     icon: const Icon(Icons.content_paste_rounded),
-                    label: const Text('从剪贴板粘贴'),
+                    label: Text(PlaylistStrings.pasteFromClipboard),
                   ),
                 ],
               ),
@@ -361,9 +366,9 @@ class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
                 minLines: 6,
                 maxLines: 10,
                 style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-                decoration: const InputDecoration(
-                  hintText: '把 .m3u / .m3u8 / .xspf 的内容粘贴到这里，或者点上面的“选择文件”',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  hintText: PlaylistStrings.importHint,
+                  border: const OutlineInputBorder(),
                 ),
               ),
               if (_error != null) ...[
@@ -382,7 +387,7 @@ class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
       actions: [
         TextButton(
           onPressed: _busy ? null : () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(PlaylistStrings.cancel),
         ),
         FilledButton.icon(
           onPressed: _busy ? null : _submit,
@@ -392,7 +397,7 @@ class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.playlist_add_check_rounded),
-          label: Text(_busy ? '导入中…' : '导入'),
+          label: Text(_busy ? PlaylistStrings.importing : PlaylistStrings.import),
         ),
       ],
     );
@@ -410,7 +415,7 @@ Future<bool?> showM3uImportReportDialog(
       final theme = Theme.of(context);
       final colors = context.lekisColors;
       return AlertDialog(
-        title: const Text('导入完成'),
+        title: Text(PlaylistStrings.importDone),
         content: SizedBox(
           width: 480,
           child: ConstrainedBox(
@@ -423,7 +428,7 @@ Future<bool?> showM3uImportReportDialog(
                   Text(outcome.summary),
                   const SizedBox(height: LekisSpacing.xs),
                   Text(
-                    '匹配 ${outcome.matched} 首 · 未匹配 ${outcome.unmatched} 个',
+                    PlaylistStrings.importCounts(outcome.matched, outcome.unmatched),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colors.onSurfaceVariant,
                     ),
@@ -431,7 +436,7 @@ Future<bool?> showM3uImportReportDialog(
                   if (outcome.hasMissing) ...[
                     const SizedBox(height: LekisSpacing.md),
                     Text(
-                      '未匹配的路径',
+                      PlaylistStrings.unmatchedPaths,
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
@@ -461,11 +466,11 @@ Future<bool?> showM3uImportReportDialog(
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('关闭'),
+            child: Text(PlaylistStrings.close),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('打开歌单'),
+            child: Text(PlaylistStrings.openPlaylist),
           ),
         ],
       );

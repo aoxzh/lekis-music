@@ -108,7 +108,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
               onVerticalDragEnd: _onDragEnd,
               child: Semantics(
                 namesRoute: true,
-                label: '正在播放',
+                label: context.l10n.pick('正在播放', 'Now Playing'),
                 // SnackBars raised from this page (library actions, downloads,
                 // add to playlist) must land on the opaque Now Playing route,
                 // not on the shell's Scaffold behind it: give the page its own
@@ -864,12 +864,20 @@ class _NowPlayingTitle extends ConsumerWidget {
                     child: _SubtitleLink(
                       label: artistNames,
                       style: subtitleStyle,
-                      semanticsLabel: '查看艺人 $artistNames',
+                      semanticsLabel: context.l10n.pick(
+                        '查看艺人 $artistNames',
+                        'View artist $artistNames',
+                      ),
                       onTap: () => _openArtist(context, ref, artistNames),
                     ),
                   )
                 else
-                  Flexible(child: Text('未知艺人', style: subtitleStyle)),
+                  Flexible(
+                    child: Text(
+                      context.l10n.unknownArtist,
+                      style: subtitleStyle,
+                    ),
+                  ),
                 if (hasArtist && hasAlbum) Text(' · ', style: subtitleStyle),
                 if (hasAlbum)
                   Flexible(
@@ -883,7 +891,10 @@ class _NowPlayingTitle extends ConsumerWidget {
                         : _SubtitleLink(
                             label: album,
                             style: subtitleStyle,
-                            semanticsLabel: '查看专辑 $album',
+                            semanticsLabel: context.l10n.pick(
+                              '查看专辑 $album',
+                              'View album $album',
+                            ),
                             onTap: () => Navigator.of(context)
                                 .push(AlbumDetailPage.route(albumId.toInt())),
                           ),
@@ -909,7 +920,13 @@ class _NowPlayingTitle extends ConsumerWidget {
     if (id == null) {
       messenger
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('资料库里没有这位艺人')));
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick('资料库里没有这位艺人', 'Artist not found in library'),
+            ),
+          ),
+        );
       return;
     }
     await navigator.push(ArtistDetailPage.route(id));

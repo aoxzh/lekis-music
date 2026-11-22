@@ -170,7 +170,13 @@ pub(crate) async fn recover(s: Arc<Services>) {
             );
             if let Err(e) = s
                 .library
-                .mark_offline_failed(row.track_id, "缓存文件已丢失，请重新下载".into())
+                .mark_offline_failed(
+                    row.track_id,
+                    lekis_types::tr!(
+                        "缓存文件已丢失，请重新下载",
+                        "Cached file is missing, please download again"
+                    ),
+                )
                 .await
             {
                 tracing::warn!(target: "core::offline", error = %e, "cannot mark missing cache file");

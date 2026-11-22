@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/liquid_glass.dart';
@@ -118,7 +119,7 @@ class _AlphabetIndexBarState extends State<AlphabetIndexBar> {
                 const SizedBox(width: LekisSpacing.md),
               ],
               Semantics(
-                label: '首字母快速索引',
+                label: context.l10n.pick('首字母快速索引', 'Alphabet quick index'),
                 child: GestureDetector(
                   key: AlphabetIndexBar.railKey,
                   behavior: HitTestBehavior.opaque,

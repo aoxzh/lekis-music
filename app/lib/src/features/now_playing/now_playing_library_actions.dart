@@ -11,6 +11,7 @@ import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/now_playing/lyrics_editor_sheet.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
@@ -68,7 +69,9 @@ class _RatingButton extends ConsumerWidget {
     final rated = rating > 0;
     return IconButton(
       key: const ValueKey('now-playing.rating'),
-      tooltip: rated ? '评分：$rating 星' : '评分',
+      tooltip: rated
+          ? context.l10n.pick('评分：$rating 星', 'Rating: $rating stars')
+          : context.l10n.pick('评分', 'Rate'),
       constraints: _touchTarget,
       padding: EdgeInsets.zero,
       onPressed: () =>
@@ -120,7 +123,7 @@ class _MoreButton extends ConsumerWidget {
     );
     return PopupMenuButton<_MoreAction>(
       key: const ValueKey('now-playing.more'),
-      tooltip: '更多操作',
+      tooltip: context.l10n.pick('更多操作', 'More actions'),
       constraints: const BoxConstraints(
         minWidth: LekisSizes.desktopSidebarWidth * 0.75,
       ),
@@ -153,7 +156,9 @@ class _MoreButton extends ConsumerWidget {
             value: _MoreAction.rate,
             child: item(
               rating > 0 ? Icons.star_rounded : Icons.star_outline_rounded,
-              rating > 0 ? '评分（$rating 星）' : '评分',
+              rating > 0
+                  ? context.l10n.pick('评分（$rating 星）', 'Rate ($rating stars)')
+                  : context.l10n.pick('评分', 'Rate'),
             ),
           ),
         if (!track.isLocal || downloadState != null)
@@ -169,7 +174,10 @@ class _MoreButton extends ConsumerWidget {
           ),
         PopupMenuItem(
           value: _MoreAction.addToPlaylist,
-          child: item(Icons.playlist_add_rounded, '添加到歌单'),
+          child: item(
+            Icons.playlist_add_rounded,
+            context.l10n.pick('添加到歌单', 'Add to Playlist'),
+          ),
         ),
         PopupMenuItem(
           value: _MoreAction.playOnDevice,
@@ -179,7 +187,10 @@ class _MoreButton extends ConsumerWidget {
         // (iOS 26 puts them with the rest of the lyric controls).
         PopupMenuItem(
           value: _MoreAction.editLyrics,
-          child: item(Icons.edit_note_rounded, '编辑歌词'),
+          child: item(
+            Icons.edit_note_rounded,
+            context.l10n.pick('编辑歌词', 'Edit Lyrics'),
+          ),
         ),
       ],
     );
