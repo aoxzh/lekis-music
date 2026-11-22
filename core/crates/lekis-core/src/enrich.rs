@@ -175,8 +175,7 @@ impl EnrichPipeline {
             }
         }
         all.sort_by(|a, b| {
-            lekis_enrich::scoring::score(hint, b)
-                .total_cmp(&lekis_enrich::scoring::score(hint, a))
+            lekis_enrich::scoring::score(hint, b).total_cmp(&lekis_enrich::scoring::score(hint, a))
         });
         all
     }

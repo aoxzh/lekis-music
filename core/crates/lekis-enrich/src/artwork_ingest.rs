@@ -10,7 +10,7 @@
 //! 哈希用图片**原始字节**的 SHA-256，所以同一张封面从不同提供方拿到时能去重
 //! （`artwork.hash` 上有唯一约束）。数据库只存元数据，字节按
 //! `docs/ARCHITECTURE.md` 第 5 节放本机缓存目录，路径用
-//! [`lekis_library::cache_relative_path`] 计算。
+//! `lekis_library::cache_relative_path` 计算。
 //!
 //! 主色（ENR-12）用"按 5 bit 量化后统计出现次数"的简单做法：封面这种图通常只有几个
 //! 主色调，量化后取前几名就足够让 UI 染色，不值得为它引入一整个 k-means 实现。

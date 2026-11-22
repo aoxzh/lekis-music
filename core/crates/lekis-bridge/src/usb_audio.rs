@@ -136,7 +136,9 @@ mod jni_platform {
     use std::ffi::{c_void, CStr, CString};
     use std::ptr;
 
-    use jni_sys::{jclass, jobject, jstring, jvalue, JNIEnv, JavaVM, JNI_EDETACHED, JNI_OK, JNI_VERSION_1_6};
+    use jni_sys::{
+        jclass, jobject, jstring, jvalue, JNIEnv, JavaVM, JNI_EDETACHED, JNI_OK, JNI_VERSION_1_6,
+    };
     use lekis_playback::output::usb_direct::{
         MixerFormat, UsbAudioDevice, UsbAudioPlatform, UsbProbe,
     };
@@ -316,7 +318,12 @@ mod jni_platform {
 
         // SAFETY: 每个 JNI 调用只使用本函数内创建的局部引用。
         unsafe {
-            let method = get_static_method(env, class, METHOD.as_ptr().cast(), SIGNATURE.as_ptr().cast());
+            let method = get_static_method(
+                env,
+                class,
+                METHOD.as_ptr().cast(),
+                SIGNATURE.as_ptr().cast(),
+            );
             if method.is_null() || clear(env) {
                 return Err(internal("UsbAudioBridge.call is missing"));
             }

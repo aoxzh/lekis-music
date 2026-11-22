@@ -1455,7 +1455,7 @@ impl LekisCore {
         .await
     }
 
-    /// 刷新所有订阅（并发 [`REFRESH_CONCURRENCY`] 个）。
+    /// 刷新所有订阅（并发 `REFRESH_CONCURRENCY` 个）。
     pub async fn podcast_refresh_all(&self) -> Result<PodcastRefreshReport> {
         let s = self.services.clone();
         let report = self

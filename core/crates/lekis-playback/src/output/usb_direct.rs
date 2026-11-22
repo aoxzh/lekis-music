@@ -387,7 +387,10 @@ impl UsbDirectController {
             return Err(LekisError::new(ErrorCode::Unsupported, msg));
         }
         if !device.supports_bit_perfect() {
-            let msg = format!("USB device {} reports no bit-perfect mixer attributes", device.name);
+            let msg = format!(
+                "USB device {} reports no bit-perfect mixer attributes",
+                device.name
+            );
             self.set_device_status(UsbDirectState::Unsupported, &device, sdk, None, &msg);
             return Err(LekisError::new(ErrorCode::Unsupported, msg));
         }
@@ -649,19 +652,22 @@ pub fn usb_direct_probe() -> Option<UsbProbe> {
 
 /// 输出后端用：协商计划。
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
-pub(crate) fn plan_global(requested: PcmFormat, native: NativeSampleFormat) -> Result<Option<UsbPlan>> {
+pub(crate) fn plan_global(
+    requested: PcmFormat,
+    native: NativeSampleFormat,
+) -> Result<Option<UsbPlan>> {
     with_global(|c| c.plan(requested, native))
 }
 
 /// 输出后端用：协商并设置首选混音器属性。
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
-pub(crate) fn prepare_global(
-    requested: PcmFormat,
-    native: NativeSampleFormat,
-) -> Result<UsbPlan> {
+pub(crate) fn prepare_global(requested: PcmFormat, native: NativeSampleFormat) -> Result<UsbPlan> {
     with_global(|c| {
         let plan = c.plan(requested, native)?.ok_or_else(|| {
-            LekisError::new(ErrorCode::Unsupported, "no USB audio device for direct output")
+            LekisError::new(
+                ErrorCode::Unsupported,
+                "no USB audio device for direct output",
+            )
         })?;
         c.activate(&plan)?;
         Ok(plan)
@@ -748,7 +754,10 @@ mod tests {
             }
         }
         fn clear_preferred(&self, device_id: i32) -> Result<()> {
-            self.calls.lock().unwrap().push(format!("clear {device_id}"));
+            self.calls
+                .lock()
+                .unwrap()
+                .push(format!("clear {device_id}"));
             Ok(())
         }
     }

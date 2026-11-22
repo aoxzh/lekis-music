@@ -11,7 +11,7 @@
 //! - `GET /library/metadata/{ratingKey}`：拿 `Media` / `Part`，`Part.key` 才是真正的文件路径；
 //! - `GET /:/scrobble?key={ratingKey}&identifier=com.plexapp.plugins.library`：播放上报。
 //!
-//! Plex 只给 XML（`Accept: application/xml`），解析用 [`crate::xml`] 里的小树。
+//! Plex 只给 XML（`Accept: application/xml`），解析用 `crate::xml` 里的小树。
 
 use crate::xml::{self, XmlElement};
 use crate::{http, MediaServer, RemoteTrack, StreamQuality, StreamTarget};

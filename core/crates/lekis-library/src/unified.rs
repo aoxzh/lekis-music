@@ -299,12 +299,17 @@ impl Library {
                 let mut stmt = tx
                     .prepare("SELECT DISTINCT track_id FROM track_file WHERE file_id = ?1")
                     .db()?;
-                let rows = stmt.query_map(params![file_id], |r| r.get::<_, i64>(0)).db()?;
+                let rows = stmt
+                    .query_map(params![file_id], |r| r.get::<_, i64>(0))
+                    .db()?;
                 rows.collect::<rusqlite::Result<Vec<_>>>().db()?
             };
 
-            tx.execute("DELETE FROM track_file WHERE file_id = ?1", params![file_id])
-                .db()?;
+            tx.execute(
+                "DELETE FROM track_file WHERE file_id = ?1",
+                params![file_id],
+            )
+            .db()?;
             tx.execute("DELETE FROM file WHERE id = ?1", params![file_id])
                 .db()?;
 

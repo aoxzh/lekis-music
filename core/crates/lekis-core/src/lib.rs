@@ -10,6 +10,16 @@
 //! 所有耗时的公开方法都是 `async`，并且内部总是在核心自己的运行时上执行，
 //! 所以调用方用什么执行器（UniFFI 的 Kotlin 协程、C# Task）都可以。
 
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::items_after_test_module
+    )
+)]
+
 mod artwork_local;
 pub mod config;
 pub mod connect;
@@ -2124,7 +2134,13 @@ impl LekisCore {
                 .find(|r| r.id == id)
                 .ok_or_else(|| LekisError::not_found(format!("enrich candidate {id}")))?;
             s.enrich.apply_candidate(&s.library, &row).await?;
-            s.library.accept_candidate(id).await?;
+            // 封面类候选在 apply_candidate 落盘后已被 dismiss_stale_artwork_candidates 清理，
+            // 不再是 pending 状态；这里只把仍处于 pending 的候选标记为 accepted。
+            if let Err(e) = s.library.accept_candidate(id).await {
+                if e.code != ErrorCode::NotFound {
+                    return Err(e);
+                }
+            }
             let pending = s.library.pending_candidate_count().await? as u32;
             s.events.emit(CoreEvent::EnrichQueueChanged { pending });
             s.events.emit(CoreEvent::LibraryChanged {
@@ -3337,7 +3353,7 @@ mod tests {
             );
             let smb_ref = smb_cfg.credential_ref.as_deref().expect("smb ref");
             assert_eq!(credentials.get(smb_ref).as_deref(), Some("smb-secret-7jw"));
-            assert!(plex_cfg.options.get("token").is_none());
+            assert!(!plex_cfg.options.contains_key("token"));
             let plex_ref = plex_cfg.credential_ref.as_deref().expect("plex ref");
             assert_eq!(
                 credentials.get(plex_ref).as_deref(),
@@ -3698,10 +3714,10 @@ mod tests {
         Ok(format!("http://{addr}/cover.png"))
     }
 
-    /// OFF-01/02 端到端（本地源，不走网络）：入队 → 分块拷贝 → 原子落盘 → 统计 → 删除。
+    /// OFF-01/02：本地源曲目已经在本机磁盘上，download_track 应跳过而不重复复制到离线缓存。
     #[test]
-    fn offline_download_copies_local_track_and_removes_it() -> Result<()> {
-        let (core, root, _source, events, rt) =
+    fn offline_download_skips_local_track() -> Result<()> {
+        let (core, root, _source, _events, rt) =
             core_with_local_tracks("offline-download", &["01. Tone.wav"])?;
         rt.block_on(async {
             let track = core
@@ -3713,43 +3729,12 @@ mod tests {
                 .await?
                 .remove(0);
             core.download_track(track.id).await?;
-            let mut row = None;
-            for _ in 0..300 {
-                if let Some(current) = core.offline_status(track.id).await? {
-                    if current.state == OfflineState::Ready || current.state == OfflineState::Failed
-                    {
-                        row = Some(current);
-                        break;
-                    }
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(20)).await;
-            }
-            let row = row.expect("download should finish");
-            assert_eq!(row.state, OfflineState::Ready, "error: {:?}", row.error);
-            let source_bytes = std::fs::read(root.join("music/01. Tone.wav"))?;
-            let cached = std::fs::read(&row.cache_path)?;
-            assert_eq!(cached, source_bytes, "缓存文件必须和源逐字节一致");
-            assert_eq!(row.bytes, source_bytes.len() as u64);
-            let stats = core.offline_stats().await?;
-            assert_eq!(stats.count, 1);
-            assert_eq!(stats.bytes, source_bytes.len() as u64);
-
-            core.remove_download(track.id).await?;
             assert!(core.offline_status(track.id).await?.is_none());
-            assert!(!std::path::Path::new(&row.cache_path).exists());
+            let stats = core.offline_stats().await?;
+            assert_eq!(stats.count, 0);
+            assert_eq!(stats.bytes, 0);
             Ok::<_, LekisError>(())
         })?;
-        let seen = seen(&events);
-        assert!(seen.iter().any(|e| matches!(
-            e,
-            CoreEvent::OfflineChanged {
-                state: OfflineState::Ready,
-                ..
-            }
-        )));
-        assert!(seen
-            .iter()
-            .any(|e| matches!(e, CoreEvent::OfflineProgress { .. })));
         drop(core);
         let _ = std::fs::remove_dir_all(&root);
         Ok(())

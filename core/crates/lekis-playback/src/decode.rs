@@ -81,7 +81,7 @@ pub trait Decoder: Send {
 /// 按 [`MediaSource`] 打开解码器。
 ///
 /// - `CachedFile`：直接读本地文件（`std::fs::File` 已经实现 symphonia 的 `MediaSource`）。
-/// - `Vfs`：通过宿主注册的 VFS 解析器（[`vfs_access::install_vfs_resolver`]）分块读取，
+/// - `Vfs`：通过宿主注册的 VFS 解析器（`vfs_access::install_vfs_resolver`）分块读取，
 ///   见 [`VfsMediaSource`]。
 /// - `Url`：HTTP Range 分块读取（[`HttpRangeSource`]），`MediaLocation` 里的请求头会
 ///   附加到每个请求上（服务器源的 token 在头里）。

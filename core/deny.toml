@@ -7,9 +7,24 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
+ignore = [
+  # ringbuf 仅存 f32 PCM 样本（无自定义 Drop）
+  "RUSTSEC-2026-0293",
+  # zip 仅用于逐条目校验路径的插件安装，不调用 ZipArchive::extract / ZipStreamReader / AES
+  "RUSTSEC-2026-0367",
+  "RUSTSEC-2026-0368",
+  "RUSTSEC-2026-0369",
+  "RUSTSEC-2026-0429",
+  "RUSTSEC-2026-0545",
+  "RUSTSEC-2026-0548",
+  # libsqlite3-sys / url 随上游 crate 升级后移除
+  "RUSTSEC-2026-0459",
+  "RUSTSEC-2026-0592",
+]
 
 [licenses]
 version = 2
+private = { ignore = true }
 # 核心层只允许宽松许可证。GPL / AGPL 一律不允许（见 CONTRIBUTING.md 第 6 节）。
 # LGPL 的 C 库（libsmb2、libnfs、FFmpeg）通过动态链接使用，不在这里列出，单独评审。
 allow = [
@@ -25,6 +40,8 @@ allow = [
   "Unicode-DFS-2016",
   "CC0-1.0",
   "BSL-1.0",
+  # webpki-roots 使用的 Mozilla CA 根证书数据许可。
+  "CDLA-Permissive-2.0",
   # nfs3_client 是 Unlicense（公共领域），比 MIT 更宽松。
   "Unlicense",
 ]

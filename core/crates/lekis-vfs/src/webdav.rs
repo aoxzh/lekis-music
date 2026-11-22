@@ -10,7 +10,7 @@
 //! - 有些服务不返回 `getlastmodified`，此时 [`VfsCapabilities::reliable_dir_mtime`] 为 `false`，
 //!   增量扫描退化。这里用「实际见过 getlastmodified」作为开关。
 //! - XML 命名空间前缀不可信：Alist 用 `d:`、Nextcloud 用 `d:`、群晖有的版本用 `D:` 或 `lp1:`、
-//!   还有不带前缀的。**解析只按本地名（local name）匹配**，见 [`parse_propfind`]。
+//!   还有不带前缀的。**解析只按本地名（local name）匹配**，见 `parse_propfind`。
 //! - 认证：Basic（URL userinfo 或 `open()` 传入的密码）+ Digest（收到 401 挑战后自动切换）。
 //!   凭据只放在请求头里，**不会**出现在 URL、`tracing` 输出或错误消息中。
 

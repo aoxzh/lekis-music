@@ -6,6 +6,8 @@
 //!
 //! **数据库文件必须在本机**，不能放在网络共享上（ADR-0004）。
 
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+
 mod artwork;
 mod browse;
 mod connect_lookup;

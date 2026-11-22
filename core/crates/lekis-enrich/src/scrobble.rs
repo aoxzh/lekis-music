@@ -118,7 +118,7 @@ impl ScrobbleService {
 
     /// 默认 API 地址（[`ScrobbleConfig::new`] 用它填 `base_url`）。
     ///
-    /// 结尾不带 `/`：拼路径由 [`crate::http::join`] 统一处理。
+    /// 结尾不带 `/`：拼路径由 `crate::http::join` 统一处理。
     pub const fn default_base_url(self) -> &'static str {
         match self {
             Self::LastFm => "https://ws.audioscrobbler.com/2.0",

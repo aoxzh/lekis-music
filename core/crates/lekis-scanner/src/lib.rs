@@ -9,7 +9,7 @@
 //!   → shared_index（写 NAS 共享索引，可选）
 //! ```
 //!
-//! - **LIB-03**：遍历按 `VfsCapabilities::suggested_concurrency` 并发列目录（见 [`walk`]）。
+//! - **LIB-03**：遍历按 `VfsCapabilities::suggested_concurrency` 并发列目录（见 `walk`）。
 //! - **LIB-04**：增量扫描 [`Scanner::scan_incremental`]——目录 mtime 没变就跳过整个子树；
 //!   文件 `size` + `mtime` 没变就跳过读标签，只 touch 一下 `last_seen_at`。
 //! - **LIB-05**：NAS 共享索引读写（见 [`shared_index`]），由 [`Scanner::write_shared_index`] 落盘；

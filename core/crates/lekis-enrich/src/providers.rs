@@ -776,7 +776,13 @@ pub(crate) fn contains_cjk_or_kana(text: &str) -> bool {
 /// 如 `(TV Size)`、`(Game Ver.)`、`(Instrumental)`、`(CV. xxx)`、`[Hi-Res]`、全角波浪号等。
 pub(crate) fn clean_acg_query(text: &str) -> String {
     let mut s = text.replace(['\u{3000}', '～', '~'], " ");
-    for (open, close) in [('(', ')'), ('（', '）'), ('[', ']'), ('【', '】'), ('「', '」')] {
+    for (open, close) in [
+        ('(', ')'),
+        ('（', '）'),
+        ('[', ']'),
+        ('【', '】'),
+        ('「', '」'),
+    ] {
         while let Some(start) = s.find(open) {
             if let Some(rel_end) = s[start + open.len_utf8()..].find(close) {
                 let end = start + open.len_utf8() + rel_end + close.len_utf8();
@@ -877,7 +883,9 @@ impl ArtworkProvider for ITunes {
                 if candidates.is_empty() {
                     let cleaned_album = clean_acg_query(album);
                     if !cleaned_album.is_empty() && cleaned_album != album {
-                        let items = self.search(&cleaned_album, "album", primary_country).await?;
+                        let items = self
+                            .search(&cleaned_album, "album", primary_country)
+                            .await?;
                         candidates = item_candidates(self.name(), hint, &items);
                     }
                 }

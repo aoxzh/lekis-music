@@ -27,7 +27,7 @@ impl Params {
         )
     }
 
-    /// 从 axum 的 [`RawQuery`] 提取器的值构造。
+    /// 从 axum 的 `RawQuery` 提取器的值构造。
     ///
     /// 参数是 `Option<String>` 而不是 `RawQuery`：handler 里解构写成
     /// `RawQuery(raw): RawQuery` 后 `raw` 就是 `Option<String>`，这样能直接借过去。

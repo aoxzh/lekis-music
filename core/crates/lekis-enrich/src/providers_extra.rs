@@ -222,10 +222,7 @@ fn parse_deezer_artwork(
         } else {
             continue;
         };
-        let artist_name = item
-            .artist
-            .map(|a| a.name)
-            .unwrap_or_default();
+        let artist_name = item.artist.map(|a| a.name).unwrap_or_default();
         let duration_ms = item.duration.saturating_mul(1000);
         let album_opt = (!album.title.trim().is_empty()).then(|| album.title.clone());
         let confidence = as_confidence(score_match(
@@ -312,7 +309,9 @@ impl ArtworkProvider for NetEaseArtwork {
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| hint.title.trim());
-        let query = format!("{target} {}", first_artist(hint)).trim().to_string();
+        let query = format!("{target} {}", first_artist(hint))
+            .trim()
+            .to_string();
         if query.is_empty() {
             return Ok(Vec::new());
         }
@@ -829,10 +828,7 @@ fn parse_netease_songs(body: &str) -> Result<Vec<(u64, TrackHint)>> {
                 .map(|a| a.name)
                 .filter(|n| !n.trim().is_empty())
                 .collect();
-            let album = s
-                .album
-                .map(|a| a.name)
-                .filter(|n| !n.trim().is_empty());
+            let album = s.album.map(|a| a.name).filter(|n| !n.trim().is_empty());
             (
                 s.id,
                 TrackHint {
@@ -1167,7 +1163,9 @@ fn parse_kugou_download(body: &str) -> Result<Option<String>> {
     };
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(b64.trim())
-        .map_err(|e| LekisError::new(ErrorCode::Decode, format!("酷狗歌词 Base64 解码失败：{e}")))?;
+        .map_err(|e| {
+            LekisError::new(ErrorCode::Decode, format!("酷狗歌词 Base64 解码失败：{e}"))
+        })?;
     let raw = String::from_utf8_lossy(&bytes);
     let cleaned = clean_kugou_lrc(&raw);
     if cleaned.is_empty() {
@@ -1578,10 +1576,7 @@ mod tests {
             clean_acg_query("青春コンプレックス (TV Size) [FLAC]"),
             "青春コンプレックス"
         );
-        assert_eq!(
-            clean_acg_query("メルト (feat. 初音ミク)"),
-            "メルト"
-        );
+        assert_eq!(clean_acg_query("メルト (feat. 初音ミク)"), "メルト");
         let hint = TrackHint {
             title: "メルト".into(),
             artists: vec!["ryo".into()],

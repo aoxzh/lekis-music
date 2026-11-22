@@ -13,7 +13,7 @@
 //! - **路径**：`VfsPath` 用 `/` 分隔，`smb2` 也**只**用 `/` 分隔（`\` 是普通名字字符，
 //!   crate 内部映射到 Unicode 私用区），所以两边可以直接对应；share 根的路径是空串。
 //! - **凭据**：密码只交给 `smb2` 的 `ClientConfig`，**不出现在日志、错误消息或 URL 里**
-//!   （[`SmbTarget`] 保存的地址已经剥掉 userinfo）。
+//!   （`SmbTarget` 保存的地址已经剥掉 userinfo）。
 
 use crate::{DirEntry, EntryKind, FileMeta, Vfs, VfsCapabilities, VfsPath};
 use async_trait::async_trait;

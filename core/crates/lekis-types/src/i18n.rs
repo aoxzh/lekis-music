@@ -49,10 +49,16 @@ mod tests {
         let path = "a.flac";
         set_english(false);
         assert_eq!(crate::tr!("共 {n} 首", "{n} tracks"), "共 3 首");
-        assert_eq!(crate::tr!("文件 {} 不存在", "File {} not found", path), "文件 a.flac 不存在");
+        assert_eq!(
+            crate::tr!("文件 {} 不存在", "File {} not found", path),
+            "文件 a.flac 不存在"
+        );
         set_english(true);
         assert_eq!(crate::tr!("共 {n} 首", "{n} tracks"), "3 tracks");
-        assert_eq!(crate::tr!("文件 {} 不存在", "File {} not found", path), "File a.flac not found");
+        assert_eq!(
+            crate::tr!("文件 {} 不存在", "File {} not found", path),
+            "File a.flac not found"
+        );
         set_english(false);
     }
 }

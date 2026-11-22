@@ -34,9 +34,7 @@ fn aaudio_format(packing: NativePacking) -> AudioFormat {
         NativePacking::Int16 => AudioFormat::PCM_I16,
         NativePacking::Float32 => AudioFormat::PCM_Float,
         NativePacking::Int24Packed => AudioFormat::from(AAUDIO_FORMAT_PCM_I24_PACKED),
-        NativePacking::Int24In32 | NativePacking::Int32 => {
-            AudioFormat::from(AAUDIO_FORMAT_PCM_I32)
-        }
+        NativePacking::Int24In32 | NativePacking::Int32 => AudioFormat::from(AAUDIO_FORMAT_PCM_I32),
     }
 }
 

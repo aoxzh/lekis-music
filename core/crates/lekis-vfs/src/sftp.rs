@@ -141,7 +141,7 @@ impl SftpVfs {
     }
 
     /// 同 [`connect`](Self::connect)，`inline_key` 为真时 `secret` 是私钥凭据
-    /// （见 [`InlineKey::parse`]）而不是密码。
+    /// （见 `InlineKey::parse`）而不是密码。
     pub fn connect_with(url: &str, secret: Option<String>, inline_key: bool) -> Result<Self> {
         let target = parse_sftp_url(url)?;
         let (password, inline_key) = if inline_key {
@@ -583,9 +583,7 @@ impl Vfs for SftpVfs {
         }
         let remote = self.remote_path(path);
         self.with_session(move |sftp| {
-            Box::pin(async move {
-                sftp.remove_file(remote).await.map_err(sftp_err)
-            })
+            Box::pin(async move { sftp.remove_file(remote).await.map_err(sftp_err) })
         })
         .await
     }

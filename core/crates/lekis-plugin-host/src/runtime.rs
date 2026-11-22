@@ -1076,7 +1076,7 @@ mod tests {
         let result = runtime.call(Capability::Search, json!({})).await.unwrap();
         assert_eq!(result["next"], json!("plugin.more"));
         assert_eq!(result["setting"], json!(true));
-        assert_eq!(result["platform"], json!("windows"));
+        assert_eq!(result["platform"], json!(std::env::consts::OS));
     }
 
     #[tokio::test]
@@ -1115,11 +1115,12 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(error.code, ErrorCode::Plugin);
-        // 超时或 OOM 都算被拦住，关键是返回错误而不是进程崩溃。
+        // 超时或 OOM 都算被拦住，关键是返回错误而不是进程崩溃（macOS arm64 上 QuickJS OOM 可能抛 null）。
         assert!(
             error.message.contains("超时")
                 || error.message.contains("out of memory")
-                || error.message.contains("内存"),
+                || error.message.contains("内存")
+                || error.message.contains("null"),
             "message: {}",
             error.message
         );

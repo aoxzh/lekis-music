@@ -1433,11 +1433,7 @@ pub async fn delete_duplicate_file(
     delete_source_file: bool,
 ) -> Result<bool, CoreError> {
     Ok(core()
-        .delete_duplicate_file(
-            lekis_types::SourceId(source_id),
-            path,
-            delete_source_file,
-        )
+        .delete_duplicate_file(lekis_types::SourceId(source_id), path, delete_source_file)
         .await?)
 }
 

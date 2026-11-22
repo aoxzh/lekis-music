@@ -123,13 +123,20 @@ unsafe fn cache_class(
     name: &[u8],
     slot: &AtomicUsize,
 ) {
-    let (Some(find_class), Some(new_global), Some(delete_local_ref), Some(exception_check), Some(exception_clear)) = (
+    let (
+        Some(find_class),
+        Some(new_global),
+        Some(delete_local_ref),
+        Some(exception_check),
+        Some(exception_clear),
+    ) = (
         fns.FindClass,
         fns.NewGlobalRef,
         fns.DeleteLocalRef,
         fns.ExceptionCheck,
         fns.ExceptionClear,
-    ) else {
+    )
+    else {
         return;
     };
     // SAFETY: 见函数说明。

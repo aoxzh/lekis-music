@@ -17,7 +17,7 @@
 //! | [`cache`] | ENR-09 的结果本地缓存（带 TTL 与容量上限）|
 //! | [`http`] | 各在线功能共用的 HTTP 基础件（UA、超时、状态码映射）|
 //! | [`scrobble`] | DIS-07 的第三方听歌记录上报（Last.fm / ListenBrainz / Libre.fm）|
-//! | [`md5`] | Last.fm 签名要用的 MD5（RFC 1321），仅供 [`scrobble`] 内部使用 |
+//! | `md5` | Last.fm 签名要用的 MD5（RFC 1321），仅供 [`scrobble`] 内部使用 |
 
 pub mod artwork_ingest;
 pub mod cache;

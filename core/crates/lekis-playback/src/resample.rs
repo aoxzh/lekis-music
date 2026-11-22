@@ -251,6 +251,7 @@ impl FormatConverter {
             match resampler.process_into_buffer(&self.planar_in, &mut self.planar_out, None) {
                 Ok((_, produced)) => {
                     out.reserve(produced * device_ch);
+                    #[allow(clippy::needless_range_loop)]
                     for frame in 0..produced {
                         for channel in 0..device_ch {
                             out.push(self.planar_out[channel][frame]);

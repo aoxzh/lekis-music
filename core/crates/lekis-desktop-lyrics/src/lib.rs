@@ -8,7 +8,7 @@
 //!   窗口线程自己插值出每帧的位置，**每帧不经过 Dart**。
 //! - 只有在播放且有逐字填充时才按显示器刷新率重绘；逐行歌词只在换行时重绘，
 //!   暂停 / 隐藏时线程阻塞在消息循环里。
-//! - 平台相关部分在 [`Platform`] 后面：Windows 用 Win32 分层窗口 + Direct2D/DirectWrite；
+//! - 平台相关部分在 `Platform` 后面：Windows 用 Win32 分层窗口 + Direct2D/DirectWrite；
 //!   macOS（NSPanel）/ Linux 以后各自实现，目前 [`DesktopLyrics::is_supported`] 返回 `false`。
 
 pub mod model;
@@ -50,6 +50,7 @@ impl Shared {
         self.state.lock().unwrap_or_else(|e| e.into_inner())
     }
 
+    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
     pub(crate) fn emit(&self, event: Event) {
         let handler = self
             .handler

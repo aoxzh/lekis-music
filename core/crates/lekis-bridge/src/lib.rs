@@ -2,6 +2,8 @@
 //!
 //! 规则：这里只做类型转换，不写业务逻辑。
 
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+
 #[cfg(target_os = "android")]
 mod android_context;
 pub mod api;
