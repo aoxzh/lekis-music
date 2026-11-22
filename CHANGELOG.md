@@ -12,6 +12,7 @@
 
 ### 修复
 
+- **Android 通知栏播放控件**：修复 release 构建中 `shrinkResources` 误删 `audio_service` 播放控件图标导致通知栏按钮空白的问题；改用自定义圆角矢量图标与单色状态栏小图标，暂停时保持前台服务常驻，并限制封面位图尺寸至 300×300（兼顾原生 Android 现代卡片与 OriginOS / HyperOS / ColorOS / MagicOS 等国产 ROM）。
 - **补全封面候选确认报错**：修复接受待确认专辑封面候选时因过期候选清理顺序导致返回 `NotFound` 的问题。
 
 ## [0.2.0] - 2026-11-23

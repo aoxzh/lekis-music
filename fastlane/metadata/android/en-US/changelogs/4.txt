@@ -1,2 +1,3 @@
 - Desktop in-app self-update (live download progress, SHA-256 check, one-click restart to update)
+- Fix blank Android release notification media buttons, add sleek rounded vector icons and OEM ROM artwork downscaling
 - Fix NotFound error when accepting a pending album artwork enrichment candidate
