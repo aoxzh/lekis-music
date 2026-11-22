@@ -6,11 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'dev/perf_probe.dart';
+import 'features/mini_mode/mini_player_window.dart';
 import 'features/player/playback_session.dart';
 import 'features/player/widgets/player_controls.dart';
 import 'l10n/app_l10n.dart';
 import 'l10n/app_locale.dart';
 import 'platform/network_context.dart';
+import 'platform/ui_profile.dart';
 import 'platform/window_caption.dart';
 import 'shell/app_shell.dart';
 import 'theme/theme.dart';
@@ -58,7 +60,12 @@ class LekisApp extends ConsumerWidget {
           value: overlay,
           child: LekisLocale(
             locale: Localizations.localeOf(context),
-            child: WindowCaptionSync(child: child ?? const SizedBox.shrink()),
+            child: WindowCaptionSync(
+              // Desktop only: the window can shrink into the mini player.
+              child: UiProfile.current.isDesktop
+                  ? MiniModeHost(child: child ?? const SizedBox.shrink())
+                  : child ?? const SizedBox.shrink(),
+            ),
           ),
         );
       },

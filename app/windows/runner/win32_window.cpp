@@ -201,6 +201,9 @@ Win32Window::MessageHandler(HWND hwnd,
       return 0;
 
     case WM_GETMINMAXINFO: {
+      // The mini player is far smaller than the shell; it sets its own
+      // limits through window_manager.
+      if (compact_) break;
       // Keep the window large enough for the narrowest shell layout (icon
       // rail + mini player) so content never gets crushed into overflow.
       auto info = reinterpret_cast<MINMAXINFO*>(lparam);

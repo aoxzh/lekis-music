@@ -13,9 +13,7 @@ class LekisLocale extends StatefulWidget {
   final Widget child;
 
   static Locale? maybeOf(BuildContext context) =>
-      context
-          .dependOnInheritedWidgetOfExactType<_LekisLocaleScope>()
-          ?.locale;
+      context.dependOnInheritedWidgetOfExactType<_LekisLocaleScope>()?.locale;
 
   @override
   State<LekisLocale> createState() => _LekisLocaleState();
@@ -133,6 +131,8 @@ class L10n {
   String get hideLyrics => pick('隐藏歌词', 'Hide Lyrics');
   String get queue => pick('播放队列', 'Queue');
   String get hideQueue => pick('隐藏播放队列', 'Hide Queue');
+  String get miniPlayerMode => pick('迷你播放器', 'Mini Player');
+  String get exitMiniPlayer => pick('返回完整窗口', 'Back to Full Window');
   String get outputDevice => pick('输出设备', 'Output Device');
   String get mute => pick('静音', 'Mute');
   String get unmute => pick('取消静音', 'Unmute');

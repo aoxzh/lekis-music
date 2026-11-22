@@ -52,6 +52,10 @@ class Win32Window {
   // If true, closing this window will quit the application.
   void SetQuitOnClose(bool quit_on_close);
 
+  // While compact (the desktop mini player), the full-layout minimum client
+  // size is not enforced.
+  void SetCompact(bool compact) { compact_ = compact; }
+
   // Return a RECT representing the bounds of the current client area.
   RECT GetClientArea();
 
@@ -94,6 +98,8 @@ class Win32Window {
   void SyncChildSize();
 
   bool quit_on_close_ = false;
+
+  bool compact_ = false;
 
   // Defer child HWND MoveWindow during interactive drag-resize to avoid
   // hammering ANGLE D3D11 ResizeBuffers on every mouse pixel (Intel Arc B390

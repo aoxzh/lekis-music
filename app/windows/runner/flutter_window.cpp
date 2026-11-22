@@ -45,6 +45,16 @@ bool FlutterWindow::OnCreate() {
       [this](const flutter::MethodCall<flutter::EncodableValue>& call,
              std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
                  result) {
+        if (call.method_name() == "setCompactWindow") {
+          const auto* compact = std::get_if<bool>(call.arguments());
+          if (compact == nullptr) {
+            result->Error("bad-args", "expected a bool");
+            return;
+          }
+          SetCompact(*compact);
+          result->Success();
+          return;
+        }
         if (call.method_name() != "setDarkCaption") {
           result->NotImplemented();
           return;

@@ -49,6 +49,7 @@ dependencies:
   permission_handler: ^13.0.2
   tray_manager: ^0.9.0
   window_manager: ^0.7.0
+  nativeapi: ^0.6.0
   connectivity_plus: ^7.3.2
 
 dev_dependencies:

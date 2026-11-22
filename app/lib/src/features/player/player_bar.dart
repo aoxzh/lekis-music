@@ -7,6 +7,7 @@ import 'package:lekis/src/features/desktop_lyrics/desktop_lyrics_controller.dart
 import 'package:lekis/src/features/desktop_lyrics/desktop_lyrics_strings.dart';
 import 'package:lekis/src/features/library/library_providers.dart'
     show SimpleValue;
+import 'package:lekis/src/features/mini_mode/mini_mode_controller.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart'
     show LovedButton;
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
@@ -52,12 +53,14 @@ class PlayerBar extends ConsumerWidget {
   static const Key devicesKey = ValueKey('player-bar.devices');
   static const Key volumeKey = ValueKey('player-bar.volume');
   static const Key volumePopoverKey = ValueKey('player-bar.volume-popover');
+  static const Key miniModeKey = ValueKey('player-bar.mini-mode');
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
     final sidePane = sidePanel ? ref.watch(desktopSidePaneProvider) : null;
     final desktopLyricsSupported = ref.watch(desktopLyricsSupportedProvider);
+    final miniModeSupported = ref.watch(miniModeSupportedProvider);
     final desktopLyricsVisible = desktopLyricsSupported
         ? ref.watch(desktopLyricsProvider.select((s) => s.visible))
         : false;
@@ -158,6 +161,14 @@ class PlayerBar extends ConsumerWidget {
           const ConnectDeviceButton(alwaysShow: true),
           const _OutputDeviceButton(key: devicesKey),
           const _WheelVolume(child: _VolumePopoverButton(key: volumeKey)),
+          if (miniModeSupported)
+            IconButton(
+              key: miniModeKey,
+              tooltip: context.l10n.miniPlayerMode,
+              constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+              onPressed: () => ref.read(miniModeProvider.notifier).enter(),
+              icon: const Icon(Icons.picture_in_picture_alt_rounded),
+            ),
         ],
       ),
     );
