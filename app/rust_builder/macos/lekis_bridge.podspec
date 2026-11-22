@@ -39,6 +39,9 @@ A new Flutter FFI plugin project.
     'DEFINES_MODULE' => 'YES',
     # Flutter.framework does not contain a i386 slice.
     'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386',
-    'OTHER_LDFLAGS' => '-force_load ${BUILT_PRODUCTS_DIR}/liblekis_bridge.a',
+    # A Rust staticlib does not carry the system frameworks its crates link
+    # (cpal / coreaudio-rs, souvlaki's Now Playing), so name them here.
+    # CoreAudio's process-tap calls only exist on macOS 14.2+, hence weak.
+    'OTHER_LDFLAGS' => '-force_load ${BUILT_PRODUCTS_DIR}/liblekis_bridge.a -framework AudioToolbox -framework CoreFoundation -weak_framework CoreAudio -weak_framework MediaPlayer',
   }
 end

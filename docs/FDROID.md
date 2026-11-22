@@ -8,7 +8,7 @@ Lekis Music (`dev.lekis.music`) is 100% FOSS (`MPL-2.0`), with zero proprietary 
 - [x] **No Proprietary Blobs / GMS**: Zero Google Play Services, Firebase, Crashlytics, AdMob, or analytics SDKs
 - [x] **No Encrypted Google Dependency Block**: `dependenciesInfo { includeInApk = false; includeInBundle = false }` enabled
 - [x] **Fastlane Metadata + Screenshots Included**: `fastlane/metadata/android/en-US/` and `zh-CN/` (title, descriptions, changelogs, icon, phoneScreenshots)
-- [x] **Tag & Release Pipeline Ready**: `v0.1.0-alpha.1` (remember to click **Publish release** on the GitHub Release draft before submitting!)
+- [x] **Tag & Release Pipeline Ready**: `v0.1.0-alpha.2` (remember to click **Publish release** on the GitHub Release draft before submitting!)
 
 ---
 

@@ -1,0 +1,6 @@
+First release published on GitHub:
+- Desktop mini player: an always-on-top strip with cover, title and transport controls
+- New macOS (Universal) and Linux x64 desktop builds
+- In-app update check on the About page
+- Delete lower-quality duplicates, better CJK/ACG artwork lookup with live enrichment progress
+- Light-mode contrast fixes across the app
