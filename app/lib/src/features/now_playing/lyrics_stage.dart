@@ -28,6 +28,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/now_playing/lyric_typography.dart';
 import 'package:lekis/src/features/now_playing/lyrics_classic.dart'
     show LyricsClock;
 import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
@@ -1329,11 +1330,12 @@ class _LyricsStageState extends ConsumerState<LyricsStage>
       LyricsStageStyle.flow => (size.width * 0.045).clamp(minFont, 64.0),
     };
     _LineArt art;
+    final lineBase = lyricTextStyleFor(l.line.text, base);
     for (var attempt = 0; ; attempt++) {
       art = switch (widget.style) {
-        LyricsStageStyle.flow => _layoutFlow(l, size, base, f),
-        LyricsStageStyle.steps => _layoutSteps(l, size, base, f),
-        LyricsStageStyle.tilt => _layoutTilt(l, size, base, f),
+        LyricsStageStyle.flow => _layoutFlow(l, size, lineBase, f),
+        LyricsStageStyle.steps => _layoutSteps(l, size, lineBase, f),
+        LyricsStageStyle.tilt => _layoutTilt(l, size, lineBase, f),
       };
       // 放不下就缩小字号重排，最多三次，最小一半。
       if (art.fit >= 0.999 || attempt >= 2 || f <= minFont * 0.5) break;
@@ -1931,10 +1933,13 @@ class _StageFooter extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: fg.withValues(alpha: 0.72),
-                fontWeight: FontWeight.w600,
-                height: 1.35,
+              style: lyricTextStyleFor(
+                tr,
+                (theme.textTheme.titleMedium ?? const TextStyle()).copyWith(
+                  color: fg.withValues(alpha: 0.72),
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
+                ),
               ),
             ),
           ),
@@ -1948,8 +1953,11 @@ class _StageFooter extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: fg.withValues(alpha: 0.32),
+              style: lyricTextStyleFor(
+                nx,
+                (theme.textTheme.bodyMedium ?? const TextStyle()).copyWith(
+                  color: fg.withValues(alpha: 0.32),
+                ),
               ),
             ),
           ),

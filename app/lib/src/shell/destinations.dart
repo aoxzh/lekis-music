@@ -8,6 +8,7 @@ import 'package:lekis/src/features/podcasts/podcasts_page.dart';
 import 'package:lekis/src/features/search/search_page.dart';
 import 'package:lekis/src/features/settings/settings_page.dart';
 import 'package:lekis/src/features/sources/sources_page.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 
 enum LekisDestination {
   home('首页', Icons.home_outlined, Icons.home_rounded),
@@ -22,6 +23,19 @@ enum LekisDestination {
   final String label;
   final IconData icon;
   final IconData selectedIcon;
+
+  /// Localized label respecting the active app locale.
+  String labelOf(BuildContext context) {
+    final l10n = context.l10n;
+    return switch (this) {
+      home => l10n.navHome,
+      library => l10n.navLibrary,
+      search => l10n.navSearch,
+      podcasts => l10n.navPodcasts,
+      sources => l10n.navSources,
+      settings => l10n.navSettings,
+    };
+  }
 
   /// Root page of this destination's tab.
   Widget buildPage() => switch (this) {

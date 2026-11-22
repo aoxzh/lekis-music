@@ -381,11 +381,12 @@ class _TabItem extends StatelessWidget {
         ? LekisMotion.fast
         : (liquid ? LekisMotion.fast : LekisMotion.navFlat);
 
+    final itemLabel = destination.labelOf(context);
     return Semantics(
       container: true,
       button: true,
       selected: selected,
-      label: destination.label,
+      label: itemLabel,
       onTap: onTap,
       excludeSemantics: true,
       // No ripple / highlight box: the travelling bubble is the feedback;
@@ -430,7 +431,7 @@ class _TabItem extends StatelessWidget {
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
-                      destination.label,
+                      itemLabel,
                       maxLines: 1,
                       softWrap: false,
                       style: text.labelSmall?.copyWith(

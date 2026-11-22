@@ -1,4 +1,4 @@
-// 设置的二级页面：整理资料库、播放、外观、歌词、高级、关于。
+// 设置的二级页面：整理资料库、多设备同步、在其他设备上播放、播放、外观（含歌词）、高级、关于。
 //
 // 每个分类只给出若干 [SettingsSection]；手机上包成推入的子页面，
 // 宽窗口里直接放进右栏（见 settings_page.dart）。
@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../l10n/app_l10n.dart';
+import '../../l10n/app_locale.dart';
 import '../../platform/ui_profile.dart';
 import '../../rust/api/dto.dart';
 import '../../shell/app_shell.dart';
@@ -16,6 +18,7 @@ import '../../theme/tokens.dart';
 import '../enrich/enrich_providers.dart';
 import '../library/library_health_page.dart';
 import '../now_playing/lyrics_stage_settings.dart';
+import '../now_playing/now_playing_style.dart';
 import '../player/sleep_timer.dart';
 import '../plugins/plugins_providers.dart';
 import '../sources/common.dart';
@@ -45,6 +48,12 @@ enum SettingsCategoryGroup {
 
   const SettingsCategoryGroup(this.title);
   final String title;
+
+  String titleOf(BuildContext context) => switch (this) {
+    SettingsCategoryGroup.music => context.l10n.groupMusic,
+    SettingsCategoryGroup.general => context.l10n.groupGeneral,
+    SettingsCategoryGroup.more => context.l10n.groupMore,
+  };
 }
 
 /// 顶层列表里可以进入的二级分类。
@@ -118,17 +127,13 @@ enum SettingsCategory {
       SettingsStrings.theme,
       SettingsStrings.themeDark,
       SettingsStrings.themeLight,
+      SettingsStrings.language,
+      SettingsStrings.nowPlayingStyle,
+      SettingsStrings.nowPlayingVinyl,
+      SettingsStrings.nowPlayingCassette,
       SettingsStrings.tabBarStyle,
       SettingsStrings.navBarPosition,
-    ],
-  ),
-  lyrics(
-    SettingsStrings.lyrics,
-    SettingsStrings.lyricsHint,
-    Icons.lyrics_outlined,
-    SettingsCategoryGroup.general,
-    _lyricsSections,
-    keywords: [
+      SettingsStrings.lyrics,
       SettingsStrings.lyricsStage,
       SettingsStrings.lyricsSparks,
       DesktopLyricsStrings.title,
@@ -186,6 +191,19 @@ enum SettingsCategory {
   String get hint =>
       UiProfile.current.isDesktop ? (desktopHint ?? _hint) : _hint;
 
+  String titleOf(BuildContext context) {
+    final l10n = context.l10n;
+    return switch (this) {
+      SettingsCategory.organize => l10n.organize,
+      SettingsCategory.sync => l10n.multiDeviceSync,
+      SettingsCategory.connect => l10n.connect,
+      SettingsCategory.playback => l10n.playback,
+      SettingsCategory.appearance => l10n.appearance,
+      SettingsCategory.advanced => l10n.advanced,
+      SettingsCategory.about => l10n.about,
+    };
+  }
+
   /// 这个分类的内容（若干分组）。
   List<Widget> get sections => _sections();
 
@@ -202,8 +220,8 @@ enum SettingsCategory {
 List<Widget> _organizeSections() => const [_OrganizeSection()];
 List<Widget> _connectSections() => const [ConnectSettingsSection()];
 List<Widget> _playbackSections() => const [_PlaybackSection()];
-List<Widget> _appearanceSections() => const [_AppearanceSection()];
-List<Widget> _lyricsSections() => const [
+List<Widget> _appearanceSections() => const [
+  _AppearanceSection(),
   _LyricsSection(),
   DesktopLyricsSettingsSection(),
 ];
@@ -230,7 +248,7 @@ class SettingsCategoryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SettingsScaffold(
-    title: category.title,
+    title: category.titleOf(context),
     body: SettingsListView(children: category.sections),
   );
 }
@@ -453,16 +471,27 @@ class _AppearanceSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final pref = ref.watch(themePreferenceProvider);
+    final localePref = ref.watch(appLocaleProvider);
+    final npStyle = ref.watch(nowPlayingStyleProvider);
     final tabBarStyle = ref.watch(tabBarStyleProvider);
     final navBarPosition = ref.watch(navBarPositionProvider);
     final profile = UiProfile.current;
     void setTheme(ThemePreference p) =>
         settingsGuard(context, () => setThemePreference(ref, p));
+    void setLocale(AppLocalePreference p) => settingsGuard(
+      context,
+      () => ref.read(appLocaleProvider.notifier).set(p),
+    );
+    void setNowPlayingStyle(NowPlayingStyle s) => settingsGuard(
+      context,
+      () => ref.read(nowPlayingStyleProvider.notifier).set(s),
+    );
     return SettingsSection(
-      title: SettingsStrings.appearance,
+      title: l10n.appearance,
       children: [
-        if (profile.desktopSettings)
+        if (profile.desktopSettings) ...[
           SettingsDropdownTile<ThemePreference>(
             key: const ValueKey('settings-theme'),
             icon: Icons.palette_outlined,
@@ -481,8 +510,34 @@ class _AppearanceSection extends ConsumerWidget {
               ),
             ],
             onChanged: setTheme,
-          )
-        else
+          ),
+          SettingsDropdownTile<AppLocalePreference>(
+            key: const ValueKey('settings-locale'),
+            icon: Icons.language_rounded,
+            title: l10n.language,
+            subtitle: l10n.languageHint,
+            value: localePref,
+            choices: [
+              SettingsChoice(AppLocalePreference.system, l10n.languageSystem),
+              SettingsChoice(AppLocalePreference.zh, l10n.languageZh),
+              SettingsChoice(AppLocalePreference.en, l10n.languageEn),
+            ],
+            onChanged: setLocale,
+          ),
+          SettingsDropdownTile<NowPlayingStyle>(
+            key: const ValueKey('settings-now-playing-style'),
+            icon: Icons.album_outlined,
+            title: l10n.nowPlayingStyle,
+            subtitle: l10n.nowPlayingStyleHint,
+            value: npStyle,
+            choices: [
+              SettingsChoice(NowPlayingStyle.cover, l10n.styleCover),
+              SettingsChoice(NowPlayingStyle.vinyl, l10n.styleVinyl),
+              SettingsChoice(NowPlayingStyle.cassette, l10n.styleCassette),
+            ],
+            onChanged: setNowPlayingStyle,
+          ),
+        ] else ...[
           SettingsBlockTile(
             icon: Icons.palette_outlined,
             title: SettingsStrings.theme,
@@ -515,6 +570,60 @@ class _AppearanceSection extends ConsumerWidget {
               onSelectionChanged: (s) => setTheme(s.first),
             ),
           ),
+          SettingsBlockTile(
+            key: const ValueKey('settings-locale'),
+            icon: Icons.language_rounded,
+            title: l10n.language,
+            hint: l10n.languageHint,
+            child: SegmentedButton<AppLocalePreference>(
+              showSelectedIcon: false,
+              segments: [
+                ButtonSegment(
+                  value: AppLocalePreference.system,
+                  label: Text(l10n.languageSystem),
+                ),
+                ButtonSegment(
+                  value: AppLocalePreference.zh,
+                  label: Text(l10n.languageZh),
+                ),
+                ButtonSegment(
+                  value: AppLocalePreference.en,
+                  label: Text(l10n.languageEn),
+                ),
+              ],
+              selected: {localePref},
+              onSelectionChanged: (s) => setLocale(s.first),
+            ),
+          ),
+          SettingsBlockTile(
+            key: const ValueKey('settings-now-playing-style'),
+            icon: Icons.album_outlined,
+            title: l10n.nowPlayingStyle,
+            hint: l10n.nowPlayingStyleHint,
+            child: SegmentedButton<NowPlayingStyle>(
+              showSelectedIcon: false,
+              segments: [
+                ButtonSegment(
+                  value: NowPlayingStyle.cover,
+                  label: Text(l10n.styleCover),
+                  icon: const Icon(Icons.image_outlined),
+                ),
+                ButtonSegment(
+                  value: NowPlayingStyle.vinyl,
+                  label: Text(l10n.styleVinyl),
+                  icon: const Icon(Icons.album_outlined),
+                ),
+                ButtonSegment(
+                  value: NowPlayingStyle.cassette,
+                  label: Text(l10n.styleCassette),
+                  icon: const Icon(Icons.voicemail_rounded),
+                ),
+              ],
+              selected: {npStyle},
+              onSelectionChanged: (s) => setNowPlayingStyle(s.first),
+            ),
+          ),
+        ],
         // Liquid glass vs flat only exists where the glass tab bar does;
         // desktop always draws flat chrome, so the choice is not offered.
         if (profile.offersTabBarStyle) ...[

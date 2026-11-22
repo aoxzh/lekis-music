@@ -14,6 +14,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../l10n/app_l10n.dart';
 import '../../layout/adaptive_two_pane.dart';
 import '../../platform/ui_profile.dart';
 import '../../shell/app_shell.dart';
@@ -68,7 +69,7 @@ class _SettingsPageState extends State<SettingsPage> {
       onOpen: _open,
     );
     return SettingsScaffold(
-      title: SettingsStrings.title,
+      title: context.l10n.settingsTitle,
       body: !wide
           ? list
           : AdaptiveTwoPane(
@@ -92,10 +93,14 @@ class SettingsHomeList extends ConsumerWidget {
   /// 宽窗口里高亮的分类；窄窗口为 `null`。
   final SettingsCategory? selected;
 
-  Widget _category(SettingsCategory c, {Widget? trailing}) => SettingsTile(
+  Widget _category(
+    BuildContext context,
+    SettingsCategory c, {
+    Widget? trailing,
+  }) => SettingsTile(
     key: ValueKey('settings-category-${c.name}'),
     icon: c.icon,
-    title: c.title,
+    title: c.titleOf(context),
     subtitle: Text(c.hint, maxLines: 1, overflow: TextOverflow.ellipsis),
     trailing: trailing,
     chevron: true,
@@ -115,7 +120,7 @@ class SettingsHomeList extends ConsumerWidget {
         if (noSources) const SettingsSetupCard(),
         for (final group in SettingsCategoryGroup.values)
           SettingsSection(
-            title: group.title,
+            title: group.titleOf(context),
             children: [
               // 音源和下载不是设置分类，而是去对应页面的入口，排在音乐组最前。
               if (group == SettingsCategoryGroup.music) ...[
@@ -162,6 +167,7 @@ class SettingsHomeList extends ConsumerWidget {
               ],
               for (final c in SettingsCategory.inGroup(group))
                 _category(
+                  context,
                   c,
                   trailing:
                       c == SettingsCategory.organize &&

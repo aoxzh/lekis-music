@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/now_playing/lyric_typography.dart';
 import 'package:lekis/src/features/now_playing/lyrics_classic.dart';
 import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
 import 'package:lekis/src/features/now_playing/lyrics_stage.dart';
 import 'package:lekis/src/features/now_playing/lyrics_stage_settings.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -33,13 +35,17 @@ class LyricsView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final trackId = this.trackId;
     if (trackId == null) {
-      return const _Message(
-        key: ValueKey('idle'),
+      return _Message(
+        key: const ValueKey('idle'),
         icon: Icons.lyrics_outlined,
-        title: '暂无歌词',
-        detail: '开始播放后会在这里显示歌词',
+        title: l10n.noLyrics,
+        detail: l10n.pick(
+          '开始播放后会在这里显示歌词',
+          'Lyrics will appear once playback starts',
+        ),
       );
     }
     final lyrics = ref.watch(lyricsProvider(trackId));
@@ -52,19 +58,25 @@ class LyricsView extends ConsumerWidget {
       error: (e, _) => _Message(
         key: const ValueKey('error'),
         icon: Icons.lyrics_outlined,
-        title: '暂无歌词',
-        detail: '查找歌词时出了点问题',
+        title: l10n.noLyrics,
+        detail: l10n.pick(
+          '查找歌词时出了点问题',
+          'Something went wrong while fetching lyrics',
+        ),
         onRetry: () => ref.invalidate(lyricsProvider(trackId)),
       ),
       data: (parsed) {
         // Lyrics made only of blank / instrumental lines would render as an
         // empty stage.
         if (parsed == null || parsed.lines.every((l) => l.isInstrumental)) {
-          return const _Message(
-            key: ValueKey('empty'),
+          return _Message(
+            key: const ValueKey('empty'),
             icon: Icons.lyrics_outlined,
-            title: '暂无歌词',
-            detail: '本地文件和在线都没有找到这首歌的歌词',
+            title: l10n.noLyrics,
+            detail: l10n.pick(
+              '本地文件和在线都没有找到这首歌的歌词',
+              'No embedded, sidecar, or online lyrics found',
+            ),
           );
         }
         final base = LekisText.lyricsActive.copyWith(
@@ -307,9 +319,12 @@ class _PlainLyrics extends StatelessWidget {
             const SizedBox(height: LekisSpacing.md),
             SelectableText(
               lyrics.lines.map((l) => l.text).join('\n'),
-              style: style.copyWith(
-                fontSize: (style.fontSize ?? 30) * 0.75,
-                height: 1.5,
+              style: lyricTextStyleFor(
+                lyrics.lines.map((l) => l.text).join('\n'),
+                style.copyWith(
+                  fontSize: (style.fontSize ?? 30) * 0.75,
+                  height: 1.5,
+                ),
               ),
             ),
           ],

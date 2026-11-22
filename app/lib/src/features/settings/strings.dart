@@ -8,8 +8,8 @@ abstract final class SettingsStrings {
   static const groupGeneral = '通用';
   static const groupMore = '更多';
   static const playbackHint = '输出设备、无缝播放、均衡器、睡眠定时';
-  static const appearanceHint = '主题与显示样式';
-  static const appearanceHintDesktop = '浅色、深色或纯黑主题';
+  static const appearanceHint = '主题、语言、播放页、显示样式与歌词';
+  static const appearanceHintDesktop = '主题、语言、播放页样式与歌词';
   static const searchHint = '查找设置';
   static const searchEmpty = '没有匹配的设置';
   static const lyrics = '歌词';
@@ -61,6 +61,16 @@ abstract final class SettingsStrings {
   static const themeDark = '深色';
   static const themeOled = '纯黑';
   static const themeOledHint = '纯黑适合 OLED 屏幕，更省电';
+  static const language = '语言';
+  static const languageHint = '切换界面语言（简体中文 / English），立即生效';
+  static const languageSystem = '跟随系统';
+  static const languageZh = '简体中文';
+  static const languageEn = 'English';
+  static const nowPlayingStyle = '播放页样式';
+  static const nowPlayingStyleHint = '切换正在播放页主视觉：经典封面、黑胶唱片（带旋转与唱臂）或复古磁带';
+  static const nowPlayingCover = '封面';
+  static const nowPlayingVinyl = '黑胶唱片';
+  static const nowPlayingCassette = '磁带';
   static const tabBarStyle = '显示样式';
   static const tabBarStyleHint =
       '液态玻璃为悬浮导航、迷你播放器、索引条与胶囊按钮提供通透高光与弹簧动效；扁平更利落、开销更低。';

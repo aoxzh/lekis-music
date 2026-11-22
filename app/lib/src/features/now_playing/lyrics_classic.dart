@@ -20,6 +20,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/now_playing/lyric_typography.dart';
 import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
 import 'package:lekis/src/features/now_playing/now_playing_route.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
@@ -351,12 +352,16 @@ class _LyricLineTile extends StatelessWidget {
         style.color ??
         DefaultTextStyle.of(context).style.color ??
         const Color(0xFFFFFFFF);
-    final translationStyle = style.copyWith(
+    final lineStyle = lyricTextStyleFor(line.text, style);
+    final translationBase = style.copyWith(
       fontSize: (style.fontSize ?? 32) * 0.62,
       fontWeight: FontWeight.w600,
       height: 1.3,
       letterSpacing: 0,
     );
+    final translationStyle = translation == null
+        ? translationBase
+        : lyricTextStyleFor(translation, translationBase);
 
     // 透明度直接写进文字颜色，而不是包一层 Opacity：Opacity 介于 0 和 1
     // 之间时每行都要 saveLayer，几十行歌词滚动时就是几十个离屏层。颜色
@@ -365,10 +370,10 @@ class _LyricLineTile extends StatelessWidget {
       // Only the active line gets a word-by-word wipe; everything else is a
       // plain Text, so resting lines cost nothing extra per playback tick.
       final primary = active && line.hasWordTimings
-          ? _KaraokeLine(line: line, style: style, lowPower: lowPower)
+          ? _KaraokeLine(line: line, style: lineStyle, lowPower: lowPower)
           : Text(
               line.text,
-              style: style.copyWith(
+              style: lineStyle.copyWith(
                 color: fg.withValues(alpha: fg.a * opacity),
               ),
             );

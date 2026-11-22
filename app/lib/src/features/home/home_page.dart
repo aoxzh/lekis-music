@@ -17,6 +17,7 @@ import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/widgets/current_track.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
 import 'package:lekis/src/features/stats/listening_stats_page.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/routes.dart';
 import 'package:lekis/src/shell/shell_chrome.dart';
@@ -46,6 +47,7 @@ class HomePage extends ConsumerWidget {
     final gutter = pageGutterOf(context);
     final safe = MediaQuery.paddingOf(context);
     final actions = ref.read(playerActionsProvider);
+    final l10n = context.l10n;
 
     return Scaffold(
       body: SafeArea(
@@ -57,9 +59,9 @@ class HomePage extends ConsumerWidget {
         child: empty
             ? Padding(
                 padding: EdgeInsets.only(left: safe.left, right: safe.right),
-                child: const LibraryEmptyState(
-                  title: '欢迎使用 Lekis',
-                  message: '先在“音源”里添加音乐，首页会展示最近添加和常听的歌曲。',
+                child: LibraryEmptyState(
+                  title: l10n.welcomeTitle,
+                  message: l10n.welcomeMessage,
                 ),
               )
             : RefreshIndicator(
@@ -127,7 +129,7 @@ class HomePage extends ConsumerWidget {
                     if (played.isNotEmpty)
                       SliverToBoxAdapter(
                         child: TrackShelf(
-                          title: '最近播放',
+                          title: l10n.recentlyPlayed,
                           tracks: played,
                           trailing: TextButton(
                             onPressed: () => Navigator.of(context).push(
@@ -135,21 +137,27 @@ class HomePage extends ConsumerWidget {
                                 builder: (_) => const PlaybackHistoryPage(),
                               ),
                             ),
-                            child: const Text('查看全部'),
+                            child: Text(l10n.seeAll),
                           ),
                         ),
                       ),
                     if (recentAlbums.isNotEmpty)
                       SliverToBoxAdapter(
-                        child: AlbumShelf(title: '最近添加', albums: recentAlbums),
+                        child: AlbumShelf(
+                          title: l10n.recentlyAdded,
+                          albums: recentAlbums,
+                        ),
                       )
                     else if (recent.isNotEmpty)
                       SliverToBoxAdapter(
-                        child: TrackShelf(title: '最近添加', tracks: recent),
+                        child: TrackShelf(
+                          title: l10n.recentlyAdded,
+                          tracks: recent,
+                        ),
                       ),
                     if (most.isNotEmpty)
                       SliverToBoxAdapter(
-                        child: TrackShelf(title: '最常播放', tracks: most),
+                        child: TrackShelf(title: l10n.mostPlayed, tracks: most),
                       ),
                     SliverPadding(
                       padding: EdgeInsets.only(
@@ -186,9 +194,10 @@ class _HomeHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
+    final l10n = context.l10n;
     final showMark = !ShellChrome.showsBrandMarkOf(context);
     final eyebrow = Text(
-      'LEKIS · 本地资料库',
+      l10n.homeEyebrow,
       style: theme.textTheme.labelSmall?.copyWith(
         color: colors.moon,
         letterSpacing: 1.6,
@@ -239,7 +248,7 @@ class _HomeHeader extends StatelessWidget {
                       ),
                       const SizedBox(width: LekisSpacing.xs),
                       Text(
-                        '听歌统计',
+                        l10n.listeningStats,
                         style: theme.textTheme.labelLarge?.copyWith(
                           color: colors.moon,
                         ),
@@ -252,7 +261,7 @@ class _HomeHeader extends StatelessWidget {
           ),
           const SizedBox(height: LekisSpacing.xs),
           Text(
-            '继续上次的，或从资料库里挑一张。',
+            l10n.homeSubtitle,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: colors.onSurfaceVariant,
             ),
@@ -273,7 +282,7 @@ class _Greeting extends StatefulWidget {
 }
 
 class _GreetingState extends State<_Greeting> with WidgetsBindingObserver {
-  late String _text = greetingFor(DateTime.now());
+  DateTime _now = DateTime.now();
   Timer? _ticker;
 
   @override
@@ -289,8 +298,8 @@ class _GreetingState extends State<_Greeting> with WidgetsBindingObserver {
   }
 
   void _refresh() {
-    final next = greetingFor(DateTime.now());
-    if (next != _text && mounted) setState(() => _text = next);
+    final next = DateTime.now();
+    if (next.hour != _now.hour && mounted) setState(() => _now = next);
   }
 
   @override
@@ -301,8 +310,10 @@ class _GreetingState extends State<_Greeting> with WidgetsBindingObserver {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      Text(_text, style: Theme.of(context).textTheme.headlineLarge);
+  Widget build(BuildContext context) => Text(
+    context.l10n.greetingFor(_now),
+    style: Theme.of(context).textTheme.headlineLarge,
+  );
 }
 
 /// Horizontal shelf of album cards; tapping opens the album detail page.
@@ -656,11 +667,12 @@ class HomeQuickMixStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final items = <Widget>[
       if (hasTracks)
         _QuickMixCapsule(
           icon: Icons.shuffle_rounded,
-          label: '随机漫游',
+          label: l10n.quickShuffle,
           accent: true,
           flat: flat,
           onTap: onShuffleLibrary,
@@ -668,14 +680,14 @@ class HomeQuickMixStrip extends StatelessWidget {
       if (lovedCount > 0)
         _QuickMixCapsule(
           icon: Icons.favorite_rounded,
-          label: '我的喜欢',
+          label: l10n.quickLiked,
           flat: flat,
           onTap: onPlayLoved,
         ),
       if (hasMostPlayed)
         _QuickMixCapsule(
           icon: Icons.local_fire_department_rounded,
-          label: '常听精选',
+          label: l10n.quickMostPlayed,
           flat: flat,
           onTap: onPlayMostPlayed,
         ),

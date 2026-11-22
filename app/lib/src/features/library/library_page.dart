@@ -11,6 +11,7 @@ import 'package:lekis/src/features/library/widgets/album_card.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/paged_track_list.dart';
 import 'package:lekis/src/features/playlists/playlists_view.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/layout/adaptive_two_pane.dart';
 import 'package:lekis/src/layout/fold.dart';
 import 'package:lekis/src/rust/api/dto.dart';
@@ -33,6 +34,7 @@ class LibraryPage extends ConsumerWidget {
     final segment = ref.watch(librarySegmentProvider);
     final gutter = pageGutterOf(context);
     final theme = Theme.of(context);
+    final l10n = context.l10n;
 
     final header = Padding(
       padding: EdgeInsets.fromLTRB(
@@ -50,7 +52,7 @@ class LibraryPage extends ConsumerWidget {
           Semantics(
             header: true,
             child: Text(
-              '资料库',
+              l10n.navLibrary,
               style: theme.textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
@@ -69,34 +71,34 @@ class LibraryPage extends ConsumerWidget {
                         horizontal: LekisSpacing.sm,
                       ),
                     ),
-                    segments: const [
+                    segments: [
                       ButtonSegment(
                         value: LibrarySegment.albums,
-                        label: Text('专辑'),
+                        label: Text(l10n.segAlbums),
                       ),
                       ButtonSegment(
                         value: LibrarySegment.artists,
-                        label: Text('艺人'),
+                        label: Text(l10n.segArtists),
                       ),
                       ButtonSegment(
                         value: LibrarySegment.songs,
-                        label: Text('歌曲'),
+                        label: Text(l10n.segSongs),
                       ),
                       ButtonSegment(
                         value: LibrarySegment.genres,
-                        label: Text('流派'),
+                        label: Text(l10n.segGenres),
                       ),
                       ButtonSegment(
                         value: LibrarySegment.playlists,
-                        label: Text('歌单'),
+                        label: Text(l10n.segPlaylists),
                       ),
                       ButtonSegment(
                         value: LibrarySegment.liked,
-                        label: Text('喜欢'),
+                        label: Text(l10n.segLiked),
                       ),
                       ButtonSegment(
                         value: LibrarySegment.folders,
-                        label: Text('文件夹'),
+                        label: Text(l10n.segFolders),
                       ),
                     ],
                     selected: {segment},
@@ -109,7 +111,7 @@ class LibraryPage extends ConsumerWidget {
                 const _SortMenu(target: _SortTarget.albums),
               if (segment == LibrarySegment.albums)
                 IconButton(
-                  tooltip: '封面流',
+                  tooltip: l10n.coverFlow,
                   onPressed: () => openCoverFlow(context),
                   icon: const Icon(Icons.view_carousel_rounded),
                 ),

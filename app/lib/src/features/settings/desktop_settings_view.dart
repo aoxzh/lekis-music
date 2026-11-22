@@ -31,6 +31,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../l10n/app_l10n.dart';
 import '../../shell/app_shell.dart';
 import '../../theme/theme.dart';
 import '../downloads/downloads_providers.dart';
@@ -178,7 +179,7 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
             _NavItem(
               key: ValueKey('settings-category-${c.name}'),
               icon: c.icon,
-              title: c.title,
+              title: c.titleOf(context),
               tooltip: c.hint,
               selected: c == widget.selected,
               trailing:
@@ -201,7 +202,7 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
           ),
           child: Semantics(
             header: true,
-            child: Text(group.title, style: type.sectionHeader),
+            child: Text(group.titleOf(context), style: type.sectionHeader),
           ),
         ),
       );
@@ -227,7 +228,7 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
             ),
             child: Semantics(
               header: true,
-              child: Text(SettingsStrings.title, style: type.paneTitle),
+              child: Text(context.l10n.settingsTitle, style: type.paneTitle),
             ),
           ),
           Padding(
@@ -241,7 +242,7 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
               style: theme.textTheme.bodyMedium,
               decoration: InputDecoration(
                 isDense: true,
-                hintText: SettingsStrings.searchHint,
+                hintText: context.l10n.searchSettingsHint,
                 prefixIcon: const Icon(Icons.search_rounded, size: 18),
                 suffixIcon: _search.text.isEmpty
                     ? null
@@ -309,7 +310,7 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
             child: Semantics(
               header: true,
               child: Text(
-                category.title,
+                category.titleOf(context),
                 style: LekisDesktopText.of(context).pageTitle,
               ),
             ),
@@ -332,7 +333,7 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
                         maxWidth: desktopSettingsDetailMaxWidth,
                       ),
                       child: SettingsPageTitle(
-                        title: category.title,
+                        title: category.titleOf(context),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [

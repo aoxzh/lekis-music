@@ -4,8 +4,10 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/now_playing/now_playing_style.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/features/settings/theme_preference.dart';
+import 'package:lekis/src/l10n/app_locale.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/shell/nav_bar_position.dart';
 import 'package:lekis/src/shell/tab_bar_style.dart';
@@ -20,6 +22,8 @@ const _backupKeys = [
   SettingKeys.outputDevice,
   SettingKeys.outputMode,
   themeSettingKey,
+  appLocaleSettingKey,
+  nowPlayingStyleSettingKey,
   tabBarStyleSettingKey,
   navBarPositionSettingKey,
   'ui.lyrics_stage',
@@ -145,6 +149,18 @@ class SettingsBackupSection extends ConsumerWidget {
         await ref
             .read(navBarPositionProvider.notifier)
             .set(NavBarPosition.fromStorage(navPos));
+      }
+      final locale = decoded[appLocaleSettingKey];
+      if (locale is String) {
+        await ref
+            .read(appLocaleProvider.notifier)
+            .set(AppLocalePreference.fromStorage(locale));
+      }
+      final npStyle = decoded[nowPlayingStyleSettingKey];
+      if (npStyle is String) {
+        await ref
+            .read(nowPlayingStyleProvider.notifier)
+            .set(NowPlayingStyle.fromStorage(npStyle));
       }
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)

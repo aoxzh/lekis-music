@@ -6,10 +6,12 @@ import 'package:material_ui/material_ui.dart';
 
 import 'package:lekis/src/app.dart';
 import 'package:lekis/src/bridge/core_init.dart';
+import 'package:lekis/src/features/now_playing/now_playing_style.dart';
 import 'package:lekis/src/features/player/playback_session.dart';
 import 'package:lekis/src/features/settings/desktop_tray_settings.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/features/settings/theme_preference.dart';
+import 'package:lekis/src/l10n/app_locale.dart';
 import 'package:lekis/src/platform/desktop_tray/desktop_tray_controller.dart';
 import 'package:lekis/src/platform/media_session.dart';
 import 'package:lekis/src/rust/frb_generated.dart';
@@ -42,6 +44,8 @@ Future<void> main() async {
   final container = ProviderContainer();
   await Future.wait([
     restoreThemePreference(container),
+    restoreAppLocale(container),
+    restoreNowPlayingStyle(container),
     restoreTabBarStyle(container),
     restoreNavBarPosition(container),
     restoreDesktopTraySettings(container),

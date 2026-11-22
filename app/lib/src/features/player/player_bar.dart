@@ -16,6 +16,7 @@ import 'package:lekis/src/features/player/widgets/current_track.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart'
     show playbackOutputProvider;
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/shell/routes.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/lekis_slider.dart';
@@ -113,7 +114,9 @@ class PlayerBar extends ConsumerWidget {
         children: [
           _BarToggle(
             key: lyricsKey,
-            tooltip: sidePane == DesktopSidePane.lyrics ? '隐藏歌词' : '歌词',
+            tooltip: sidePane == DesktopSidePane.lyrics
+                ? context.l10n.hideLyrics
+                : context.l10n.lyrics,
             icon: Icons.lyrics_outlined,
             selectedIcon: Icons.lyrics_rounded,
             selected: sidePane == DesktopSidePane.lyrics,
@@ -140,7 +143,9 @@ class PlayerBar extends ConsumerWidget {
             ),
           _BarToggle(
             key: queueKey,
-            tooltip: sidePane == DesktopSidePane.queue ? '隐藏播放队列' : '播放队列',
+            tooltip: sidePane == DesktopSidePane.queue
+                ? context.l10n.hideQueue
+                : context.l10n.queue,
             icon: Icons.queue_music_rounded,
             selectedIcon: Icons.queue_music_rounded,
             selected: sidePane == DesktopSidePane.queue,
@@ -261,7 +266,7 @@ class _OutputDeviceButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.lekisColors;
     return PopupMenuButton<String>(
-      tooltip: '输出设备',
+      tooltip: context.l10n.outputDevice,
       icon: const Icon(Icons.speaker_group_outlined),
       constraints: const BoxConstraints(
         minWidth: LekisSizes.desktopSidebarWidth,
@@ -472,7 +477,9 @@ class _VolumePopoverButtonState extends ConsumerState<_VolumePopoverButton> {
                               ),
                               const SizedBox(height: LekisSpacing.xs),
                               IconButton(
-                                tooltip: currentVol == 0 ? '取消静音' : '静音',
+                                tooltip: currentVol == 0
+                                    ? context.l10n.unmute
+                                    : context.l10n.mute,
                                 visualDensity: VisualDensity.compact,
                                 onPressed: () => _toggleMute(currentVol),
                                 icon: Icon(
@@ -495,7 +502,7 @@ class _VolumePopoverButtonState extends ConsumerState<_VolumePopoverButton> {
           );
         },
         child: _BarToggle(
-          tooltip: '音量 $percent%',
+          tooltip: context.l10n.volumeTooltip(percent),
           icon: _iconFor(volume),
           selectedIcon: _iconFor(volume),
           selected: _portal.isShowing,

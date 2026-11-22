@@ -98,15 +98,21 @@ void main() {
       ),
     );
 
+    await tester.ensureVisible(find.text(SettingsStrings.navBarPosition));
+    await tester.pumpAndSettle();
     expect(find.text(SettingsStrings.navBarPosition), findsOneWidget);
     expect(find.text(SettingsStrings.navBarBottom), findsOneWidget);
     expect(find.text(SettingsStrings.navBarLeft), findsOneWidget);
     expect(find.text(SettingsStrings.navBarRight), findsOneWidget);
 
+    await tester.ensureVisible(find.text(SettingsStrings.navBarLeft));
+    await tester.pumpAndSettle();
     await tester.tap(find.text(SettingsStrings.navBarLeft));
     await tester.pumpAndSettle();
     expect(container.read(navBarPositionProvider), NavBarPosition.left);
 
+    await tester.ensureVisible(find.text(SettingsStrings.navBarRight));
+    await tester.pumpAndSettle();
     await tester.tap(find.text(SettingsStrings.navBarRight));
     await tester.pumpAndSettle();
     expect(container.read(navBarPositionProvider), NavBarPosition.right);

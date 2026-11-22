@@ -8,6 +8,7 @@
 
 import 'package:material_ui/material_ui.dart';
 
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/brand_mark.dart';
@@ -86,7 +87,7 @@ class LekisSidebar extends StatelessWidget {
                     horizontal: LekisSpacing.xl,
                   ),
                   child: Text(
-                    '浏览',
+                    context.l10n.pick('浏览', 'BROWSE'),
                     style:
                         desktop?.sectionHeader ??
                         text.labelSmall?.copyWith(
@@ -130,7 +131,7 @@ class LekisSidebar extends StatelessWidget {
                     LekisSpacing.lg,
                   ),
                   child: Text(
-                    '本地优先 · 无账号',
+                    context.l10n.pick('本地优先 · 无账号', 'Local First · No Account'),
                     style:
                         desktop?.secondary ??
                         text.labelSmall?.copyWith(
@@ -259,11 +260,12 @@ class _SidebarItem extends StatelessWidget {
           fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
         );
 
+    final itemLabel = destination.labelOf(context);
     return Semantics(
       container: true,
       selected: selected,
       button: true,
-      label: destination.label,
+      label: itemLabel,
       onTap: onTap,
       excludeSemantics: true,
       child: Material(
@@ -305,7 +307,7 @@ class _SidebarItem extends StatelessWidget {
                     curve: Curves.easeOut,
                     style: label,
                     child: Text(
-                      destination.label,
+                      itemLabel,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -377,15 +379,16 @@ class _RailItem extends StatelessWidget {
     final reduce = lekisReduceMotion(context);
     final fg = selected ? lekisNavForeground(context) : colors.onSurfaceVariant;
 
+    final itemLabel = destination.labelOf(context);
     return Semantics(
       container: true,
       selected: selected,
       button: true,
-      label: destination.label,
+      label: itemLabel,
       onTap: onTap,
       excludeSemantics: true,
       child: Tooltip(
-        message: destination.label,
+        message: itemLabel,
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
@@ -437,7 +440,7 @@ class _RailItem extends StatelessWidget {
                       fontSize: 10,
                       letterSpacing: 0,
                     ),
-                    child: Text(destination.label),
+                    child: Text(itemLabel),
                   ),
                 ],
               ),

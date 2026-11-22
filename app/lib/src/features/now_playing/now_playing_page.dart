@@ -22,6 +22,7 @@ import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_panel.dart';
 import 'package:lekis/src/features/player/queue_view.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/layout/adaptive_two_pane.dart';
 import 'package:lekis/src/layout/fold.dart';
 import 'package:lekis/src/layout/window_size.dart';
@@ -372,25 +373,29 @@ class _NowPlayingLayoutState extends ConsumerState<_NowPlayingLayout>
       if (sidePane != null) {
         if (pane == NowPlayingPane.queue) {
           mode = 'cover|controls|queue';
+          final roomyQueue = size.width >= 1360;
           regions = Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
-                child: _Split(
-                  fraction: 0.55,
-                  first: artwork,
-                  second: controls(),
-                ),
+                child: roomyQueue
+                    ? _Split(fraction: 0.55, first: artwork, second: controls())
+                    : const _DesktopArtworkControlsColumn(),
               ),
               SizedBox(width: QueuePanel.width, child: sidePane),
             ],
           );
         } else {
-          mode = 'cover|controls|lyrics';
+          // 宽屏带歌词采用经典双栏：左侧居中的「封面/黑胶 + 完整宽控制区」，
+          // 右侧留出宽裕歌词区，不再挤成三窄栏截断标题。
+          mode = 'desktop-cover+controls|lyrics';
           regions = _Split(
-            fraction: 0.62,
-            first: _Split(fraction: 0.55, first: artwork, second: controls()),
-            second: sidePane,
+            fraction: 0.44,
+            first: const _DesktopArtworkControlsColumn(),
+            second: Padding(
+              padding: const EdgeInsets.only(right: LekisSpacing.xl),
+              child: sidePane,
+            ),
           );
         }
       } else if (pane == NowPlayingPane.wall) {
@@ -468,6 +473,49 @@ class _NowPlayingLayoutState extends ConsumerState<_NowPlayingLayout>
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 桌面宽屏在展示歌词或较窄队列时的左侧主栏：
+/// 封面/黑胶/磁带与完整宽度的控制区上下垂直居中对齐，避免三窄栏挤压标题。
+class _DesktopArtworkControlsColumn extends StatelessWidget {
+  const _DesktopArtworkControlsColumn();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxArtWidth = math.max(
+          180.0,
+          math.min(
+            constraints.maxWidth - LekisSpacing.xxl * 2,
+            nowPlayingControlsMaxWidth - LekisSpacing.xxl,
+          ),
+        );
+        final maxArtHeight = math.max(180.0, constraints.maxHeight - 290.0);
+        final artSide = math.min(maxArtWidth, maxArtHeight).clamp(180.0, 380.0);
+        return Center(
+          child: SingleChildScrollView(
+            primary: false,
+            padding: const EdgeInsets.symmetric(
+              horizontal: LekisSpacing.lg,
+              vertical: LekisSpacing.md,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox.square(
+                  dimension: artSide,
+                  child: const NowPlayingArtwork(),
+                ),
+                const SizedBox(height: LekisSpacing.lg),
+                const NowPlayingControls(),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -629,13 +677,16 @@ class NowPlayingActions extends ConsumerWidget {
       );
     }
 
+    final l10n = context.l10n;
     return Row(
       key: const ValueKey('now-playing.actions'),
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         action(
           key: lyricsKey,
-          tooltip: pane == NowPlayingPane.lyrics ? '隐藏歌词' : '歌词',
+          tooltip: pane == NowPlayingPane.lyrics
+              ? l10n.hideLyrics
+              : l10n.lyrics,
           selected: pane == NowPlayingPane.lyrics,
           icon: Icons.lyrics_outlined,
           selectedIcon: Icons.lyrics_rounded,
@@ -645,7 +696,9 @@ class NowPlayingActions extends ConsumerWidget {
         ),
         action(
           key: wallKey,
-          tooltip: pane == NowPlayingPane.wall ? '隐藏封面墙' : '封面墙',
+          tooltip: pane == NowPlayingPane.wall
+              ? l10n.pick('隐藏封面墙', 'Hide Cover Wall')
+              : l10n.pick('封面墙', 'Cover Wall'),
           selected: pane == NowPlayingPane.wall,
           icon: Icons.grid_view_outlined,
           selectedIcon: Icons.grid_view_rounded,
@@ -655,7 +708,9 @@ class NowPlayingActions extends ConsumerWidget {
           key: queueKey,
           // No count badge: the number on the icon read as a sticker on the
           // artwork. The queue itself shows the count in its header.
-          tooltip: queueLength == 0 ? '播放队列' : '播放队列（$queueLength 首）',
+          tooltip: queueLength == 0
+              ? l10n.queue
+              : l10n.pick('播放队列（$queueLength 首）', 'Queue ($queueLength)'),
           selected: desktopPanels && pane == NowPlayingPane.queue,
           icon: Icons.queue_music_rounded,
           selectedIcon: Icons.queue_music_rounded,
@@ -669,7 +724,7 @@ class NowPlayingActions extends ConsumerWidget {
                 }
               : null,
         ),
-        // Spotify-style: pick another Lekis to play on / control.
+        // Pick another Lekis device to play on / control.
         const ConnectDeviceButton(alwaysShow: true),
       ],
     );

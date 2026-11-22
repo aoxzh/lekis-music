@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/now_playing/now_playing_layout.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
+import 'package:lekis/src/features/now_playing/now_playing_style.dart';
+import 'package:lekis/src/features/now_playing/now_playing_turntable.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_view.dart';
 import 'package:lekis/src/theme/theme.dart';
@@ -157,12 +159,40 @@ class _NowPlayingArtworkState extends ConsumerState<NowPlayingArtwork>
 
     final track = ref.watch(currentTrackProvider).value;
     final artwork = ref.watch(currentArtworkProvider).value;
+    final artStyle = ref.watch(nowPlayingStyleProvider);
+    final isPlaying = ref.watch(playbackProvider.select((s) => s.isPlaying));
+    final progress = artStyle == NowPlayingStyle.cassette
+        ? ref.watch(progressProvider)
+        : 0.0;
+    final accent = Theme.of(context).colorScheme.primary;
     final spec = _CoverSpec(
       trackId: track?.id,
       hash: artwork?.hash,
       seed: track?.id.hashCode ?? 0,
       label: track?.title,
     );
+    final coverDeck = _CoverDeck(
+      spec: spec,
+      direction: _direction,
+      reducedMotion: reducedMotion,
+    );
+    final Widget visual = switch (artStyle) {
+      NowPlayingStyle.cover => coverDeck,
+      NowPlayingStyle.vinyl => VinylRecordArtwork(
+        cover: coverDeck,
+        isPlaying: isPlaying,
+        reducedMotion: reducedMotion,
+        accent: accent,
+      ),
+      NowPlayingStyle.cassette => CassetteArtwork(
+        cover: coverDeck,
+        title: track?.title ?? 'Lekis',
+        isPlaying: isPlaying,
+        progress: progress,
+        reducedMotion: reducedMotion,
+        accent: accent,
+      ),
+    };
     final actions = ref.read(playerActionsProvider);
     final title = track == null
         ? '封面'
@@ -209,21 +239,19 @@ class _NowPlayingArtworkState extends ConsumerState<NowPlayingArtwork>
                             angle: dx / _width * 0.06,
                             child: Transform.scale(
                               scale: _scale.value * (1 - away * 0.06),
-                              child: ClipRRect(
-                                borderRadius: borderRadius,
-                                clipBehavior: Clip.antiAlias,
-                                child: child,
-                              ),
+                              child: artStyle == NowPlayingStyle.cover
+                                  ? ClipRRect(
+                                      borderRadius: borderRadius,
+                                      clipBehavior: Clip.antiAlias,
+                                      child: child,
+                                    )
+                                  : child,
                             ),
                           ),
                         ),
                       );
                     },
-                    child: _CoverDeck(
-                      spec: spec,
-                      direction: _direction,
-                      reducedMotion: reducedMotion,
-                    ),
+                    child: visual,
                   ),
                 ),
               ),
