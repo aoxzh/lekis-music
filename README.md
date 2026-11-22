@@ -7,13 +7,14 @@
 **Open-Source, Cross-Platform Local & NAS Lossless Music Player — No Server Required**  
 **开源跨平台本地 / NAS 无损音乐播放器 · 无需部署服务端，开箱即用**
 
+[![Website](https://img.shields.io/badge/Website-lekis.aoxzh.org-7C6CF6.svg)](https://lekis.aoxzh.org)
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
 [![Core: Rust](https://img.shields.io/badge/Core-Rust-orange.svg)](core/)
 [![UI: Flutter](https://img.shields.io/badge/UI-Flutter-02569B.svg)](app/)
-[![Platforms](https://img.shields.io/badge/Platforms-Android%20%7C%20Windows-success.svg)](#platforms--roadmap)
-[![F-Droid Ready](https://img.shields.io/badge/F--Droid-Metadata%20Ready-1976D2.svg)](docs/FDROID.md)
+[![Platforms](https://img.shields.io/badge/Platforms-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux-success.svg)](#platforms)
+[![F-Droid Ready](https://img.shields.io/badge/F--Droid-Submitted-1976D2.svg)](docs/FDROID.md)
 
-**[English](#english) · [简体中文](#简体中文) · [Quick Facts](#quick-facts) · [FAQ](#faq) · [F-Droid](docs/FDROID.md)**
+**[🌐 Official Website (lekis.aoxzh.org)](https://lekis.aoxzh.org) · [English](#english) · [简体中文](#简体中文) · [Quick Facts](#quick-facts) · [FAQ](#faq) · [Plugin SDK](plugin-sdk/)**
 
 </div>
 
@@ -114,15 +115,16 @@
   - **Serverless Multi-Device Sync**: operation-log + HLC sync for favorites, playlists, and play history over any local or NAS shared folder.
   - **Plugin Host**: install and manage local JavaScript plugins with explicit permissions (see [`plugin-sdk/`](plugin-sdk/)).
 
-### Platforms & Roadmap
+### Platforms
 
 | Platform | Status | Notes |
 |---|---|---|
-| **Android** (8.0+, arm64-v8a) | **Alpha Ready** | APK via GitHub Releases; [F-Droid metadata ready](docs/FDROID.md) |
-| **Windows** (10/11 x64) | **Alpha Ready** | Portable ZIP via GitHub Releases; WASAPI exclusive, system tray, SMTC, floating desktop lyrics |
-| **macOS / iOS / Linux** | **Planned (Beta)** | Rust core & Flutter UI are cross-platform; native media controls, sample-rate switching & packaging in Beta |
+| **Android** (8.0+, arm64-v8a) | **Alpha Preview** | Signed APK via GitHub Releases; [F-Droid submission in progress](docs/FDROID.md) |
+| **Windows** (10/11 x64) | **Alpha Preview** | Portable ZIP via GitHub Releases; WASAPI exclusive, system tray, SMTC, floating desktop lyrics |
+| **macOS** (Universal) | **Experimental Preview** | ZIP via GitHub Releases (Apple Silicon & Intel) |
+| **Linux** (x64) | **Experimental Preview** | `.tar.gz` bundle via GitHub Releases |
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for stage gates and [CHANGELOG.md](CHANGELOG.md) for detailed release history.
+See [CHANGELOG.md](CHANGELOG.md) for detailed release history.
 
 ---
 
@@ -284,13 +286,12 @@ All library metadata, playlists, and settings stay **100% on your device** (Wind
 
 | Document | Description |
 |---|---|
-| [docs/ROADMAP.md](docs/ROADMAP.md) | Release milestones & stage gates / 路线图与阶段规划 |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture, module boundaries & threading / 架构与模块边界 |
-| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Feature requirements & status / 需求清单与实现状态 |
-| [docs/DESIGN.md](docs/DESIGN.md) | Visual & interaction design / 视觉与交互设计 |
+| [https://lekis.aoxzh.org](https://lekis.aoxzh.org) | Official website & downloads / 官方网站与下载 |
+| [`plugin-sdk/`](plugin-sdk/) | Plugin protocol, TypeScript SDK & examples / 插件开发协议与示例 |
 | [docs/FDROID.md](docs/FDROID.md) | F-Droid FOSS compliance & build recipe / F-Droid 上架清单与构建配方 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution & PR guidelines / 贡献指南 |
 | [CHANGELOG.md](CHANGELOG.md) | Version changelog / 更新日志 |
+| [SECURITY.md](SECURITY.md) | Security policy / 安全漏洞报告 |
 
 ## License · 许可证
 

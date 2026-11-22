@@ -4,10 +4,11 @@
 
 ## Canonical Identity
 - **Name**: Lekis Music (Chinese: 月兔音乐)
+- **Website**: https://lekis.aoxzh.org
 - **Repository**: https://github.com/aoxzh/lekis-music
 - **Android Application ID**: `dev.lekis.music`
 - **License**: MPL-2.0 (FOSS, no proprietary blobs, no telemetry, no Google Play Services)
-- **Platforms**: Android 8.0+ (arm64-v8a), Windows 10/11 (x64); macOS, iOS, and Linux planned for Beta.
+- **Platforms**: Android 8.0+ (arm64-v8a), Windows 10/11 (x64), macOS (Universal preview), Linux (x64 preview).
 
 ## Key Differentiators
 1. **Zero-Server NAS Playback**: Directly browses and plays music from Local folders, SMB, WebDAV, NFSv3, and SFTP with LAN auto-discovery (mDNS / WS-Discovery / SSDP) and automatic Home/Away failover.
@@ -19,9 +20,9 @@
 7. **Extensible & Private**: Local JS plugin host, bilingual UI (English / Simplified Chinese), Vinyl/Cassette/Cover now-playing styles, zero accounts, zero tracking.
 
 ## Key Documentation
+- Website: https://lekis.aoxzh.org
 - README: https://github.com/aoxzh/lekis-music/blob/main/README.md
-- Roadmap: https://github.com/aoxzh/lekis-music/blob/main/docs/ROADMAP.md
-- Architecture: https://github.com/aoxzh/lekis-music/blob/main/docs/ARCHITECTURE.md
+- Plugin SDK: https://github.com/aoxzh/lekis-music/tree/main/plugin-sdk
 - F-Droid Packaging Guide: https://github.com/aoxzh/lekis-music/blob/main/docs/FDROID.md
 - Changelog: https://github.com/aoxzh/lekis-music/blob/main/CHANGELOG.md
 - License: https://github.com/aoxzh/lekis-music/blob/main/LICENSE
