@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -181,10 +180,10 @@ String greetingFor(DateTime now) {
   return '晚上好';
 }
 
-/// Eyebrow, greeting and the stats shortcut at the top of Home.
-///
-/// The brand mark is only shown when the navigation chrome (rail / sidebar)
-/// does not already show it.
+/// 首页顶部单行标题栏：
+/// 移动端（无侧栏品牌标识时）显示「月亮徽标 + 月兔音乐 / Lekis」；
+/// 桌面 / 平板端（侧栏已带品牌标识）直接显示利落的「首页 / Home」，右侧配紧凑听歌统计胶囊，
+/// 去掉多余问候语和解释文案，把首屏空间留给音乐本身。
 class _HomeHeader extends StatelessWidget {
   const _HomeHeader({this.flat = false});
 
@@ -196,124 +195,61 @@ class _HomeHeader extends StatelessWidget {
     final colors = context.lekisColors;
     final l10n = context.l10n;
     final showMark = !ShellChrome.showsBrandMarkOf(context);
-    final eyebrow = Text(
-      l10n.homeEyebrow,
-      style: theme.textTheme.labelSmall?.copyWith(
-        color: colors.moon,
-        letterSpacing: 1.6,
+    final titleText = Text(
+      showMark ? l10n.brandShort : l10n.navHome,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: theme.textTheme.headlineMedium?.copyWith(
+        fontWeight: FontWeight.w700,
       ),
     );
     return Semantics(
       header: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (showMark)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const LekisBrandMark(size: LekisSpacing.xxl - LekisSpacing.xs),
-                const SizedBox(width: LekisSpacing.sm),
-                Flexible(child: eyebrow),
-              ],
-            )
-          else
-            eyebrow,
-          const SizedBox(height: LekisSpacing.xs),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Expanded(child: _Greeting()),
-              const SizedBox(width: LekisSpacing.sm),
-              LekisGlassPill(
-                accent: true,
-                flat: flat,
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const ListeningStatsPage(),
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: LekisSpacing.md,
-                    vertical: LekisSpacing.sm,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.insights_outlined,
-                        size: 18,
-                        color: colors.accent,
-                      ),
-                      const SizedBox(width: LekisSpacing.xs),
-                      Text(
-                        l10n.listeningStats,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: colors.moon,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+          if (showMark) ...[
+            const LekisBrandMark(size: 30, glow: true),
+            const SizedBox(width: LekisSpacing.sm),
+          ],
+          Expanded(child: titleText),
+          const SizedBox(width: LekisSpacing.sm),
+          LekisGlassPill(
+            accent: true,
+            flat: flat,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const ListeningStatsPage(),
               ),
-            ],
-          ),
-          const SizedBox(height: LekisSpacing.xs),
-          Text(
-            l10n.homeSubtitle,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: colors.onSurfaceVariant,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: LekisSpacing.md,
+                vertical: LekisSpacing.sm,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.insights_outlined,
+                    size: 18,
+                    color: colors.accent,
+                  ),
+                  const SizedBox(width: LekisSpacing.xs),
+                  Text(
+                    l10n.listeningStats,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: colors.moon,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
   }
-}
-
-/// Time-of-day greeting that stays current: re-evaluated every minute while
-/// on screen and whenever the app comes back to the foreground.
-class _Greeting extends StatefulWidget {
-  const _Greeting();
-
-  @override
-  State<_Greeting> createState() => _GreetingState();
-}
-
-class _GreetingState extends State<_Greeting> with WidgetsBindingObserver {
-  DateTime _now = DateTime.now();
-  Timer? _ticker;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _ticker = Timer.periodic(const Duration(minutes: 1), (_) => _refresh());
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _refresh();
-  }
-
-  void _refresh() {
-    final next = DateTime.now();
-    if (next.hour != _now.hour && mounted) setState(() => _now = next);
-  }
-
-  @override
-  void dispose() {
-    _ticker?.cancel();
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Text(
-    context.l10n.greetingFor(_now),
-    style: Theme.of(context).textTheme.headlineLarge,
-  );
 }
 
 /// Horizontal shelf of album cards; tapping opens the album detail page.

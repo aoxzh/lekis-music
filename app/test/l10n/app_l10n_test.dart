@@ -73,12 +73,15 @@ void main() {
     }
 
     await pumpLocale(const Locale('zh', 'CN'));
+    expect(find.text('月兔音乐'), findsOneWidget);
+    expect(find.text('LOCAL FIRST'), findsNothing);
     expect(find.text('首页'), findsOneWidget);
     expect(find.text('资料库'), findsOneWidget);
     expect(find.text('随机漫游'), findsOneWidget);
     expect(find.text('外观'), findsOneWidget);
 
     await pumpLocale(const Locale('en', 'US'));
+    expect(find.text('Lekis'), findsOneWidget);
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('Library'), findsOneWidget);
     expect(find.text('Shuffle All'), findsOneWidget);

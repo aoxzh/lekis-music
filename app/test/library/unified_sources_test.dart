@@ -29,6 +29,13 @@ class _FakeUnifiedGateway implements UnifiedLibraryGateway {
     entries = [entries.first];
     return 999;
   }
+
+  @override
+  Future<bool> deleteDuplicateFile({
+    required int sourceId,
+    required String path,
+    required bool deleteSourceFile,
+  }) async => true;
 }
 
 void main() {

@@ -1412,6 +1412,21 @@ pub async fn merge_tracks(keep_id: i64, absorb_ids: Vec<i64>) -> Result<u64, Cor
         .await?)
 }
 
+/// 删除重复歌曲中的低音质版本（可选同时删除磁盘 / NAS 源文件）。
+pub async fn delete_duplicate_file(
+    source_id: i64,
+    path: String,
+    delete_source_file: bool,
+) -> Result<bool, CoreError> {
+    Ok(core()
+        .delete_duplicate_file(
+            lekis_types::SourceId(source_id),
+            path,
+            delete_source_file,
+        )
+        .await?)
+}
+
 /// 把曲目下的某个来源拆分成一条独立曲目，返回新曲目 ID。
 pub async fn split_track_source(
     track_id: i64,

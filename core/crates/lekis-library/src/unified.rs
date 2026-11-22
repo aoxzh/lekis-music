@@ -277,6 +277,56 @@ impl Library {
         })
         .await
     }
+
+    /// 从资料库移除某一个来源文件副本（`file` + `track_file`），
+    /// 若该副本对应的曲目还有其他更高音质来源则只更新音质徽标，否则连带清理孤儿曲目/专辑/艺人。
+    pub async fn remove_file_copy(&self, source_id: SourceId, path: String) -> Result<bool> {
+        self.write(move |conn| {
+            let tx = conn.transaction().db()?;
+            let file_id: Option<i64> = tx
+                .query_row(
+                    "SELECT id FROM file WHERE source_id = ?1 AND path = ?2",
+                    params![source_id.0, path],
+                    |r| r.get(0),
+                )
+                .optional()
+                .db()?;
+            let Some(file_id) = file_id else {
+                return Ok(false);
+            };
+
+            let affected_tracks: Vec<i64> = {
+                let mut stmt = tx
+                    .prepare("SELECT DISTINCT track_id FROM track_file WHERE file_id = ?1")
+                    .db()?;
+                let rows = stmt.query_map(params![file_id], |r| r.get::<_, i64>(0)).db()?;
+                rows.collect::<rusqlite::Result<Vec<_>>>().db()?
+            };
+
+            tx.execute("DELETE FROM track_file WHERE file_id = ?1", params![file_id])
+                .db()?;
+            tx.execute("DELETE FROM file WHERE id = ?1", params![file_id])
+                .db()?;
+
+            crate::scanned::sweep_orphans(&tx)?;
+            for tid in affected_tracks {
+                let still_exists: bool = tx
+                    .query_row(
+                        "SELECT EXISTS (SELECT 1 FROM track WHERE id = ?1)",
+                        params![tid],
+                        |r| r.get(0),
+                    )
+                    .db()?;
+                if still_exists {
+                    refresh_best_quality_badge(&tx, tid)?;
+                    crate::browse::refresh_track_index(&tx, tid)?;
+                }
+            }
+            tx.commit().db()?;
+            Ok(true)
+        })
+        .await
+    }
 }
 
 fn refresh_best_quality_badge(tx: &Transaction<'_>, track_id: i64) -> Result<()> {

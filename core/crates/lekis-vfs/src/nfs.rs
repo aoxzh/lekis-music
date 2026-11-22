@@ -367,6 +367,24 @@ impl Vfs for NfsVfs {
         .await
     }
 
+    async fn delete_file(&self, path: &VfsPath) -> Result<()> {
+        if path.is_root() {
+            return Err(LekisError::invalid("NFS: 不能删除根目录"));
+        }
+        let path = path.clone();
+        self.with_session(move |conn, root| {
+            Box::pin(async move {
+                let parent = path.parent().unwrap_or_else(VfsPath::root);
+                let name = path
+                    .file_name()
+                    .ok_or_else(|| LekisError::invalid(format!("NFS: 目标不是文件：{path}")))?;
+                let parent_fh = resolve_fh(conn, root, &parent).await?;
+                remove_file(conn, &parent_fh, name).await
+            })
+        })
+        .await
+    }
+
     async fn create_dir_all(&self, dir: &VfsPath) -> Result<()> {
         if dir.is_root() {
             return Ok(());

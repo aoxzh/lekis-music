@@ -577,6 +577,19 @@ impl Vfs for SftpVfs {
         .await
     }
 
+    async fn delete_file(&self, path: &VfsPath) -> Result<()> {
+        if path.is_root() {
+            return Err(LekisError::invalid("sftp: 不能删除根目录"));
+        }
+        let remote = self.remote_path(path);
+        self.with_session(move |sftp| {
+            Box::pin(async move {
+                sftp.remove_file(remote).await.map_err(sftp_err)
+            })
+        })
+        .await
+    }
+
     async fn create_dir_all(&self, dir: &VfsPath) -> Result<()> {
         if dir.is_root() {
             return Ok(());

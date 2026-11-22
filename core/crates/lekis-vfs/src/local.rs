@@ -127,6 +127,17 @@ impl Vfs for LocalVfs {
         tokio::fs::create_dir_all(self.resolve(path)).await?;
         Ok(())
     }
+
+    async fn delete_file(&self, path: &VfsPath) -> Result<()> {
+        if path.is_root() {
+            return Err(LekisError::invalid("不能删除根目录"));
+        }
+        match tokio::fs::remove_file(self.resolve(path)).await {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(e.into()),
+        }
+    }
 }
 
 #[cfg(test)]

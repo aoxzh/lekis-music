@@ -93,6 +93,13 @@ pub trait Vfs: Send + Sync {
 
     /// 创建目录（含父目录）。
     async fn create_dir_all(&self, path: &VfsPath) -> Result<()>;
+
+    /// 删除指定文件（仅用于用户明确确认的重复低音质副本清理）。
+    ///
+    /// 默认返回 `Unsupported`；不支持删除的后端无需强行实现。
+    async fn delete_file(&self, _path: &VfsPath) -> Result<()> {
+        Err(LekisError::unsupported("当前音源不支持直接删除源文件"))
+    }
 }
 
 /// 根据音源配置创建对应的文件系统实现。

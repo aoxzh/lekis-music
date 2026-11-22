@@ -29,7 +29,8 @@ class LekisApp extends ConsumerWidget {
     final appLocale = ref.watch(appLocaleProvider);
 
     return MaterialApp(
-      title: 'Lekis',
+      title: '月兔音乐',
+      onGenerateTitle: (context) => context.l10n.appName,
       debugShowCheckedModeBanner: false,
       locale: appLocale.locale,
       supportedLocales: const [Locale('zh', 'CN'), Locale('en', 'US')],
@@ -74,7 +75,8 @@ class LekisStartupErrorApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Lekis',
+      title: '月兔音乐',
+      onGenerateTitle: (context) => context.l10n.appName,
       debugShowCheckedModeBanner: false,
       theme: lekisLightTheme(),
       darkTheme: lekisDarkTheme(),

@@ -80,6 +80,10 @@ class L10n {
 
   String pick(String zh, String en) => isEnglish ? en : zh;
 
+  // 品牌名
+  String get appName => pick('月兔音乐', 'Lekis Music');
+  String get brandShort => pick('月兔音乐', 'Lekis');
+
   // 顶层导航
   String get navHome => pick('首页', 'Home');
   String get navLibrary => pick('资料库', 'Library');
@@ -89,9 +93,6 @@ class L10n {
   String get navSettings => pick('设置', 'Settings');
 
   // 首页
-  String get homeEyebrow => pick('LEKIS · 本地资料库', 'LEKIS · LOCAL LIBRARY');
-  String get homeSubtitle =>
-      pick('继续上次的，或从资料库里挑一张。', 'Pick up where you left off, or explore.');
   String get listeningStats => pick('听歌统计', 'Stats');
   String get continueListening => pick('继续收听', 'CONTINUE LISTENING');
   String get recentlyPlayed => pick('最近播放', 'Recently Played');
@@ -102,10 +103,10 @@ class L10n {
   String get quickLiked => pick('我的喜欢', 'Liked');
   String get quickMostPlayed => pick('常听精选', 'Top Tracks');
   String get unknownArtist => pick('未知艺人', 'Unknown Artist');
-  String get welcomeTitle => pick('欢迎使用 Lekis', 'Welcome to Lekis');
+  String get welcomeTitle => pick('欢迎使用月兔音乐', 'Welcome to Lekis Music');
   String get welcomeMessage => pick(
-    '先在“音源”里添加音乐，首页会展示最近添加和常听的歌曲。',
-    'Add music in Sources to see recently added and favorite tracks here.',
+    '在「音源」里添加本地文件夹、NAS 或媒体服务器，即可开始聆听。',
+    'Add a local folder, NAS, or media server in Sources to start listening.',
   );
 
   String greetingFor(DateTime now) {

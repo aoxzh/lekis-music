@@ -163,6 +163,11 @@ impl Vfs for FailoverVfs {
         let vfs = self.write_backend();
         vfs.create_dir_all(path).await
     }
+
+    async fn delete_file(&self, path: &VfsPath) -> Result<()> {
+        let vfs = self.write_backend();
+        vfs.delete_file(path).await
+    }
 }
 
 #[cfg(test)]

@@ -1549,6 +1549,59 @@ impl LekisCore {
         .await
     }
 
+    /// 删除重复歌曲中的一个低音质文件副本（可选同时删除磁盘 / NAS 源文件）。
+    pub async fn delete_duplicate_file(
+        &self,
+        source_id: SourceId,
+        path: String,
+        delete_source_file: bool,
+    ) -> Result<bool> {
+        let s = self.services.clone();
+        self.run(async move {
+            if delete_source_file {
+                let source = s
+                    .library
+                    .list_sources()
+                    .await?
+                    .into_iter()
+                    .find(|src| src.id == Some(source_id))
+                    .ok_or_else(|| LekisError::not_found(format!("source {source_id}")))?;
+                if !matches!(
+                    source.kind,
+                    SourceKind::Local
+                        | SourceKind::Smb
+                        | SourceKind::WebDav
+                        | SourceKind::Nfs
+                        | SourceKind::Sftp
+                ) {
+                    return Err(LekisError::unsupported(
+                        "媒体服务器来源不支持直接删除源文件，请取消勾选磁盘删除，仅从资料库移除",
+                    ));
+                }
+                let vfs = match s.vfs_get(source_id) {
+                    Some(v) => v,
+                    None => {
+                        let v = s.open_vfs(&source)?;
+                        s.vfs_put(source_id, v.clone());
+                        v
+                    }
+                };
+                let vfs_path = lekis_vfs::VfsPath::parse(&path)
+                    .ok_or_else(|| LekisError::invalid("文件路径非法"))?;
+                vfs.delete_file(&vfs_path).await?;
+            }
+
+            let removed = s.library.remove_file_copy(source_id, path).await?;
+            if removed {
+                s.events.emit(CoreEvent::LibraryChanged {
+                    scope: LibraryScope::Catalog,
+                });
+            }
+            Ok(removed)
+        })
+        .await
+    }
+
     /// 歌曲按标题排序时的首字母索引表（UIX-05）。
     pub async fn track_index_offsets(&self) -> Result<Vec<LetterOffset>> {
         let s = self.services.clone();

@@ -52,32 +52,23 @@ class LekisSidebar extends StatelessWidget {
                     LekisSpacing.xl,
                     LekisSpacing.lg,
                     LekisSpacing.xl,
-                    LekisSpacing.xxl,
+                    LekisSpacing.xl,
                   ),
                   child: Row(
                     children: [
-                      const _MoonMark(size: 40),
+                      const _MoonMark(size: 36),
                       const SizedBox(width: LekisSpacing.md),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Lekis',
-                            style: text.titleLarge?.copyWith(
-                              color: scheme.onSurface,
-                              letterSpacing: -0.2,
-                            ),
+                      Expanded(
+                        child: Text(
+                          context.l10n.brandShort,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: text.titleLarge?.copyWith(
+                            color: scheme.onSurface,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.2,
                           ),
-                          Text(
-                            'LOCAL FIRST',
-                            style: text.labelSmall?.copyWith(
-                              color: colors.onSurfaceVariant,
-                              letterSpacing: 1.4,
-                              fontSize: 9,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
@@ -113,30 +104,16 @@ class LekisSidebar extends StatelessWidget {
                 const Spacer(),
                 Divider(color: colors.outline, height: 1),
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: LekisSpacing.md,
-                    vertical: LekisSpacing.xs,
+                  padding: const EdgeInsets.fromLTRB(
+                    LekisSpacing.md,
+                    LekisSpacing.xs,
+                    LekisSpacing.md,
+                    LekisSpacing.md,
                   ),
                   child: _SidebarItem(
                     destination: LekisDestination.settings,
                     selected: selected == LekisDestination.settings,
                     onTap: () => onSelected(LekisDestination.settings),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    LekisSpacing.xl,
-                    LekisSpacing.xs,
-                    LekisSpacing.xl,
-                    LekisSpacing.lg,
-                  ),
-                  child: Text(
-                    context.l10n.pick('本地优先 · 无账号', 'Local First · No Account'),
-                    style:
-                        desktop?.secondary ??
-                        text.labelSmall?.copyWith(
-                          color: colors.onSurfaceVariant.withValues(alpha: 0.7),
-                        ),
                   ),
                 ),
               ],

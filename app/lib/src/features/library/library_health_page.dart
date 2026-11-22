@@ -205,6 +205,7 @@ class _DuplicateGroupRow extends ConsumerStatefulWidget {
 
 class _DuplicateGroupRowState extends ConsumerState<_DuplicateGroupRow> {
   bool _merging = false;
+  bool _deleting = false;
 
   List<int> _absorbableIds(DuplicateGroupDto group) {
     final keepId = group.keepTrackId;
@@ -212,6 +213,164 @@ class _DuplicateGroupRowState extends ConsumerState<_DuplicateGroupRow> {
       for (final t in group.tracks)
         if (t.trackId != keepId) t.trackId,
     }.toList(growable: false);
+  }
+
+  List<DuplicateTrackDto> _lowerQualityCopies(DuplicateGroupDto group) => [
+    for (final t in group.tracks)
+      if (!t.suggestedKeep && t.sourceId != null && t.path.trim().isNotEmpty) t,
+  ];
+
+  Future<void> _deleteCopies(
+    List<DuplicateTrackDto> targets,
+    DuplicateTrackDto? keep,
+  ) async {
+    if (_deleting || targets.isEmpty) return;
+    final totalBytes = targets.fold<int>(
+      0,
+      (sum, t) => sum + t.sizeBytes.toInt(),
+    );
+    var deleteDisk = true;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final l10n = context.l10n;
+          final colors = context.lekisColors;
+          final text = Theme.of(context).textTheme;
+          return AlertDialog(
+            title: Text(UnifiedStrings.deleteConfirmTitle),
+            content: SizedBox(
+              width: 440,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (keep != null) ...[
+                      Text(
+                        l10n.pick('保留版本：', 'Keeping:'),
+                        style: text.labelMedium?.copyWith(
+                          color: colors.accent,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: LekisSpacing.xxs),
+                      Text(
+                        '${keep.format ?? ''} · ${_displayPath(keep.path)}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: text.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: LekisSpacing.md),
+                    ],
+                    Text(
+                      l10n.pick(
+                        '将移除以下 ${targets.length} 个低音质版本（约 ${formatBytes(totalBytes)}）：',
+                        'Will remove ${targets.length} lower-quality copies (~${formatBytes(totalBytes)}):',
+                      ),
+                      style: text.labelMedium?.copyWith(
+                        color: colors.danger,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: LekisSpacing.xs),
+                    for (final t in targets)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: LekisSpacing.xs),
+                        child: Text(
+                          '• ${t.format ?? t.codec ?? ''} · ${_displayPath(t.path)}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: text.bodySmall,
+                        ),
+                      ),
+                    const SizedBox(height: LekisSpacing.sm),
+                    CheckboxListTile(
+                      key: const ValueKey('duplicate.delete-disk-toggle'),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      value: deleteDisk,
+                      onChanged: (v) =>
+                          setDialogState(() => deleteDisk = v ?? true),
+                      title: Text(UnifiedStrings.deleteDiskToggle),
+                      subtitle: Text(
+                        UnifiedStrings.deleteDiskHint,
+                        style: text.bodySmall?.copyWith(
+                          color: deleteDisk
+                              ? colors.danger
+                              : colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(l10n.pick('取消', 'Cancel')),
+              ),
+              FilledButton(
+                key: const ValueKey('duplicate.delete-confirm'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: colors.danger,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(UnifiedStrings.deleteConfirmBtn),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _deleting = true);
+    var deletedCount = 0;
+    var freedBytes = 0;
+    Object? lastError;
+    try {
+      final gateway = ref.read(unifiedLibraryGatewayProvider);
+      for (final t in targets) {
+        final sid = t.sourceId;
+        if (sid == null) continue;
+        try {
+          final ok = await gateway.deleteDuplicateFile(
+            sourceId: sid.toInt(),
+            path: t.path,
+            deleteSourceFile: deleteDisk,
+          );
+          if (ok) {
+            deletedCount++;
+            freedBytes += t.sizeBytes.toInt();
+          }
+        } catch (e) {
+          lastError = e;
+        }
+      }
+      ref.invalidate(libraryHealthSummaryProvider);
+      ref.invalidate(duplicateGroupListProvider);
+      if (mounted) {
+        if (deletedCount > 0) {
+          showFeatureSnack(
+            context,
+            UnifiedStrings.deleteDone(
+              deletedCount,
+              formatBytes(freedBytes),
+              disk: deleteDisk,
+            ),
+          );
+        } else if (lastError != null) {
+          showFeatureSnack(context, describeCoreError(lastError));
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
   }
 
   Future<void> _mergeGroup() async {
@@ -299,7 +458,16 @@ class _DuplicateGroupRowState extends ConsumerState<_DuplicateGroupRow> {
       ),
       children: [
         for (final track in group.tracks)
-          _DuplicateVersionRow(track: track, title: title),
+          _DuplicateVersionRow(
+            track: track,
+            title: title,
+            onDelete:
+                !track.suggestedKeep &&
+                    track.sourceId != null &&
+                    track.path.trim().isNotEmpty
+                ? () => _deleteCopies([track], keep)
+                : null,
+          ),
         if (group.tracks.length > 1)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -308,23 +476,30 @@ class _DuplicateGroupRowState extends ConsumerState<_DuplicateGroupRow> {
               settingsRowInset,
               LekisSpacing.md,
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: LekisSpacing.sm,
+              runSpacing: LekisSpacing.xs,
               children: [
                 if (alreadyUnified) ...[
-                  Icon(
-                    Icons.check_circle_outline_rounded,
-                    size: 16,
-                    color: colors.accent,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.check_circle_outline_rounded,
+                        size: 16,
+                        color: colors.accent,
+                      ),
+                      const SizedBox(width: LekisSpacing.xs),
+                      Text(
+                        UnifiedStrings.alreadyMerged,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: LekisSpacing.xs),
-                  Text(
-                    UnifiedStrings.alreadyMerged,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(width: LekisSpacing.md),
                   OutlinedButton.icon(
                     key: ValueKey('duplicate.sources.${group.keepTrackId}'),
                     onPressed: () => showTrackSourcesSheet(
@@ -338,7 +513,7 @@ class _DuplicateGroupRowState extends ConsumerState<_DuplicateGroupRow> {
                 ] else
                   FilledButton.tonalIcon(
                     key: ValueKey('duplicate.merge.${group.keepTrackId}'),
-                    onPressed: _merging ? null : _mergeGroup,
+                    onPressed: _merging || _deleting ? null : _mergeGroup,
                     icon: _merging
                         ? const SizedBox.square(
                             dimension: 16,
@@ -346,6 +521,29 @@ class _DuplicateGroupRowState extends ConsumerState<_DuplicateGroupRow> {
                           )
                         : const Icon(Icons.merge_rounded, size: 18),
                     label: Text(UnifiedStrings.mergeAction),
+                  ),
+                if (_lowerQualityCopies(group).isNotEmpty)
+                  OutlinedButton.icon(
+                    key: ValueKey('duplicate.delete-lower.${group.keepTrackId}'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: colors.danger,
+                      side: BorderSide(
+                        color: colors.danger.withValues(alpha: 0.45),
+                      ),
+                    ),
+                    onPressed: _deleting || _merging
+                        ? null
+                        : () => _deleteCopies(
+                              _lowerQualityCopies(group),
+                              keep,
+                            ),
+                    icon: _deleting
+                        ? const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.delete_outline_rounded, size: 18),
+                    label: Text(UnifiedStrings.deleteLowerQuality),
                   ),
               ],
             ),
@@ -356,10 +554,15 @@ class _DuplicateGroupRowState extends ConsumerState<_DuplicateGroupRow> {
 }
 
 class _DuplicateVersionRow extends ConsumerWidget {
-  const _DuplicateVersionRow({required this.track, required this.title});
+  const _DuplicateVersionRow({
+    required this.track,
+    required this.title,
+    this.onDelete,
+  });
 
   final DuplicateTrackDto track;
   final String title;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -445,8 +648,17 @@ class _DuplicateVersionRow extends ConsumerWidget {
                 ],
               ),
             ),
+            if (onDelete != null)
+              IconButton(
+                tooltip: UnifiedStrings.deleteThisCopy,
+                onPressed: onDelete,
+                icon: Icon(
+                  Icons.delete_outline_rounded,
+                  color: colors.danger,
+                ),
+              ),
             IconButton(
-              tooltip: '播放这个版本',
+              tooltip: context.l10n.pick('播放这个版本', 'Play this copy'),
               onPressed: () => ref.read(playerActionsProvider).playTracks([
                 track.trackId.toInt(),
               ]),

@@ -881,6 +881,17 @@ Future<BigInt> mergeTracks({
   absorbIds: absorbIds,
 );
 
+/// 删除重复歌曲中的低音质版本（可选同时删除磁盘 / NAS 源文件）。
+Future<bool> deleteDuplicateFile({
+  required PlatformInt64 sourceId,
+  required String path,
+  required bool deleteSourceFile,
+}) => RustLib.instance.api.crateApiCoreDeleteDuplicateFile(
+  sourceId: sourceId,
+  path: path,
+  deleteSourceFile: deleteSourceFile,
+);
+
 /// 把曲目下的某个来源拆分成一条独立曲目，返回新曲目 ID。
 Future<PlatformInt64> splitTrackSource({
   required PlatformInt64 trackId,

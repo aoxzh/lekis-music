@@ -23,6 +23,7 @@ import 'package:material_ui/material_ui.dart';
 class _FakeUnifiedGateway implements UnifiedLibraryGateway {
   int? mergedKeepId;
   List<int>? mergedAbsorbIds;
+  final List<(int, String, bool)> deletedFiles = [];
 
   @override
   Future<int> mergeTracks(int keepId, List<int> absorbIds) async {
@@ -41,6 +42,16 @@ class _FakeUnifiedGateway implements UnifiedLibraryGateway {
 
   @override
   Future<List<TrackSourceInfoDto>> trackSources(int trackId) async => const [];
+
+  @override
+  Future<bool> deleteDuplicateFile({
+    required int sourceId,
+    required String path,
+    required bool deleteSourceFile,
+  }) async {
+    deletedFiles.add((sourceId, path, deleteSourceFile));
+    return true;
+  }
 }
 
 DuplicateTrackDto _dupTrack({
@@ -191,11 +202,27 @@ void main() {
       expect(gateway.mergedKeepId, 10);
       expect(gateway.mergedAbsorbIds, [11]);
 
-      // Expand already-unified group -> shows Sources & Quality instead of dead merge button
+      // Expand already-unified group -> shows Sources & Quality AND Delete Lower-Quality button
       await tester.tap(find.text('夜曲'));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('duplicate.merge.20')), findsNothing);
       expect(find.byKey(const ValueKey('duplicate.sources.20')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('duplicate.delete-lower.20')),
+        findsOneWidget,
+      );
+
+      // Tap Delete Lower-Quality -> confirmation dialog -> confirms disk deletion of the MP3 copy
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('duplicate.delete-lower.20')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('duplicate.delete-lower.20')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('duplicate.delete-disk-toggle')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('duplicate.delete-confirm')));
+      await tester.pumpAndSettle();
+      expect(gateway.deletedFiles, [(1, '/local/yequ.mp3', true)]);
     },
   );
 

@@ -24,6 +24,28 @@ abstract final class UnifiedStrings {
   static String get splitDone => L10n.tr('已拆分为独立曲目', 'Split into a separate track');
   static String get mergeAction => L10n.tr('合并为同一首歌', 'Merge as Same Track');
   static String get alreadyMerged => L10n.tr('已合并为同一首歌', 'Already Unified');
+  static String get deleteLowerQuality =>
+      L10n.tr('删除低音质版本', 'Delete Lower-Quality');
+  static String get deleteThisCopy => L10n.tr('删除此低音质版本', 'Delete this copy');
+  static String get deleteConfirmTitle =>
+      L10n.tr('删除低音质版本？', 'Delete Lower-Quality Copies?');
+  static String get deleteDiskToggle =>
+      L10n.tr('同时删除磁盘 / NAS 上的源文件', 'Also delete files from disk / NAS');
+  static String get deleteDiskHint => L10n.tr(
+    '勾选后将永久删除源文件且无法撤销；取消勾选则仅从资料库移除索引。',
+    'Permanent and cannot be undone; uncheck to remove from library index only.',
+  );
+  static String get deleteConfirmBtn => L10n.tr('确认删除', 'Delete');
+  static String deleteDone(int count, String freed, {required bool disk}) =>
+      disk
+          ? L10n.tr(
+              '已删除 $count 个低音质文件（释放 $freed）',
+              'Deleted $count lower-quality files ($freed freed)',
+            )
+          : L10n.tr(
+              '已从资料库移除 $count 个低音质副本（保留磁盘文件）',
+              'Removed $count lower-quality copies from library (files kept)',
+            );
   static String mergeDone(int count) => L10n.tr(
     '已合并 $count 个版本为同一首歌（不删磁盘文件）',
     'Merged $count versions into one track (files kept on disk)',
@@ -44,6 +66,11 @@ abstract interface class UnifiedLibraryGateway {
     required int sourceId,
     int? fileId,
     String? externalId,
+  });
+  Future<bool> deleteDuplicateFile({
+    required int sourceId,
+    required String path,
+    required bool deleteSourceFile,
   });
 }
 
@@ -72,6 +99,17 @@ class _CoreUnifiedLibraryGateway implements UnifiedLibraryGateway {
     sourceId: sourceId,
     fileId: fileId,
     externalId: externalId,
+  );
+
+  @override
+  Future<bool> deleteDuplicateFile({
+    required int sourceId,
+    required String path,
+    required bool deleteSourceFile,
+  }) => core.deleteDuplicateFile(
+    sourceId: sourceId,
+    path: path,
+    deleteSourceFile: deleteSourceFile,
   );
 }
 

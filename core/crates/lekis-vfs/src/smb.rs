@@ -246,6 +246,23 @@ impl Vfs for SmbVfs {
         .await
     }
 
+    async fn delete_file(&self, path: &VfsPath) -> Result<()> {
+        if path.is_root() {
+            return Err(LekisError::invalid("smb: 不能删除共享根目录"));
+        }
+        let remote = self.remote_path(path)?;
+        self.with_session(move |client, tree| {
+            Box::pin(async move {
+                match client.delete_file(&*tree, &remote).await {
+                    Ok(()) => Ok(()),
+                    Err(e) if e.kind() == smb2::ErrorKind::NotFound => Ok(()),
+                    Err(e) => Err(e),
+                }
+            })
+        })
+        .await
+    }
+
     async fn create_dir_all(&self, dir: &VfsPath) -> Result<()> {
         if dir.is_root() {
             return Ok(());

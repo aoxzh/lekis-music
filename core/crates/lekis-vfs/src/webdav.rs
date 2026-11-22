@@ -343,6 +343,23 @@ impl Vfs for WebDavVfs {
         Err(err)
     }
 
+    async fn delete_file(&self, path: &VfsPath) -> Result<()> {
+        if path.is_root() {
+            return Err(LekisError::invalid("webdav: 不能删除根目录"));
+        }
+        let target = self.url_for(path);
+        let resp = self
+            .send("DELETE", &target, || {
+                self.client.request(Method::DELETE, &target)
+            })
+            .await?;
+        if resp.status().is_success() || resp.status() == reqwest::StatusCode::NOT_FOUND {
+            Ok(())
+        } else {
+            Err(status_err(resp.status(), "DELETE"))
+        }
+    }
+
     async fn create_dir_all(&self, dir: &VfsPath) -> Result<()> {
         if dir.is_root() {
             return Ok(());
