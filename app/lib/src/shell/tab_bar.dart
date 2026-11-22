@@ -196,28 +196,25 @@ class _LekisTabBarState extends State<LekisTabBar> {
     );
   }
 
-  /// Where each slot's selection block sits, concentric with the capsule.
+  /// Where each slot's selection block sits (liquid_tab_bar's lens).
   ///
-  /// The block keeps the same gap ([LekisTabBarTokens.innerInset]) to the
-  /// capsule on every side it faces, and its radius is the capsule's minus
-  /// that gap, so its ends follow the capsule's curve (Telegram / iOS 26).
-  /// Six slots are narrower than the bar is thick, so the block is allowed
-  /// to be a little wider than its slot (never narrower than a pill) and is
-  /// clamped inside the capsule at either end.
+  /// Every block is the same size and centred on its own slot: as long as
+  /// the bar is thick, [LekisTabBarTokens.lensInset] from the capsule on the
+  /// sides it faces, and [LekisTabBarTokens.lensOverhang] longer than the
+  /// slot. Its radius is half its thickness = capsule radius - lensInset, so
+  /// it is concentric with the capsule; at the first / last slot the bar
+  /// padding (2 x lensInset) leaves the same lensInset to the rounded end.
   List<Rect> _selectionRects(double main) {
-    const gap = LekisTabBarTokens.innerInset;
+    const pad = LekisTabBarTokens.innerInset;
+    const gap = LekisTabBarTokens.lensInset;
     const cross = _thickness - gap * 2;
     final count = LekisDestination.values.length;
-    final slot = (main - gap * 2) / count;
-    final along = math.min(
-      main - gap * 2,
-      math.max(slot - LekisTabBarTokens.pillInset * 2, cross * 1.2),
-    );
+    final slot = (main - pad * 2) / count;
+    final along = slot + LekisTabBarTokens.lensOverhang;
     return [
       for (var i = 0; i < count; i++)
         () {
-          final center = gap + (i + 0.5) * slot;
-          final start = (center - along / 2).clamp(gap, main - gap - along);
+          final start = pad + (i + 0.5) * slot - along / 2;
           return _vertical
               ? Rect.fromLTWH(gap, start, cross, along)
               : Rect.fromLTWH(start, gap, along, cross);

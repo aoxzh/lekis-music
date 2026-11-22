@@ -95,11 +95,18 @@ abstract final class LekisTabBarTokens {
   static const double iconGap = 2;
   static const double labelHeight = 15;
 
-  /// Horizontal padding between the capsule edge and the slots.
-  static const double innerInset = 4;
+  /// Padding between the capsule's rounded ends and the first / last slot
+  /// (liquid_tab_bar's `_barPadding`). Twice [lensInset], so a selection
+  /// block [lensOverhang] wider than its slot still sits [lensInset] from
+  /// the ends without being pushed off its icon.
+  static const double innerInset = 8;
 
-  /// Gap between a slot edge and the selection backdrop.
-  static const double pillInset = 3;
+  /// Gap between the capsule edge and the selection block, on every side:
+  /// block radius = capsule radius - this, so the two stay concentric.
+  static const double lensInset = 4;
+
+  /// How much wider than its slot the selection block is (half each side).
+  static const double lensOverhang = 8;
 
   /// Accent wash behind the active slot. Telegram's glass tabs use 9 % of the
   /// selected colour; dark glass needs a touch more to read.
