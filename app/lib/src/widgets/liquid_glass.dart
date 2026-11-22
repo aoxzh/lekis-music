@@ -518,7 +518,7 @@ class _GlassRimPainter extends BoxPainter {
   }
 }
 
-/// Soft drop shadow (12 dp blur, 4 dp down) painted only outside [radius]'s
+/// Soft drop shadow (8 dp blur, 2 dp down) painted only outside [radius]'s
 /// rounded rectangle.
 class _OutsideShadowDecoration extends Decoration {
   const _OutsideShadowDecoration({required this.radius, required this.isDark});
@@ -549,12 +549,12 @@ class _OutsideShadowPainter extends BoxPainter {
       ..save()
       ..clipPath(outside)
       ..drawRRect(
-        rrect.shift(const Offset(0, 4)),
+        rrect.shift(const Offset(0, 2)),
         Paint()
           ..color = Colors.black.withValues(
-            alpha: decoration.isDark ? 0.25 : 0.10,
+            alpha: decoration.isDark ? 0.20 : 0.06,
           )
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
       )
       ..restore();
   }

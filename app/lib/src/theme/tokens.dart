@@ -95,11 +95,16 @@ abstract final class LekisTabBarTokens {
   static const double iconGap = 2;
   static const double labelHeight = 15;
 
-  /// Horizontal padding between the capsule edge and the five slots.
+  /// Horizontal padding between the capsule edge and the slots.
   static const double innerInset = 4;
 
-  /// Gap between a slot edge and the selection pill.
+  /// Gap between a slot edge and the selection backdrop.
   static const double pillInset = 3;
+
+  /// Accent wash behind the active slot. Telegram's glass tabs use 9 % of the
+  /// selected colour; dark glass needs a touch more to read.
+  static const double selectionTintLight = 0.10;
+  static const double selectionTintDark = 0.16;
 
   /// Backdrop blur of the capsule where there is no lens (Skia backends):
   /// frosted glass.
@@ -112,8 +117,8 @@ abstract final class LekisTabBarTokens {
   static const double refractionHeight = 24;
   static const double refractionAmount = 24;
 
-  /// Widest a slot gets. The capsule hugs its five slots and centres
-  /// instead of stretching across wide phones / tablets in portrait.
+  /// Widest a slot gets. The capsule hugs its slots and centres instead of
+  /// stretching across wide phones / tablets in portrait.
   static const double maxSlotWidth = 68;
 
   /// Slot length of the vertical (side) capsule.
@@ -130,9 +135,6 @@ abstract final class LekisTabBarTokens {
   /// Opacity of the film grain laid over the capsule (keeps the gradient
   /// from banding on large soft areas, like Now Playing does).
   static const double noiseOpacity = 0.035;
-
-  /// How much the selection pill stretches while travelling, at most.
-  static const double maxPillStretch = 0.18;
 }
 
 /// Motion tokens. Springs use mass 1 and are defined by stiffness and
@@ -153,6 +155,9 @@ abstract final class LekisMotion {
 
   /// Flat tab bar selection: short ease, deliberately no spring.
   static const Duration navFlat = Duration(milliseconds: 170);
+
+  /// Liquid tab bar selection: Telegram's in-place tint grows over 320 ms.
+  static const Duration navSelection = Duration(milliseconds: 320);
 
   static SpringDescription _spring(double stiffness, double dampingRatio) =>
       SpringDescription.withDampingRatio(

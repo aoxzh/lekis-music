@@ -24,6 +24,12 @@ String formatDuration(int ms) {
   return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$s' : '$m:$s';
 }
 
+/// "FLAC 16/44.1" → "FLAC" for narrow rows; labels without a space stay whole.
+String _compactQualityLabel(String label) {
+  final space = label.indexOf(' ');
+  return space > 0 ? label.substring(0, space) : label;
+}
+
 enum _TrackMenuAction {
   playNext,
   addToQueue,
@@ -293,64 +299,92 @@ class TrackTile extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(
                   horizontal: LekisSpacing.sm,
                 ),
-                child: Row(
-                  children: [
-                    leading,
-                    const SizedBox(width: LekisSpacing.md),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            track.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodyLarge?.copyWith(
-                              color: isCurrent ? colors.accent : null,
-                              fontWeight: isCurrent ? FontWeight.w600 : null,
-                            ),
-                          ),
-                          if (subtitle.isNotEmpty)
-                            Text(
-                              subtitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colors.onSurfaceVariant,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    // Metadata is secondary: on phones show just the codec,
+                    // never a full-width badge that squeezes the title.
+                    final compact = constraints.maxWidth < 560;
+                    final quality = track.qualityBadge;
+                    final qualityLabel = quality == null
+                        ? null
+                        : compact
+                        ? _compactQualityLabel(quality)
+                        : quality;
+                    final hasSubtitle = subtitle.isNotEmpty;
+                    return Row(
+                      children: [
+                        leading,
+                        const SizedBox(width: LekisSpacing.md),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                track.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                  color: isCurrent ? colors.accent : null,
+                                  fontWeight: isCurrent
+                                      ? FontWeight.w600
+                                      : null,
+                                ),
                               ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    if (track.qualityBadge != null) ...[
-                      const SizedBox(width: LekisSpacing.sm),
-                      _QualityBadge(label: track.qualityBadge!),
-                    ],
-                    const SizedBox(width: LekisSpacing.xs),
-                    CompactDownloadProgress(trackId: track.id),
-                    LovedButton(
-                      trackId: track.id,
-                      initialLoved: track.loved,
-                      size: LekisSpacing.lg,
-                    ),
-                    PopupMenuButton<_TrackMenuAction>(
-                      tooltip: '更多操作',
-                      icon: const Icon(Icons.more_horiz_rounded, size: 20),
-                      iconSize: 20,
-                      padding: EdgeInsets.zero,
-                      onSelected: onMenu,
-                      itemBuilder: (_) => menuItems(),
-                    ),
-                    const SizedBox(width: LekisSpacing.xs),
-                    Text(
-                      formatDuration(track.durationMs.toInt()),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                  ],
+                              if (hasSubtitle || qualityLabel != null)
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        subtitle,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: colors.onSurfaceVariant,
+                                            ),
+                                      ),
+                                    ),
+                                    if (qualityLabel != null) ...[
+                                      const SizedBox(width: LekisSpacing.xs),
+                                      _QualityBadge(label: qualityLabel),
+                                    ],
+                                  ],
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: LekisSpacing.xs),
+                        CompactDownloadProgress(trackId: track.id),
+                        LovedButton(
+                          trackId: track.id,
+                          initialLoved: track.loved,
+                          size: LekisSpacing.lg,
+                        ),
+                        PopupMenuButton<_TrackMenuAction>(
+                          tooltip: '更多操作',
+                          padding: EdgeInsets.zero,
+                          onSelected: onMenu,
+                          itemBuilder: (_) => menuItems(),
+                          // A 36 dp row action, matching the heart; the same
+                          // menu still opens from a long press.
+                          child: const SizedBox(
+                            width: 36,
+                            height: 36,
+                            child: Icon(Icons.more_horiz_rounded, size: 20),
+                          ),
+                        ),
+                        const SizedBox(width: LekisSpacing.xs),
+                        Text(
+                          formatDuration(track.durationMs.toInt()),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -368,20 +402,27 @@ class _QualityBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.lekisColors;
+    // A quiet filled chip, not an outlined tag: the title and artist stay
+    // primary and the codec reads as a footnote.
     return DecoratedBox(
       decoration: BoxDecoration(
-        border: Border.all(color: colors.outline),
+        color: colors.surfaceVariant.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(LekisRadius.xs),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: LekisSpacing.xs,
-          vertical: LekisSpacing.xxs,
+          vertical: 1,
         ),
         child: Text(
           label,
-          style: Theme.of(context).textTheme.labelSmall
-              ?.copyWith(color: colors.onSurfaceVariant),
+          maxLines: 1,
+          softWrap: false,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: colors.onSurfaceVariant.withValues(alpha: 0.85),
+            fontSize: 10,
+            height: 1.2,
+          ),
         ),
       ),
     );

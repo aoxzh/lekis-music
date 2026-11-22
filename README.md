@@ -12,7 +12,6 @@
 [![Core: Rust](https://img.shields.io/badge/Core-Rust-orange.svg)](core/)
 [![UI: Flutter](https://img.shields.io/badge/UI-Flutter-02569B.svg)](app/)
 [![Platforms](https://img.shields.io/badge/Platforms-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Linux-success.svg)](#platforms)
-[![F-Droid Ready](https://img.shields.io/badge/F--Droid-Submitted-1976D2.svg)](docs/FDROID.md)
 
 **[🌐 Official Website (lekis.aoxzh.org)](https://lekis.aoxzh.org) · [English](#english) · [简体中文](#简体中文) · [Quick Facts](#quick-facts) · [FAQ](#faq) · [Plugin SDK](plugin-sdk/)**
 
@@ -60,7 +59,7 @@
 | **Zero-Key Cover & Lyrics** | Built-in 5 artwork sources + 4 lyrics sources (LRCLIB, Cover Art Archive, iTunes JP/Global, Deezer, VocaDB, etc.) with word-by-word karaoke, CJK per-locale font fallback, and **Windows native floating desktop lyrics**. | **免 Key 封面与歌词补全**：内置 5 个封面源 + 4 个歌词源（含日区 iTunes、VocaDB 与翻译歌词），支持逐字卡拉 OK、中日韩分语种字体回退与 **Windows 原生桌面悬浮歌词**。 |
 | **Unified Library & Dedup** | Automatically merges duplicate tracks across local storage, NAS, and media servers, picking the highest quality; one-click cleanup of lower-quality duplicates (index or disk/NAS). | **统一资料库与低音质去重**：同一首歌在本地 / NAS / 媒体服务器的多副本自动合并择优；重复歌曲支持一键删除低音质版本并释放磁盘 / NAS 空间。 |
 | **LAN Connect & Sync** | Discover and pair devices on your LAN to remote-control playback, transfer queues, and stream missing tracks; serverless multi-device sync for favorites, playlists, and history via any shared folder. | **局域网遥控与无服务器同步**：设备间局域网配对遥控、播放队列接力与缺失曲目串流；通过本地或 NAS 共享目录实现无服务器多设备同步。 |
-| **Refined UI & Privacy** | Liquid Glass & flat styles, Vinyl / Cassette / Cover now-playing modes, full English & Chinese UI, JS plugin host, **no accounts, no telemetry, no ads, no Google Play Services** (F-Droid friendly). | **精致界面与隐私优先**：液态玻璃 / 扁平风格、黑胶 / 磁带播放页、中英双语、本地 JS 插件宿主；**无账号、无遥测、无广告、无 Google 服务依赖**（F-Droid 友好）。 |
+| **Refined UI & Privacy** | Liquid Glass & flat styles, Vinyl / Cassette / Cover now-playing modes, full English & Chinese UI, JS plugin host, **no accounts, no telemetry, no ads, no Google Play Services**. | **精致界面与隐私优先**：液态玻璃 / 扁平风格、黑胶 / 磁带播放页、中英双语、本地 JS 插件宿主；**无账号、无遥测、无广告、无 Google 服务依赖**。 |
 
 ---
 
@@ -119,7 +118,7 @@
 
 | Platform | Status | Notes |
 |---|---|---|
-| **Android** (8.0+, arm64-v8a) | **Alpha Preview** | Signed APK via GitHub Releases; [F-Droid submission in progress](docs/FDROID.md) |
+| **Android** (8.0+, arm64-v8a) | **Alpha Preview** | Signed APK via GitHub Releases |
 | **Windows** (10/11 x64) | **Alpha Preview** | Portable ZIP via GitHub Releases; WASAPI exclusive, system tray, SMTC, floating desktop lyrics |
 | **macOS** (Universal) | **Experimental Preview** | ZIP via GitHub Releases (Apple Silicon & Intel) |
 | **Linux** (x64) | **Experimental Preview** | `.tar.gz` bundle via GitHub Releases |
@@ -197,11 +196,11 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release history.
 │   │   └── lekis-bridge       flutter_rust_bridge v2 bindings
 │   └── bins/lekis-node        Optional headless NAS node
 ├── app/                   Flutter client (Rust compiled automatically via Cargokit)
-├── fastlane/              F-Droid / Android Fastlane store metadata (en-US, zh-CN)
+├── fastlane/              Android Fastlane store metadata (en-US, zh-CN)
 ├── plugin-sdk/            Plugin protocol (JSON Schema / TS SDK / WIT / examples)
 ├── design/                Design tokens
 ├── tools/                 Build, packaging, privacy check & icon scripts
-└── docs/                  Architecture, requirements, roadmap, ADRs & F-Droid guide
+└── docs/                  Architecture, requirements, roadmap, ADRs
 ```
 
 </details>
@@ -263,11 +262,11 @@ Windows portable ZIP packaging: `tools/package-windows.ps1` (outputs to `dist/`)
 </details>
 
 <details>
-<summary><strong>Is Lekis Music free, open-source, and available on F-Droid? / 是免费开源软件吗？会上架 F-Droid 吗？</strong></summary>
+<summary><strong>Is Lekis Music free and open-source? / 是免费开源软件吗？</strong></summary>
 
-**Yes.** Lekis Music is licensed under **MPL-2.0**, contains no ads, no tracking, and no proprietary Google Play Services dependencies. F-Droid Fastlane metadata and reproducible build configuration are included in the repository — see [docs/FDROID.md](docs/FDROID.md) for F-Droid submission status and build recipe.
+**Yes.** Lekis Music is licensed under **MPL-2.0**, contains no ads, no tracking, and no proprietary Google Play Services dependencies. The signed APK is published on GitHub Releases.
 
-**是的。** 月兔音乐采用 **MPL-2.0** 开源协议，无广告、无遥测、无 Google 专有服务依赖。仓库已内置 F-Droid Fastlane 元数据与开源构建配置，详见 [docs/FDROID.md](docs/FDROID.md)。
+**是的。** 月兔音乐采用 **MPL-2.0** 开源协议，无广告、无遥测、无 Google 专有服务依赖。签名 APK 通过 GitHub Releases 发布。
 
 </details>
 
@@ -288,7 +287,6 @@ All library metadata, playlists, and settings stay **100% on your device** (Wind
 |---|---|
 | [https://lekis.aoxzh.org](https://lekis.aoxzh.org) | Official website & downloads / 官方网站与下载 |
 | [`plugin-sdk/`](plugin-sdk/) | Plugin protocol, TypeScript SDK & examples / 插件开发协议与示例 |
-| [docs/FDROID.md](docs/FDROID.md) | F-Droid FOSS compliance & build recipe / F-Droid 上架清单与构建配方 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution & PR guidelines / 贡献指南 |
 | [CHANGELOG.md](CHANGELOG.md) | Version changelog / 更新日志 |
 | [SECURITY.md](SECURITY.md) | Security policy / 安全漏洞报告 |

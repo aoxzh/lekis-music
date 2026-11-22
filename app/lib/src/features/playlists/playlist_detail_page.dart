@@ -531,111 +531,127 @@ class _PlaylistEntryTile extends StatelessWidget {
           horizontal: LekisSpacing.sm,
           vertical: LekisSpacing.xs,
         ),
-        child: Row(
-          children: [
-            SizedBox.square(
-              dimension: LekisSizes.listArtwork,
-              child: track == null
-                  ? DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: colors.surfaceVariant,
-                        borderRadius: BorderRadius.circular(
-                          LekisRadius.artworkList,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Phones: the up / down arrows live only in the overflow menu
+            // (which already has them), so the title is not squeezed.
+            final compact = constraints.maxWidth < 560;
+            return Row(
+              children: [
+                SizedBox.square(
+                  dimension: LekisSizes.listArtwork,
+                  child: track == null
+                      ? DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: colors.surfaceVariant,
+                            borderRadius: BorderRadius.circular(
+                              LekisRadius.artworkList,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.music_off_rounded,
+                            color: colors.onSurfaceVariant,
+                          ),
+                        )
+                      : TrackArtwork(
+                          trackId: track.id,
+                          hasArtwork: track.artworkId != null,
+                          placeholderLabel: track.title,
+                        ),
+                ),
+                const SizedBox(width: LekisSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        track?.title ?? '（曲目暂时不可用）',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: track == null ? colors.onSurfaceVariant : null,
                         ),
                       ),
-                      child: Icon(
-                        Icons.music_off_rounded,
-                        color: colors.onSurfaceVariant,
-                      ),
-                    )
-                  : TrackArtwork(
-                      trackId: track.id,
-                      hasArtwork: track.artworkId != null,
-                      placeholderLabel: track.title,
-                    ),
-            ),
-            const SizedBox(width: LekisSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    track?.title ?? '（曲目暂时不可用）',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: track == null ? colors.onSurfaceVariant : null,
-                    ),
+                      if (track != null && track.artistLine.isNotEmpty)
+                        Text(
+                          track.artistLine,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
                   ),
-                  if (track != null && track.artistLine.isNotEmpty)
-                    Text(
-                      track.artistLine,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                ),
+                if (track != null)
+                  LovedButton(
+                    trackId: track.id,
+                    initialLoved: track.loved,
+                    size: LekisSpacing.lg,
+                  ),
+                if (track != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: LekisSpacing.xs,
+                    ),
+                    child: Text(
+                      formatDuration(track.durationMs.toInt()),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colors.onSurfaceVariant,
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
+                  ),
+                if (!compact) ...[
+                  _MiniIconButton(
+                    tooltip: '上移',
+                    icon: Icons.keyboard_arrow_up_rounded,
+                    onPressed: canMoveUp ? onMoveUp : null,
+                  ),
+                  _MiniIconButton(
+                    tooltip: '下移',
+                    icon: Icons.keyboard_arrow_down_rounded,
+                    onPressed: canMoveDown ? onMoveDown : null,
+                  ),
                 ],
-              ),
-            ),
-            if (track != null)
-              LovedButton(
-                trackId: track.id,
-                initialLoved: track.loved,
-                size: LekisSpacing.lg,
-              ),
-            if (track != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: LekisSpacing.xs,
-                ),
-                child: Text(
-                  formatDuration(track.durationMs.toInt()),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    fontFeatures: const [FontFeature.tabularFigures()],
+                PopupMenuButton<String>(
+                  tooltip: '条目操作',
+                  padding: EdgeInsets.zero,
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'up':
+                        onMoveUp();
+                      case 'down':
+                        onMoveDown();
+                      case 'remove':
+                        onRemove();
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'up',
+                      enabled: canMoveUp,
+                      child: const Text('上移'),
+                    ),
+                    PopupMenuItem(
+                      value: 'down',
+                      enabled: canMoveDown,
+                      child: const Text('下移'),
+                    ),
+                    const PopupMenuItem(value: 'remove', child: Text('从歌单移除')),
+                  ],
+                  // A 36 dp row action, matching the heart.
+                  child: const SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: Icon(Icons.more_vert, size: 20),
                   ),
                 ),
-              ),
-            _MiniIconButton(
-              tooltip: '上移',
-              icon: Icons.keyboard_arrow_up_rounded,
-              onPressed: canMoveUp ? onMoveUp : null,
-            ),
-            _MiniIconButton(
-              tooltip: '下移',
-              icon: Icons.keyboard_arrow_down_rounded,
-              onPressed: canMoveDown ? onMoveDown : null,
-            ),
-            PopupMenuButton<String>(
-              tooltip: '条目操作',
-              onSelected: (value) {
-                switch (value) {
-                  case 'up':
-                    onMoveUp();
-                  case 'down':
-                    onMoveDown();
-                  case 'remove':
-                    onRemove();
-                }
-              },
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  value: 'up',
-                  enabled: canMoveUp,
-                  child: const Text('上移'),
-                ),
-                PopupMenuItem(
-                  value: 'down',
-                  enabled: canMoveDown,
-                  child: const Text('下移'),
-                ),
-                const PopupMenuItem(value: 'remove', child: Text('从歌单移除')),
               ],
-            ),
-          ],
+            );
+          },
         ),
       ),
     );

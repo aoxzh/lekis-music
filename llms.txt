@@ -23,6 +23,5 @@
 - Website: https://lekis.aoxzh.org
 - README: https://github.com/aoxzh/lekis-music/blob/main/README.md
 - Plugin SDK: https://github.com/aoxzh/lekis-music/tree/main/plugin-sdk
-- F-Droid Packaging Guide: https://github.com/aoxzh/lekis-music/blob/main/docs/FDROID.md
 - Changelog: https://github.com/aoxzh/lekis-music/blob/main/CHANGELOG.md
 - License: https://github.com/aoxzh/lekis-music/blob/main/LICENSE

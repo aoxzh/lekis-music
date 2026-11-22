@@ -34,6 +34,9 @@ class QueueList extends ConsumerWidget {
     final actions = ref.read(playerActionsProvider);
     final colors = context.lekisColors;
     final theme = Theme.of(context);
+    // Phone-width sheets: tighter insets so the title keeps its room next to
+    // the heart, menu and drag handle.
+    final narrow = compact || MediaQuery.sizeOf(context).width < 560;
 
     return rows.when(
       loading: () => const Center(
@@ -91,7 +94,7 @@ class QueueList extends ConsumerWidget {
                 dense: compact,
                 visualDensity: compact ? VisualDensity.compact : null,
                 contentPadding: EdgeInsets.symmetric(
-                  horizontal: compact ? LekisSpacing.sm : LekisSpacing.lg,
+                  horizontal: narrow ? LekisSpacing.sm : LekisSpacing.lg,
                 ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(LekisRadius.sm),
@@ -146,11 +149,6 @@ class QueueList extends ConsumerWidget {
                       ),
                     PopupMenuButton<String>(
                       tooltip: context.l10n.pick('队列操作', 'Queue actions'),
-                      icon: Icon(
-                        Icons.more_horiz_rounded,
-                        size: 18,
-                        color: colors.onSurfaceVariant,
-                      ),
                       padding: EdgeInsets.zero,
                       onSelected: (value) {
                         switch (value) {
@@ -167,13 +165,27 @@ class QueueList extends ConsumerWidget {
                       itemBuilder: (_) => [
                         PopupMenuItem(
                           value: 'playlist',
-                          child: Text(context.l10n.pick('添加到歌单', 'Add to Playlist')),
+                          child: Text(
+                            context.l10n.pick('添加到歌单', 'Add to Playlist'),
+                          ),
                         ),
                         PopupMenuItem(
                           value: 'remove',
-                          child: Text(context.l10n.pick('从队列移除', 'Remove from Queue')),
+                          child: Text(
+                            context.l10n.pick('从队列移除', 'Remove from Queue'),
+                          ),
                         ),
                       ],
+                      // A 36 dp row action, matching the heart.
+                      child: SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: Icon(
+                          Icons.more_horiz_rounded,
+                          size: 18,
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
                     ),
                     ReorderableDragStartListener(
                       index: i,

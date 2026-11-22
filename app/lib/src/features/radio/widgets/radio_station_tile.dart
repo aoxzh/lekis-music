@@ -98,12 +98,13 @@ class RadioStationTile extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // 36 dp row actions (like track rows) so custom stations keep
+            // room for the name on phones.
             IconButton(
               tooltip: favorite ? '取消收藏' : '收藏',
-              constraints: const BoxConstraints(
-                minWidth: LekisSizes.touchTargetMin,
-                minHeight: LekisSizes.touchTargetMin,
-              ),
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(width: 36, height: 36),
               icon: Icon(
                 favorite
                     ? Icons.favorite_rounded
@@ -118,9 +119,15 @@ class RadioStationTile extends StatelessWidget {
                 onSelected: (value) {
                   if (value == 'delete') onDelete!();
                 },
+                padding: EdgeInsets.zero,
                 itemBuilder: (_) => const [
                   PopupMenuItem(value: 'delete', child: Text('删除自定义电台')),
                 ],
+                child: const SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: Icon(Icons.more_vert),
+                ),
               ),
           ],
         ),
