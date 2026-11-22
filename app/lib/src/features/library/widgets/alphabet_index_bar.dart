@@ -1,17 +1,19 @@
 import 'package:flutter/services.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/liquid_glass.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// 字母 / 拼音快速索引条（UIX-05）。
 ///
 /// 挂在长列表（按标题排序的歌曲、艺人列表）右侧，支持点按与上下滑动
-/// 快速定位到对应首字母段，滑动时在索引条左侧浮出月夜质感的首字母预览气泡。
+/// 快速定位到对应首字母段，滑动时在索引条左侧浮出玻璃质感的首字母预览气泡。
 class AlphabetIndexBar extends StatefulWidget {
   const AlphabetIndexBar({
     super.key,
     required this.offsets,
     required this.onSelect,
+    this.flat = false,
     this.padding = const EdgeInsets.symmetric(
       vertical: LekisSpacing.md,
       horizontal: LekisSpacing.xs,
@@ -23,6 +25,9 @@ class AlphabetIndexBar extends StatefulWidget {
 
   /// 用户点击或滑动选中某个首字母时触发，参数为目标列表行号。
   final ValueChanged<int> onSelect;
+
+  /// 与全局「显示样式」同步：`false` 使用液态玻璃胶囊，`true` 使用扁平样式。
+  final bool flat;
 
   final EdgeInsetsGeometry padding;
 
@@ -91,28 +96,21 @@ class _AlphabetIndexBarState extends State<AlphabetIndexBar> {
             children: [
               if (active != null) ...[
                 IgnorePointer(
-                  child: Container(
+                  child: SizedBox.square(
                     key: AlphabetIndexBar.bubbleKey,
-                    width: 56,
-                    height: 56,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: colors.surfaceElevated.withValues(alpha: 0.94),
-                      borderRadius: BorderRadius.circular(LekisRadius.lg),
-                      border: Border.all(color: colors.outline),
-                      boxShadow: [
-                        BoxShadow(
-                          color: colors.scrim.withValues(alpha: 0.35),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
+                    dimension: 56,
+                    child: LekisGlassCapsule(
+                      radius: LekisRadius.lg,
+                      flat: widget.flat,
+                      enableLens: false,
+                      child: Center(
+                        child: Text(
+                          active.letter,
+                          style: theme.textTheme.headlineMedium?.copyWith(
+                            color: colors.moon,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ],
-                    ),
-                    child: Text(
-                      active.letter,
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        color: colors.moon,
-                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
@@ -132,45 +130,41 @@ class _AlphabetIndexBarState extends State<AlphabetIndexBar> {
                       _selectAtGlobalDy(d.globalPosition.dy),
                   onVerticalDragEnd: (_) => _clearActive(),
                   onVerticalDragCancel: _clearActive,
-                  child: Container(
+                  child: LekisGlassCapsule(
                     key: _railBoxKey,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: LekisSpacing.xs,
-                      vertical: LekisSpacing.xs,
-                    ),
-                    decoration: BoxDecoration(
-                      color: colors.surfaceElevated.withValues(
-                        alpha: active != null ? 0.88 : 0.62,
+                    radius: LekisRadius.pill,
+                    flat: widget.flat,
+                    enableLens: false,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: LekisSpacing.xs,
+                        vertical: LekisSpacing.xs,
                       ),
-                      borderRadius: BorderRadius.circular(LekisRadius.pill),
-                      border: Border.all(
-                        color: colors.outline.withValues(alpha: 0.7),
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (var i = 0; i < offsets.length; i++)
-                          SizedBox(
-                            width: 20,
-                            height: rowHeight,
-                            child: Center(
-                              child: Text(
-                                offsets[i].letter,
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  fontSize: fontSize,
-                                  height: 1,
-                                  fontWeight: i == _activeIndex
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  color: i == _activeIndex
-                                      ? colors.accent
-                                      : colors.onSurfaceVariant,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (var i = 0; i < offsets.length; i++)
+                            SizedBox(
+                              width: 20,
+                              height: rowHeight,
+                              child: Center(
+                                child: Text(
+                                  offsets[i].letter,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    fontSize: fontSize,
+                                    height: 1,
+                                    fontWeight: i == _activeIndex
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: i == _activeIndex
+                                        ? colors.accent
+                                        : colors.onSurfaceVariant,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),

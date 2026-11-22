@@ -8,7 +8,9 @@ import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_actions.dart';
 import 'package:lekis/src/rust/api/dto.dart';
+import 'package:lekis/src/shell/tab_bar_style.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/liquid_glass.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// A song list over a [PagedList] that stays smooth at 100k+ rows:
@@ -165,6 +167,8 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
           ),
         );
         if (_selected.isEmpty && !showIndex) return content;
+        final flatChrome =
+            ref.watch(tabBarStyleProvider).resolved == TabBarStyle.flat;
         return Stack(
           children: [
             Positioned.fill(child: content),
@@ -176,6 +180,7 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
                     padding: EdgeInsets.only(bottom: scrollEndPadding(context)),
                     child: AlphabetIndexBar(
                       offsets: offsets,
+                      flat: flatChrome,
                       onSelect: (row) => jumpScrollControllerToRow(
                         _controller,
                         rowIndex: row,
@@ -194,47 +199,50 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
                   top: false,
                   child: Align(
                     alignment: Alignment.bottomCenter,
-                    child: Material(
-                      elevation: 8,
-                      color: context.lekisColors.surfaceElevated,
-                      borderRadius: BorderRadius.circular(LekisRadius.lg),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: LekisSpacing.md,
-                          vertical: LekisSpacing.sm,
-                        ),
-                        child: Wrap(
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          alignment: WrapAlignment.center,
-                          spacing: LekisSpacing.sm,
-                          runSpacing: LekisSpacing.xs,
-                          children: [
-                            Text(
-                              '已选 ${_selected.length} 首',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                            TextButton(
-                              onPressed: _clearSelection,
-                              child: const Text('取消选择'),
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: () =>
-                                  _queueSelected(QueuePlacement.next),
-                              icon: const Icon(Icons.queue_play_next_rounded),
-                              label: const Text(QueueStrings.playNext),
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: () =>
-                                  _queueSelected(QueuePlacement.end),
-                              icon: const Icon(Icons.add_to_queue_rounded),
-                              label: const Text(QueueStrings.addToQueue),
-                            ),
-                            FilledButton.icon(
-                              onPressed: _editSelectedTags,
-                              icon: const Icon(Icons.edit_note_rounded),
-                              label: const Text('批量编辑标签'),
-                            ),
-                          ],
+                    child: LekisGlassCapsule(
+                      radius: LekisRadius.lg,
+                      flat: flatChrome,
+                      enableLens: false,
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: LekisSpacing.md,
+                            vertical: LekisSpacing.sm,
+                          ),
+                          child: Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            alignment: WrapAlignment.center,
+                            spacing: LekisSpacing.sm,
+                            runSpacing: LekisSpacing.xs,
+                            children: [
+                              Text(
+                                '已选 ${_selected.length} 首',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              TextButton(
+                                onPressed: _clearSelection,
+                                child: const Text('取消选择'),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: () =>
+                                    _queueSelected(QueuePlacement.next),
+                                icon: const Icon(Icons.queue_play_next_rounded),
+                                label: const Text(QueueStrings.playNext),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: () =>
+                                    _queueSelected(QueuePlacement.end),
+                                icon: const Icon(Icons.add_to_queue_rounded),
+                                label: const Text(QueueStrings.addToQueue),
+                              ),
+                              FilledButton.icon(
+                                onPressed: _editSelectedTags,
+                                icon: const Icon(Icons.edit_note_rounded),
+                                label: const Text('批量编辑标签'),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),

@@ -335,6 +335,81 @@ class LekisGlassCapsule extends StatelessWidget {
   }
 }
 
+/// 轻量级玻璃高光胶囊（零 `BackdropFilter` 开销）：
+///
+/// 供页面内随列表滚动的胶囊按钮（如首页快捷流派胶囊、听歌统计入口）使用，在「显示样式」
+/// 为液态玻璃时复用同一套顶部高光描边与柔和玻璃渐变，保持视觉统一且不拖慢滚动帧率；
+/// 切到「扁平」或桌面端时自动退回利落的纯色描边样式。
+class LekisGlassPill extends StatelessWidget {
+  const LekisGlassPill({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.accent = false,
+    this.flat = false,
+    this.radius = LekisRadius.pill,
+  });
+
+  final Widget child;
+  final VoidCallback? onTap;
+  final bool accent;
+  final bool flat;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.lekisColors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final useGlass = !flat && UiProfile.current.supportsGlass;
+    final shape = BorderRadius.circular(radius);
+
+    final Color bg = accent
+        ? colors.accentSoft.withValues(alpha: useGlass ? 0.72 : 1.0)
+        : colors.surfaceElevated.withValues(
+            alpha: useGlass ? (isDark ? 0.64 : 0.78) : 1.0,
+          );
+    final Color borderColor = accent
+        ? colors.accent.withValues(alpha: 0.45)
+        : colors.outline;
+
+    Widget body = Material(
+      type: MaterialType.transparency,
+      child: InkWell(borderRadius: shape, onTap: onTap, child: child),
+    );
+
+    if (!useGlass) {
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: shape,
+          border: Border.all(color: borderColor),
+        ),
+        child: ClipRRect(borderRadius: shape, child: body),
+      );
+    }
+
+    return DecoratedBox(
+      position: DecorationPosition.foreground,
+      decoration: _GlassRimDecoration(radius: shape, isDark: isDark),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: shape,
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white.withValues(alpha: isDark ? 0.08 : 0.32),
+              Colors.white.withValues(alpha: 0),
+            ],
+          ),
+        ),
+        child: ClipRRect(borderRadius: shape, child: body),
+      ),
+    );
+  }
+}
+
 /// Static film grain. Fixed seed, so it never shimmers while things move.
 class _GlassNoise extends StatelessWidget {
   const _GlassNoise({required this.isDark});

@@ -20,8 +20,10 @@ import 'package:lekis/src/features/stats/listening_stats_page.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/routes.dart';
 import 'package:lekis/src/shell/shell_chrome.dart';
+import 'package:lekis/src/shell/tab_bar_style.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/brand_mark.dart';
+import 'package:lekis/src/widgets/liquid_glass.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Home: continue listening, recently added, most played.
@@ -39,6 +41,8 @@ class HomePage extends ConsumerWidget {
     final lovedCount = ref.watch(lovedCountProvider).value ?? 0;
     final quickGenres = ref.watch(homeQuickGenresProvider).value ?? const [];
     final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
+    final flatChrome =
+        ref.watch(tabBarStyleProvider).resolved == TabBarStyle.flat;
     final gutter = pageGutterOf(context);
     final safe = MediaQuery.paddingOf(context);
     final actions = ref.read(playerActionsProvider);
@@ -77,13 +81,16 @@ class HomePage extends ConsumerWidget {
                         gutter + safe.right,
                         0,
                       ),
-                      sliver: const SliverToBoxAdapter(child: _HomeHeader()),
+                      sliver: SliverToBoxAdapter(
+                        child: _HomeHeader(flat: flatChrome),
+                      ),
                     ),
                     SliverPadding(
                       padding: const EdgeInsets.only(top: LekisSpacing.md),
                       sliver: SliverToBoxAdapter(
                         child: HomeQuickMixStrip(
                           gutter: gutter,
+                          flat: flatChrome,
                           hasTracks: !empty,
                           lovedCount: lovedCount,
                           hasMostPlayed: most.isNotEmpty,
@@ -171,7 +178,9 @@ String greetingFor(DateTime now) {
 /// The brand mark is only shown when the navigation chrome (rail / sidebar)
 /// does not already show it.
 class _HomeHeader extends StatelessWidget {
-  const _HomeHeader();
+  const _HomeHeader({this.flat = false});
+
+  final bool flat;
 
   @override
   Widget build(BuildContext context) {
@@ -207,21 +216,37 @@ class _HomeHeader extends StatelessWidget {
             children: [
               const Expanded(child: _Greeting()),
               const SizedBox(width: LekisSpacing.sm),
-              FilledButton.tonalIcon(
-                style: FilledButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: LekisSpacing.md,
-                    vertical: LekisSpacing.xs,
-                  ),
-                ),
-                onPressed: () => Navigator.of(context).push(
+              LekisGlassPill(
+                accent: true,
+                flat: flat,
+                onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => const ListeningStatsPage(),
                   ),
                 ),
-                icon: const Icon(Icons.insights_outlined, size: 18),
-                label: const Text('听歌统计'),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: LekisSpacing.md,
+                    vertical: LekisSpacing.sm,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.insights_outlined,
+                        size: 18,
+                        color: colors.accent,
+                      ),
+                      const SizedBox(width: LekisSpacing.xs),
+                      Text(
+                        '听歌统计',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: colors.moon,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
@@ -607,6 +632,7 @@ class HomeQuickMixStrip extends StatelessWidget {
   const HomeQuickMixStrip({
     super.key,
     required this.gutter,
+    this.flat = false,
     required this.hasTracks,
     required this.lovedCount,
     required this.hasMostPlayed,
@@ -618,6 +644,7 @@ class HomeQuickMixStrip extends StatelessWidget {
   });
 
   final double gutter;
+  final bool flat;
   final bool hasTracks;
   final int lovedCount;
   final bool hasMostPlayed;
@@ -635,18 +662,21 @@ class HomeQuickMixStrip extends StatelessWidget {
           icon: Icons.shuffle_rounded,
           label: '随机漫游',
           accent: true,
+          flat: flat,
           onTap: onShuffleLibrary,
         ),
       if (lovedCount > 0)
         _QuickMixCapsule(
           icon: Icons.favorite_rounded,
           label: '我的喜欢',
+          flat: flat,
           onTap: onPlayLoved,
         ),
       if (hasMostPlayed)
         _QuickMixCapsule(
           icon: Icons.local_fire_department_rounded,
           label: '常听精选',
+          flat: flat,
           onTap: onPlayMostPlayed,
         ),
       for (final g in genres)
@@ -654,6 +684,7 @@ class HomeQuickMixStrip extends StatelessWidget {
           _QuickMixCapsule(
             icon: Icons.music_note_rounded,
             label: g.name.trim(),
+            flat: flat,
             onTap: () => onPlayGenre(g.name),
           ),
     ];
@@ -684,45 +715,37 @@ class _QuickMixCapsule extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.accent = false,
+    this.flat = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final bool accent;
+  final bool flat;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.lekisColors;
     final theme = Theme.of(context);
-    final bg = accent ? colors.accentSoft : colors.surfaceElevated;
     final fg = accent ? colors.moon : theme.colorScheme.onSurface;
-    final borderColor = accent
-        ? colors.accent.withValues(alpha: 0.45)
-        : colors.outline;
 
-    return Material(
-      color: bg,
-      shape: StadiumBorder(side: BorderSide(color: borderColor)),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: LekisSpacing.md,
-            vertical: LekisSpacing.sm,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 16, color: accent ? colors.accent : colors.moon),
-              const SizedBox(width: LekisSpacing.xs),
-              Text(
-                label,
-                style: theme.textTheme.labelLarge?.copyWith(color: fg),
-              ),
-            ],
-          ),
+    return LekisGlassPill(
+      accent: accent,
+      flat: flat,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: LekisSpacing.md,
+          vertical: LekisSpacing.sm,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: accent ? colors.accent : colors.moon),
+            const SizedBox(width: LekisSpacing.xs),
+            Text(label, style: theme.textTheme.labelLarge?.copyWith(color: fg)),
+          ],
         ),
       ),
     );

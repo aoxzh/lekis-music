@@ -8,7 +8,7 @@ abstract final class SettingsStrings {
   static const groupGeneral = '通用';
   static const groupMore = '更多';
   static const playbackHint = '输出设备、无缝播放、均衡器、睡眠定时';
-  static const appearanceHint = '主题和标签栏';
+  static const appearanceHint = '主题与显示样式';
   static const appearanceHintDesktop = '浅色、深色或纯黑主题';
   static const searchHint = '查找设置';
   static const searchEmpty = '没有匹配的设置';
@@ -61,21 +61,20 @@ abstract final class SettingsStrings {
   static const themeDark = '深色';
   static const themeOled = '纯黑';
   static const themeOledHint = '纯黑适合 OLED 屏幕，更省电';
-  static const tabBarStyle = '标签栏样式';
-  static const tabBarStyleHint = '液态玻璃有模糊、流动高光与弹簧；扁平更利落、开销更低。';
+  static const tabBarStyle = '显示样式';
+  static const tabBarStyleHint =
+      '液态玻璃为悬浮导航、迷你播放器、索引条与胶囊按钮提供通透高光与弹簧动效；扁平更利落、开销更低。';
   static const tabBarLiquid = '液态玻璃';
   static const tabBarLiquidHint = '模糊 · 流动 · 弹簧';
   static const tabBarFlat = '扁平';
   static const tabBarFlatHint = '纯色 · 快速 · 低开销';
   static const navBarPosition = '导航栏位置';
-  static const navBarPositionHint =
-      '默认底部居中悬浮（类似 Apple Music）；选左侧或右侧时静态按钮自动避让，横滑画廊可从玻璃下方穿过。';
+  static const navBarPositionHint = '默认底部居中悬浮；选左侧或右侧时静态按钮自动避让，横滑画廊可从玻璃下方穿过。';
   static const navBarBottom = '底部';
   static const navBarLeft = '左侧';
   static const navBarRight = '右侧';
   static const lyricsStage = '歌词样式';
-  static const lyricsStageHint =
-      '经典是 Apple Music 那样的逐行滚动歌词（默认）；流动 / 阶梯 / 倾斜是逐字跟唱的舞台。';
+  static const lyricsStageHint = '经典是简洁的逐行滚动歌词（默认）；流动 / 阶梯 / 倾斜是逐字跟唱的舞台。';
   static const styleClassic = '经典';
   static const styleFlow = '流动';
   static const styleSteps = '阶梯';

@@ -15,7 +15,9 @@ import 'package:lekis/src/layout/adaptive_two_pane.dart';
 import 'package:lekis/src/layout/fold.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/routes.dart';
+import 'package:lekis/src/shell/tab_bar_style.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/liquid_glass.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Library: Albums / Artists / Songs / Genres.
@@ -198,13 +200,14 @@ class _AlbumsSegment extends ConsumerWidget {
 }
 
 /// A detail pane with a close button in its top trailing corner.
-class _ClosablePane extends StatelessWidget {
+class _ClosablePane extends ConsumerWidget {
   const _ClosablePane({required this.onClose, required this.child});
   final VoidCallback onClose;
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final flat = ref.watch(tabBarStyleProvider).resolved == TabBarStyle.flat;
     return Stack(
       children: [
         Positioned.fill(child: child),
@@ -214,10 +217,15 @@ class _ClosablePane extends StatelessWidget {
           child: SafeArea(
             bottom: false,
             left: false,
-            child: IconButton.filledTonal(
-              tooltip: '关闭',
-              onPressed: onClose,
-              icon: const Icon(Icons.close_rounded),
+            child: LekisGlassCapsule(
+              radius: LekisRadius.pill,
+              flat: flat,
+              enableLens: false,
+              child: IconButton(
+                tooltip: '关闭',
+                onPressed: onClose,
+                icon: const Icon(Icons.close_rounded),
+              ),
             ),
           ),
         ),

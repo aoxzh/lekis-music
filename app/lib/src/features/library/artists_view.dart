@@ -5,6 +5,7 @@ import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/press_feedback.dart';
+import 'package:lekis/src/shell/tab_bar_style.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -103,6 +104,8 @@ class _ArtistListState extends ConsumerState<ArtistList> {
           ),
         );
         if (!showIndex) return scrollView;
+        final flatChrome =
+            ref.watch(tabBarStyleProvider).resolved == TabBarStyle.flat;
         return Stack(
           children: [
             Positioned.fill(child: scrollView),
@@ -113,6 +116,7 @@ class _ArtistListState extends ConsumerState<ArtistList> {
                   padding: EdgeInsets.only(bottom: scrollEndPadding(context)),
                   child: AlphabetIndexBar(
                     offsets: offsets,
+                    flat: flatChrome,
                     onSelect: (row) => jumpScrollControllerToRow(
                       _controller,
                       rowIndex: row,

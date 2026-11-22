@@ -168,4 +168,10 @@ void main() {
       expect(trailingRect.right, lessThanOrEqualTo(610));
     },
   );
+
+  test('Settings copy uses 显示样式 and avoids third-party brand names', () {
+    expect(SettingsStrings.tabBarStyle, '显示样式');
+    expect(SettingsStrings.navBarPositionHint, isNot(contains('Apple Music')));
+    expect(SettingsStrings.lyricsStageHint, isNot(contains('Apple Music')));
+  });
 }
