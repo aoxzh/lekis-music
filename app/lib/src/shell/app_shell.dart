@@ -296,8 +296,11 @@ class _BottomBarLayout extends ConsumerWidget {
   }
 }
 
-/// 侧边悬浮玻璃导航栏（左 / 右）：页面全宽铺满，封面墙与横滑画廊直接从透明玻璃下穿过
-/// 产生真实液态折射；迷你播放器水平居中悬浮在底边，不再硬切一侧黑边。
+/// 侧边悬浮玻璃导航栏（左 / 右），参照 Apple iPhone Duo 非对称安全区（asymmetric
+/// safeAreaInsets）设计：
+/// - 页面根容器始终全宽铺满（不做硬裁切），首页横滑画廊与快捷胶囊直接从透明玻璃下穿过折射；
+/// - 通过 [MediaQuery.padding] 向导航栏所在侧注入非对称安全区，使全应用所有静态按钮、
+///   列表尾标、设置开关、Hero 播放键与 A–Z 索引条自动避让，零遮挡。
 class _SideTabsLayout extends ConsumerWidget {
   const _SideTabsLayout({
     required this.current,
@@ -310,6 +313,10 @@ class _SideTabsLayout extends ConsumerWidget {
   final ValueChanged<LekisDestination> onSelected;
   final NavBarPosition position;
   final Widget content;
+
+  /// 竖向悬浮胶囊自身宽度 + 边缘间距 + 呼吸留白（注入到对应侧的 SafeArea）。
+  static const double sideSafeInset =
+      LekisTabBarTokens.height + LekisSpacing.md + LekisSpacing.sm;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -332,13 +339,19 @@ class _SideTabsLayout extends ConsumerWidget {
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          // 全宽绘制，不裁切左右边缘：内容真正从悬浮液态玻璃胶囊下方穿过。
+          // 全宽绘制 + 非对称安全区：静态交互区自动避让，横向滚动流可无裁切穿过玻璃。
           Positioned.fill(
             child: MediaQuery(
-              // scrollEndPadding reads this: the last row clears the
-              // floating mini player.
               data: mq.copyWith(
-                padding: mq.padding.copyWith(bottom: mq.padding.bottom + mini),
+                padding: mq.padding.copyWith(
+                  left: isLeft
+                      ? mq.padding.left + sideSafeInset
+                      : mq.padding.left,
+                  right: isLeft
+                      ? mq.padding.right
+                      : mq.padding.right + sideSafeInset,
+                  bottom: mq.padding.bottom + mini,
+                ),
               ),
               child: content,
             ),

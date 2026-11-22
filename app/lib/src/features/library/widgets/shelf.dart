@@ -60,21 +60,25 @@ class _ArtworkShelfState extends State<ArtworkShelf> {
   @override
   Widget build(BuildContext context) {
     final gutter = pageGutterOf(context);
+    final safe = MediaQuery.paddingOf(context);
+    final startPad = gutter + safe.left;
+    final endPad = gutter + safe.right;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final available = constraints.maxWidth - gutter * 2;
+        final available = constraints.maxWidth - startPad - endPad;
         final width = widget.cardWidth ?? shelfCardWidth(available);
         final contentWidth =
             widget.itemCount * (width + LekisSpacing.lg) - LekisSpacing.lg;
         final overflows = contentWidth > available + 0.5;
-        return _build(context, gutter, width, overflows);
+        return _build(context, startPad, endPad, width, overflows);
       },
     );
   }
 
   Widget _build(
     BuildContext context,
-    double gutter,
+    double startPad,
+    double endPad,
     double width,
     bool overflows,
   ) {
@@ -85,9 +89,9 @@ class _ArtworkShelfState extends State<ArtworkShelf> {
       children: [
         Padding(
           padding: EdgeInsets.fromLTRB(
-            gutter,
+            startPad,
             LekisSpacing.xl,
-            gutter - LekisSpacing.sm,
+            endPad - LekisSpacing.sm,
             LekisSpacing.sm,
           ),
           child: ConstrainedBox(
@@ -138,7 +142,7 @@ class _ArtworkShelfState extends State<ArtworkShelf> {
             child: ListView.separated(
               controller: _controller,
               scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.symmetric(horizontal: gutter),
+              padding: EdgeInsets.only(left: startPad, right: endPad),
               itemCount: widget.itemCount,
               separatorBuilder: (_, _) =>
                   const SizedBox(width: LekisSpacing.lg),

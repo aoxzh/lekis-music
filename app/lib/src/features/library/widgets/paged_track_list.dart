@@ -8,7 +8,6 @@ import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_actions.dart';
 import 'package:lekis/src/rust/api/dto.dart';
-import 'package:lekis/src/shell/shell_chrome.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -174,12 +173,7 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
                 child: Align(
                   alignment: Alignment.centerRight,
                   child: Padding(
-                    padding: EdgeInsets.only(
-                      right: ShellChrome.hasFloatingRightNavOf(context)
-                          ? LekisTabBarTokens.height + LekisSpacing.md
-                          : 0,
-                      bottom: scrollEndPadding(context),
-                    ),
+                    padding: EdgeInsets.only(bottom: scrollEndPadding(context)),
                     child: AlphabetIndexBar(
                       offsets: offsets,
                       onSelect: (row) => jumpScrollControllerToRow(

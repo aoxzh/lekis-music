@@ -40,15 +40,23 @@ class HomePage extends ConsumerWidget {
     final quickGenres = ref.watch(homeQuickGenresProvider).value ?? const [];
     final hasTrack = ref.watch(playbackProvider.select((s) => s.hasTrack));
     final gutter = pageGutterOf(context);
+    final safe = MediaQuery.paddingOf(context);
     final actions = ref.read(playerActionsProvider);
 
     return Scaffold(
       body: SafeArea(
+        // 左右不裁切，使横滑画廊（最近播放 / 最近添加 / 快捷胶囊）直接穿过侧边悬浮玻璃；
+        // 静态头部与继续收听卡片显式遵守 safe.left / safe.right，确保所有按钮零遮挡。
+        left: false,
+        right: false,
         bottom: false,
         child: empty
-            ? const LibraryEmptyState(
-                title: '欢迎使用 Lekis',
-                message: '先在“音源”里添加音乐，首页会展示最近添加和常听的歌曲。',
+            ? Padding(
+                padding: EdgeInsets.only(left: safe.left, right: safe.right),
+                child: const LibraryEmptyState(
+                  title: '欢迎使用 Lekis',
+                  message: '先在“音源”里添加音乐，首页会展示最近添加和常听的歌曲。',
+                ),
               )
             : RefreshIndicator(
                 onRefresh: () async {
@@ -64,9 +72,9 @@ class HomePage extends ConsumerWidget {
                   slivers: [
                     SliverPadding(
                       padding: EdgeInsets.fromLTRB(
-                        gutter,
+                        gutter + safe.left,
                         LekisSpacing.lg,
-                        gutter,
+                        gutter + safe.right,
                         0,
                       ),
                       sliver: const SliverToBoxAdapter(child: _HomeHeader()),
@@ -102,9 +110,9 @@ class HomePage extends ConsumerWidget {
                     if (hasTrack)
                       SliverPadding(
                         padding: EdgeInsets.fromLTRB(
-                          gutter,
+                          gutter + safe.left,
                           LekisSpacing.lg,
-                          gutter,
+                          gutter + safe.right,
                           0,
                         ),
                         sliver: const SliverToBoxAdapter(child: _ResumeHero()),
@@ -651,9 +659,13 @@ class HomeQuickMixStrip extends StatelessWidget {
     ];
     if (items.isEmpty) return const SizedBox.shrink();
 
+    final safe = MediaQuery.paddingOf(context);
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: EdgeInsets.symmetric(horizontal: gutter),
+      padding: EdgeInsets.only(
+        left: gutter + safe.left,
+        right: gutter + safe.right,
+      ),
       child: Row(
         children: [
           for (var i = 0; i < items.length; i++) ...[

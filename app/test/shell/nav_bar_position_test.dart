@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lekis/src/features/library/widgets/shelf.dart';
 import 'package:lekis/src/features/settings/settings_categories.dart';
 import 'package:lekis/src/features/settings/strings.dart';
 import 'package:lekis/src/platform/ui_profile.dart';
@@ -125,4 +126,46 @@ void main() {
     );
     expect(find.text(SettingsStrings.navBarPosition), findsNothing);
   });
+
+  testWidgets(
+    'ArtworkShelf keeps trailing action inside asymmetric safe area while list bleeds full-width',
+    (tester) async {
+      tester.view.physicalSize = const Size(690, 820);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: lekisDarkTheme(),
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(690, 820),
+              padding: EdgeInsets.only(right: 80),
+            ),
+            child: Scaffold(
+              body: ArtworkShelf(
+                title: '最近播放',
+                trailing: TextButton(
+                  onPressed: () {},
+                  child: const Text('查看全部'),
+                ),
+                itemCount: 8,
+                itemBuilder: (_, i) => ColoredBox(
+                  color: const Color(0xFF443366),
+                  child: Center(child: Text('Item $i')),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final listRect = tester.getRect(find.byType(ListView));
+      final trailingRect = tester.getRect(find.text('查看全部'));
+      // 横滑列表占满整屏 690 dp（可从右侧悬浮玻璃下方穿过）
+      expect(listRect.width, 690);
+      // 静态操作按钮（查看全部）严格留在 690 - 80 = 610 dp 安全区内，不被右侧导航栏遮挡
+      expect(trailingRect.right, lessThanOrEqualTo(610));
+    },
+  );
 }
