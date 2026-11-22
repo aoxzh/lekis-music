@@ -266,32 +266,88 @@ class _BottomBarLayout extends ConsumerWidget {
       // still scrolls clear (see scrollEndPadding).
       extendBody: true,
       body: content,
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // A slim capsule exactly as wide as the tab capsule below it, with
-          // a gap between them: two stacked pills, not one crowded slab.
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: LekisSpacing.lg - LekisSizes.miniPlayerMargin,
-            ),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth:
-                      LekisTabBarTokens.maxSlotWidth *
-                          LekisDestination.values.length +
-                      LekisTabBarTokens.innerInset * 2 +
-                      LekisSizes.miniPlayerMargin * 2,
+      bottomNavigationBar: _BottomChromeFade(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // A slim capsule exactly as wide as the tab capsule below it, with
+            // a gap between them: two stacked pills, not one crowded slab.
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: LekisSpacing.lg - LekisSizes.miniPlayerMargin,
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth:
+                        LekisTabBarTokens.maxSlotWidth *
+                            LekisDestination.values.length +
+                        LekisTabBarTokens.innerInset * 2 +
+                        LekisSizes.miniPlayerMargin * 2,
+                  ),
+                  child: const _OpensNowPlaying(child: MiniPlayer()),
                 ),
-                child: const _OpensNowPlaying(child: MiniPlayer()),
               ),
             ),
-          ),
-          LekisTabBar(selected: current, onSelected: onSelected, style: style),
-        ],
+            LekisTabBar(
+              selected: current,
+              onSelected: onSelected,
+              style: style,
+            ),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+/// Telegram's main-tabs fade: the page dissolves into its own background
+/// over [_fade] dp above the floating chrome, so scrolling content never
+/// collides with the capsules' edges and no big drop shadow is needed to
+/// separate them.
+class _BottomChromeFade extends StatelessWidget {
+  const _BottomChromeFade({required this.child});
+
+  final Widget child;
+
+  static const double _fade = 60;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = Theme.of(context).scaffoldBackgroundColor;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned(
+          left: 0,
+          right: 0,
+          top: -_fade / 2,
+          bottom: 0,
+          child: IgnorePointer(
+            child: LayoutBuilder(
+              builder: (context, c) {
+                final solid = (_fade / c.maxHeight).clamp(0.0, 1.0);
+                return DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        bg.withValues(alpha: 0),
+                        bg.withValues(alpha: 0.72),
+                        bg.withValues(alpha: 0.88),
+                      ],
+                      stops: [0, solid, 1],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        child,
+      ],
     );
   }
 }

@@ -230,8 +230,8 @@ class _RenderLiquidBackdrop extends RenderProxyBox {
 ///
 /// * liquid ([flat] false): saturated, blurred (lens-bent where supported)
 ///   backdrop, a 40 % surface tint, a top-lit body with a touch of accent /
-///   moonlight, film grain, a 45 degree rim light and a soft outside-only
-///   shadow;
+///   moonlight, film grain, a hairline plus 45 degree rim light and a tight
+///   outside-only contact shadow (Telegram's glass tabs);
 /// * flat: an opaque elevated surface with a 1 px outline, no blur.
 ///
 /// [child] is clipped to the rounded rectangle of [radius].
@@ -497,6 +497,22 @@ class _GlassRimPainter extends BoxPainter {
     final rect = (offset & size).deflate(0.5);
     final rrect = decoration.radius.toRRect(rect);
     final isDark = decoration.isDark;
+    // Telegram's hairline: lighter at the top, a little darker at the bottom
+    // (black on light, white on dark). It defines the edge, so the shadow
+    // can stay tight.
+    canvas.drawRRect(
+      decoration.radius.toRRect((offset & size).deflate(0.25)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.5
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: isDark
+              ? const [Color(0x0FFFFFFF), Color(0x1CFFFFFF)]
+              : const [Color(0x11000000), Color(0x20000000)],
+        ).createShader(rect),
+    );
     // Backdrop's `Highlight.Default`: a thin rim, brightest where the edge
     // faces 45 degrees (top-left / bottom-right), added over the glass.
     final paint = Paint()
@@ -507,10 +523,10 @@ class _GlassRimPainter extends BoxPainter {
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          Colors.white.withValues(alpha: isDark ? 0.42 : 0.70),
-          Colors.white.withValues(alpha: isDark ? 0.05 : 0.15),
-          Colors.white.withValues(alpha: isDark ? 0.05 : 0.15),
           Colors.white.withValues(alpha: isDark ? 0.30 : 0.55),
+          Colors.white.withValues(alpha: isDark ? 0.04 : 0.10),
+          Colors.white.withValues(alpha: isDark ? 0.04 : 0.10),
+          Colors.white.withValues(alpha: isDark ? 0.20 : 0.40),
         ],
         stops: const [0, 0.35, 0.65, 1],
       ).createShader(rect);
@@ -518,8 +534,11 @@ class _GlassRimPainter extends BoxPainter {
   }
 }
 
-/// Soft drop shadow (8 dp blur, 2 dp down) painted only outside [radius]'s
-/// rounded rectangle.
+/// Telegram's glass tab shadow (`BlurredBackgroundProviderImpl.mainTabs`):
+/// a tight contact shadow (2.667 dp radius, 0.85 dp down, 12.5 % black; a
+/// 1.6 % white glow on dark), painted only outside [radius]'s rounded
+/// rectangle. A wide soft halo under a floating capsule reads as a grey smudge
+/// on light pages; the edge is carried by the hairline in [_GlassRimPainter].
 class _OutsideShadowDecoration extends Decoration {
   const _OutsideShadowDecoration({required this.radius, required this.isDark});
 
@@ -549,12 +568,13 @@ class _OutsideShadowPainter extends BoxPainter {
       ..save()
       ..clipPath(outside)
       ..drawRRect(
-        rrect.shift(const Offset(0, 2)),
+        rrect.shift(const Offset(0, 0.85)),
         Paint()
-          ..color = Colors.black.withValues(
-            alpha: decoration.isDark ? 0.20 : 0.06,
-          )
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+          ..color = decoration.isDark
+              ? const Color(0x04FFFFFF)
+              : const Color(0x20000000)
+          // Android shadow radius 2.667 dp ≈ blur sigma 2.
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
       )
       ..restore();
   }
