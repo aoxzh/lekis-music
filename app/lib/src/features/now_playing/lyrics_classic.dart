@@ -22,6 +22,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/now_playing/lyric_typography.dart';
 import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
+import 'package:lekis/src/features/now_playing/lyrics_ruby.dart';
 import 'package:lekis/src/features/now_playing/now_playing_route.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/theme/theme.dart';
@@ -371,11 +372,12 @@ class _LyricLineTile extends StatelessWidget {
       // plain Text, so resting lines cost nothing extra per playback tick.
       final primary = active && line.hasWordTimings
           ? _KaraokeLine(line: line, style: lineStyle, lowPower: lowPower)
-          : Text(
-              line.text,
+          : RubyLyricText(
+              text: line.text,
               style: lineStyle.copyWith(
                 color: fg.withValues(alpha: fg.a * opacity),
               ),
+              opacity: opacity,
             );
       if (translation == null) return primary;
       return Column(
@@ -623,9 +625,12 @@ class _KaraokeLineState extends ConsumerState<_KaraokeLine>
     final scaler = MediaQuery.textScalerOf(context);
     final direction = Directionality.of(context);
     final locale = Localizations.maybeLocaleOf(context);
+    // 注音关闭时 inset 为 0，和以前完全一样。
+    final ruby = ref.watch(lyricsRubyProvider);
+    final inset = ruby.enabled ? rubyInsetFor(style) : 0.0;
     var art = _art;
     if (art == null ||
-        !art.matches(widget.line, style, fg, scaler, direction, locale)) {
+        !art.matches(widget.line, style, fg, scaler, direction, locale, inset)) {
       final old = art;
       art = _art = _KaraokeArt(
         line: widget.line,
@@ -636,6 +641,7 @@ class _KaraokeLineState extends ConsumerState<_KaraokeLine>
         textScaler: scaler,
         textDirection: direction,
         locale: locale,
+        topInset: inset,
       );
       // 旧 painter 这一帧可能还在用，下一帧再释放。
       if (old != null) {
@@ -649,7 +655,14 @@ class _KaraokeLineState extends ConsumerState<_KaraokeLine>
         ExcludeSemantics(
           child: Opacity(
             opacity: 0,
-            child: Text(widget.line.text, style: style, textScaler: scaler),
+            child: Padding(
+              padding: EdgeInsets.only(top: inset),
+              child: Text(
+                widget.line.text,
+                style: style,
+                textScaler: scaler,
+              ),
+            ),
           ),
         ),
         Positioned.fill(
@@ -659,6 +672,15 @@ class _KaraokeLineState extends ConsumerState<_KaraokeLine>
             ),
           ),
         ),
+        if (inset > 0)
+          Positioned.fill(
+            child: RubyOverlay(
+              text: widget.line.text,
+              baseStyle: style,
+              opacity: 1,
+              topInset: inset,
+            ),
+          ),
       ],
     );
   }
@@ -675,6 +697,7 @@ class _KaraokeArt {
     required this.textScaler,
     required this.textDirection,
     required this.locale,
+    required this.topInset,
   });
 
   final LyricLine line;
@@ -684,6 +707,9 @@ class _KaraokeArt {
   final TextScaler textScaler;
   final TextDirection textDirection;
   final Locale? locale;
+
+  /// 正文上方为注音留出的高度（不进时注音就是 0）。
+  final double topInset;
 
   double? _width;
   TextPainter? _base;
@@ -697,13 +723,15 @@ class _KaraokeArt {
     TextScaler scaler,
     TextDirection direction,
     Locale? locale,
+    double topInset,
   ) =>
       identical(line, this.line) &&
       style == this.style &&
       fg == sungColor &&
       scaler == textScaler &&
       direction == textDirection &&
-      locale == this.locale;
+      locale == this.locale &&
+      topInset == this.topInset;
 
   TextPainter _layout(Color color, double width) => TextPainter(
     text: TextSpan(
@@ -744,7 +772,9 @@ class _KaraokeArt {
 
   void paint(Canvas canvas, Size size, double positionMs) {
     _ensure(size.width);
-    _base!.paint(canvas, Offset.zero);
+    // 注音占用的上方空间：正文整体下移，裁剪路径保持同一坐标系。
+    final shift = Offset(0, topInset);
+    _base!.paint(canvas, shift);
     final words = line.words!;
     if (words.isEmpty || positionMs < words.first.startMs) return;
     final sung = Path();
@@ -792,6 +822,7 @@ class _KaraokeArt {
     }
     if (!any) return;
     canvas.save();
+    canvas.translate(shift.dx, shift.dy);
     canvas.clipPath(sung);
     _bright!.paint(canvas, Offset.zero);
     canvas.restore();

@@ -199,6 +199,15 @@ abstract final class SettingsStrings {
     '舞台样式下，唱到每个字时飞出细小的光点，最后一句更明显',
     'Emit subtle light sparks on each sung word in stage modes',
   );
+  static String get lyricsRuby => L10n.tr('注音歌词', 'Ruby Lyrics');
+  static String get lyricsRubyHint => L10n.tr(
+    '在汉字上方标出拼音，本地计算、不联网；经典歌词视图生效',
+    'Show pinyin above each character, computed on device. Classic lyrics view.',
+  );
+  static String get rubyOff => L10n.tr('关闭', 'Off');
+  static String get rubyPlain => L10n.tr('拼音', 'Pinyin');
+  static String get rubyTone => L10n.tr('带声调', 'With Tones');
+  static String get rubyToneNum => L10n.tr('声调数字', 'Tone Numbers');
 
   static String get system => L10n.tr('系统', 'System');
   static String get desktopTrayEnabled => L10n.tr('显示托盘图标', 'Show Tray Icon');

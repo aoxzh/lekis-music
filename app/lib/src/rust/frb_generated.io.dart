@@ -10,6 +10,7 @@ import 'api/dto.dart';
 import 'api/error.dart';
 import 'api/media_controls.dart';
 import 'api/podcast.dart';
+import 'api/ruby.dart';
 import 'api/usb_output.dart';
 
 import 'dart:async';
@@ -445,6 +446,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<RemoteTrackDto> dco_decode_list_remote_track_dto(dynamic raw);
 
   @protected
+  List<RubyLineDto> dco_decode_list_ruby_line_dto(dynamic raw);
+
+  @protected
+  List<RubySpanDto> dco_decode_list_ruby_span_dto(dynamic raw);
+
+  @protected
   List<RuleGroupDto> dco_decode_list_rule_group_dto(dynamic raw);
 
   @protected
@@ -594,6 +601,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PaletteDto dco_decode_palette_dto(dynamic raw);
 
   @protected
+  PinyinStyleDto dco_decode_pinyin_style_dto(dynamic raw);
+
+  @protected
   PlatformDto dco_decode_platform_dto(dynamic raw);
 
   @protected
@@ -667,6 +677,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RepeatModeDto dco_decode_repeat_mode_dto(dynamic raw);
+
+  @protected
+  RubyLineDto dco_decode_ruby_line_dto(dynamic raw);
+
+  @protected
+  RubySpanDto dco_decode_ruby_span_dto(dynamic raw);
 
   @protected
   RuleDto dco_decode_rule_dto(dynamic raw);
@@ -1322,6 +1338,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<RubyLineDto> sse_decode_list_ruby_line_dto(SseDeserializer deserializer);
+
+  @protected
+  List<RubySpanDto> sse_decode_list_ruby_span_dto(SseDeserializer deserializer);
+
+  @protected
   List<RuleGroupDto> sse_decode_list_rule_group_dto(
     SseDeserializer deserializer,
   );
@@ -1511,6 +1533,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PaletteDto sse_decode_palette_dto(SseDeserializer deserializer);
 
   @protected
+  PinyinStyleDto sse_decode_pinyin_style_dto(SseDeserializer deserializer);
+
+  @protected
   PlatformDto sse_decode_platform_dto(SseDeserializer deserializer);
 
   @protected
@@ -1602,6 +1627,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RepeatModeDto sse_decode_repeat_mode_dto(SseDeserializer deserializer);
+
+  @protected
+  RubyLineDto sse_decode_ruby_line_dto(SseDeserializer deserializer);
+
+  @protected
+  RubySpanDto sse_decode_ruby_span_dto(SseDeserializer deserializer);
 
   @protected
   RuleDto sse_decode_rule_dto(SseDeserializer deserializer);
@@ -2423,6 +2454,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_ruby_line_dto(
+    List<RubyLineDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_ruby_span_dto(
+    List<RubySpanDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_rule_group_dto(
     List<RuleGroupDto> self,
     SseSerializer serializer,
@@ -2660,6 +2703,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_palette_dto(PaletteDto self, SseSerializer serializer);
 
   @protected
+  void sse_encode_pinyin_style_dto(
+    PinyinStyleDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_platform_dto(PlatformDto self, SseSerializer serializer);
 
   @protected
@@ -2787,6 +2836,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_repeat_mode_dto(RepeatModeDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ruby_line_dto(RubyLineDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ruby_span_dto(RubySpanDto self, SseSerializer serializer);
 
   @protected
   void sse_encode_rule_dto(RuleDto self, SseSerializer serializer);

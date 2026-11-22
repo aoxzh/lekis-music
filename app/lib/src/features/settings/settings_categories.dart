@@ -18,6 +18,7 @@ import '../../shell/tab_bar_style.dart';
 import '../../theme/tokens.dart';
 import '../enrich/enrich_providers.dart';
 import '../library/library_health_page.dart';
+import '../now_playing/lyrics_ruby.dart';
 import '../now_playing/lyrics_stage_settings.dart';
 import '../now_playing/now_playing_style.dart';
 import '../player/sleep_timer.dart';
@@ -704,10 +705,17 @@ class _LyricsSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final lyricsStyle = ref.watch(lyricsStyleProvider);
     final sparks = ref.watch(lyricsSparksProvider);
+    final ruby = ref.watch(lyricsRubyProvider);
     void setStyle(LyricsStyle next) => settingsGuard(
       context,
       () => ref
           .read(settingProvider(SettingKeys.lyricsStage).notifier)
+          .set(next.storageValue),
+    );
+    void setRuby(LyricsRubyMode next) => settingsGuard(
+      context,
+      () => ref
+          .read(settingProvider(SettingKeys.lyricsRuby).notifier)
           .set(next.storageValue),
     );
     return SettingsSection(
@@ -748,6 +756,19 @@ class _LyricsSection extends ConsumerWidget {
                   .read(settingProvider(SettingKeys.lyricsSparks).notifier)
                   .set(on ? 'true' : 'false'),
             ),
+          ),
+        // 注音目前只在经典视图上画（舞台是逐字排版，见 lyrics_ruby.dart 的说明）。
+        if (!lyricsStyle.isStage)
+          SettingsDropdownTile<LyricsRubyMode>(
+            icon: Icons.translate_rounded,
+            title: SettingsStrings.lyricsRuby,
+            subtitle: SettingsStrings.lyricsRubyHint,
+            value: ruby,
+            choices: [
+              for (final mode in LyricsRubyMode.values)
+                SettingsChoice(mode, mode.label),
+            ],
+            onChanged: setRuby,
           ),
       ],
     );
