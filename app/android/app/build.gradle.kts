@@ -92,12 +92,28 @@ android {
     }
 
     defaultConfig {
-        // vivo / iQOO OriginOS 原子随身听与原子岛专版：通过 ORG_GRADLE_PROJECT_vivoOrigin=true 或
-        // -PvivoOrigin=true 启用，将 applicationId 切换为 OriginOS 白名单包名（默认 com.tencent.qqmusic，
-        // 可用 vivoOriginPackage 覆盖）。普通版本保持 dev.lekis.music。
-        val vivoOrigin = (project.findProperty("vivoOrigin") as? String)?.toBoolean() == true
-        val vivoOriginPackage = (project.findProperty("vivoOriginPackage") as? String)
-            ?.takeIf { it.isNotBlank() } ?: "com.tencent.qqmusic"
+        // vivo / iQOO OriginOS 原子随身听与原子岛专版：通过 `--dart-define=VIVO_ORIGIN=true`
+        // 或 `-PvivoOrigin=true` 启用，将 applicationId 切换为 OriginOS 白名单包名（默认
+        // com.tencent.qqmusic，可用 VIVO_ORIGIN_PACKAGE 覆盖）。普通版本保持 dev.lekis.music。
+        val dartDefines = (project.findProperty("dart-defines") as? String)
+            .orEmpty()
+            .split(",")
+            .filter { it.isNotBlank() }
+            .mapNotNull { encoded ->
+                runCatching {
+                    String(Base64.getDecoder().decode(encoded), Charsets.UTF_8)
+                }.getOrNull()
+            }
+            .mapNotNull { entry ->
+                val idx = entry.indexOf('=')
+                if (idx <= 0) null else entry.substring(0, idx) to entry.substring(idx + 1)
+            }
+            .toMap()
+        val vivoOrigin = dartDefines["VIVO_ORIGIN"]?.toBoolean() == true ||
+            (project.findProperty("vivoOrigin") as? String)?.toBoolean() == true
+        val vivoOriginPackage = dartDefines["VIVO_ORIGIN_PACKAGE"]?.takeIf { it.isNotBlank() }
+            ?: (project.findProperty("vivoOriginPackage") as? String)?.takeIf { it.isNotBlank() }
+            ?: "com.tencent.qqmusic"
         applicationId = if (vivoOrigin) vivoOriginPackage else "dev.lekis.music"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.

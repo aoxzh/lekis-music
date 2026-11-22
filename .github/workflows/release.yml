@@ -130,7 +130,7 @@ jobs:
           mkdir -p ../dist
           cp build/app/outputs/flutter-apk/app-release.apk "../dist/lekis-$VERSION-android-arm64.apk"
           # vivo / iQOO OriginOS 原子岛与原子随身听专版（复用已编译的 Rust .so）
-          ORG_GRADLE_PROJECT_vivoOrigin=true flutter build apk --release --target-platform android-arm64
+          flutter build apk --release --target-platform android-arm64 --dart-define=VIVO_ORIGIN=true
           cp build/app/outputs/flutter-apk/app-release.apk "../dist/lekis-$VERSION-android-arm64-vivo-origin.apk"
 
       - name: Verify APKs (Rust core present, not debug-signed)
