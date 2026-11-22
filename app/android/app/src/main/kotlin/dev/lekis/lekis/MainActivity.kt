@@ -1,6 +1,8 @@
 package dev.lekis.lekis
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
@@ -34,6 +36,10 @@ class MainActivity : AudioServiceActivity() {
                     result.success(true)
                 }
                 "deviceName" -> result.success(deviceName())
+                "openUrl" -> {
+                    val url = call.argument<String>("url").orEmpty()
+                    result.success(openExternalUrl(url))
+                }
                 else -> result.notImplemented()
             }
         }
@@ -53,6 +59,19 @@ class MainActivity : AudioServiceActivity() {
             maker.isEmpty() || model.startsWith(maker, ignoreCase = true) -> model
             else -> "${maker.replaceFirstChar { it.uppercase() }} $model"
         }
+    }
+
+    private fun openExternalUrl(rawUrl: String): Boolean {
+        val uri = runCatching { Uri.parse(rawUrl.trim()) }.getOrNull() ?: return false
+        val scheme = uri.scheme?.lowercase()
+        if (scheme != "https" && scheme != "http") return false
+        return runCatching {
+            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            true
+        }.getOrDefault(false)
     }
 
     override fun onDestroy() {

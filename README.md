@@ -26,6 +26,30 @@
 
 ---
 
+## Screenshots · 界面预览
+
+### Desktop · 桌面端（Dark & Dual-Column Lyrics / Vinyl）
+
+| Home & Album Wall · 首页与专辑墙 | Dual-Column Now Playing · 宽屏双栏歌词 |
+|---|---|
+| ![Desktop Home](docs/screenshots/desktop-home.png) | ![Desktop Now Playing Lyrics](docs/screenshots/desktop-now-playing-lyrics.png) |
+
+| Vinyl Turntable + Lyrics · 黑胶唱盘与歌词 | Foldable / Tablet (Light) · 折叠屏 / 平板浅色液态玻璃 |
+|---|---|
+| ![Desktop Vinyl](docs/screenshots/desktop-now-playing-vinyl.png) | ![Foldable Light Mode](docs/screenshots/foldable-home-light.png) |
+
+### Mobile · 移动端（Liquid Glass & Atmospheric Now Playing）
+
+<p align="center">
+  <img src="docs/screenshots/mobile-home.png" alt="Mobile Home (Liquid Glass)" width="30%" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/mobile-now-playing.png" alt="Mobile Now Playing" width="30%" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/mobile-vinyl.png" alt="Mobile Vinyl Style" width="30%" />
+</p>
+
+---
+
 ## Why Lekis Music? · 核心亮点
 
 | Highlight / 特性 | English | 简体中文 |
@@ -271,3 +295,11 @@ All library metadata, playlists, and settings stay **100% on your device** (Wind
 ## License · 许可证
 
 Licensed under the **Mozilla Public License 2.0 ([MPL-2.0](LICENSE))**. Third-party notices are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+---
+
+## Community & Feedback · 关注与反馈
+
+- If you find **Lekis Music** interesting, feel free to follow me on X: **[@aoxzh](https://x.com/aoxzh)** — and if you run into any bugs or have feature ideas, please open a **[GitHub Issue](https://github.com/aoxzh/lekis-music/issues)**!
+- 如果你觉得 **月兔音乐** 有意思，欢迎关注我的 X：**[@aoxzh](https://x.com/aoxzh)**；如果使用中遇到问题或有功能建议，欢迎提交 **[GitHub Issue](https://github.com/aoxzh/lekis-music/issues)**！
+

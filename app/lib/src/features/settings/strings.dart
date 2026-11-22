@@ -28,7 +28,10 @@ abstract final class SettingsStrings {
     '独占输出、ReplayGain、听歌记录、插件、备份、日志',
     'Exclusive audio, ReplayGain, scrobbling, plugins, backup & logs',
   );
-  static String get aboutHint => L10n.tr('版本和设备信息', 'Version and device info');
+  static String get aboutHint => L10n.tr(
+    '版本、作者、问题反馈与项目信息',
+    'Version, author, bug reports & project info',
+  );
   static String sourcesCount(int n) =>
       L10n.tr('$n 个音源', n == 1 ? '1 source' : '$n sources');
   static String get sourcesNone =>
@@ -243,7 +246,39 @@ abstract final class SettingsStrings {
     'View and copy recent core logs (secrets automatically redacted)',
   );
   static String get about => L10n.tr('关于', 'About');
+  static String get appVersion => L10n.tr('应用版本', 'App Version');
   static String get coreVersion => L10n.tr('核心版本', 'Core Version');
+  static String get author => L10n.tr('作者', 'Author');
+  static String get githubRepo => L10n.tr('GitHub 仓库', 'GitHub Repository');
+  static String get reportBug => L10n.tr('提交 Bug / 反馈建议', 'Report a Bug');
+  static String get reportBugHint => L10n.tr(
+    '前往 GitHub Issues 提交问题或功能建议',
+    'Open GitHub Issues to report bugs or request features',
+  );
+  static String get checkUpdates => L10n.tr('检查更新', 'Check for Updates');
+  static String get checkUpdatesHint => L10n.tr(
+    '从 GitHub Releases 检测新版本并获取安装包',
+    'Check GitHub Releases for a newer version',
+  );
+  static String get checkingUpdates => L10n.tr('正在检查更新…', 'Checking for updates…');
+  static String upToDate(String v) =>
+      L10n.tr('已是最新版本（v$v）', 'You are up to date (v$v)');
+  static String updateAvailableTitle(String v) =>
+      L10n.tr('发现新版本 v$v', 'Update Available: v$v');
+  static String get downloadUpdate => L10n.tr('立即下载升级', 'Download Update');
+  static String get viewReleasePage => L10n.tr('查看发布页', 'Release Notes');
+  static String get updateCheckFailed =>
+      L10n.tr('检查更新失败，请稍后重试', 'Update check failed. Please try again later.');
+  static String get license => L10n.tr('开源协议', 'License');
+  static String get nameOriginTitle => L10n.tr('名字由来', 'Why "Lekis"?');
+  static String get nameOriginBody => L10n.tr(
+    '灵感源自雷克斯兽（Lekismon / レキスモン）与雷克斯兔（Rex rabbit），希望它像月下奔跑的兔影一样轻盈、敏捷而通透。',
+    'Inspired by Lekismon (レキスモン) and the Rex rabbit — crafted to feel swift, lightweight, and luminous.',
+  );
+  static String get linkCopiedFallback => L10n.tr(
+    '无法直接打开浏览器，已复制链接到剪贴板',
+    'Could not open browser; link copied to clipboard',
+  );
   static String get deviceId => L10n.tr('设备 ID', 'Device ID');
   static String get copy => L10n.tr('复制', 'Copy');
   static String get copied => L10n.tr('已复制', 'Copied');

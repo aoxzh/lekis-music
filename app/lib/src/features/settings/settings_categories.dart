@@ -9,6 +9,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../l10n/app_l10n.dart';
 import '../../l10n/app_locale.dart';
+import '../../platform/external_url.dart';
 import '../../platform/ui_profile.dart';
 import '../../rust/api/dto.dart';
 import '../../shell/app_shell.dart';
@@ -34,6 +35,7 @@ import '../desktop_lyrics/desktop_lyrics_settings_section.dart';
 import '../desktop_lyrics/desktop_lyrics_strings.dart';
 import '../sync/sync_settings_section.dart';
 import '../sync/sync_strings.dart';
+import 'app_updater.dart';
 import 'connect_settings_section.dart';
 import 'strings.dart';
 import 'tab_bar_style_picker.dart';
@@ -173,8 +175,19 @@ enum SettingsCategory {
       SettingsStrings.diagnosticLogs,
     ],
     SettingsCategory.about => [
+      SettingsStrings.appVersion,
       SettingsStrings.coreVersion,
+      SettingsStrings.author,
+      SettingsStrings.githubRepo,
+      SettingsStrings.reportBug,
+      SettingsStrings.license,
+      SettingsStrings.nameOriginTitle,
       SettingsStrings.deviceId,
+      'GitHub',
+      'Issue',
+      'Bug',
+      'aoxzh',
+      'Lekismon',
     ],
   };
 
@@ -900,37 +913,237 @@ class _DiagnosticsSection extends StatelessWidget {
 // 关于
 // ---------------------------------------------------------------------------
 
-class _AboutSection extends ConsumerWidget {
+const String _kAuthorHandle = '@aoxzh';
+const String _kAuthorUrl = 'https://x.com/aoxzh';
+const String _kRepoUrl = 'https://github.com/aoxzh/lekis-music';
+const String _kIssuesUrl = 'https://github.com/aoxzh/lekis-music/issues';
+
+class _AboutSection extends ConsumerStatefulWidget {
   const _AboutSection();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_AboutSection> createState() => _AboutSectionState();
+}
+
+class _AboutSectionState extends ConsumerState<_AboutSection> {
+  bool _checkingUpdate = false;
+
+  Future<void> _openLink(BuildContext context, String url) async {
+    final launched = await openExternalUrl(url);
+    if (!launched) {
+      await Clipboard.setData(ClipboardData(text: url));
+      if (context.mounted) {
+        showFeatureSnack(context, SettingsStrings.linkCopiedFallback);
+      }
+    }
+  }
+
+  Future<void> _checkForUpdates() async {
+    if (_checkingUpdate) return;
+    setState(() => _checkingUpdate = true);
+    final result = await checkForAppUpdate();
+    if (!mounted) return;
+    setState(() => _checkingUpdate = false);
+
+    switch (result) {
+      case AppUpdateUpToDate(:final currentVersion):
+        showFeatureSnack(context, SettingsStrings.upToDate(currentVersion));
+      case AppUpdateError():
+        showFeatureSnack(context, SettingsStrings.updateCheckFailed);
+      case AppUpdateAvailable(:final info):
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(SettingsStrings.updateAvailableTitle(info.version)),
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420, maxHeight: 320),
+              child: SingleChildScrollView(
+                child: Text(
+                  info.notes.isEmpty
+                      ? SettingsStrings.checkUpdatesHint
+                      : info.notes,
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  _openLink(context, info.releaseUrl);
+                },
+                child: Text(SettingsStrings.viewReleasePage),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  _openLink(context, info.downloadUrl);
+                },
+                child: Text(SettingsStrings.downloadUpdate),
+              ),
+            ],
+          ),
+        );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final info = ref.watch(aboutInfoProvider);
     final deviceId = info.deviceId;
-    return SettingsSection(
-      title: SettingsStrings.about,
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final appName = L10n.tr('月兔音乐', 'Lekis Music');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SettingsTile(
-          icon: Icons.memory_outlined,
-          title: SettingsStrings.coreVersion,
-          trailing: Text(info.coreVersion ?? SettingsStrings.unavailable),
-        ),
-        SettingsTile(
-          icon: Icons.fingerprint_rounded,
-          title: SettingsStrings.deviceId,
-          subtitle: SelectableText(deviceId ?? SettingsStrings.unavailable),
-          trailing: deviceId == null
-              ? null
-              : IconButton(
-                  tooltip: SettingsStrings.copy,
-                  icon: const Icon(Icons.copy_outlined),
-                  onPressed: () async {
-                    await Clipboard.setData(ClipboardData(text: deviceId));
-                    if (context.mounted) {
-                      showFeatureSnack(context, SettingsStrings.copied);
-                    }
-                  },
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            LekisSpacing.lg,
+            LekisSpacing.sm,
+            LekisSpacing.lg,
+            LekisSpacing.lg,
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(LekisSpacing.lg),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHigh.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(LekisRadius.lg),
+              border: Border.all(
+                color: scheme.outlineVariant.withValues(alpha: 0.55),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Image.asset(
+                        'assets/brand/mark.png',
+                        width: 52,
+                        height: 52,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(width: LekisSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            appName,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'v$kLekisAppVersion · MPL-2.0',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: LekisSpacing.md),
+                Text(
+                  SettingsStrings.nameOriginTitle,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  SettingsStrings.nameOriginBody,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        SettingsSection(
+          title: SettingsStrings.about,
+          children: [
+            SettingsTile(
+              icon: Icons.system_update_outlined,
+              title: SettingsStrings.checkUpdates,
+              subtitle: Text(
+                _checkingUpdate
+                    ? SettingsStrings.checkingUpdates
+                    : SettingsStrings.checkUpdatesHint,
+              ),
+              trailing: _checkingUpdate
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.chevron_right_rounded, size: 20),
+              onTap: _checkingUpdate ? null : _checkForUpdates,
+            ),
+            SettingsTile(
+              icon: Icons.person_outline_rounded,
+              title: SettingsStrings.author,
+              subtitle: const Text('$_kAuthorHandle · $_kAuthorUrl'),
+              trailing: const Icon(Icons.open_in_new_rounded, size: 18),
+              onTap: () => _openLink(context, _kAuthorUrl),
+            ),
+            SettingsTile(
+              icon: Icons.bug_report_outlined,
+              title: SettingsStrings.reportBug,
+              subtitle: Text(SettingsStrings.reportBugHint),
+              trailing: const Icon(Icons.open_in_new_rounded, size: 18),
+              onTap: () => _openLink(context, _kIssuesUrl),
+            ),
+            SettingsTile(
+              icon: Icons.code_rounded,
+              title: SettingsStrings.githubRepo,
+              subtitle: const Text('github.com/aoxzh/lekis-music'),
+              trailing: const Icon(Icons.open_in_new_rounded, size: 18),
+              onTap: () => _openLink(context, _kRepoUrl),
+            ),
+            SettingsTile(
+              icon: Icons.tag_rounded,
+              title: SettingsStrings.appVersion,
+              trailing: const Text(kLekisAppVersion),
+            ),
+            SettingsTile(
+              icon: Icons.memory_outlined,
+              title: SettingsStrings.coreVersion,
+              trailing: Text(info.coreVersion ?? SettingsStrings.unavailable),
+            ),
+            SettingsTile(
+              icon: Icons.gavel_outlined,
+              title: SettingsStrings.license,
+              trailing: const Text('MPL-2.0'),
+            ),
+            SettingsTile(
+              icon: Icons.fingerprint_rounded,
+              title: SettingsStrings.deviceId,
+              subtitle: SelectableText(deviceId ?? SettingsStrings.unavailable),
+              trailing: deviceId == null
+                  ? null
+                  : IconButton(
+                      tooltip: SettingsStrings.copy,
+                      icon: const Icon(Icons.copy_outlined),
+                      onPressed: () async {
+                        await Clipboard.setData(ClipboardData(text: deviceId));
+                        if (context.mounted) {
+                          showFeatureSnack(context, SettingsStrings.copied);
+                        }
+                      },
+                    ),
+            ),
+          ],
         ),
       ],
     );
