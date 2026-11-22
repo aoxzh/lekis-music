@@ -4,6 +4,7 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import 'dto.dart';
 import 'error.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
@@ -16,7 +17,9 @@ UsbBitPerfectStatusDto usbBitPerfectStatus() =>
 
 /// 打开 / 关闭 USB 直出并持久化。打开时引擎切到独占模式（播放中会从当前位置续播），
 /// 关闭时清掉首选混音器属性并切回共享模式。
-Future<void> setUsbBitPerfect({required bool enabled}) =>
+///
+/// 返回引擎随之使用的输出模式（非 Android 上为 `None`，模式不变），界面据此同步「输出模式」。
+Future<OutputModeDto?> setUsbBitPerfect({required bool enabled}) =>
     RustLib.instance.api.crateApiUsbOutputSetUsbBitPerfect(enabled: enabled);
 
 /// 重新探测 USB 设备（设置页打开时调用，拿到最新的设备和支持情况）。

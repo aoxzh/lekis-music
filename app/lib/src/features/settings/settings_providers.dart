@@ -142,7 +142,8 @@ class PlaybackOutputNotifier extends Notifier<PlaybackOutputState> {
     state = id == null
         ? state.copyWith(clearSelected: true)
         : state.copyWith(selectedDeviceId: id);
-    // 新设备不支持独占时退回共享。
+    // 新设备不支持独占时退回共享。Android 上独占就是 USB 直出，核心会忽略这个请求
+    // 并返回仍在使用的模式（见 [setMode]），所以不会和 USB 开关矛盾。
     if (state.mode == OutputModeDto.exclusive && !state.exclusiveSupported) {
       await setMode(OutputModeDto.shared);
     }
@@ -150,10 +151,19 @@ class PlaybackOutputNotifier extends Notifier<PlaybackOutputState> {
   }
 
   /// 切换输出模式。失败时抛出核心错误。
+  ///
+  /// 核心返回实际使用的模式（Android 上由 USB DAC 直出开关决定），界面以它为准；
+  /// 请求被拒时不改写保存的设置。
   Future<void> setMode(OutputModeDto mode) async {
-    core.setOutputMode(mode: mode);
-    state = state.copyWith(mode: mode);
+    final effective = core.setOutputMode(mode: mode);
+    state = state.copyWith(mode: effective);
+    if (effective != mode) return;
     await core.setSetting(key: SettingKeys.outputMode, value: mode.name);
+  }
+
+  /// 别处（USB DAC 直出开关）已经让核心换了模式：只同步界面。
+  void adoptMode(OutputModeDto mode) {
+    if (state.mode != mode) state = state.copyWith(mode: mode);
   }
 }
 

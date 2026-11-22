@@ -754,7 +754,7 @@ abstract class RustLibApi extends BaseApi {
 
   void crateApiCoreSetOutputDevice({String? deviceId});
 
-  void crateApiCoreSetOutputMode({required OutputModeDto mode});
+  OutputModeDto crateApiCoreSetOutputMode({required OutputModeDto mode});
 
   Future<void> crateApiCoreSetPlaylistArtwork({
     required PlatformInt64 playlistId,
@@ -810,7 +810,9 @@ abstract class RustLibApi extends BaseApi {
     required TrackTagOverridesDto fields,
   });
 
-  Future<void> crateApiUsbOutputSetUsbBitPerfect({required bool enabled});
+  Future<OutputModeDto?> crateApiUsbOutputSetUsbBitPerfect({
+    required bool enabled,
+  });
 
   void crateApiCoreSetVolume({required double volume});
 
@@ -6936,7 +6938,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  void crateApiCoreSetOutputMode({required OutputModeDto mode}) {
+  OutputModeDto crateApiCoreSetOutputMode({required OutputModeDto mode}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -6949,7 +6951,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           )!;
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
+          decodeSuccessData: sse_decode_output_mode_dto,
           decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiCoreSetOutputModeConstMeta,
@@ -7366,7 +7368,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiUsbOutputSetUsbBitPerfect({required bool enabled}) {
+  Future<OutputModeDto?> crateApiUsbOutputSetUsbBitPerfect({
+    required bool enabled,
+  }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -7380,7 +7384,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
+          decodeSuccessData: sse_decode_opt_box_autoadd_output_mode_dto,
           decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiUsbOutputSetUsbBitPerfectConstMeta,
@@ -8145,6 +8149,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   OfflineDownloadDto dco_decode_box_autoadd_offline_download_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_offline_download_dto(raw);
+  }
+
+  @protected
+  OutputModeDto dco_decode_box_autoadd_output_mode_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_output_mode_dto(raw);
   }
 
   @protected
@@ -9395,6 +9405,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return raw == null
         ? null
         : dco_decode_box_autoadd_offline_download_dto(raw);
+  }
+
+  @protected
+  OutputModeDto? dco_decode_opt_box_autoadd_output_mode_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_output_mode_dto(raw);
   }
 
   @protected
@@ -10672,6 +10688,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_offline_download_dto(deserializer));
+  }
+
+  @protected
+  OutputModeDto sse_decode_box_autoadd_output_mode_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_output_mode_dto(deserializer));
   }
 
   @protected
@@ -12472,6 +12496,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  OutputModeDto? sse_decode_opt_box_autoadd_output_mode_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_output_mode_dto(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   PaletteDto? sse_decode_opt_box_autoadd_palette_dto(
     SseDeserializer deserializer,
   ) {
@@ -14052,6 +14089,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_output_mode_dto(
+    OutputModeDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_output_mode_dto(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_palette_dto(
     PaletteDto self,
     SseSerializer serializer,
@@ -15615,6 +15661,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_offline_download_dto(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_output_mode_dto(
+    OutputModeDto? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_output_mode_dto(self, serializer);
     }
   }
 

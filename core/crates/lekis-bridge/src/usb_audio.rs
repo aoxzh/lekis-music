@@ -18,18 +18,37 @@ use crate::internal::{core, CORE};
 /// 设置项：USB 直出开关（`true` / `false`）。本机设置，不同步。
 pub(crate) const USB_BIT_PERFECT_SETTING: &str = "playback.usb_bit_perfect";
 
-/// 打开 / 关闭 USB 直出：同步引擎的输出模式。非 Android 上什么也不做。
-pub(crate) fn apply(enabled: bool) -> Result<(), CoreError> {
+/// 打开 / 关闭 USB 直出：同步引擎的输出模式，返回引擎实际使用的模式。
+/// 非 Android 上什么也不做（返回 `None`，模式不变）。
+pub(crate) fn apply(enabled: bool) -> Result<Option<OutputMode>, CoreError> {
     if !cfg!(target_os = "android") {
-        return Ok(());
+        return Ok(None);
     }
     usb_direct::set_usb_direct_enabled(enabled);
-    let mode = if enabled {
-        OutputMode::Exclusive
-    } else {
-        OutputMode::Shared
-    };
-    Ok(core().set_output_mode(mode)?)
+    let mode = effective_output_mode(OutputMode::Shared);
+    core().set_output_mode(mode)?;
+    Ok(Some(mode))
+}
+
+/// 引擎实际应使用的输出模式。
+///
+/// Android 没有别的独占后端：引擎的独占模式就等于「USB 直出」。所以在 Android 上模式完全由
+/// USB 直出开关决定（开 = 独占，关 = 共享），任何其他来源（输出模式设置、换设备后的降级）
+/// 都不能把两者改得互相矛盾。其他平台原样返回请求的模式。
+pub(crate) fn effective_output_mode(requested: OutputMode) -> OutputMode {
+    resolve_output_mode(
+        requested,
+        cfg!(target_os = "android"),
+        usb_direct::usb_direct_enabled(),
+    )
+}
+
+fn resolve_output_mode(requested: OutputMode, android: bool, usb_enabled: bool) -> OutputMode {
+    match (android, usb_enabled) {
+        (false, _) => requested,
+        (true, true) => OutputMode::Exclusive,
+        (true, false) => OutputMode::Shared,
+    }
 }
 
 /// USB 设备插拔后：开关打开时让引擎重建输出流（按新设备重新协商；拔掉时回到普通输出）。
@@ -327,6 +346,41 @@ mod jni_platform {
             release_chars(env, reply as jstring, chars);
             delete_local_ref(env, reply);
             Ok(out)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn desktop_keeps_the_requested_mode() {
+        for usb in [false, true] {
+            assert_eq!(
+                resolve_output_mode(OutputMode::Exclusive, false, usb),
+                OutputMode::Exclusive
+            );
+            assert_eq!(
+                resolve_output_mode(OutputMode::Shared, false, usb),
+                OutputMode::Shared
+            );
+        }
+    }
+
+    #[test]
+    fn android_mode_follows_the_usb_switch() {
+        for requested in [OutputMode::Shared, OutputMode::Exclusive] {
+            // 开着 USB 直出时，换设备后的「退回共享」不能把引擎切走。
+            assert_eq!(
+                resolve_output_mode(requested, true, true),
+                OutputMode::Exclusive
+            );
+            // 关着时独占没有后端，不能让引擎报告一个实际不存在的独占模式。
+            assert_eq!(
+                resolve_output_mode(requested, true, false),
+                OutputMode::Shared
+            );
         }
     }
 }

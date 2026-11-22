@@ -76,6 +76,53 @@ abstract final class SettingsStrings {
   );
   static String get exclusiveUnsupported =>
       L10n.tr('当前设备不支持独占模式', 'Exclusive mode is not supported on this device');
+
+  // USB DAC 比特完美直出（Android 14+）。
+  static String get usbBitPerfect =>
+      L10n.tr('USB DAC 比特完美直出', 'USB DAC bit-perfect output');
+  static String get usbBitPerfectHint => L10n.tr(
+    'Android 14+：绕过系统混音器，按原始采样率和位深直送 USB DAC。直出时音量、ReplayGain、均衡器和淡入淡出不生效，也没有无缝播放。',
+    'Android 14+: bypasses the system mixer and sends the original sample rate and bit depth to the USB DAC. While active, volume, ReplayGain, EQ and crossfade are bypassed and gapless playback is unavailable.',
+  );
+  static String get usbStatus => L10n.tr('直出状态', 'Direct output status');
+  static String get usbStatusUnavailable =>
+      L10n.tr('此平台不支持', 'Not available on this platform');
+  static String get usbStatusNoDevice => L10n.tr(
+    '没有连接 USB 音频设备，正在使用普通输出',
+    'No USB audio device connected; using normal output',
+  );
+  static String usbStatusOldAndroid(int sdk) => L10n.tr(
+    '需要 Android 14 或更高（当前 API $sdk），正在使用普通输出',
+    'Requires Android 14 or later (this device is API $sdk); using normal output',
+  );
+  static String usbStatusUnsupported(String device) => L10n.tr(
+    '$device 不支持比特完美输出，正在使用普通输出',
+    '$device does not support bit-perfect output; using normal output',
+  );
+  static String usbStatusFormatFallback(
+    String device,
+    String format,
+  ) => L10n.tr(
+    '$device 不支持本曲格式（$format），本曲使用普通输出',
+    '$device does not support this track\'s format ($format); using normal output for it',
+  );
+  static String usbStatusReady(String device) => L10n.tr(
+    '已就绪：$device，下一首开始直出',
+    'Ready: $device — direct output starts with the next track',
+  );
+  static String usbStatusActive(String device, String format) =>
+      L10n.tr('正在直出：$device · $format', 'Direct to $device · $format');
+  static String usbStatusFailed(String reason) => L10n.tr(
+    '直出失败，本曲使用普通输出：$reason',
+    'Direct output failed, using normal output for this track: $reason',
+  );
+  static String get usbUnknownDevice => L10n.tr('USB 设备', 'USB device');
+  static String usbContainer(int bits) =>
+      L10n.tr('设备 $bits 位容器', '$bits-bit container');
+  static String get usbBypassedNote => L10n.tr(
+    '音量、ReplayGain、均衡器、淡入淡出已旁路；无缝播放不可用。',
+    'Volume, ReplayGain, EQ and crossfade are bypassed; gapless is unavailable.',
+  );
   static String get gapless => L10n.tr('无缝播放', 'Gapless Playback');
   static String get gaplessHint => L10n.tr(
     '去掉曲目之间的静音间隙，现场专辑和古典乐更连贯',

@@ -844,9 +844,14 @@ pub fn set_output_device(device_id: Option<String>) -> Result<(), CoreError> {
 }
 
 /// 切换输出模式（共享 / 独占）。播放中切换会从当前位置续播。
+///
+/// 返回引擎实际使用的模式：Android 上模式由 USB DAC 直出开关决定（见 `usb_output`），
+/// 请求与之矛盾时会被忽略，界面应以返回值为准。
 #[frb(sync)]
-pub fn set_output_mode(mode: OutputModeDto) -> Result<(), CoreError> {
-    Ok(core().set_output_mode(mode.into())?)
+pub fn set_output_mode(mode: OutputModeDto) -> Result<OutputModeDto, CoreError> {
+    let effective = crate::usb_audio::effective_output_mode(mode.into());
+    core().set_output_mode(effective)?;
+    Ok(effective.into())
 }
 
 // ---- 元数据补全（ENR-01/03/06/07）----

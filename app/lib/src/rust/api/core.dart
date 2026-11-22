@@ -511,7 +511,10 @@ void setOutputDevice({String? deviceId}) =>
     RustLib.instance.api.crateApiCoreSetOutputDevice(deviceId: deviceId);
 
 /// 切换输出模式（共享 / 独占）。播放中切换会从当前位置续播。
-void setOutputMode({required OutputModeDto mode}) =>
+///
+/// 返回引擎实际使用的模式：Android 上模式由 USB DAC 直出开关决定（见 `usb_output`），
+/// 请求与之矛盾时会被忽略，界面应以返回值为准。
+OutputModeDto setOutputMode({required OutputModeDto mode}) =>
     RustLib.instance.api.crateApiCoreSetOutputMode(mode: mode);
 
 /// 给一首歌跑补全流水线（封面 + 歌词）。

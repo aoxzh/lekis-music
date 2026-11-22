@@ -40,6 +40,7 @@ import 'connect_settings_section.dart';
 import 'strings.dart';
 import 'tab_bar_style_picker.dart';
 import 'theme_preference.dart';
+import 'usb_bit_perfect_settings.dart';
 import 'widgets/settings_widgets.dart';
 
 /// 设置首页（手机）/ 左侧导航（桌面）里的分组，按这个顺序排列。
@@ -167,6 +168,7 @@ enum SettingsCategory {
     ],
     SettingsCategory.advanced => [
       SettingsStrings.outputMode,
+      SettingsStrings.usbBitPerfect,
       SettingsStrings.replayGain,
       SettingsStrings.scrobbling,
       SettingsStrings.plugins,
@@ -743,32 +745,39 @@ class _AudioOutputSection extends ConsumerWidget {
     final replayGain = ReplayGainMode.fromStorage(
       ref.watch(settingProvider(SettingKeys.replayGain)).value,
     );
+    // Android：独占输出就是 USB DAC 直出，输出模式完全由那个开关决定（核心也这样约束），
+    // 所以不再单独提供「共享 / 独占」选择，免得两处互相矛盾。
+    final usbTiles = usbBitPerfectTiles(ref);
+    final usbOwnsMode = usbTiles.isNotEmpty;
     if (UiProfile.current.desktopSettings) {
       return SettingsSection(
         title: SettingsStrings.audioOutput,
         children: [
-          SettingsDropdownTile<OutputModeDto>(
-            icon: Icons.graphic_eq_rounded,
-            title: SettingsStrings.outputMode,
-            subtitle: output.mode == OutputModeDto.exclusive
-                ? SettingsStrings.modeExclusiveHint
-                : output.exclusiveSupported
-                ? SettingsStrings.modeSharedHint
-                : '${SettingsStrings.modeSharedHint}${SettingsStrings.exclusiveUnsupported}。',
-            value: output.mode,
-            choices: [
-              SettingsChoice(
-                OutputModeDto.shared,
-                SettingsStrings.modeShared,
-              ),
-              SettingsChoice(
-                OutputModeDto.exclusive,
-                SettingsStrings.modeExclusive,
-                enabled: output.exclusiveSupported,
-              ),
-            ],
-            onChanged: (m) => settingsGuard(context, () => notifier.setMode(m)),
-          ),
+          ...usbTiles,
+          if (!usbOwnsMode)
+            SettingsDropdownTile<OutputModeDto>(
+              icon: Icons.graphic_eq_rounded,
+              title: SettingsStrings.outputMode,
+              subtitle: output.mode == OutputModeDto.exclusive
+                  ? SettingsStrings.modeExclusiveHint
+                  : output.exclusiveSupported
+                  ? SettingsStrings.modeSharedHint
+                  : '${SettingsStrings.modeSharedHint}${SettingsStrings.exclusiveUnsupported}。',
+              value: output.mode,
+              choices: [
+                SettingsChoice(
+                  OutputModeDto.shared,
+                  SettingsStrings.modeShared,
+                ),
+                SettingsChoice(
+                  OutputModeDto.exclusive,
+                  SettingsStrings.modeExclusive,
+                  enabled: output.exclusiveSupported,
+                ),
+              ],
+              onChanged: (m) =>
+                  settingsGuard(context, () => notifier.setMode(m)),
+            ),
           SettingsDropdownTile<ReplayGainMode>(
             icon: Icons.equalizer_rounded,
             title: SettingsStrings.replayGain,
@@ -792,34 +801,36 @@ class _AudioOutputSection extends ConsumerWidget {
     return SettingsSection(
       title: SettingsStrings.audioOutput,
       children: [
-        SettingsBlockTile(
-          icon: Icons.graphic_eq_rounded,
-          title: SettingsStrings.outputMode,
-          hint: output.mode == OutputModeDto.exclusive
-              ? SettingsStrings.modeExclusiveHint
-              : output.exclusiveSupported
-              ? '${SettingsStrings.modeSharedHint}\n${SettingsStrings.modeExclusiveHint}'
-              : '${SettingsStrings.modeSharedHint}\n${SettingsStrings.exclusiveUnsupported}',
-          child: SegmentedButton<OutputModeDto>(
-            showSelectedIcon: false,
-            segments: [
-              ButtonSegment(
-                value: OutputModeDto.shared,
-                label: Text(SettingsStrings.modeShared),
-                icon: Icon(Icons.speaker_group_outlined),
-              ),
-              ButtonSegment(
-                value: OutputModeDto.exclusive,
-                label: Text(SettingsStrings.modeExclusive),
-                icon: const Icon(Icons.graphic_eq),
-                enabled: output.exclusiveSupported,
-              ),
-            ],
-            selected: {output.mode},
-            onSelectionChanged: (s) =>
-                settingsGuard(context, () => notifier.setMode(s.first)),
+        ...usbTiles,
+        if (!usbOwnsMode)
+          SettingsBlockTile(
+            icon: Icons.graphic_eq_rounded,
+            title: SettingsStrings.outputMode,
+            hint: output.mode == OutputModeDto.exclusive
+                ? SettingsStrings.modeExclusiveHint
+                : output.exclusiveSupported
+                ? '${SettingsStrings.modeSharedHint}\n${SettingsStrings.modeExclusiveHint}'
+                : '${SettingsStrings.modeSharedHint}\n${SettingsStrings.exclusiveUnsupported}',
+            child: SegmentedButton<OutputModeDto>(
+              showSelectedIcon: false,
+              segments: [
+                ButtonSegment(
+                  value: OutputModeDto.shared,
+                  label: Text(SettingsStrings.modeShared),
+                  icon: Icon(Icons.speaker_group_outlined),
+                ),
+                ButtonSegment(
+                  value: OutputModeDto.exclusive,
+                  label: Text(SettingsStrings.modeExclusive),
+                  icon: const Icon(Icons.graphic_eq),
+                  enabled: output.exclusiveSupported,
+                ),
+              ],
+              selected: {output.mode},
+              onSelectionChanged: (s) =>
+                  settingsGuard(context, () => notifier.setMode(s.first)),
+            ),
           ),
-        ),
         SettingsBlockTile(
           icon: Icons.equalizer_rounded,
           title: SettingsStrings.replayGain,

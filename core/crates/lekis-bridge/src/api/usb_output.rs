@@ -7,6 +7,7 @@
 use flutter_rust_bridge::frb;
 use lekis_playback::output::usb_direct::{self, UsbDirectState, UsbDirectStatus};
 
+use crate::api::dto::OutputModeDto;
 use crate::api::error::CoreError;
 use crate::internal::core;
 use crate::usb_audio::{apply, USB_BIT_PERFECT_SETTING};
@@ -98,15 +99,17 @@ pub fn usb_bit_perfect_status() -> UsbBitPerfectStatusDto {
 
 /// 打开 / 关闭 USB 直出并持久化。打开时引擎切到独占模式（播放中会从当前位置续播），
 /// 关闭时清掉首选混音器属性并切回共享模式。
-pub async fn set_usb_bit_perfect(enabled: bool) -> Result<(), CoreError> {
-    apply(enabled)?;
+///
+/// 返回引擎随之使用的输出模式（非 Android 上为 `None`，模式不变），界面据此同步「输出模式」。
+pub async fn set_usb_bit_perfect(enabled: bool) -> Result<Option<OutputModeDto>, CoreError> {
+    let mode = apply(enabled)?;
     core()
         .set_setting(
             USB_BIT_PERFECT_SETTING.to_string(),
             if enabled { "true" } else { "false" }.to_string(),
         )
         .await?;
-    Ok(())
+    Ok(mode.map(Into::into))
 }
 
 /// 重新探测 USB 设备（设置页打开时调用，拿到最新的设备和支持情况）。

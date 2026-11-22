@@ -129,6 +129,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   OfflineDownloadDto dco_decode_box_autoadd_offline_download_dto(dynamic raw);
 
   @protected
+  OutputModeDto dco_decode_box_autoadd_output_mode_dto(dynamic raw);
+
+  @protected
   PaletteDto dco_decode_box_autoadd_palette_dto(dynamic raw);
 
   @protected
@@ -524,6 +527,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  OutputModeDto? dco_decode_opt_box_autoadd_output_mode_dto(dynamic raw);
+
+  @protected
   PaletteDto? dco_decode_opt_box_autoadd_palette_dto(dynamic raw);
 
   @protected
@@ -886,6 +892,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   OfflineDownloadDto sse_decode_box_autoadd_offline_download_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  OutputModeDto sse_decode_box_autoadd_output_mode_dto(
     SseDeserializer deserializer,
   );
 
@@ -1419,6 +1430,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  OutputModeDto? sse_decode_opt_box_autoadd_output_mode_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   PaletteDto? sse_decode_opt_box_autoadd_palette_dto(
     SseDeserializer deserializer,
   );
@@ -1862,6 +1878,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_offline_download_dto(
     OfflineDownloadDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_output_mode_dto(
+    OutputModeDto self,
     SseSerializer serializer,
   );
 
@@ -2534,6 +2556,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_offline_download_dto(
     OfflineDownloadDto? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_output_mode_dto(
+    OutputModeDto? self,
     SseSerializer serializer,
   );
 
