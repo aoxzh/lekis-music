@@ -22,6 +22,7 @@ import 'package:lekis/src/layout/window_size.dart';
 import 'package:lekis/src/theme/tokens.dart';
 
 import 'destinations.dart';
+import 'nav_bar_position.dart';
 import 'now_playing_context.dart';
 import 'routes.dart';
 import 'shell_chrome.dart';
@@ -38,22 +39,22 @@ export 'routes.dart'
         openPlugins,
         NowPlayingRoute;
 
-ShellChromeMode _chromeModeOf(BuildContext context) {
+ShellChromeMode _chromeModeOf(BuildContext context, NavBarPosition navPos) {
   if (context.heightClass == WindowHeightClass.compact) {
     return ShellChromeMode.rail;
   }
   return switch (context.widthClass) {
-    // Phones and unfolded foldables / small tablets (< 840 dp) share the
-    // floating glass tab bar; the rail is only for short windows.
-    // Phones: bottom capsule. Unfolded foldables / small tablets: icon
-    // capsule on the trailing edge with the mini player floating apart.
-    WindowWidthClass.compact => ShellChromeMode.bottomBar,
-    WindowWidthClass.medium => ShellChromeMode.sideTabs,
+    // 手机与折叠屏展开态 / 小平板（< 840 dp）默认采用底部悬浮玻璃栏（参考 Apple Music /
+    // Spotify 折叠屏），用户也可在「外观 → 导航栏位置」切到左侧或右侧全宽穿透悬浮玻璃。
+    WindowWidthClass.compact || WindowWidthClass.medium =>
+      navPos == NavBarPosition.bottom
+          ? ShellChromeMode.bottomBar
+          : ShellChromeMode.sideTabs,
     _ => ShellChromeMode.sidebar,
   };
 }
 
-class AppShell extends StatefulWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
 
   /// Switches the shell to [destination] from anywhere below it.
@@ -61,10 +62,10 @@ class AppShell extends StatefulWidget {
       context.findAncestorStateOfType<_AppShellState>()?._select(destination);
 
   @override
-  State<AppShell> createState() => _AppShellState();
+  ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends ConsumerState<AppShell> {
   static const _destinations = LekisDestination.values;
 
   final _tabsKey = GlobalKey(debugLabel: 'AppShell.tabs');
@@ -147,8 +148,9 @@ class _AppShellState extends State<AppShell> {
       ),
     );
 
-    final mode = _chromeModeOf(context);
-    final content = ShellChrome(mode: mode, child: tabs);
+    final navPos = ref.watch(navBarPositionProvider);
+    final mode = _chromeModeOf(context, navPos);
+    final content = ShellChrome(mode: mode, navPosition: navPos, child: tabs);
     return PopScope<Object?>(
       canPop: _current == LekisDestination.home && !tabCanPop,
       onPopInvokedWithResult: _onSystemBack,
@@ -165,6 +167,7 @@ class _AppShellState extends State<AppShell> {
             ShellChromeMode.sideTabs => _SideTabsLayout(
               current: _current,
               onSelected: _select,
+              position: navPos,
               content: content,
             ),
             ShellChromeMode.rail => _RailLayout(
@@ -293,23 +296,20 @@ class _BottomBarLayout extends ConsumerWidget {
   }
 }
 
-/// Unfolded foldables / small tablets: an icon-only glass capsule floats on
-/// the trailing edge, the slim mini player floats at the bottom centre of
-/// the content, and pages scroll under both.
+/// 侧边悬浮玻璃导航栏（左 / 右）：页面全宽铺满，封面墙与横滑画廊直接从透明玻璃下穿过
+/// 产生真实液态折射；迷你播放器水平居中悬浮在底边，不再硬切一侧黑边。
 class _SideTabsLayout extends ConsumerWidget {
   const _SideTabsLayout({
     required this.current,
     required this.onSelected,
+    required this.position,
     required this.content,
   });
 
   final LekisDestination current;
   final ValueChanged<LekisDestination> onSelected;
+  final NavBarPosition position;
   final Widget content;
-
-  /// Room the side capsule takes from the content (capsule + margins).
-  static const double sideExtent =
-      LekisTabBarTokens.height + LekisSpacing.md * 2;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -322,6 +322,7 @@ class _SideTabsLayout extends ConsumerWidget {
     final mini = (hasTrack || hasRemote)
         ? MiniPlayer.bottomBandHeight(context)
         : 0.0;
+    final isLeft = position == NavBarPosition.left;
     return Scaffold(
       // The content below gets a MediaQuery read from *outside* this
       // Scaffold, i.e. still carrying the keyboard inset. If this Scaffold
@@ -331,23 +332,20 @@ class _SideTabsLayout extends ConsumerWidget {
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
+          // 全宽绘制，不裁切左右边缘：内容真正从悬浮液态玻璃胶囊下方穿过。
           Positioned.fill(
-            right: sideExtent,
             child: MediaQuery(
               // scrollEndPadding reads this: the last row clears the
               // floating mini player.
               data: mq.copyWith(
-                padding: mq.padding.copyWith(
-                  bottom: mq.padding.bottom + mini,
-                  right: 0,
-                ),
+                padding: mq.padding.copyWith(bottom: mq.padding.bottom + mini),
               ),
               child: content,
             ),
           ),
           Positioned(
             left: 0,
-            right: sideExtent,
+            right: 0,
             bottom: 0,
             child: Center(
               child: ConstrainedBox(
@@ -361,11 +359,13 @@ class _SideTabsLayout extends ConsumerWidget {
             ),
           ),
           Positioned(
-            top: 0,
-            bottom: 0,
-            right: LekisSpacing.md + mq.padding.right,
+            top: mq.padding.top,
+            bottom: mini > 0 ? mini : mq.padding.bottom,
+            left: isLeft ? LekisSpacing.md + mq.padding.left : null,
+            right: isLeft ? null : LekisSpacing.md + mq.padding.right,
             child: Center(
               child: LekisTabBar(
+                key: ValueKey('side-tab-bar.${position.storageValue}'),
                 selected: current,
                 onSelected: onSelected,
                 style: style,

@@ -67,6 +67,12 @@ abstract final class SettingsStrings {
   static const tabBarLiquidHint = '模糊 · 流动 · 弹簧';
   static const tabBarFlat = '扁平';
   static const tabBarFlatHint = '纯色 · 快速 · 低开销';
+  static const navBarPosition = '导航栏位置';
+  static const navBarPositionHint =
+      '默认底部居中悬浮（类似 Apple Music）；选左侧或右侧时以透明玻璃浮在边缘，页面内容全宽穿过。';
+  static const navBarBottom = '底部';
+  static const navBarLeft = '左侧';
+  static const navBarRight = '右侧';
   static const lyricsStage = '歌词样式';
   static const lyricsStageHint =
       '经典是 Apple Music 那样的逐行滚动歌词（默认）；流动 / 阶梯 / 倾斜是逐字跟唱的舞台。';

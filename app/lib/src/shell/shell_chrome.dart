@@ -6,11 +6,13 @@
 
 import 'package:material_ui/material_ui.dart';
 
+import 'nav_bar_position.dart';
+
 enum ShellChromeMode {
-  /// Phones: floating glass tab bar + mini player over the content.
+  /// Phones & foldables (default): floating glass tab bar + mini player over the content.
   bottomBar,
 
-  /// Unfolded foldables / small tablets: icon capsule on the trailing edge.
+  /// Floating vertical icon glass capsule on the left or right edge over full-bleed content.
   sideTabs,
 
   /// Short landscape windows: icon rail on the left.
@@ -21,9 +23,15 @@ enum ShellChromeMode {
 }
 
 class ShellChrome extends InheritedWidget {
-  const ShellChrome({super.key, required this.mode, required super.child});
+  const ShellChrome({
+    super.key,
+    required this.mode,
+    this.navPosition = NavBarPosition.bottom,
+    required super.child,
+  });
 
   final ShellChromeMode mode;
+  final NavBarPosition navPosition;
 
   /// The rail and sidebar already show the Lekis mark.
   bool get showsBrandMark =>
@@ -35,6 +43,17 @@ class ShellChrome extends InheritedWidget {
       context.dependOnInheritedWidgetOfExactType<ShellChrome>()?.mode ??
       ShellChromeMode.bottomBar;
 
+  static NavBarPosition navPositionOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<ShellChrome>()?.navPosition ??
+      NavBarPosition.bottom;
+
+  static bool hasFloatingRightNavOf(BuildContext context) {
+    final chrome = context.dependOnInheritedWidgetOfExactType<ShellChrome>();
+    return chrome != null &&
+        chrome.mode == ShellChromeMode.sideTabs &&
+        chrome.navPosition == NavBarPosition.right;
+  }
+
   static bool showsBrandMarkOf(BuildContext context) =>
       switch (modeOf(context)) {
         ShellChromeMode.rail || ShellChromeMode.sidebar => true,
@@ -42,5 +61,6 @@ class ShellChrome extends InheritedWidget {
       };
 
   @override
-  bool updateShouldNotify(ShellChrome oldWidget) => oldWidget.mode != mode;
+  bool updateShouldNotify(ShellChrome oldWidget) =>
+      oldWidget.mode != mode || oldWidget.navPosition != navPosition;
 }

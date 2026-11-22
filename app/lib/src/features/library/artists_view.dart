@@ -5,6 +5,7 @@ import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/press_feedback.dart';
+import 'package:lekis/src/shell/shell_chrome.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -110,7 +111,12 @@ class _ArtistListState extends ConsumerState<ArtistList> {
               child: Align(
                 alignment: Alignment.centerRight,
                 child: Padding(
-                  padding: EdgeInsets.only(bottom: scrollEndPadding(context)),
+                  padding: EdgeInsets.only(
+                    right: ShellChrome.hasFloatingRightNavOf(context)
+                        ? LekisTabBarTokens.height + LekisSpacing.md
+                        : 0,
+                    bottom: scrollEndPadding(context),
+                  ),
                   child: AlphabetIndexBar(
                     offsets: offsets,
                     onSelect: (row) => jumpScrollControllerToRow(

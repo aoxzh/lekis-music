@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/features/settings/theme_preference.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
+import 'package:lekis/src/shell/nav_bar_position.dart';
 import 'package:lekis/src/shell/tab_bar_style.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -20,6 +21,7 @@ const _backupKeys = [
   SettingKeys.outputMode,
   themeSettingKey,
   tabBarStyleSettingKey,
+  navBarPositionSettingKey,
   'ui.lyrics_stage',
   'ui.lyrics_sparks',
 ];
@@ -137,6 +139,12 @@ class SettingsBackupSection extends ConsumerWidget {
         await ref
             .read(tabBarStyleProvider.notifier)
             .set(TabBarStyle.fromStorage(tab));
+      }
+      final navPos = decoded[navBarPositionSettingKey];
+      if (navPos is String) {
+        await ref
+            .read(navBarPositionProvider.notifier)
+            .set(NavBarPosition.fromStorage(navPos));
       }
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)

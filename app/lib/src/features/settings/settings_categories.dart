@@ -10,6 +10,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../platform/ui_profile.dart';
 import '../../rust/api/dto.dart';
 import '../../shell/app_shell.dart';
+import '../../shell/nav_bar_position.dart';
 import '../../shell/tab_bar_style.dart';
 import '../../theme/tokens.dart';
 import '../enrich/enrich_providers.dart';
@@ -117,6 +118,8 @@ enum SettingsCategory {
       SettingsStrings.theme,
       SettingsStrings.themeDark,
       SettingsStrings.themeLight,
+      SettingsStrings.tabBarStyle,
+      SettingsStrings.navBarPosition,
     ],
   ),
   lyrics(
@@ -452,6 +455,7 @@ class _AppearanceSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pref = ref.watch(themePreferenceProvider);
     final tabBarStyle = ref.watch(tabBarStyleProvider);
+    final navBarPosition = ref.watch(navBarPositionProvider);
     final profile = UiProfile.current;
     void setTheme(ThemePreference p) =>
         settingsGuard(context, () => setThemePreference(ref, p));
@@ -513,7 +517,7 @@ class _AppearanceSection extends ConsumerWidget {
           ),
         // Liquid glass vs flat only exists where the glass tab bar does;
         // desktop always draws flat chrome, so the choice is not offered.
-        if (profile.offersTabBarStyle)
+        if (profile.offersTabBarStyle) ...[
           SettingsBlockTile(
             icon: Icons.space_dashboard_outlined,
             title: SettingsStrings.tabBarStyle,
@@ -526,6 +530,38 @@ class _AppearanceSection extends ConsumerWidget {
               ),
             ),
           ),
+          SettingsBlockTile(
+            key: const ValueKey('settings-nav-bar-position'),
+            icon: Icons.view_quilt_outlined,
+            title: SettingsStrings.navBarPosition,
+            hint: SettingsStrings.navBarPositionHint,
+            child: SegmentedButton<NavBarPosition>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(
+                  value: NavBarPosition.bottom,
+                  label: Text(SettingsStrings.navBarBottom),
+                  icon: Icon(Icons.border_bottom_rounded),
+                ),
+                ButtonSegment(
+                  value: NavBarPosition.left,
+                  label: Text(SettingsStrings.navBarLeft),
+                  icon: Icon(Icons.align_horizontal_left_rounded),
+                ),
+                ButtonSegment(
+                  value: NavBarPosition.right,
+                  label: Text(SettingsStrings.navBarRight),
+                  icon: Icon(Icons.align_horizontal_right_rounded),
+                ),
+              ],
+              selected: {navBarPosition},
+              onSelectionChanged: (s) => settingsGuard(
+                context,
+                () => ref.read(navBarPositionProvider.notifier).set(s.first),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }

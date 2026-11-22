@@ -11,10 +11,12 @@ import 'package:lekis/src/features/settings/settings_page.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/features/settings/strings.dart';
 import 'package:lekis/src/features/settings/tab_bar_style_picker.dart';
+import 'package:lekis/src/features/settings/theme_preference.dart';
 import 'package:lekis/src/features/settings/widgets/settings_widgets.dart';
 import 'package:lekis/src/features/sources/sources_providers.dart';
 import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/rust/api/dto.dart';
+import 'package:lekis/src/shell/nav_bar_position.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -257,8 +259,13 @@ void main() {
 
       expect(find.text(SettingsStrings.tabBarStyle), findsOneWidget);
       expect(find.byType(TabBarStylePicker), findsOneWidget);
+      expect(find.text(SettingsStrings.navBarPosition), findsOneWidget);
       expect(
-        find.byWidgetPredicate((w) => w is SegmentedButton),
+        find.byWidgetPredicate((w) => w is SegmentedButton<ThemePreference>),
+        findsOneWidget,
+      );
+      expect(
+        find.byWidgetPredicate((w) => w is SegmentedButton<NavBarPosition>),
         findsOneWidget,
       );
       expect(find.byKey(const ValueKey('settings-theme')), findsNothing);

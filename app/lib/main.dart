@@ -13,6 +13,7 @@ import 'package:lekis/src/features/settings/theme_preference.dart';
 import 'package:lekis/src/platform/desktop_tray/desktop_tray_controller.dart';
 import 'package:lekis/src/platform/media_session.dart';
 import 'package:lekis/src/rust/frb_generated.dart';
+import 'package:lekis/src/shell/nav_bar_position.dart';
 import 'package:lekis/src/shell/tab_bar_style.dart';
 
 Future<void> main() async {
@@ -42,6 +43,7 @@ Future<void> main() async {
   await Future.wait([
     restoreThemePreference(container),
     restoreTabBarStyle(container),
+    restoreNavBarPosition(container),
     restoreDesktopTraySettings(container),
   ]);
 
