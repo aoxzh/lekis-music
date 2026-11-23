@@ -325,14 +325,24 @@ class DownloadsPage extends ConsumerWidget {
 const double _artworkTextInset =
     LekisSpacing.lg + LekisSizes.listArtwork + LekisSpacing.md;
 
-class _DownloadsBody extends ConsumerWidget {
+enum _DownloadFilter { all, active, failed, ready }
+
+class _DownloadsBody extends ConsumerStatefulWidget {
   const _DownloadsBody({required this.state});
 
   final DownloadsState state;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DownloadsBody> createState() => _DownloadsBodyState();
+}
+
+class _DownloadsBodyState extends ConsumerState<_DownloadsBody> {
+  _DownloadFilter _filter = _DownloadFilter.all;
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final state = widget.state;
     if (state.isEmpty) {
       return RefreshIndicator(
         onRefresh: () => ref.read(downloadsProvider.notifier).refresh(),
@@ -366,18 +376,82 @@ class _DownloadsBody extends ConsumerWidget {
           ),
         );
 
+    final showAll = _filter == _DownloadFilter.all;
+    final showActive = showAll || _filter == _DownloadFilter.active;
+    final showFailed = showAll || _filter == _DownloadFilter.failed;
+    final showReady = showAll || _filter == _DownloadFilter.ready;
+    final anythingVisible =
+        (showActive && state.active.isNotEmpty) ||
+        (showFailed && state.failed.isNotEmpty) ||
+        (showReady && state.ready.isNotEmpty);
+
+    Widget chip(String label, _DownloadFilter value, int count) => ChoiceChip(
+      label: Text('$label $count'),
+      selected: _filter == value,
+      onSelected: (_) => setState(() => _filter = value),
+    );
+
     return RefreshIndicator(
       onRefresh: () => ref.read(downloadsProvider.notifier).refresh(),
       child: SettingsScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           SliverToBoxAdapter(child: _SummaryCard(state: state)),
-          if (state.active.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                LekisSpacing.xl,
+                0,
+                LekisSpacing.xl,
+                LekisSpacing.md,
+              ),
+              child: Wrap(
+                spacing: LekisSpacing.sm,
+                runSpacing: LekisSpacing.xs,
+                children: [
+                  chip(
+                    l10n.pick('全部', 'All'),
+                    _DownloadFilter.all,
+                    state.entries.length,
+                  ),
+                  if (state.active.isNotEmpty)
+                    chip(
+                      l10n.pick('队列', 'Queue'),
+                      _DownloadFilter.active,
+                      state.active.length,
+                    ),
+                  if (state.failed.isNotEmpty)
+                    chip(
+                      l10n.pick('失败', 'Failed'),
+                      _DownloadFilter.failed,
+                      state.failed.length,
+                    ),
+                  if (state.ready.isNotEmpty)
+                    chip(
+                      l10n.pick('已下载', 'Downloaded'),
+                      _DownloadFilter.ready,
+                      state.ready.length,
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (showActive && state.active.isNotEmpty)
             section(l10n.pick('下载队列', 'Queue'), state.active),
-          if (state.failed.isNotEmpty)
+          if (showFailed && state.failed.isNotEmpty)
             section(l10n.pick('失败', 'Failed'), state.failed),
-          if (state.ready.isNotEmpty)
+          if (showReady && state.ready.isNotEmpty)
             section(l10n.pick('已下载', 'Downloaded'), state.ready),
+          if (!anythingVisible)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(LekisSpacing.xl),
+                child: Text(
+                  l10n.pick('这个分类暂时没有下载', 'Nothing in this filter'),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
         ],
       ),
     );
