@@ -1160,7 +1160,13 @@ mod tests {
     async fn qq_lyrics_example_live() {
         let source = include_str!("../../../../plugin-sdk/examples/qq-lyrics/index.js");
         let runtime = runtime(&["c.y.qq.com"], source);
-        let result = runtime.call(Capability::Lyrics, json!({"track":{"title":"晴天","artists":["周杰伦"],"durationMs":269000}})).await.unwrap();
+        let result = runtime
+            .call(
+                Capability::Lyrics,
+                json!({"track":{"title":"晴天","artists":["周杰伦"],"durationMs":269000}}),
+            )
+            .await
+            .unwrap();
         assert_eq!(result["format"], "lrc");
         assert!(!result["content"].as_str().unwrap().is_empty());
     }
@@ -1174,17 +1180,36 @@ mod tests {
                     r#"{"code":0,"data":{"song":{"list":[{"songname":"晴天","songmid":"mid1","interval":269,"singer":[{"name":"周杰伦"}]}]}}}"#
                 } else {
                     assert!(request.url.contains("songmid=mid1"));
-                    assert_eq!(request.headers.get("Referer").map(String::as_str), Some("https://y.qq.com/"));
+                    assert_eq!(
+                        request.headers.get("Referer").map(String::as_str),
+                        Some("https://y.qq.com/")
+                    );
                     r#"{"code":0,"lyric":"[00:01.00]line"}"#
                 };
-                Ok(HttpResponse { status: 200, headers: BTreeMap::new(), text: text.into() })
+                Ok(HttpResponse {
+                    status: 200,
+                    headers: BTreeMap::new(),
+                    text: text.into(),
+                })
             }
         }
         let source = include_str!("../../../../plugin-sdk/examples/qq-lyrics/index.js");
         let runtime = runtime_with_transport(&["c.y.qq.com"], source, Arc::new(QqTransport));
-        let result = runtime.call(Capability::Lyrics, json!({"track": {"title":"晴天", "artists":["周杰伦"], "durationMs":269000}})).await.unwrap();
+        let result = runtime
+            .call(
+                Capability::Lyrics,
+                json!({"track": {"title":"晴天", "artists":["周杰伦"], "durationMs":269000}}),
+            )
+            .await
+            .unwrap();
         assert_eq!(result["content"], "[00:01.00]line");
-        let result = runtime.call(Capability::Lyrics, json!({"track": {"title":"wrong", "artists":["周杰伦"]}})).await.unwrap();
+        let result = runtime
+            .call(
+                Capability::Lyrics,
+                json!({"track": {"title":"wrong", "artists":["周杰伦"]}}),
+            )
+            .await
+            .unwrap();
         assert!(result.is_null());
     }
 

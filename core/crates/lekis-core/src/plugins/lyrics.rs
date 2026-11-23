@@ -39,8 +39,7 @@ impl PluginManager {
             let origin = origins.get(&plugin.id);
             let provides_lyrics = plugin.kinds.iter().any(|k| k == "lyrics");
             let mygo_origin = origin.is_some() && plugin.compatibility.as_deref() == Some("mygo");
-            if !(provides_lyrics || mygo_origin)
-            {
+            if !(provides_lyrics || mygo_origin) {
                 continue;
             }
             if tokio::time::Instant::now() >= deadline {

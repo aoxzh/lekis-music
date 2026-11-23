@@ -194,14 +194,18 @@ impl EnrichPipeline {
         track_id: TrackId,
     ) -> Result<()> {
         let available = manager.list().await?;
-        if !available.iter().any(|p| p.enabled && p.kinds.iter().any(|k| k == "lyrics" || k == "source")) {
+        if !available
+            .iter()
+            .any(|p| p.enabled && p.kinds.iter().any(|k| k == "lyrics" || k == "source"))
+        {
             return Ok(());
         }
         let track = library.get_track(track_id).await?;
         let hint = hint_for(&track, library).await?;
         let candidates = manager.lyric_candidates(available, track_id, &hint).await?;
         if !candidates.is_empty() {
-            self.apply_lyrics(library, track_id, &hint, candidates).await?;
+            self.apply_lyrics(library, track_id, &hint, candidates)
+                .await?;
         }
         Ok(())
     }

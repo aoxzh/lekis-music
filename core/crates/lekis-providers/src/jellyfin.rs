@@ -197,15 +197,30 @@ impl MediaServer for Jellyfin {
     }
 
     async fn album_artwork(&self, album_id: &str) -> Result<Option<Vec<u8>>> {
-        let url = self.url(&format!("/Items/{}/Images/Primary", encode_path_segment(album_id)), &[])?;
-        let mut response = self.client.get(url).header(self.auth_header_name(), &self.api_key).send().await.map_err(http::network)?;
-        if response.status() == reqwest::StatusCode::NOT_FOUND { return Ok(None); }
+        let url = self.url(
+            &format!("/Items/{}/Images/Primary", encode_path_segment(album_id)),
+            &[],
+        )?;
+        let mut response = self
+            .client
+            .get(url)
+            .header(self.auth_header_name(), &self.api_key)
+            .send()
+            .await
+            .map_err(http::network)?;
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
         http::ensure_status(&response, "jellyfin album artwork")?;
         const LIMIT: usize = 16 * 1024 * 1024;
-        if response.content_length().is_some_and(|n| n > LIMIT as u64) { return Err(LekisError::invalid("album artwork too large")); }
+        if response.content_length().is_some_and(|n| n > LIMIT as u64) {
+            return Err(LekisError::invalid("album artwork too large"));
+        }
         let mut bytes = Vec::new();
         while let Some(chunk) = response.chunk().await.map_err(http::network)? {
-            if bytes.len() + chunk.len() > LIMIT { return Err(LekisError::invalid("album artwork too large")); }
+            if bytes.len() + chunk.len() > LIMIT {
+                return Err(LekisError::invalid("album artwork too large"));
+            }
             bytes.extend_from_slice(&chunk);
         }
         Ok(Some(bytes))
@@ -295,17 +310,27 @@ impl MediaServer for Jellyfin {
         if external_id == "." || external_id == ".." || external_id.is_empty() {
             return Err(LekisError::invalid("invalid Jellyfin item ID"));
         }
-        let url = self.url(&format!("/Audio/{}/Lyrics", encode_path_segment(external_id)), &[])?;
+        let url = self.url(
+            &format!("/Audio/{}/Lyrics", encode_path_segment(external_id)),
+            &[],
+        )?;
         // Never forward the server token through redirects, even to another origin.
         let client = reqwest::Client::builder()
             .user_agent(http::USER_AGENT)
             .timeout(http::TIMEOUT)
             .connect_timeout(http::CONNECT_TIMEOUT)
             .redirect(reqwest::redirect::Policy::none())
-            .build().map_err(http::network)?;
-        let response = client.get(url).header(self.auth_header_name(), &self.api_key)
-            .send().await.map_err(http::network)?;
-        if response.status() == reqwest::StatusCode::NOT_FOUND || response.status() == reqwest::StatusCode::NO_CONTENT {
+            .build()
+            .map_err(http::network)?;
+        let response = client
+            .get(url)
+            .header(self.auth_header_name(), &self.api_key)
+            .send()
+            .await
+            .map_err(http::network)?;
+        if response.status() == reqwest::StatusCode::NOT_FOUND
+            || response.status() == reqwest::StatusCode::NO_CONTENT
+        {
             return Ok(None);
         }
         http::ensure_status(&response, "jellyfin lyrics")?;
@@ -535,7 +560,12 @@ fn item_to_track(item: &Item) -> RemoteTrack {
     }
     RemoteTrack {
         external_album_id: item.album_id.clone().filter(|s| !s.is_empty()),
-        album_artists: item.album_artists.iter().map(|a| a.name.trim().to_owned()).filter(|s| !s.is_empty()).collect(),
+        album_artists: item
+            .album_artists
+            .iter()
+            .map(|a| a.name.trim().to_owned())
+            .filter(|s| !s.is_empty())
+            .collect(),
         disc_no: item.parent_index_number,
         track_no: item.index_number,
         external_id: item.id.clone(),
@@ -705,29 +735,72 @@ mod tests {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
-struct ServerLyrics { #[serde(default, alias = "lyrics")] lyrics: Vec<ServerLyricLine> }
+struct ServerLyrics {
+    #[serde(default, alias = "lyrics")]
+    lyrics: Vec<ServerLyricLine>,
+}
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
-struct ServerLyricLine { #[serde(alias = "start")] start: Option<i64>, #[serde(alias = "text")] text: Option<String> }
+struct ServerLyricLine {
+    #[serde(alias = "start")]
+    start: Option<i64>,
+    #[serde(alias = "text")]
+    text: Option<String>,
+}
 
 fn parse_lyrics(body: &str) -> Result<Option<Lyrics>> {
-    let response: ServerLyrics = serde_json::from_str(body).map_err(|e|
-        LekisError::new(ErrorCode::Internal, format!("jellyfin lyrics: invalid response: {e}")))?;
-    let lines: Vec<_> = response.lyrics.into_iter().filter_map(|line| {
-        line.text.filter(|text| !text.trim().is_empty()).map(|text| (line.start, text))
-    }).collect();
-    if lines.is_empty() { return Ok(None); }
+    let response: ServerLyrics = serde_json::from_str(body).map_err(|e| {
+        LekisError::new(
+            ErrorCode::Internal,
+            format!("jellyfin lyrics: invalid response: {e}"),
+        )
+    })?;
+    let lines: Vec<_> = response
+        .lyrics
+        .into_iter()
+        .filter_map(|line| {
+            line.text
+                .filter(|text| !text.trim().is_empty())
+                .map(|text| (line.start, text))
+        })
+        .collect();
+    if lines.is_empty() {
+        return Ok(None);
+    }
     // Mixed timed and untimed data is kept as plain text so no line is lost.
-    let timed = lines.iter().all(|(start, _)| start.is_some_and(|value| value >= 0));
-    let content = lines.into_iter().map(|(start, text)| {
-        let text = text.replace(['\r', '\n'], " ");
-        if let Some(ticks) = start.filter(|_| timed) {
-            let ms = ticks as u64 / TICKS_PER_MS;
-            format!("[{:02}:{:02}.{:03}]{}", ms / 60_000, (ms / 1000) % 60, ms % 1000, text)
-        } else { text }
-    }).collect::<Vec<_>>().join("\n");
-    Ok(Some(Lyrics { format: if timed { LyricsFormat::Lrc } else { LyricsFormat::Plain }, content,
-        source: "server:jellyfin".into(), offset_ms: 0, confidence: 1.0 }))
+    let timed = lines
+        .iter()
+        .all(|(start, _)| start.is_some_and(|value| value >= 0));
+    let content = lines
+        .into_iter()
+        .map(|(start, text)| {
+            let text = text.replace(['\r', '\n'], " ");
+            if let Some(ticks) = start.filter(|_| timed) {
+                let ms = ticks as u64 / TICKS_PER_MS;
+                format!(
+                    "[{:02}:{:02}.{:03}]{}",
+                    ms / 60_000,
+                    (ms / 1000) % 60,
+                    ms % 1000,
+                    text
+                )
+            } else {
+                text
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    Ok(Some(Lyrics {
+        format: if timed {
+            LyricsFormat::Lrc
+        } else {
+            LyricsFormat::Plain
+        },
+        content,
+        source: "server:jellyfin".into(),
+        offset_ms: 0,
+        confidence: 1.0,
+    }))
 }
 
 #[cfg(test)]
@@ -747,22 +820,45 @@ mod lyrics_tests {
                 let request = String::from_utf8_lossy(&buf[..n]).to_ascii_lowercase();
                 assert!(request.starts_with("get /audio/item/lyrics "));
                 assert!(request.contains("x-emby-token: test-token"));
-                let body = if status.starts_with("200") { r#"{"Lyrics":[{"Start":10000000,"Text":"hello"}]}"# } else { "" };
-                write!(stream, "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+                let body = if status.starts_with("200") {
+                    r#"{"Lyrics":[{"Start":10000000,"Text":"hello"}]}"#
+                } else {
+                    ""
+                };
+                write!(
+                    stream,
+                    "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                )
+                .unwrap();
             }
         });
-        let client = Jellyfin::new(SourceKind::Jellyfin, &format!("http://{address}"), "test-token".into()).unwrap();
-        assert_eq!(client.lyrics("item").await.unwrap().unwrap().content, "[00:01.000]hello");
+        let client = Jellyfin::new(
+            SourceKind::Jellyfin,
+            &format!("http://{address}"),
+            "test-token".into(),
+        )
+        .unwrap();
+        assert_eq!(
+            client.lyrics("item").await.unwrap().unwrap().content,
+            "[00:01.000]hello"
+        );
         assert!(client.lyrics("item").await.unwrap().is_none());
         task.join().unwrap();
     }
 
     #[test]
     fn converts_ticks_and_keeps_untimed_lines() {
-        let timed = parse_lyrics(r#"{"Lyrics":[{"Start":12345670,"Text":"first"},{"Start":610000000,"Text":"second"}]}"#).unwrap().unwrap();
+        let timed = parse_lyrics(
+            r#"{"Lyrics":[{"Start":12345670,"Text":"first"},{"Start":610000000,"Text":"second"}]}"#,
+        )
+        .unwrap()
+        .unwrap();
         assert_eq!(timed.format, LyricsFormat::Lrc);
         assert_eq!(timed.content, "[00:01.234]first\n[01:01.000]second");
-        let plain = parse_lyrics(r#"{"Lyrics":[{"Start":0,"Text":"first"},{"Text":"second"}]}"#).unwrap().unwrap();
+        let plain = parse_lyrics(r#"{"Lyrics":[{"Start":0,"Text":"first"},{"Text":"second"}]}"#)
+            .unwrap()
+            .unwrap();
         assert_eq!(plain.format, LyricsFormat::Plain);
         assert_eq!(plain.content, "first\nsecond");
         assert!(parse_lyrics(r#"{"Lyrics":[]}"#).unwrap().is_none());
@@ -786,12 +882,29 @@ mod album_artwork_tests {
                 let request = String::from_utf8_lossy(&buf[..n]).to_ascii_lowercase();
                 assert!(request.starts_with("get /items/album%2fid/images/primary "));
                 assert!(request.contains("x-emby-token: test-token"));
-                let body = if status.starts_with("200") { "image" } else { "" };
-                write!(stream, "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+                let body = if status.starts_with("200") {
+                    "image"
+                } else {
+                    ""
+                };
+                write!(
+                    stream,
+                    "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                )
+                .unwrap();
             }
         });
-        let client = Jellyfin::new(SourceKind::Emby, &format!("http://{address}"), "test-token".into()).unwrap();
-        assert_eq!(client.album_artwork("album/id").await.unwrap(), Some(b"image".to_vec()));
+        let client = Jellyfin::new(
+            SourceKind::Emby,
+            &format!("http://{address}"),
+            "test-token".into(),
+        )
+        .unwrap();
+        assert_eq!(
+            client.album_artwork("album/id").await.unwrap(),
+            Some(b"image".to_vec())
+        );
         assert_eq!(client.album_artwork("album/id").await.unwrap(), None);
         task.join().unwrap();
     }

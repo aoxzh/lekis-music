@@ -128,7 +128,10 @@ async fn plugin_only_tracks_skip_album_search_and_reject_old_candidates() {
         .append_plugin_tracks(
             source,
             vec![lekis_library::RemoteTrackRow {
-            external_album_id: None, album_artists: vec![], disc_no: None, track_no: None,
+                external_album_id: None,
+                album_artists: vec![],
+                disc_no: None,
+                track_no: None,
                 external_id: "stable".into(),
                 title: "Online".into(),
                 ..Default::default()

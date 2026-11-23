@@ -284,13 +284,27 @@ pub mod settings {
 const TEST_SOURCE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
 
 /// Search Spotify without persisting a short-lived user-provided token.
-pub async fn search_spotify_albums_with_token(token: String, album: String, artist: String, market: String) -> Result<Vec<lekis_enrich::spotify::SpotifyAlbum>> {
-    lekis_enrich::spotify::SpotifyCatalog::new()?.search_albums(&token, &album, &artist, &market).await
+pub async fn search_spotify_albums_with_token(
+    token: String,
+    album: String,
+    artist: String,
+    market: String,
+) -> Result<Vec<lekis_enrich::spotify::SpotifyAlbum>> {
+    lekis_enrich::spotify::SpotifyCatalog::new()?
+        .search_albums(&token, &album, &artist, &market)
+        .await
 }
 
 /// Search Apple Music with an ephemeral developer token.
-pub async fn search_apple_albums_with_token(token: String, album: String, artist: String, market: String) -> Result<Vec<lekis_enrich::apple_music::AppleAlbum>> {
-    lekis_enrich::apple_music::AppleMusicCatalog::new()?.search_albums(&token, &album, &artist, &market).await
+pub async fn search_apple_albums_with_token(
+    token: String,
+    album: String,
+    artist: String,
+    market: String,
+) -> Result<Vec<lekis_enrich::apple_music::AppleAlbum>> {
+    lekis_enrich::apple_music::AppleMusicCatalog::new()?
+        .search_albums(&token, &album, &artist, &market)
+        .await
 }
 
 impl LekisCore {
@@ -676,24 +690,49 @@ impl LekisCore {
     /// through `set_credential` under `lekis.spotify.access_token`. Results are
     /// transient: display them with Spotify branding and their `spotify_url`.
     pub async fn search_spotify_albums(
-        &self, album: String, artist: String, market: String,
+        &self,
+        album: String,
+        artist: String,
+        market: String,
     ) -> Result<Vec<lekis_enrich::spotify::SpotifyAlbum>> {
         let services = self.services.clone();
         self.run(async move {
-            let token = services.platform.credentials.get("lekis.spotify.access_token")
-                .ok_or_else(|| LekisError::new(ErrorCode::Auth, "Spotify access token is not configured"))?;
+            let token = services
+                .platform
+                .credentials
+                .get("lekis.spotify.access_token")
+                .ok_or_else(|| {
+                    LekisError::new(ErrorCode::Auth, "Spotify access token is not configured")
+                })?;
             lekis_enrich::spotify::SpotifyCatalog::new()?
-                .search_albums(&token, &album, &artist, &market).await
-        }).await
+                .search_albums(&token, &album, &artist, &market)
+                .await
+        })
+        .await
     }
 
     /// Search Apple Music using the encrypted platform credential store.
-    pub async fn search_apple_albums(&self, album: String, artist: String, market: String) -> Result<Vec<lekis_enrich::apple_music::AppleAlbum>> {
+    pub async fn search_apple_albums(
+        &self,
+        album: String,
+        artist: String,
+        market: String,
+    ) -> Result<Vec<lekis_enrich::apple_music::AppleAlbum>> {
         let services = self.services.clone();
         self.run(async move {
-            let token = services.platform.credentials.get("lekis.apple_music.developer_token").ok_or_else(|| LekisError::new(ErrorCode::Auth, "Apple Music developer token is not configured"))?;
+            let token = services
+                .platform
+                .credentials
+                .get("lekis.apple_music.developer_token")
+                .ok_or_else(|| {
+                    LekisError::new(
+                        ErrorCode::Auth,
+                        "Apple Music developer token is not configured",
+                    )
+                })?;
             search_apple_albums_with_token(token, album, artist, market).await
-        }).await
+        })
+        .await
     }
 
     /// 列出音源。
@@ -1292,13 +1331,30 @@ impl LekisCore {
                 return s.library.artwork_by_hash(&hash).await;
             }
             for (source_id, external_id) in s.library.remote_album_sources(id).await? {
-                let Ok(server) = s.resolver.server_for(source_id).await else { continue };
+                let Ok(server) = s.resolver.server_for(source_id).await else {
+                    continue;
+                };
                 let mut candidates = vec![external_id];
                 candidates.extend(s.library.remote_album_track_ids(id, source_id).await?);
                 for candidate in candidates {
-                    let Ok(Some(bytes)) = server.album_artwork(&candidate).await else { continue };
-                    let target = enrich::ArtworkTarget { track_id: None, album_id: Some(id), replace_album: false };
-                    if enrich::store_artwork_bytes(&s.config.cache_dir, &s.library, target, bytes, "server").await.is_ok() {
+                    let Ok(Some(bytes)) = server.album_artwork(&candidate).await else {
+                        continue;
+                    };
+                    let target = enrich::ArtworkTarget {
+                        track_id: None,
+                        album_id: Some(id),
+                        replace_album: false,
+                    };
+                    if enrich::store_artwork_bytes(
+                        &s.config.cache_dir,
+                        &s.library,
+                        target,
+                        bytes,
+                        "server",
+                    )
+                    .await
+                    .is_ok()
+                    {
                         if let Some(hash) = s.library.get_album(id).await?.artwork_hash {
                             return s.library.artwork_by_hash(&hash).await;
                         }

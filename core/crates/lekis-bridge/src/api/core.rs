@@ -1543,24 +1543,86 @@ pub struct SpotifyAlbumDto {
 }
 
 /// Search Spotify using the token in the platform credential store.
-pub async fn search_spotify_albums(album: String, artist: String, market: String) -> Result<Vec<SpotifyAlbumDto>, CoreError> {
-    Ok(core().search_spotify_albums(album, artist, market).await?.into_iter().map(|a| SpotifyAlbumDto {
-        id: a.id, title: a.title, artists: a.artists, release_date: a.release_date,
-        image_url: a.image_url, spotify_url: a.spotify_url,
-    }).collect())
+pub async fn search_spotify_albums(
+    album: String,
+    artist: String,
+    market: String,
+) -> Result<Vec<SpotifyAlbumDto>, CoreError> {
+    Ok(core()
+        .search_spotify_albums(album, artist, market)
+        .await?
+        .into_iter()
+        .map(|a| SpotifyAlbumDto {
+            id: a.id,
+            title: a.title,
+            artists: a.artists,
+            release_date: a.release_date,
+            image_url: a.image_url,
+            spotify_url: a.spotify_url,
+        })
+        .collect())
 }
 
 /// Search with an ephemeral token, for platforms without encrypted credential storage.
-pub async fn search_spotify_albums_session(album: String, artist: String, market: String, token: String) -> Result<Vec<SpotifyAlbumDto>, CoreError> {
+pub async fn search_spotify_albums_session(
+    album: String,
+    artist: String,
+    market: String,
+    token: String,
+) -> Result<Vec<SpotifyAlbumDto>, CoreError> {
     let rows = lekis_core::search_spotify_albums_with_token(token, album, artist, market).await?;
-    Ok(rows.into_iter().map(|a| SpotifyAlbumDto { id:a.id, title:a.title, artists:a.artists, release_date:a.release_date, image_url:a.image_url, spotify_url:a.spotify_url }).collect())
+    Ok(rows
+        .into_iter()
+        .map(|a| SpotifyAlbumDto {
+            id: a.id,
+            title: a.title,
+            artists: a.artists,
+            release_date: a.release_date,
+            image_url: a.image_url,
+            spotify_url: a.spotify_url,
+        })
+        .collect())
 }
 
 /// Search Apple Music using a stored developer token.
-pub async fn search_apple_albums(album: String, artist: String, market: String) -> Result<Vec<SpotifyAlbumDto>, CoreError> {
-    Ok(core().search_apple_albums(album, artist, market).await?.into_iter().map(|a| SpotifyAlbumDto { id: a.id, title: a.title, artists: vec![a.artist], release_date: a.release_date, image_url: a.image_url, spotify_url: a.external_url }).collect())
+pub async fn search_apple_albums(
+    album: String,
+    artist: String,
+    market: String,
+) -> Result<Vec<SpotifyAlbumDto>, CoreError> {
+    Ok(core()
+        .search_apple_albums(album, artist, market)
+        .await?
+        .into_iter()
+        .map(|a| SpotifyAlbumDto {
+            id: a.id,
+            title: a.title,
+            artists: vec![a.artist],
+            release_date: a.release_date,
+            image_url: a.image_url,
+            spotify_url: a.external_url,
+        })
+        .collect())
 }
 /// Search Apple Music with a session-only developer token.
-pub async fn search_apple_albums_session(album: String, artist: String, market: String, token: String) -> Result<Vec<SpotifyAlbumDto>, CoreError> {
-    Ok(lekis_core::search_apple_albums_with_token(token, album, artist, market).await?.into_iter().map(|a| SpotifyAlbumDto { id: a.id, title: a.title, artists: vec![a.artist], release_date: a.release_date, image_url: a.image_url, spotify_url: a.external_url }).collect())
+pub async fn search_apple_albums_session(
+    album: String,
+    artist: String,
+    market: String,
+    token: String,
+) -> Result<Vec<SpotifyAlbumDto>, CoreError> {
+    Ok(
+        lekis_core::search_apple_albums_with_token(token, album, artist, market)
+            .await?
+            .into_iter()
+            .map(|a| SpotifyAlbumDto {
+                id: a.id,
+                title: a.title,
+                artists: vec![a.artist],
+                release_date: a.release_date,
+                image_url: a.image_url,
+                spotify_url: a.external_url,
+            })
+            .collect(),
+    )
 }

@@ -75,7 +75,10 @@ mod tests {
         lib.upsert_remote_tracks(
             server,
             vec![RemoteTrackRow {
-            external_album_id: None, album_artists: vec![], disc_no: None, track_no: None,
+                external_album_id: None,
+                album_artists: vec![],
+                disc_no: None,
+                track_no: None,
                 external_id: "server1".into(),
                 title: "Beta server".into(),
                 artists: vec!["Server artist".into()],
@@ -89,7 +92,10 @@ mod tests {
                 plugin,
                 vec![
                     RemoteTrackRow {
-            external_album_id: None, album_artists: vec![], disc_no: None, track_no: None,
+                        external_album_id: None,
+                        album_artists: vec![],
+                        disc_no: None,
+                        track_no: None,
                         external_id: "online1".into(),
                         title: "Cache plugin".into(),
                         artists: vec!["Local artist".into()],
@@ -97,7 +103,10 @@ mod tests {
                         ..Default::default()
                     },
                     RemoteTrackRow {
-            external_album_id: None, album_artists: vec![], disc_no: None, track_no: None,
+                        external_album_id: None,
+                        album_artists: vec![],
+                        disc_no: None,
+                        track_no: None,
                         external_id: "online2".into(),
                         title: "Cache exclusive".into(),
                         artists: vec!["Exclusive artist".into()],

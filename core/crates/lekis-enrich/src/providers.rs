@@ -104,11 +104,11 @@ fn validate_mbid(mbid: &str) -> Result<&str> {
 // LRCLIB
 // ============================================================================
 
+#[path = "providers/amll.rs"]
+mod amll;
 #[cfg(test)]
 #[path = "providers/lrclib_tests.rs"]
 mod lrclib_tests;
-#[path = "providers/amll.rs"]
-mod amll;
 pub use amll::AmllLyrics;
 #[path = "providers/lyrics_matching.rs"]
 mod lyrics_matching;

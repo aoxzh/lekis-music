@@ -1,4 +1,4 @@
-//! AMLL TTML DB native API: https://amll.dev/reference/http-api/native.html
+//! AMLL TTML DB native API: <https://amll.dev/reference/http-api/native.html>
 use super::*;
 use std::collections::HashSet;
 

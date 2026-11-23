@@ -131,7 +131,10 @@ mod tests {
                 .skip(offset as usize)
                 .take(limit as usize)
                 .map(|(i, t)| RemoteTrack {
-            external_album_id: None, album_artists: vec![], disc_no: None, track_no: None,
+                    external_album_id: None,
+                    album_artists: vec![],
+                    disc_no: None,
+                    track_no: None,
                     external_id: format!("id{i}"),
                     title: t.clone(),
                     artists: vec!["周杰伦".into()],
@@ -191,7 +194,10 @@ mod tests {
     #[test]
     fn row_keeps_external_id_and_scores_below_local_lossless() {
         let t = RemoteTrack {
-            external_album_id: None, album_artists: vec![], disc_no: None, track_no: None,
+            external_album_id: None,
+            album_artists: vec![],
+            disc_no: None,
+            track_no: None,
             external_id: "abc".into(),
             title: "晴天".into(),
             artists: vec!["周杰伦".into()],

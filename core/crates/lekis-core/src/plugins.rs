@@ -495,7 +495,10 @@ impl PluginManager {
                     artwork.insert(track.id.clone(), url);
                 }
                 tracks.push(lekis_library::RemoteTrackRow {
-            external_album_id: None, album_artists: vec![], disc_no: None, track_no: None,
+                    external_album_id: None,
+                    album_artists: vec![],
+                    disc_no: None,
+                    track_no: None,
                     external_id: track.id,
                     title: track.title,
                     artists: track.artists,
@@ -1423,19 +1426,31 @@ mod tests {
         let source = write_source_plugin(&root, "export function search() { return {items:[{id:'ExactA',title:'Song',artists:['Singer']}]}; }");
         let (_, manager) = open_manager(&root);
         manager.install(&source).await?;
-        let item = manager.search("dev.lekis.test.source", "Song", 1).await?.tracks.remove(0);
+        let item = manager
+            .search("dev.lekis.test.source", "Song", 1)
+            .await?
+            .tracks
+            .remove(0);
         let plugin_id = "dev.lekis.test.lyrics";
         let directory = root.join("lyric-provider");
         write_plugin(&directory, plugin_id);
         fs::write(directory.join("index.js"), "export function lyrics(p) { return p.id == null && p.track.title === 'Song' ? {format:'lrc',content:'[00:01]sample',confidence:1} : null; }")?;
         manager.install(&directory).await?;
-        let hint = lekis_enrich::TrackHint { title:"Song".into(), ..Default::default() };
-        let rows = manager.lyric_candidates(manager.list().await?, item.id, &hint).await?;
+        let hint = lekis_enrich::TrackHint {
+            title: "Song".into(),
+            ..Default::default()
+        };
+        let rows = manager
+            .lyric_candidates(manager.list().await?, item.id, &hint)
+            .await?;
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].payload.content, "[00:01]sample");
         assert!(rows[0].provider_confidence < lekis_enrich::AUTO_APPLY_THRESHOLD);
         manager.set_enabled(plugin_id, false).await?;
-        assert!(manager.lyric_candidates(manager.list().await?, item.id, &hint).await?.is_empty());
+        assert!(manager
+            .lyric_candidates(manager.list().await?, item.id, &hint)
+            .await?
+            .is_empty());
         Ok(())
     }
 

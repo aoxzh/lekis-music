@@ -1097,7 +1097,10 @@ mod tests {
         lib.upsert_remote_tracks(
             src,
             vec![crate::RemoteTrackRow {
-            external_album_id: None, album_artists: vec![], disc_no: None, track_no: None,
+                external_album_id: None,
+                album_artists: vec![],
+                disc_no: None,
+                track_no: None,
                 external_id: "https://nav.local/stream?id=42".into(),
                 title: "远程晴天".into(),
                 artists: vec!["周杰伦".into()],
