@@ -34,3 +34,31 @@ Future<bool> revealFile(String path) async {
   }
   return false;
 }
+
+/// Opens [path] with the platform's default application. Returns false when
+/// unsupported or the process could not start.
+Future<bool> openFile(String path) async {
+  if (path.isEmpty || !canRevealFiles) return false;
+  try {
+    if (Platform.isWindows) {
+      await Process.start('cmd', [
+        '/c',
+        'start',
+        '',
+        path,
+      ], mode: ProcessStartMode.detached);
+      return true;
+    }
+    if (Platform.isMacOS) {
+      await Process.start('open', [path], mode: ProcessStartMode.detached);
+      return true;
+    }
+    if (Platform.isLinux) {
+      await Process.start('xdg-open', [path], mode: ProcessStartMode.detached);
+      return true;
+    }
+  } catch (_) {
+    return false;
+  }
+  return false;
+}

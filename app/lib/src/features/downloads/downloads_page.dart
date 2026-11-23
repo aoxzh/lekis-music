@@ -777,6 +777,12 @@ class _DownloadTile extends ConsumerWidget {
                 title: Text(l10n.pick('在文件夹中显示', 'Show in Folder')),
                 onTap: () => Navigator.of(sheet).pop('reveal'),
               ),
+            if (entry.download.cachePath.isNotEmpty && canRevealFiles)
+              ListTile(
+                leading: const Icon(Icons.open_in_new_rounded),
+                title: Text(l10n.pick('用其他应用打开', 'Open with Default App')),
+                onTap: () => Navigator.of(sheet).pop('open-file'),
+              ),
             if (track?.albumId != null)
               ListTile(
                 leading: const Icon(Icons.album_outlined),
@@ -807,6 +813,17 @@ class _DownloadTile extends ConsumerWidget {
                 content: Text(
                   l10n.pick('无法打开文件夹', 'Could not open the folder'),
                 ),
+              ),
+            );
+        }
+      case 'open-file':
+        final opened = await openFile(entry.download.cachePath);
+        if (!opened && context.mounted) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(l10n.pick('无法打开文件', 'Could not open the file')),
               ),
             );
         }
