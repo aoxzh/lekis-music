@@ -4,6 +4,7 @@
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/sources/sources_page.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
@@ -223,6 +224,9 @@ class _SourceTile extends StatelessWidget {
         ),
       ),
       isThreeLine: true,
+      onTap: () =>
+          Navigator.of(context)
+              .push(SourceDetailPage.route(source.sourceId.toInt())),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

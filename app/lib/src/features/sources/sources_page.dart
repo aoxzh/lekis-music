@@ -48,11 +48,7 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
 
   void _open(int id) {
     if (!isWideLayout(context)) {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => _SourceDetailPage(sourceId: id),
-        ),
-      );
+      Navigator.of(context).push(SourceDetailPage.route(id));
     } else {
       setState(() => _selection = _Source(id));
     }
@@ -248,9 +244,13 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _SourceDetailPage extends StatelessWidget {
-  const _SourceDetailPage({required this.sourceId});
+class SourceDetailPage extends StatelessWidget {
+  const SourceDetailPage({super.key, required this.sourceId});
   final int sourceId;
+
+  static Route<void> route(int sourceId) => MaterialPageRoute<void>(
+    builder: (_) => SourceDetailPage(sourceId: sourceId),
+  );
 
   @override
   Widget build(BuildContext context) => Scaffold(
