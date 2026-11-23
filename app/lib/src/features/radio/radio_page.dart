@@ -17,6 +17,8 @@ import 'package:material_ui/material_ui.dart';
 
 enum _RadioTab { popular, favorites, custom, recent }
 
+enum _LocalSort { defaultOrder, nameAsc, nameDesc }
+
 class RadioPage extends ConsumerStatefulWidget {
   const RadioPage({super.key});
 
@@ -34,6 +36,7 @@ class _RadioPageState extends ConsumerState<RadioPage> {
   final _localSearch = TextEditingController();
   final Map<int, bool> _favoriteOverrides = {};
   _RadioTab _tab = _RadioTab.popular;
+  _LocalSort _localSort = _LocalSort.defaultOrder;
   String? _countryCode;
   String? _language;
   String? _tag;
@@ -512,12 +515,22 @@ class _RadioPageState extends ConsumerState<RadioPage> {
           );
         }
         final query = _localSearch.text.trim().toLowerCase();
-        final filtered = query.isEmpty
-            ? list
-            : [
-                for (final station in list)
-                  if (_matchesLocal(station, query)) station,
-              ];
+        final filtered = <RadioStationDto>[
+          for (final station in list)
+            if (query.isEmpty || _matchesLocal(station, query)) station,
+        ];
+        switch (_localSort) {
+          case _LocalSort.defaultOrder:
+            break;
+          case _LocalSort.nameAsc:
+            filtered.sort(
+              (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+            );
+          case _LocalSort.nameDesc:
+            filtered.sort(
+              (a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()),
+            );
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -528,21 +541,53 @@ class _RadioPageState extends ConsumerState<RadioPage> {
                 pageGutterOf(context),
                 LekisSpacing.sm,
               ),
-              child: TextField(
-                controller: _localSearch,
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  hintText: RadioStrings.localSearchHint,
-                  prefixIcon: const Icon(Icons.search_rounded),
-                  suffixIcon: query.isEmpty
-                      ? null
-                      : IconButton(
-                          tooltip: RadioStrings.clear,
-                          icon: const Icon(Icons.close_rounded),
-                          onPressed: _localSearch.clear,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _localSearch,
+                      textInputAction: TextInputAction.search,
+                      decoration: InputDecoration(
+                        hintText: RadioStrings.localSearchHint,
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: query.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: RadioStrings.clear,
+                                icon: const Icon(Icons.close_rounded),
+                                onPressed: _localSearch.clear,
+                              ),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  if (list.length >= 2) ...[
+                    const SizedBox(width: LekisSpacing.sm),
+                    PopupMenuButton<_LocalSort>(
+                      tooltip: RadioStrings.sortBy,
+                      icon: const Icon(Icons.sort_rounded),
+                      initialValue: _localSort,
+                      onSelected: (value) => setState(() => _localSort = value),
+                      itemBuilder: (_) => [
+                        CheckedPopupMenuItem(
+                          value: _LocalSort.defaultOrder,
+                          checked: _localSort == _LocalSort.defaultOrder,
+                          child: Text(RadioStrings.sortDefault),
                         ),
-                  isDense: true,
-                ),
+                        CheckedPopupMenuItem(
+                          value: _LocalSort.nameAsc,
+                          checked: _localSort == _LocalSort.nameAsc,
+                          child: Text(RadioStrings.sortNameAsc),
+                        ),
+                        CheckedPopupMenuItem(
+                          value: _LocalSort.nameDesc,
+                          checked: _localSort == _LocalSort.nameDesc,
+                          child: Text(RadioStrings.sortNameDesc),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
               ),
             ),
             Expanded(

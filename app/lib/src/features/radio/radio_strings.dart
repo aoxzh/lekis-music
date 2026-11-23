@@ -19,6 +19,10 @@ abstract final class RadioStrings {
       L10n.tr('搜索电台名称，例如 Jazz、新闻、BBC', 'Search stations, e.g. Jazz, News, BBC');
   static String get localSearchHint =>
       L10n.tr('搜索名称、国家或标签', 'Search name, country, or tag');
+  static String get sortBy => L10n.tr('排序', 'Sort');
+  static String get sortDefault => L10n.tr('默认顺序', 'Default Order');
+  static String get sortNameAsc => L10n.tr('名称 A–Z', 'Name A–Z');
+  static String get sortNameDesc => L10n.tr('名称 Z–A', 'Name Z–A');
   static String get noMatch => L10n.tr('没有匹配的电台', 'No Matching Stations');
   static String get noMatchBody => L10n.tr(
     '试试其他名称、国家、语言或标签。',
