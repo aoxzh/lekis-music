@@ -3,15 +3,19 @@
 // 只占标题行尾部的几个图标位：喜欢 + 评分（一个星标，显示当前星级，点开
 // 评分面板）+ “更多”菜单（下载、添加到歌单）。永远不换行。
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/downloads/downloads_providers.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/now_playing/lyrics_editor_sheet.dart';
+import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
+import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
@@ -24,7 +28,16 @@ const BoxConstraints _touchTarget = BoxConstraints(
   minHeight: LekisSizes.touchTargetMin,
 );
 
-enum _MoreAction { rate, download, addToPlaylist, playOnDevice, editLyrics }
+enum _MoreAction {
+  rate,
+  download,
+  addToPlaylist,
+  playOnDevice,
+  editLyrics,
+  lyricsEarlier,
+  lyricsLater,
+  lyricsReset,
+}
 
 class NowPlayingLibraryActions extends ConsumerWidget {
   const NowPlayingLibraryActions({super.key, this.showRating = true});
@@ -110,6 +123,53 @@ class _MoreButton extends ConsumerWidget {
   final TrackDto track;
   final bool includeRating;
 
+  Future<void> _adjustLyrics(
+    BuildContext context,
+    WidgetRef ref,
+    int Function(int current) next,
+  ) async {
+    try {
+      final current = await core.lyrics(trackId: track.id);
+      if (current == null) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick('这首歌还没有歌词', 'No lyrics for this track'),
+            ),
+          ),
+        );
+        return;
+      }
+      final offset = next(current.offsetMs).clamp(-60000, 60000);
+      await core.setLyricsOffset(trackId: track.id, offsetMs: offset);
+      ref.invalidate(lyricsProvider(track.id));
+      if (!context.mounted) return;
+      final label = '${offset >= 0 ? '+' : ''}${offset}ms';
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick('歌词偏移 $label', 'Lyrics offset $label'),
+            ),
+          ),
+        );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.pick(
+              '调整歌词偏移失败：$e',
+              'Failed to adjust lyrics offset: $e',
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.lekisColors;
@@ -148,6 +208,12 @@ class _MoreButton extends ConsumerWidget {
             showPlayOnDeviceSheet(context, ref);
           case _MoreAction.editLyrics:
             showLyricsEditor(context, ref, track.id);
+          case _MoreAction.lyricsEarlier:
+            unawaited(_adjustLyrics(context, ref, (offset) => offset + 500));
+          case _MoreAction.lyricsLater:
+            unawaited(_adjustLyrics(context, ref, (offset) => offset - 500));
+          case _MoreAction.lyricsReset:
+            unawaited(_adjustLyrics(context, ref, (_) => 0));
         }
       },
       itemBuilder: (_) => [
@@ -190,6 +256,28 @@ class _MoreButton extends ConsumerWidget {
           child: item(
             Icons.edit_note_rounded,
             context.l10n.pick('编辑歌词', 'Edit Lyrics'),
+          ),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: _MoreAction.lyricsEarlier,
+          child: item(
+            Icons.fast_rewind_rounded,
+            context.l10n.pick('歌词提前 0.5 秒', 'Lyrics 0.5s earlier'),
+          ),
+        ),
+        PopupMenuItem(
+          value: _MoreAction.lyricsLater,
+          child: item(
+            Icons.fast_forward_rounded,
+            context.l10n.pick('歌词延后 0.5 秒', 'Lyrics 0.5s later'),
+          ),
+        ),
+        PopupMenuItem(
+          value: _MoreAction.lyricsReset,
+          child: item(
+            Icons.restart_alt_rounded,
+            context.l10n.pick('重置歌词偏移', 'Reset lyrics offset'),
           ),
         ),
       ],
