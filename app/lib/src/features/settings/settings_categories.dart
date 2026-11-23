@@ -221,6 +221,7 @@ List<Widget> _advancedSections() => [
   if (DesktopTraySettingsSection.isSupported)
     const DesktopTraySettingsSection(),
   const SettingsBackupSection(),
+  const _ImageCacheSection(),
   const _DiagnosticsSection(),
 ];
 List<Widget> _aboutSections() => const [_AboutSection()];
@@ -1035,6 +1036,65 @@ class PluginsSettingsTile extends ConsumerWidget {
       subtitle: Text(subtitle),
       chevron: true,
       onTap: () => openPlugins(context),
+    );
+  }
+}
+
+String _formatCacheBytes(int bytes) {
+  if (bytes < 1000) return '$bytes B';
+  const units = ['KB', 'MB', 'GB'];
+  var value = bytes / 1000;
+  var unit = 0;
+  while (value >= 1000 && unit < units.length - 1) {
+    value /= 1000;
+    unit++;
+  }
+  final digits = value >= 100 ? 0 : (value >= 10 ? 1 : 2);
+  return '${value.toStringAsFixed(digits)} ${units[unit]}';
+}
+
+class _ImageCacheSection extends StatefulWidget {
+  const _ImageCacheSection();
+
+  @override
+  State<_ImageCacheSection> createState() => _ImageCacheSectionState();
+}
+
+class _ImageCacheSectionState extends State<_ImageCacheSection> {
+  void _clear() {
+    final cache = PaintingBinding.instance.imageCache;
+    cache.clear();
+    cache.clearLiveImages();
+    setState(() {});
+    showFeatureSnack(
+      context,
+      context.l10n.pick('已清除图片缓存', 'Image cache cleared'),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cache = PaintingBinding.instance.imageCache;
+    final used = _formatCacheBytes(cache.currentSizeBytes);
+    final max = _formatCacheBytes(cache.maximumSizeBytes);
+    return SettingsSection(
+      title: context.l10n.pick('性能', 'Performance'),
+      children: [
+        SettingsTile(
+          icon: Icons.image_outlined,
+          title: context.l10n.pick('图片缓存', 'Image cache'),
+          subtitle: Text(
+            context.l10n.pick(
+              '$used / $max · ${cache.currentSize} 张',
+              '$used / $max · ${cache.currentSize} images',
+            ),
+          ),
+          trailing: TextButton(
+            onPressed: cache.currentSize == 0 ? null : _clear,
+            child: Text(context.l10n.pick('清除', 'Clear')),
+          ),
+        ),
+      ],
     );
   }
 }
