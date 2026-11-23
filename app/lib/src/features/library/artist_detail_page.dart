@@ -10,6 +10,7 @@ import 'package:lekis/src/features/library/widgets/shelf.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
+import 'package:lekis/src/l10n/duration_text.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
@@ -84,6 +85,14 @@ class _ArtistDetailViewState extends ConsumerState<ArtistDetailView> {
         final shown = canExpand && !_showAllSongs
             ? tracks.sublist(0, ArtistDetailView._songPreview)
             : tracks;
+        final totalMs = tracks.fold<int>(
+          0,
+          (sum, track) => sum + track.durationMs.toInt(),
+        );
+        final meta = tracks.isEmpty
+            ? null
+            : '${context.l10n.pick('${tracks.length} 首歌曲', '${tracks.length} songs')}'
+                  ' · ${formatTotalDuration(Duration(milliseconds: totalMs))}';
         return CustomScrollView(
           key: PageStorageKey('artist-$artistId'),
           slivers: [
@@ -92,6 +101,7 @@ class _ArtistDetailViewState extends ConsumerState<ArtistDetailView> {
               sliver: SliverToBoxAdapter(
                 child: _ArtistHeader(
                   name: artist.name,
+                  meta: meta,
                   trackIds: [for (final track in tracks) track.id],
                   onPlay: tracks.isEmpty
                       ? null
@@ -275,12 +285,14 @@ class _ArtistSkeleton extends StatelessWidget {
 class _ArtistHeader extends StatelessWidget {
   const _ArtistHeader({
     required this.name,
+    this.meta,
     required this.trackIds,
     required this.onPlay,
     required this.onShuffle,
   });
 
   final String name;
+  final String? meta;
   final List<int> trackIds;
   final VoidCallback? onPlay;
   final VoidCallback? onShuffle;
@@ -311,6 +323,17 @@ class _ArtistHeader extends StatelessWidget {
             ),
           ),
         );
+        final metaText = meta == null
+            ? null
+            : Text(
+                meta!,
+                textAlign: row ? TextAlign.start : TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              );
         final buttons = Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -330,6 +353,10 @@ class _ArtistHeader extends StatelessWidget {
               ArtistAvatar(name: name, size: LekisSizes.gridArtworkMin),
               const SizedBox(height: LekisSpacing.lg),
               title,
+              if (metaText != null) ...[
+                const SizedBox(height: LekisSpacing.xxs),
+                metaText,
+              ],
               const SizedBox(height: LekisSpacing.lg),
               buttons,
             ],
@@ -345,6 +372,10 @@ class _ArtistHeader extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   title,
+                  if (metaText != null) ...[
+                    const SizedBox(height: LekisSpacing.xxs),
+                    metaText,
+                  ],
                   const SizedBox(height: LekisSpacing.md),
                   buttons,
                 ],

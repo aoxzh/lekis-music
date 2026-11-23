@@ -11,6 +11,7 @@ import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_actions.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
+import 'package:lekis/src/l10n/duration_text.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
@@ -103,6 +104,14 @@ class AlbumDetailView extends ConsumerWidget {
         final album = shown;
         final rows = tracks.value ?? const <TrackRowDto>[];
         final actions = ref.read(playerActionsProvider);
+        final totalDuration = rows.isEmpty
+            ? null
+            : Duration(
+                milliseconds: rows.fold<int>(
+                  0,
+                  (sum, row) => sum + row.durationMs.toInt(),
+                ),
+              );
         return CustomScrollView(
           key: PageStorageKey('album-$albumId'),
           slivers: [
@@ -117,6 +126,7 @@ class AlbumDetailView extends ConsumerWidget {
                 child: _AlbumHeader(
                   album: album,
                   heroTag: heroTag,
+                  totalDuration: totalDuration,
                   trackIds: [for (final row in rows) row.id],
                   downloadableTrackIds: [
                     for (final row in rows)
@@ -173,6 +183,7 @@ class _AlbumHeader extends ConsumerWidget {
   const _AlbumHeader({
     required this.album,
     required this.heroTag,
+    this.totalDuration,
     required this.trackIds,
     required this.downloadableTrackIds,
     required this.onPlay,
@@ -181,6 +192,7 @@ class _AlbumHeader extends ConsumerWidget {
 
   final AlbumDto album;
   final Object? heroTag;
+  final Duration? totalDuration;
   final List<int> trackIds;
   final List<int> downloadableTrackIds;
   final VoidCallback? onPlay;
@@ -211,6 +223,8 @@ class _AlbumHeader extends ConsumerWidget {
             '${album.trackCount} 首歌曲',
             '${album.trackCount} songs',
           ),
+          if (totalDuration != null && totalDuration!.inSeconds > 0)
+            formatTotalDuration(totalDuration!),
         ].join(' · ');
 
         final artistLink = InkWell(
