@@ -130,6 +130,10 @@ class PagedList<T> extends ChangeNotifier {
   final int pageSize;
   final int maxCachedPages;
 
+  /// How close to a page edge an item must be before the adjacent page is
+  /// prefetched.
+  static const int _prefetchThreshold = 24;
+
   // ignore: prefer_collection_literals — LinkedHashMap keeps LRU order.
   final LinkedHashMap<int, List<T>> _pages = LinkedHashMap<int, List<T>>();
   final Set<int> _inFlight = <int>{};
@@ -161,7 +165,23 @@ class PagedList<T> extends ChangeNotifier {
     }
     _pages[page] = rows; // touch (LRU)
     final i = index - page * pageSize;
-    return i < rows.length ? rows[i] : null;
+    final value = i < rows.length ? rows[i] : null;
+    // Prefetch the neighbouring page while the user is still inside this one,
+    // so scrolling across a page boundary does not flash placeholders.
+    if (i >= rows.length - _prefetchThreshold) _prefetch(page + 1);
+    if (i < _prefetchThreshold) _prefetch(page - 1);
+    return value;
+  }
+
+  /// Starts a background page load unless it is already cached, in flight,
+  /// or entirely past the known end of the list.
+  void _prefetch(int page) {
+    if (page < 0 || _pages.containsKey(page) || _inFlight.contains(page)) {
+      return;
+    }
+    final total = _total;
+    if (total != null && page * pageSize >= total) return;
+    _load(page);
   }
 
   /// Loaded, contiguous items around [index] (for building a play queue
