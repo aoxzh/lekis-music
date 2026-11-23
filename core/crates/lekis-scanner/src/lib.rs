@@ -21,6 +21,7 @@ pub mod tags;
 mod test_support;
 mod walk;
 
+use futures_util::StreamExt;
 use lekis_library::{Library, ScannedFile, ScannedTags};
 use lekis_types::{now_ms, CoreEvent, Result, ScanPhase, SourceId};
 use lekis_vfs::{partial, Vfs};
@@ -217,9 +218,32 @@ impl Scanner {
             }
         }
 
+        let concurrency = {
+            // Same clue the directory walk uses: local disks stay modest,
+            // NAS boxes that advertise more parallel listings get more reads.
+            let suggested = vfs.capabilities().suggested_concurrency;
+            if suggested == 0 {
+                8
+            } else {
+                suggested.clamp(1, 16)
+            }
+        };
+        tracing::debug!(target: "scanner", %source_id, concurrency, "reading tags");
         let mut batch = Vec::with_capacity(BATCH_SIZE);
-        for (i, found) in files.into_iter().enumerate() {
-            let tags = match self.read_tags(vfs.as_ref(), &found).await {
+        // `buffered` keeps the input order (progress stays monotonic and
+        // batches are deterministic) while allowing several head/tail reads
+        // and tag parses to overlap. This is the slow part of a NAS scan.
+        let mut stream = futures_util::stream::iter(files.into_iter().enumerate())
+            .map(|(i, found)| {
+                let vfs = Arc::clone(&vfs);
+                async move {
+                    let result = self.read_tags(vfs.as_ref(), &found).await;
+                    (i, found, result)
+                }
+            })
+            .buffered(concurrency);
+        while let Some((i, found, result)) = stream.next().await {
+            let tags = match result {
                 Ok(t) => t,
                 // 明确不是音频（AppleDouble 资源分叉之类）：不入库，也不拿文件名兜底，
                 // 否则列表里会多出一首时长 0 的"同名歌"。旧的兜底行扫描结束时按未见清掉。
@@ -250,6 +274,7 @@ impl Scanner {
                 });
             }
         }
+        drop(stream);
         self.flush(&mut batch, &mut report).await?;
 
         // 列不全的目录（网络抖动、条目太多）：里面已入库的文件这次没看到，
