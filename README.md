@@ -106,7 +106,7 @@
   - **ReplayGain**, **10-band equalizer** with AutoEq-style headphone presets, sleep timer (15/30/60/90 min + end-of-track), playback session restore, and **Last.fm / ListenBrainz / Libre.fm** scrobbling.
   - Podcasts (directory search, charts, RSS, OPML) and Internet Radio (Radio Browser + custom streams).
 - **Lyrics, Artwork & Visual Experience**
-  - Zero-API-key cascading enrichment for **album artwork** (Cover Art Archive, iTunes Global/JP, Deezer, VocaDB, MusicBrainz) and **synced lyrics** (LRCLIB, etc.), with a review queue for low-confidence matches.
+  - Zero-API-key cascading enrichment for **album artwork** (Cover Art Archive, iTunes Global/JP, Deezer, VocaDB, MusicBrainz) and **synced lyrics** (LRCLIB, etc.), with a review queue for low-confidence matches. Results are written back next to the source files by default (`cover.jpg` / `<track>.jpg` and matching `.lrc`), so a rescan or re-add does not fetch them again; read-only shares and media servers are skipped.
   - Classic lyrics view + Flow / Steps / Tilt stages, word-by-word karaoke, CJK per-locale font fallback, manual lyric & offset editor, and **Windows native floating desktop lyrics** (Win32 layered window + Direct2D/DirectWrite, click-through lock).
   - **Vinyl**, **Cassette**, and **Cover** Now Playing styles; **Liquid Glass** & **Flat** display styles; full **English / Simplified Chinese** live language switching.
 - **Multi-Device & Extensibility**
@@ -153,7 +153,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release history.
   - **ReplayGain 响度均衡**、**10 段均衡器**与 AutoEq 风格耳机预设、睡眠定时（含「放完这首」）、播放会话恢复、**Last.fm / ListenBrainz / Libre.fm** 听歌上报。
   - 内置 **播客**（目录搜索、榜单、RSS、OPML）与 **网络电台**（Radio Browser 与自定义流）。
 - **封面、歌词与桌面体验**
-  - **免 API Key 多源补全**：级联 5 个封面源（含 Cover Art Archive、iTunes 日区/全球、Deezer、VocaDB、网易云等，针对日系 / ACG 专辑专项增强）与 4 个歌词源（含 LRCLIB、网易云翻译歌词、酷狗等），支持按需选择补全并内置待确认队列。
+  - **免 API Key 多源补全**：级联 5 个封面源（含 Cover Art Archive、iTunes 日区/全球、Deezer、VocaDB、网易云等，针对日系 / ACG 专辑专项增强）与 4 个歌词源（含 LRCLIB、网易云翻译歌词、酷狗等），支持按需选择补全并内置待确认队列。补全结果默认写回音源目录（`cover.jpg` / `<歌曲名>.jpg` 与同名 `.lrc`），重新扫描或重新添加不用再补；只读共享和媒体服务器自动跳过。
   - **沉浸式歌词**：经典歌词 + Flow / Steps / Tilt 歌词舞台、逐字卡拉 OK、中日韩分语种字体回退（解决中日双语汉字异体字混排）、手动编辑歌词与时间偏移。
   - **Windows 原生桌面悬浮歌词**：Win32 分层窗口 + Direct2D / DirectWrite 逐字渲染，支持拖动、鼠标穿透锁定、自定义字体与配色。
   - **多元视觉**：提供封面、**黑胶唱片**、**复古磁带**三种播放页样式，支持**液态玻璃 / 扁平**显示样式、可定制导航栏位置与中英双语实时切换。
