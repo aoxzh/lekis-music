@@ -26,6 +26,10 @@ import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:material_ui/material_ui.dart';
 
+/// Which search result group is shown. The chips only appear when more than
+/// one group has hits, so simple searches keep the full list.
+enum _SearchFilter { all, tracks, albums, artists }
+
 /// Search across songs, albums and artists (debounced).
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key, this.pluginId});
@@ -45,6 +49,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     text: widget.pluginId == null ? ref.read(searchQueryProvider) : '',
   );
   List<String> _recent = const [];
+  _SearchFilter _filter = _SearchFilter.all;
 
   @override
   void initState() {
@@ -118,6 +123,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   void _set(String v) {
+    _filter = _SearchFilter.all;
     if (widget.pluginId == null) {
       ref.read(searchQueryProvider.notifier).set(v);
     } else {
@@ -235,7 +241,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           ),
         );
       } else {
-        body = _Results(results: data, onlinePlugin: source != null);
+        body = _Results(
+          results: data,
+          onlinePlugin: source != null,
+          filter: _filter,
+          onFilter: (value) => setState(() => _filter = value),
+        );
       }
     }
 
@@ -378,9 +389,16 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 }
 
 class _Results extends ConsumerWidget {
-  const _Results({required this.results, this.onlinePlugin = false});
+  const _Results({
+    required this.results,
+    required this.filter,
+    required this.onFilter,
+    this.onlinePlugin = false,
+  });
 
   final SearchResultsDto results;
+  final _SearchFilter filter;
+  final ValueChanged<_SearchFilter> onFilter;
   final bool onlinePlugin;
 
   @override
@@ -388,6 +406,23 @@ class _Results extends ConsumerWidget {
     final gutter = pageGutterOf(context);
     final theme = Theme.of(context);
     final tracks = results.tracks;
+    final albums = results.albums;
+    final artists = results.artists;
+    final l10n = context.l10n;
+    final showFilters =
+        [
+          tracks.isNotEmpty,
+          albums.isNotEmpty,
+          artists.isNotEmpty,
+        ].where((nonEmpty) => nonEmpty).length >
+        1;
+    final showTracks =
+        filter == _SearchFilter.all || filter == _SearchFilter.tracks;
+    final showAlbums =
+        filter == _SearchFilter.all || filter == _SearchFilter.albums;
+    final showArtists =
+        filter == _SearchFilter.all || filter == _SearchFilter.artists;
+
     Widget sectionTitle(String t) => Padding(
       padding: EdgeInsets.fromLTRB(
         gutter,
@@ -401,16 +436,55 @@ class _Results extends ConsumerWidget {
       ),
     );
 
-    final l10n = context.l10n;
     return CustomScrollView(
       slivers: [
-        if (tracks.isNotEmpty)
+        if (showFilters)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                gutter,
+                LekisSpacing.sm,
+                gutter,
+                LekisSpacing.xs,
+              ),
+              child: Wrap(
+                spacing: LekisSpacing.sm,
+                runSpacing: LekisSpacing.xs,
+                children: [
+                  ChoiceChip(
+                    label: Text(l10n.pick('全部', 'All')),
+                    selected: filter == _SearchFilter.all,
+                    onSelected: (_) => onFilter(_SearchFilter.all),
+                  ),
+                  if (tracks.isNotEmpty)
+                    ChoiceChip(
+                      label: Text('${l10n.segSongs} ${tracks.length}'),
+                      selected: filter == _SearchFilter.tracks,
+                      onSelected: (_) => onFilter(_SearchFilter.tracks),
+                    ),
+                  if (albums.isNotEmpty)
+                    ChoiceChip(
+                      label: Text('${l10n.segAlbums} ${albums.length}'),
+                      selected: filter == _SearchFilter.albums,
+                      onSelected: (_) => onFilter(_SearchFilter.albums),
+                    ),
+                  if (artists.isNotEmpty)
+                    ChoiceChip(
+                      label: Text('${l10n.segArtists} ${artists.length}'),
+                      selected: filter == _SearchFilter.artists,
+                      onSelected: (_) => onFilter(_SearchFilter.artists),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        if (showTracks && tracks.isNotEmpty)
           SliverToBoxAdapter(child: sectionTitle(l10n.segSongs)),
         SliverPadding(
           padding: EdgeInsets.symmetric(horizontal: gutter - LekisSpacing.sm),
           sliver: SliverFixedExtentList.builder(
             itemExtent: TrackTile.extent,
-            itemCount: tracks.length,
+            itemCount: showTracks ? tracks.length : 0,
             itemBuilder: (context, i) => TrackTile(
               track: tracks[i],
               onlinePlugin: onlinePlugin,
@@ -419,27 +493,27 @@ class _Results extends ConsumerWidget {
             ),
           ),
         ),
-        if (results.albums.isNotEmpty)
+        if (showAlbums && albums.isNotEmpty)
           SliverToBoxAdapter(
             child: ArtworkShelf(
               title: l10n.segAlbums,
-              itemCount: results.albums.length,
+              itemCount: albums.length,
               itemBuilder: (context, i) => AlbumCard(
-                album: results.albums[i],
+                album: albums[i],
                 onTap: () =>
                     Navigator.of(context)
-                        .push(AlbumDetailPage.route(results.albums[i].id)),
+                        .push(AlbumDetailPage.route(albums[i].id)),
               ),
             ),
           ),
-        if (results.artists.isNotEmpty)
+        if (showArtists && artists.isNotEmpty)
           SliverToBoxAdapter(child: sectionTitle(l10n.segArtists)),
         SliverPadding(
           padding: EdgeInsets.symmetric(horizontal: gutter - LekisSpacing.sm),
           sliver: SliverList.builder(
-            itemCount: results.artists.length,
+            itemCount: showArtists ? artists.length : 0,
             itemBuilder: (context, i) {
-              final a = results.artists[i];
+              final a = artists[i];
               return ListTile(
                 minTileHeight: LekisSizes.touchTargetMin + LekisSpacing.md,
                 shape: RoundedRectangleBorder(
