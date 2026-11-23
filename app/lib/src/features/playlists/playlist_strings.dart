@@ -92,8 +92,34 @@ abstract final class PlaylistStrings {
   // 歌单详情
   static String playlistLoadFailed(String e) =>
       L10n.tr('歌单加载失败：$e', 'Couldn\'t load playlist: $e');
-  static String detailSubtitle(int n) =>
-      L10n.tr('$n 首 · 可上下移动条目', '${_songs(n)} · reorder with up/down');
+  static String detailSubtitle(int n, {Duration? total}) {
+    final countZh = '$n 首';
+    final countEn = _songs(n);
+    if (total == null || total.inSeconds <= 0) {
+      return L10n.tr('$countZh · 可上下移动条目', '$countEn · reorder with up/down');
+    }
+    return L10n.tr(
+      '$countZh · ${_durationZh(total)}',
+      '$countEn · ${_durationEn(total)}',
+    );
+  }
+
+  static String _durationZh(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    if (h > 0) return '$h 小时 $m 分';
+    final s = d.inSeconds.remainder(60);
+    return s == 0 ? '$m 分钟' : '$m 分 $s 秒';
+  }
+
+  static String _durationEn(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    if (h > 0) return '${h}h ${m}m';
+    final s = d.inSeconds.remainder(60);
+    return s == 0 ? '${m}m' : '${m}m ${s}s';
+  }
+
   static String entriesLoadFailed(String e) =>
       L10n.tr('条目加载失败：$e', 'Couldn\'t load entries: $e');
   static String smartMatched(int n, bool capped) => L10n.tr(

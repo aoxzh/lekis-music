@@ -169,6 +169,12 @@ class _StaticPlaylistBody extends ConsumerWidget {
         .where((entry) => entry.track != null && !entry.track!.isLocal)
         .map((entry) => entry.track!.id)
         .toList(growable: false);
+    var totalMs = 0;
+    for (final entry in rows) {
+      final track = entry.track;
+      if (track != null) totalMs += track.durationMs.toInt();
+    }
+    final totalDuration = totalMs > 0 ? Duration(milliseconds: totalMs) : null;
 
     return CustomScrollView(
       key: PageStorageKey('playlist-${playlist.id}'),
@@ -185,6 +191,7 @@ class _StaticPlaylistBody extends ConsumerWidget {
               playlist: playlist,
               subtitle: PlaylistStrings.detailSubtitle(
                 rows.isEmpty ? playlist.trackCount : rows.length,
+                total: totalDuration,
               ),
               onPlay: rows.any((e) => e.track != null)
                   ? () => playPlaylistContext(context, playlist)
