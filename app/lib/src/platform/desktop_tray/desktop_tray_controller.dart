@@ -19,6 +19,7 @@ import 'package:window_manager/window_manager.dart';
 import '../../features/player/playback_session.dart';
 import '../../features/player/player_providers.dart';
 import '../../features/settings/desktop_tray_settings.dart';
+import '../../rust/api/core.dart' as core;
 import 'desktop_tray_menu_state.dart';
 
 const String _trayIconAsset = 'assets/brand/tray_icon.ico';
@@ -38,6 +39,10 @@ class DesktopTrayController {
   MenuItem? _playPauseItem;
   MenuItem? _previousItem;
   MenuItem? _nextItem;
+
+  int? _trackId;
+  int _tooltipGeneration = 0;
+  String? _nowPlayingLabel;
 
   Window? _window;
   int? _closeListener;
@@ -82,6 +87,44 @@ class DesktopTrayController {
   void updatePlayback(PlaybackUiState playback) {
     _menuState = DesktopTrayMenuState.fromPlayback(playback);
     _applyMenuState();
+    if (!_desktopTraySupported) return;
+    if (playback.trackId != _trackId) {
+      _trackId = playback.trackId;
+      unawaited(_refreshNowPlaying(playback.trackId));
+    }
+  }
+
+  Future<void> _refreshNowPlaying(int? trackId) async {
+    final generation = ++_tooltipGeneration;
+    if (trackId == null) {
+      _nowPlayingLabel = null;
+      _applyTooltip();
+      return;
+    }
+    try {
+      final track = await core.getTrack(trackId: trackId);
+      if (_disposed || generation != _tooltipGeneration) return;
+      final artists = track.artists.join(' / ');
+      _nowPlayingLabel = artists.isEmpty
+          ? track.title
+          : '${track.title} — $artists';
+    } catch (error) {
+      if (_disposed || generation != _tooltipGeneration) return;
+      debugPrint('desktop tray: track label failed: $error');
+      _nowPlayingLabel = null;
+    }
+    _applyTooltip();
+  }
+
+  String get _tooltipText {
+    final label = _nowPlayingLabel;
+    if (label == null || label.isEmpty) return _trayTooltip;
+    final text = '$label · $_trayTooltip';
+    return text.length <= 120 ? text : '${text.substring(0, 119)}…';
+  }
+
+  void _applyTooltip() {
+    _trayIcon?.setTooltip(_tooltipText);
   }
 
   Future<void> applySettings(DesktopTraySettings settings) async {
@@ -125,7 +168,7 @@ class DesktopTrayController {
       _applyMenuState();
 
       icon.icon = image;
-      icon.setTooltip(_trayTooltip);
+      _applyTooltip();
       icon.setContextMenu(menu);
       icon.setContextMenuTrigger(ContextMenuTrigger.rightClicked);
       icon.setVisible(true);
