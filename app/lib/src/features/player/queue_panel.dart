@@ -7,6 +7,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/library/library_providers.dart'
     show PagedList;
 import 'package:lekis/src/features/library/widgets/artwork.dart';
@@ -121,6 +122,99 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
         curve: Curves.easeOutCubic,
       );
     }
+  }
+
+  Future<void> _showRowMenu(
+    BuildContext context,
+    TrackRowDto row,
+    int index,
+  ) async {
+    final length = ref.read(playbackProvider).queueLength;
+    final loved = ref.read(lovedOverridesProvider)[row.id] ?? row.loved;
+    final messenger = ScaffoldMessenger.of(context);
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) {
+        final l10n = sheet.l10n;
+        final errorColor = Theme.of(sheet).colorScheme.error;
+        void close() => Navigator.of(sheet).pop();
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(
+                  loved
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                ),
+                title: Text(
+                  loved ? l10n.pick('取消喜欢', 'Unlike') : l10n.pick('喜欢', 'Like'),
+                ),
+                onTap: () async {
+                  close();
+                  final ok = await ref
+                      .read(libraryActionsProvider)
+                      .setLoved(row.id, !loved);
+                  if (!ok) {
+                    messenger
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            l10n.pick(
+                              '更新收藏失败，请稍后再试',
+                              'Failed to update favorite, please try again later',
+                            ),
+                          ),
+                        ),
+                      );
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.keyboard_arrow_up_rounded),
+                title: Text(l10n.pick('上移', 'Move up')),
+                enabled: index > 0,
+                onTap: index > 0
+                    ? () {
+                        close();
+                        ref
+                            .read(playerActionsProvider)
+                            .moveQueueItem(index, index - 1);
+                      }
+                    : null,
+              ),
+              ListTile(
+                leading: const Icon(Icons.keyboard_arrow_down_rounded),
+                title: Text(l10n.pick('下移', 'Move down')),
+                enabled: index + 1 < length,
+                onTap: index + 1 < length
+                    ? () {
+                        close();
+                        ref
+                            .read(playerActionsProvider)
+                            .moveQueueItem(index, index + 1);
+                      }
+                    : null,
+              ),
+              ListTile(
+                leading: Icon(Icons.close_rounded, color: errorColor),
+                title: Text(
+                  l10n.pick('从队列移除', 'Remove from Queue'),
+                  style: TextStyle(color: errorColor),
+                ),
+                onTap: () {
+                  close();
+                  _remove(index);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   void _remove(int index) {
@@ -287,6 +381,8 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
                                 onPlay: () => ref
                                     .read(playerActionsProvider)
                                     .playQueueAt(index),
+                                onLongPress: () =>
+                                    _showRowMenu(context, row, index),
                                 onRemove: () => _remove(index),
                                 onMoveUp: index > 0
                                     ? () => ref
@@ -401,6 +497,7 @@ class _QueueRow extends StatelessWidget {
     required this.row,
     required this.current,
     required this.onPlay,
+    required this.onLongPress,
     required this.onRemove,
     required this.onMoveUp,
     required this.onMoveDown,
@@ -409,6 +506,7 @@ class _QueueRow extends StatelessWidget {
   final TrackRowDto row;
   final bool current;
   final VoidCallback onPlay;
+  final VoidCallback onLongPress;
   final VoidCallback onRemove;
   final VoidCallback? onMoveUp;
   final VoidCallback? onMoveDown;
@@ -427,6 +525,7 @@ class _QueueRow extends StatelessWidget {
         type: MaterialType.transparency,
         child: InkWell(
           onTap: onPlay,
+          onLongPress: onLongPress,
           child: AnimatedContainer(
             duration: MediaQuery.disableAnimationsOf(context)
                 ? Duration.zero
