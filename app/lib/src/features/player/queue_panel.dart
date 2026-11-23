@@ -14,6 +14,7 @@ import 'package:lekis/src/features/library/library_providers.dart'
     show PagedList, artistIdForNameProvider;
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/layout/window_size.dart';
@@ -193,6 +194,20 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
                         ),
                       );
                   }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.playlist_add_rounded),
+                title: Text(l10n.pick('添加到歌单', 'Add to Playlist')),
+                onTap: () {
+                  close();
+                  unawaited(
+                    showAddToPlaylistSheet(
+                      context,
+                      trackId: row.id,
+                      trackTitle: row.title,
+                    ),
+                  );
                 },
               ),
               ListTile(
