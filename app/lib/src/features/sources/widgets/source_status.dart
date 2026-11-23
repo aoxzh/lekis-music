@@ -97,9 +97,11 @@ class ScanProgressView extends StatelessWidget {
     final count = runtime.phase == null
         ? ''
         : SourcesStrings.scanCount(runtime.done, runtime.total);
+    final eta = runtime.eta;
+    final etaLabel = eta == null ? '' : SourcesStrings.scanEta(eta);
     return Semantics(
       liveRegion: true,
-      label: '${scanPhaseLabel(runtime.phase)} $count',
+      label: '${scanPhaseLabel(runtime.phase)} $count $etaLabel',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -123,6 +125,13 @@ class ScanProgressView extends StatelessWidget {
                 ),
             ],
           ),
+          if (!dense && etaLabel.isNotEmpty) ...[
+            const SizedBox(height: LekisSpacing.xxs),
+            Text(
+              etaLabel,
+              style: style?.copyWith(color: colors.onSurfaceVariant),
+            ),
+          ],
           const SizedBox(height: LekisSpacing.xs),
           ClipRRect(
             borderRadius: BorderRadius.circular(LekisRadius.pill),

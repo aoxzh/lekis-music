@@ -38,8 +38,23 @@ abstract final class SourcesStrings {
   static String hoursAgo(int h) => L10n.tr('$h 小时前', '${h}h ago');
   static String daysAgo(int d) => L10n.tr('$d 天前', '${d}d ago');
   static String get scanStarting => L10n.tr('准备扫描…', 'Starting scan…');
-  static String scanCount(int done, int? total) =>
-      total == null ? L10n.tr('已处理 $done', 'Processed $done') : '$done / $total';
+  static String scanCount(int done, int? total) => total == null
+      ? L10n.tr('已处理 $done', 'Processed $done')
+      : '$done / $total';
+  static String scanEta(Duration left) {
+    final minutes = left.inMinutes;
+    if (minutes < 1) {
+      final seconds = left.inSeconds.clamp(1, 59);
+      return L10n.tr('剩余约 $seconds 秒', 'About ${seconds}s left');
+    }
+    if (minutes < 60) {
+      return L10n.tr('剩余约 $minutes 分钟', 'About ${minutes}m left');
+    }
+    final hours = left.inHours;
+    final rest = minutes % 60;
+    return L10n.tr('剩余约 $hours 小时 $rest 分钟', 'About ${hours}h ${rest}m left');
+  }
+
   static String get phaseWalking => L10n.tr('正在查找文件', 'Scanning files');
   static String get phaseReadingTags => L10n.tr('正在读取标签', 'Reading tags');
   static String get phaseArtwork => L10n.tr('正在处理封面', 'Processing artwork');
@@ -63,7 +78,8 @@ abstract final class SourcesStrings {
   static String get detailUsername => L10n.tr('用户名', 'Username');
   static String get credentialSaved => L10n.tr('已保存', 'Saved');
   static String get credentialNotSet => L10n.tr('未保存', 'Not set');
-  static String get credentialGuest => L10n.tr('访客连接，无需密码', 'Guest (no password)');
+  static String get credentialGuest =>
+      L10n.tr('访客连接，无需密码', 'Guest (no password)');
   static String get credentialAnonymous =>
       L10n.tr('匿名访问，无需密码', 'Anonymous (no password)');
 
@@ -80,8 +96,10 @@ abstract final class SourcesStrings {
   );
   static String get delete => L10n.tr('删除', 'Delete');
   static String get deleted => L10n.tr('音源已删除', 'Source deleted');
-  static String get deletedCredentialLeft =>
-      L10n.tr('音源已删除，但凭据没能清理干净', 'Source deleted, but credentials could not be cleared');
+  static String get deletedCredentialLeft => L10n.tr(
+    '音源已删除，但凭据没能清理干净',
+    'Source deleted, but credentials could not be cleared',
+  );
 
   // 类型
   static String get kindLocal => L10n.tr('本地文件夹', 'Local Folder');
@@ -98,8 +116,10 @@ abstract final class SourcesStrings {
 
   static String get kindLocalHint =>
       L10n.tr('这台设备上的音乐文件夹', 'A music folder on this device');
-  static String get kindSmbHint =>
-      L10n.tr('Windows 共享、群晖 / 威联通等 NAS', 'Windows shares, Synology / QNAP NAS');
+  static String get kindSmbHint => L10n.tr(
+    'Windows 共享、群晖 / 威联通等 NAS',
+    'Windows shares, Synology / QNAP NAS',
+  );
   static String get kindWebDavHint =>
       L10n.tr('NAS、网盘或任何 WebDAV 服务', 'NAS, cloud drive, or any WebDAV server');
   static String get kindOpenSubsonicHint =>
@@ -108,8 +128,10 @@ abstract final class SourcesStrings {
       L10n.tr('用 API 密钥连接 Jellyfin 服务器', 'Connect to Jellyfin with an API key');
   static String get kindPlexHint =>
       L10n.tr('用 Plex Token 连接', 'Connect with a Plex Token');
-  static String get kindNfsHint =>
-      L10n.tr('Linux NAS、群晖 / TrueNAS 的 NFS 导出', 'Linux NAS, Synology / TrueNAS NFS exports');
+  static String get kindNfsHint => L10n.tr(
+    'Linux NAS、群晖 / TrueNAS 的 NFS 导出',
+    'Linux NAS, Synology / TrueNAS NFS exports',
+  );
   static String get kindSftpHint =>
       L10n.tr('通过 SSH 访问 NAS 或服务器上的文件夹', 'Access folders over SSH');
 
@@ -150,13 +172,16 @@ abstract final class SourcesStrings {
   static String get fieldAlternatesHelper =>
       L10n.tr('主地址连不上时按顺序尝试', 'Tried in order if the primary address fails');
   static String get detailAlternate => L10n.tr('备用地址', 'Alternate Addresses');
-  static String get discoveryTitle => L10n.tr('在你的网络上发现', 'Discover on Your Network');
+  static String get discoveryTitle =>
+      L10n.tr('在你的网络上发现', 'Discover on Your Network');
   static String get discoveryBody => L10n.tr(
     '在同一网络里搜索 SMB、WebDAV 和 DLNA 设备。点一下结果就能预填表单。',
     'Search for SMB, WebDAV, and DLNA servers on your LAN.',
   );
-  static String get discoveryNothingYet =>
-      L10n.tr('没有发现设备。也可以在下面手动添加。', 'No devices discovered yet. You can also add manually below.');
+  static String get discoveryNothingYet => L10n.tr(
+    '没有发现设备。也可以在下面手动添加。',
+    'No devices discovered yet. You can also add manually below.',
+  );
   static String get scanLan => L10n.tr('扫描局域网', 'Scan LAN');
   static String get scanningLan => L10n.tr('正在扫描…', 'Scanning…');
   static String get scanAgain => L10n.tr('重新扫描', 'Scan Again');
@@ -169,8 +194,10 @@ abstract final class SourcesStrings {
     'No devices found. Ensure your NAS is on the same network or enter details manually.',
   );
   static String get discoveryError => L10n.tr('扫描失败', 'Scan failed');
-  static String get discoveryDlnaNote =>
-      L10n.tr('DLNA 媒体服务器，可能提供 SMB 共享', 'DLNA server, may also offer SMB shares');
+  static String get discoveryDlnaNote => L10n.tr(
+    'DLNA 媒体服务器，可能提供 SMB 共享',
+    'DLNA server, may also offer SMB shares',
+  );
   static String get discoveryPickHint =>
       L10n.tr('点一下结果，填好账号就能选共享', 'Tap a device to prefill its address');
   static String discoveryFoundCount(int n) =>
@@ -187,23 +214,30 @@ abstract final class SourcesStrings {
   static String get savingChanges => L10n.tr('正在保存…', 'Saving…');
   static String get saved => L10n.tr('已添加，正在扫描', 'Added — scanning now');
   static String get savedChanges => L10n.tr('已保存', 'Saved');
-  static String get savedButScanFailed =>
-      L10n.tr('音源已保存，但第一次扫描没能开始', 'Source saved, but initial scan failed to start');
+  static String get savedButScanFailed => L10n.tr(
+    '音源已保存，但第一次扫描没能开始',
+    'Source saved, but initial scan failed to start',
+  );
 
   // 表单
   static String get fieldName => L10n.tr('名称', 'Name');
-  static String get fieldNameHint => L10n.tr('留空则自动命名', 'Leave blank to auto-name');
+  static String get fieldNameHint =>
+      L10n.tr('留空则自动命名', 'Leave blank to auto-name');
   static String get fieldHost => L10n.tr('主机', 'Host');
   static String get fieldHostHint =>
       L10n.tr('例如 192.168.1.10 或 nas.local', 'e.g. 192.168.1.10 or nas.local');
   static String get fieldShare => L10n.tr('共享名', 'Share');
   static String get fieldShareHint => L10n.tr('例如 music', 'e.g. music');
   static String get fieldPath => L10n.tr('子文件夹（可选）', 'Subfolder (Optional)');
-  static String get fieldPathHint => L10n.tr('例如 FLAC/古典', 'e.g. FLAC/Classical');
+  static String get fieldPathHint =>
+      L10n.tr('例如 FLAC/古典', 'e.g. FLAC/Classical');
   static String get fieldExport => L10n.tr('导出路径', 'Export Path');
-  static String get fieldExportHint => L10n.tr('例如 /volume1/music', 'e.g. /volume1/music');
-  static String get fieldNfsHostHint =>
-      L10n.tr('例如 192.168.1.10（需要 NFSv3）', 'e.g. 192.168.1.10 (NFSv3 required)');
+  static String get fieldExportHint =>
+      L10n.tr('例如 /volume1/music', 'e.g. /volume1/music');
+  static String get fieldNfsHostHint => L10n.tr(
+    '例如 192.168.1.10（需要 NFSv3）',
+    'e.g. 192.168.1.10 (NFSv3 required)',
+  );
   static String get nfsNotice => L10n.tr(
     'NFS 以匿名方式连接，需要在 NAS 的 NFS 权限里允许这台设备的 IP。',
     'NFS connects anonymously; allow this device IP in your NAS NFS rules.',
@@ -238,11 +272,14 @@ abstract final class SourcesStrings {
     '填好主机和账号（或打开访客）后，点“列出共享”直接选，不用手打。',
     'Enter host & credentials (or Guest), then tap "List Shares" to pick.',
   );
-  static String get exportsHint =>
-      L10n.tr('填好主机后，点“列出导出”直接选。', 'Enter host, then tap "List Exports" to pick.');
+  static String get exportsHint => L10n.tr(
+    '填好主机后，点“列出导出”直接选。',
+    'Enter host, then tap "List Exports" to pick.',
+  );
   static String get noShares =>
       L10n.tr('服务器没有返回可用的共享，请手动填写。', 'No shares returned; enter manually.');
-  static String get sharesFailed => L10n.tr('读取共享列表失败', 'Failed to list shares');
+  static String get sharesFailed =>
+      L10n.tr('读取共享列表失败', 'Failed to list shares');
   static String get browseFolders => L10n.tr('浏览文件夹', 'Browse Folders');
   static String get browseTitle => L10n.tr('选择文件夹', 'Choose Folder');
   static String get browseRoot => L10n.tr('根目录', 'Root');
@@ -255,19 +292,25 @@ abstract final class SourcesStrings {
     n == 0 ? 'No audio files here' : '$n audio files here',
   );
   static String get browseNeedsHost => L10n.tr('先填好主机地址', 'Enter host first');
-  static String get browseNeedsShare => L10n.tr('先选好共享', 'Select a share first');
-  static String get browseNeedsExport => L10n.tr('先填好导出路径', 'Enter export path first');
+  static String get browseNeedsShare =>
+      L10n.tr('先选好共享', 'Select a share first');
+  static String get browseNeedsExport =>
+      L10n.tr('先填好导出路径', 'Enter export path first');
   static String get browseNeedsUrl => L10n.tr('先填好地址', 'Enter URL first');
   static String get fieldUrl => L10n.tr('地址', 'URL');
-  static String get fieldWebDavUrlHint =>
-      L10n.tr('例如 https://nas.local:5006/music', 'e.g. https://nas.local:5006/music');
+  static String get fieldWebDavUrlHint => L10n.tr(
+    '例如 https://nas.local:5006/music',
+    'e.g. https://nas.local:5006/music',
+  );
   static String get fieldServerUrlHint =>
       L10n.tr('例如 http://192.168.1.10:4533', 'e.g. http://192.168.1.10:4533');
   static String get fieldUsername => L10n.tr('用户名', 'Username');
   static String get fieldPassword => L10n.tr('密码', 'Password');
   static String get fieldApiKey => L10n.tr('API 密钥', 'API Key');
-  static String get fieldApiKeyHint =>
-      L10n.tr('在 Jellyfin 控制台 → API 密钥 中创建', 'Create in Jellyfin Dashboard → API Keys');
+  static String get fieldApiKeyHint => L10n.tr(
+    '在 Jellyfin 控制台 → API 密钥 中创建',
+    'Create in Jellyfin Dashboard → API Keys',
+  );
   static const fieldPlexToken = 'Plex Token';
   static String get fieldPlexTokenHint => L10n.tr(
     '在 Plex 网页版的媒体信息 → 查看 XML 中可以找到',
@@ -294,28 +337,40 @@ abstract final class SourcesStrings {
   static String get errHostRequired => L10n.tr('请填写主机地址', 'Host is required');
   static String get errHostInvalid =>
       L10n.tr('主机地址里不能有空格或斜杠', 'Host cannot contain spaces or slashes');
-  static String get errShareRequired => L10n.tr('请填写共享名', 'Share name is required');
-  static String get errExportRequired => L10n.tr('请填写导出路径', 'Export path is required');
+  static String get errShareRequired =>
+      L10n.tr('请填写共享名', 'Share name is required');
+  static String get errExportRequired =>
+      L10n.tr('请填写导出路径', 'Export path is required');
   static String get errPortInvalid =>
       L10n.tr('端口需要是 1~65535 之间的数字', 'Port must be between 1 and 65535');
-  static String get errPrivateKeyRequired => L10n.tr('请粘贴私钥', 'Private key is required');
+  static String get errPrivateKeyRequired =>
+      L10n.tr('请粘贴私钥', 'Private key is required');
   static String get errPrivateKeyInvalid => L10n.tr(
     '这看起来不是私钥（应包含 PRIVATE KEY）',
     'Does not look like a private key (missing PRIVATE KEY)',
   );
   static String get errUrlRequired => L10n.tr('请填写地址', 'URL is required');
-  static String get errUrlInvalid =>
-      L10n.tr('地址需要以 http:// 或 https:// 开头', 'URL must start with http:// or https://');
-  static String get errUsernameRequired => L10n.tr('请填写用户名', 'Username is required');
-  static String get errPasswordRequired => L10n.tr('请填写密码', 'Password is required');
-  static String get errApiKeyRequired => L10n.tr('请填写 API 密钥', 'API key is required');
-  static String get errTokenRequired => L10n.tr('请填写 Token', 'Token is required');
-  static String get errPathInvalid => L10n.tr('路径里不能包含 ..', 'Path cannot contain ..');
+  static String get errUrlInvalid => L10n.tr(
+    '地址需要以 http:// 或 https:// 开头',
+    'URL must start with http:// or https://',
+  );
+  static String get errUsernameRequired =>
+      L10n.tr('请填写用户名', 'Username is required');
+  static String get errPasswordRequired =>
+      L10n.tr('请填写密码', 'Password is required');
+  static String get errApiKeyRequired =>
+      L10n.tr('请填写 API 密钥', 'API key is required');
+  static String get errTokenRequired =>
+      L10n.tr('请填写 Token', 'Token is required');
+  static String get errPathInvalid =>
+      L10n.tr('路径里不能包含 ..', 'Path cannot contain ..');
 
   // 本地文件夹
   static String get pickFolder => L10n.tr('选择文件夹', 'Choose Folder');
-  static String get pickingFolder => L10n.tr('正在打开文件夹选择器…', 'Opening folder picker…');
-  static String get folderPickFailed => L10n.tr('无法打开文件夹选择器', 'Could not open folder picker');
+  static String get pickingFolder =>
+      L10n.tr('正在打开文件夹选择器…', 'Opening folder picker…');
+  static String get folderPickFailed =>
+      L10n.tr('无法打开文件夹选择器', 'Could not open folder picker');
   static String get audioPermissionDenied => L10n.tr(
     '需要“音乐和音频”权限才能读取本机音乐。请在系统设置里允许后再试。',
     'Audio permission is required to read local music. Enable it in System Settings.',
@@ -337,11 +392,15 @@ abstract final class SourcesStrings {
       L10n.tr('找不到对应的资源，请检查地址或路径', 'Resource not found; check address or path');
   static String get errInvalidArgument =>
       L10n.tr('填写的内容有误，请检查后再试', 'Invalid input; please review and try again');
-  static String get errUnsupported => L10n.tr('暂不支持这种音源', 'Unsupported source type');
-  static String get errNotImplemented => L10n.tr('这个功能还没做好', 'Not implemented yet');
+  static String get errUnsupported =>
+      L10n.tr('暂不支持这种音源', 'Unsupported source type');
+  static String get errNotImplemented =>
+      L10n.tr('这个功能还没做好', 'Not implemented yet');
   static String get errIo => L10n.tr('读写文件时出错', 'File I/O error');
-  static String get errNetwork =>
-      L10n.tr('连不上，请检查地址、端口和网络', 'Connection failed; check host, port, and network');
+  static String get errNetwork => L10n.tr(
+    '连不上，请检查地址、端口和网络',
+    'Connection failed; check host, port, and network',
+  );
   static String get errAuth =>
       L10n.tr('用户名、密码或密钥不正确', 'Invalid username, password, or key');
   static String get errDatabase =>
@@ -349,9 +408,12 @@ abstract final class SourcesStrings {
   static String get errDecode =>
       L10n.tr('服务器返回了无法识别的内容', 'Unrecognized response from server');
   static String get errPlugin => L10n.tr('插件出错', 'Plugin error');
-  static String get errPermissionDenied => L10n.tr('没有访问权限', 'Permission denied');
+  static String get errPermissionDenied =>
+      L10n.tr('没有访问权限', 'Permission denied');
   static String get errCancelled => L10n.tr('已取消', 'Cancelled');
-  static String get errRateLimited => L10n.tr('请求太频繁，请稍后再试', 'Rate limited; try again later');
-  static String get errInternal => L10n.tr('出现了意外错误', 'Unexpected internal error');
+  static String get errRateLimited =>
+      L10n.tr('请求太频繁，请稍后再试', 'Rate limited; try again later');
+  static String get errInternal =>
+      L10n.tr('出现了意外错误', 'Unexpected internal error');
   static String get errUnknown => L10n.tr('操作失败', 'Operation failed');
 }

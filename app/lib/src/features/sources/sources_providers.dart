@@ -84,6 +84,7 @@ class SourceRuntime {
     this.phase,
     this.done = 0,
     this.total,
+    this.scanStartedAt,
     this.lastScan,
     this.reachable,
     this.lastError,
@@ -94,6 +95,9 @@ class SourceRuntime {
   final ScanPhaseDto? phase;
   final int done;
   final int? total;
+
+  /// 当前阶段有总数后开始计时，用于估算剩余时间。
+  final DateTime? scanStartedAt;
   final ScanSummary? lastScan;
 
   /// `null` 表示还没有探测结果。
@@ -109,21 +113,38 @@ class SourceRuntime {
     return (done / t).clamp(0.0, 1.0);
   }
 
+  /// 按当前阶段的平均速度估算剩余时间；样本太少或总数未知时为 `null`。
+  Duration? get eta {
+    final t = total;
+    final start = scanStartedAt;
+    if (t == null || t <= 0 || start == null || done <= 0) return null;
+    final elapsed = DateTime.now().difference(start).inMilliseconds;
+    if (elapsed < 1500) return null;
+    final remaining = t - done;
+    if (remaining <= 0) return null;
+    return Duration(milliseconds: (elapsed * remaining / done).round());
+  }
+
   SourceRuntime copyWith({
     bool? scanning,
     ScanPhaseDto? phase,
     int? done,
     int? total,
+    DateTime? scanStartedAt,
     ScanSummary? lastScan,
     bool? reachable,
     Object? lastError,
     bool clearPhase = false,
+    bool clearScanStartedAt = false,
     bool clearError = false,
   }) => SourceRuntime(
     scanning: scanning ?? this.scanning,
     phase: clearPhase ? null : (phase ?? this.phase),
     done: done ?? this.done,
     total: clearPhase ? null : (total ?? this.total),
+    scanStartedAt: clearScanStartedAt
+        ? null
+        : (scanStartedAt ?? this.scanStartedAt),
     lastScan: lastScan ?? this.lastScan,
     reachable: reachable ?? this.reachable,
     lastError: clearError ? null : (lastError ?? this.lastError),
@@ -163,13 +184,22 @@ class SourceRuntimeNotifier extends Notifier<Map<int, SourceRuntime>> {
           // 能收到进度说明连上了，顺手告诉核心，让它调整选源顺序。
           core.reportSourceReachability(sourceId: sourceId, reachable: true);
         }
+        final totalInt = total?.toInt();
+        final samePhase = before.phase == phase && before.total == totalInt;
+        final startedAt = totalInt == null
+            ? null
+            : samePhase
+            ? before.scanStartedAt
+            : DateTime.now();
         _put(
           sourceId,
           before.copyWith(
             scanning: true,
             phase: phase,
             done: done.toInt(),
-            total: total?.toInt(),
+            total: totalInt,
+            scanStartedAt: startedAt,
+            clearScanStartedAt: totalInt == null,
             reachable: true,
             clearError: true,
           ),
@@ -203,6 +233,7 @@ class SourceRuntimeNotifier extends Notifier<Map<int, SourceRuntime>> {
                   reachable: false,
                   scanning: false,
                   clearPhase: true,
+                  clearScanStartedAt: true,
                 ),
         );
       default:
@@ -212,8 +243,13 @@ class SourceRuntimeNotifier extends Notifier<Map<int, SourceRuntime>> {
 
   void markScanStarting(int id) => _put(
     id,
-    _get(id)
-        .copyWith(scanning: true, done: 0, clearPhase: true, clearError: true),
+    _get(id).copyWith(
+      scanning: true,
+      done: 0,
+      clearPhase: true,
+      clearScanStartedAt: true,
+      clearError: true,
+    ),
   );
 
   void markFailed(int id, Object error) {
@@ -223,6 +259,7 @@ class SourceRuntimeNotifier extends Notifier<Map<int, SourceRuntime>> {
       _get(id).copyWith(
         scanning: false,
         clearPhase: true,
+        clearScanStartedAt: true,
         lastError: error,
         reachable: unreachable ? false : null,
       ),
