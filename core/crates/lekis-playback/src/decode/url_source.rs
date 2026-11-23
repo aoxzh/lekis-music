@@ -154,8 +154,6 @@ impl HttpRangeSource {
                     if let Some(len) = header_u64(resp.headers(), CONTENT_LENGTH) {
                         return Ok(Some(len));
                     }
-                } else if is_fatal_status(status) {
-                    return Err(map_status(status, &self.url));
                 } else {
                     // 有些服务器（CDN、签名直链）不允许 HEAD：别当错误，改用 Range 探测。
                     tracing::debug!(
@@ -209,6 +207,24 @@ impl HttpRangeSource {
         range: Option<String>,
     ) -> reqwest::Result<reqwest::blocking::Response> {
         self.requests += 1;
+        let result = self.build_request(method.clone(), range.as_deref()).send();
+        // Some signed-media CDNs close a pooled TLS connection after HEAD without
+        // close_notify. A fresh connection can serve the same idempotent GET.
+        // Retry transport failures once; never retry HTTP errors or timeouts here.
+        if result.as_ref().err().is_some_and(|error| {
+            error.is_request() && !error.is_connect() && !error.is_timeout() && !error.is_builder()
+        }) {
+            self.requests += 1;
+            return self.build_request(method, range.as_deref()).send();
+        }
+        result
+    }
+
+    fn build_request(
+        &self,
+        method: Method,
+        range: Option<&str>,
+    ) -> reqwest::blocking::RequestBuilder {
         let mut req = self.client.request(method, &self.url);
         if let Some(range) = range {
             req = req.header(RANGE, range);
@@ -216,7 +232,7 @@ impl HttpRangeSource {
         for (name, value) in &self.headers {
             req = req.header(name.as_str(), value.as_str());
         }
-        req.send()
+        req
     }
 
     /// 用 Range 拉一整块（`start` 必须是 [`CHUNK_BYTES`] 对齐的）。
@@ -538,8 +554,10 @@ mod tests {
         support_range: bool,
         /// 非 0 时直接把所有请求打成这个状态码。
         forced_status: u16,
+        head_status: u16,
         /// 请求必须带这个头，否则 401。
         required_header: Option<(String, String)>,
+        drop_get_requests: usize,
     }
 
     impl Behaviour {
@@ -549,7 +567,9 @@ mod tests {
                 send_length: true,
                 support_range: true,
                 forced_status: 0,
+                head_status: 200,
                 required_header: None,
+                drop_get_requests: 0,
             }
         }
     }
@@ -615,6 +635,48 @@ mod tests {
         }
     }
 
+    #[test]
+    fn retries_closed_connections_once_and_keeps_range_and_headers() -> Result<()> {
+        let mut behaviour = Behaviour::new(vec![42; 100]);
+        behaviour.drop_get_requests = 1;
+        behaviour.required_header = Some(("x-test".into(), "token".into()));
+        let server = FakeServer::start(behaviour);
+        let mut source = HttpRangeSource::new(
+            server.url("/audio"),
+            vec![("x-test".into(), "token".into())],
+        )?;
+        let mut buf = [0u8; 100];
+        source.read_exact(&mut buf)?;
+        assert_eq!(buf, [42; 100]);
+        let requests = server.recorded();
+        assert_eq!(requests.iter().filter(|r| r.method == "GET").count(), 2);
+        for request in requests.iter().filter(|r| r.method == "GET") {
+            assert!(request
+                .headers
+                .contains(&("range".into(), "bytes=0-99".into())));
+            assert!(request.headers.contains(&("x-test".into(), "token".into())));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn repeated_transport_failure_is_bounded() -> Result<()> {
+        let mut behaviour = Behaviour::new(vec![42; 100]);
+        behaviour.drop_get_requests = usize::MAX;
+        let server = FakeServer::start(behaviour);
+        let mut source = HttpRangeSource::new(server.url("/audio"), vec![])?;
+        assert!(source.read(&mut [0u8; 100]).is_err());
+        assert_eq!(
+            server
+                .recorded()
+                .iter()
+                .filter(|r| r.method == "GET")
+                .count(),
+            2
+        );
+        Ok(())
+    }
+
     /// 读一个请求、按行为回响应。
     fn handle_connection(
         stream: &mut TcpStream,
@@ -652,6 +714,17 @@ mod tests {
             method: method.clone(),
             headers: headers.clone(),
         });
+        if method == "GET"
+            && log
+                .lock()
+                .expect("log mutex")
+                .iter()
+                .filter(|r| r.method == "GET")
+                .count()
+                <= behaviour.drop_get_requests
+        {
+            return Ok(());
+        }
 
         let missing_auth = behaviour
             .required_header
@@ -671,7 +744,7 @@ mod tests {
         }
 
         if method == "HEAD" {
-            write!(stream, "HTTP/1.1 200 OK\r\n")?;
+            write!(stream, "HTTP/1.1 {} HEAD\r\n", behaviour.head_status)?;
             if behaviour.send_length {
                 write!(stream, "Content-Length: {}\r\n", behaviour.body.len())?;
             }
@@ -885,6 +958,21 @@ mod tests {
         source.seek(SeekFrom::Start(3_990)).expect("seek");
         let mut buf = [0u8; 32];
         let n = source.read(&mut buf).expect("read tail");
+        assert_eq!(&buf[..n], &body[3_990..]);
+    }
+
+    /// A GET-signed URL can reject HEAD while still permitting bounded reads.
+    #[test]
+    fn forbidden_head_falls_back_to_ranged_get() {
+        let body = pattern(4_000);
+        let mut behaviour = Behaviour::new(body.clone());
+        behaviour.head_status = 403;
+        let server = FakeServer::start(behaviour);
+        let mut source = open(&server, Vec::new());
+        assert_eq!(source.byte_len(), Some(4_000));
+        source.seek(SeekFrom::Start(3_990)).expect("seek");
+        let mut buf = [0u8; 32];
+        let n = source.read(&mut buf).expect("read signed URL");
         assert_eq!(&buf[..n], &body[3_990..]);
     }
 
