@@ -245,7 +245,7 @@ impl Resolver {
         mut files: Vec<TrackFile>,
         net: NetworkContext,
     ) -> Result<(TrackFile, MediaSource)> {
-        let mut plugin_error = None;
+        let mut fallback_error = None;
         while let Some(best) = selection::pick_best(&files, &|id| self.health.get(id), net).cloned()
         {
             files.retain(|file| {
@@ -255,26 +255,26 @@ impl Resolver {
             });
             match self.media_source(track_id, &best, net).await {
                 Ok(media) => return Ok((best, media)),
-                Err(error) if best.source_kind == SourceKind::Plugin => {
+                Err(error)
+                    if best.source_kind == SourceKind::Plugin
+                        || best.source_kind.is_filesystem() =>
+                {
                     tracing::debug!(target: "core", %track_id, source_id = ?best.source_id,
-                        %error, "plugin source unavailable, trying another copy");
-                    plugin_error = Some(error);
+                        %error, "source copy unavailable, trying another copy");
+                    fallback_error = Some(error);
                 }
                 Err(error) => return Err(error),
             }
         }
-        Err(plugin_error.unwrap_or_else(|| {
+        Err(fallback_error.unwrap_or_else(|| {
             LekisError::not_found(format!("no playable file for track {track_id}"))
         }))
     }
 
-    /// 文件系统源在播放前必须有一个 VFS。启动时/扫描时会登记；如果因为重启、
-    /// 凭据还没加载或旧版本升级导致登记丢了，这里按源配置补开一次，避免“曲库能看
-    /// 但一点播放就报 no vfs resolver installed”。
-    async fn ensure_vfs(&self, source_id: SourceId) -> Result<()> {
-        if lekis_playback::vfs_access::resolve(source_id).is_some() {
-            return Ok(());
-        }
+    /// 文件系统源在播放前必须有一个可用的 VFS。启动时/扫描时会登记；如果因为重启、
+    /// 凭据还没加载、连接被 NAS 断开或旧版本升级导致登记丢失/失效，这里强制按源配置
+    /// 重新打开并覆盖登记，避免“曲库能看但一点播放就报 no vfs resolver installed”。
+    async fn reopen_vfs(&self, source_id: SourceId) -> Result<()> {
         let source = self.library.get_source(source_id).await?;
         if !source.kind.is_filesystem() {
             return Ok(());
@@ -329,7 +329,7 @@ impl Resolver {
                 false
             };
             if !existing_ok {
-                self.ensure_vfs(file.source_id).await?;
+                self.reopen_vfs(file.source_id).await?;
                 if let Some(vfs) = lekis_playback::vfs_access::resolve(file.source_id) {
                     vfs.stat(&path).await?;
                 }
