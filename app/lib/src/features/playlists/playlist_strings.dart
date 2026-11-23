@@ -67,6 +67,7 @@ abstract final class PlaylistStrings {
   static String get sortByArtist => L10n.tr('按艺人', 'By Artist');
   static String get sortByAlbum => L10n.tr('按专辑', 'By Album');
   static String get sortByAdded => L10n.tr('按添加时间', 'By Date Added');
+  static String get sortByDuration => L10n.tr('按时长', 'By Duration');
   static String get reverseOrder => L10n.tr('反转顺序', 'Reverse Order');
   static String get shuffleOrder => L10n.tr('随机顺序', 'Shuffle Order');
   static String get searchPlaylist => L10n.tr('搜索歌单', 'Search playlist');
