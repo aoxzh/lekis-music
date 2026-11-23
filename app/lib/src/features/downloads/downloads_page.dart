@@ -585,87 +585,98 @@ class _DownloadTile extends ConsumerWidget {
           icon: const Icon(Icons.delete_outline_rounded),
         ),
     ];
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: LekisSpacing.lg,
-        vertical: LekisSpacing.sm,
-      ),
-      child: Row(
-        children: [
-          SizedBox.square(
-            dimension: LekisSizes.listArtwork,
-            child: track == null
-                ? Icon(Icons.music_note_rounded, color: colors.onSurfaceVariant)
-                : TrackArtwork(
-                    trackId: track.id,
-                    hasArtwork: track.artworkId != null || !track.isLocal,
-                    placeholderLabel: track.title,
-                  ),
-          ),
-          const SizedBox(width: LekisSpacing.md),
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  entry.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: entry.isReady
-                        ? FontWeight.w500
-                        : FontWeight.w600,
-                  ),
-                ),
-                if (entry.subtitle.isNotEmpty)
+    return InkWell(
+      onTap: entry.isReady
+          ? () => ref
+                .read(downloadsProvider.notifier)
+                .playDownloaded(entry.trackId)
+          : null,
+      borderRadius: BorderRadius.circular(LekisRadius.sm),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: LekisSpacing.lg,
+          vertical: LekisSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            SizedBox.square(
+              dimension: LekisSizes.listArtwork,
+              child: track == null
+                  ? Icon(
+                      Icons.music_note_rounded,
+                      color: colors.onSurfaceVariant,
+                    )
+                  : TrackArtwork(
+                      trackId: track.id,
+                      hasArtwork: track.artworkId != null || !track.isLocal,
+                      placeholderLabel: track.title,
+                    ),
+            ),
+            const SizedBox(width: LekisSpacing.md),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    entry.subtitle,
+                    entry.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall,
-                  ),
-                Text(
-                  entry.statusText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: entry.isFailed
-                        ? colors.danger
-                        : colors.onSurfaceVariant,
-                  ),
-                ),
-                if (entry.isActive) ...[
-                  const SizedBox(height: LekisSpacing.xs),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(LekisRadius.pill),
-                    child: LinearProgressIndicator(
-                      value: entry.progress,
-                      minHeight: LekisSpacing.xxs,
-                      color: colors.accent,
-                      backgroundColor: colors.outline,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: entry.isReady
+                          ? FontWeight.w500
+                          : FontWeight.w600,
                     ),
                   ),
-                ],
-              ],
-            ),
-          ),
-          if (actions.isNotEmpty) ...[
-            const SizedBox(width: LekisSpacing.sm),
-            // 最后一个按钮的图标与面板右侧的文字边距对齐。
-            Transform.translate(
-              offset: const Offset(LekisSpacing.md, 0),
-              child: IconButtonTheme(
-                data: IconButtonThemeData(
-                  style: IconButton.styleFrom(
-                    foregroundColor: colors.onSurfaceVariant,
+                  if (entry.subtitle.isNotEmpty)
+                    Text(
+                      entry.subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  Text(
+                    entry.statusText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: entry.isFailed
+                          ? colors.danger
+                          : colors.onSurfaceVariant,
+                    ),
                   ),
-                ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: actions),
+                  if (entry.isActive) ...[
+                    const SizedBox(height: LekisSpacing.xs),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(LekisRadius.pill),
+                      child: LinearProgressIndicator(
+                        value: entry.progress,
+                        minHeight: LekisSpacing.xxs,
+                        color: colors.accent,
+                        backgroundColor: colors.outline,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
+            if (actions.isNotEmpty) ...[
+              const SizedBox(width: LekisSpacing.sm),
+              // 最后一个按钮的图标与面板右侧的文字边距对齐。
+              Transform.translate(
+                offset: const Offset(LekisSpacing.md, 0),
+                child: IconButtonTheme(
+                  data: IconButtonThemeData(
+                    style: IconButton.styleFrom(
+                      foregroundColor: colors.onSurfaceVariant,
+                    ),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: actions),
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
