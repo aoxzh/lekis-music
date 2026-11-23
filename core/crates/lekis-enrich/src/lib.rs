@@ -17,6 +17,7 @@
 //! | [`cache`] | ENR-09 的结果本地缓存（带 TTL 与容量上限）|
 //! | [`http`] | 各在线功能共用的 HTTP 基础件（UA、超时、状态码映射）|
 //! | [`scrobble`] | DIS-07 的第三方听歌记录上报（Last.fm / ListenBrainz / Libre.fm）|
+//! | [`ruby`] | UIX-11 的注音歌词：中文歌词逐字标拼音（离线、静态拼音表）|
 //! | `md5` | Last.fm 签名要用的 MD5（RFC 1321），仅供 [`scrobble`] 内部使用 |
 
 pub mod apple_music;
@@ -26,6 +27,8 @@ pub mod cache;
 pub mod http;
 pub mod providers;
 pub mod providers_extra;
+/// 注音歌词（UIX-11）：给中文歌词逐字标拼音，渲染成 ruby。
+pub mod ruby;
 pub mod scoring;
 pub mod scrobble;
 pub mod spotify;

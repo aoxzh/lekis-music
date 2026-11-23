@@ -233,7 +233,7 @@ String toString() {
 
 class DesktopLyricsEventDto_VisibilityChanged extends DesktopLyricsEventDto {
   const DesktopLyricsEventDto_VisibilityChanged({required this.visible}): super._();
-
+  
 
  final  bool visible;
 
@@ -301,7 +301,7 @@ as bool,
 
 class DesktopLyricsEventDto_MenuBarClosed extends DesktopLyricsEventDto {
   const DesktopLyricsEventDto_MenuBarClosed(): super._();
-
+  
 
 
 

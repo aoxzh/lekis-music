@@ -13,6 +13,7 @@ crate-type = ["cdylib", "staticlib"]
 [dependencies]
 lekis-core.workspace = true
 lekis-desktop-lyrics.workspace = true
+lekis-enrich.workspace = true
 lekis-library.workspace = true
 lekis-playback.workspace = true
 lekis-types.workspace = true

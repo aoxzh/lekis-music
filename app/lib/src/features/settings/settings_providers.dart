@@ -26,6 +26,10 @@ abstract final class SettingKeys {
 
   /// 歌词舞台火花：`true`（默认）/ `false`。只对舞台样式有效。
   static const lyricsSparks = 'ui.lyrics_sparks';
+
+  /// 注音歌词：`off`（默认）/ `plain` / `tone` / `tone_num`。
+  /// 在汉字上方标拼音（UIX-11），经典视图生效。
+  static const lyricsRuby = 'ui.lyrics_ruby';
 }
 
 enum ReplayGainMode {
