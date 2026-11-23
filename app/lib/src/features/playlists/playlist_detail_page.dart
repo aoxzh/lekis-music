@@ -257,6 +257,9 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
               onPlay: rows.any((e) => e.track != null)
                   ? () => playPlaylistContext(context, playlist)
                   : null,
+              onShuffle: rows.any((e) => e.track != null)
+                  ? () => playPlaylistContext(context, playlist, shuffle: true)
+                  : null,
               onDownload: downloadIds.isEmpty
                   ? null
                   : () => startDownloads(context, ref, downloadIds),
@@ -481,6 +484,7 @@ class _PlaylistHeader extends ConsumerWidget {
     required this.playlist,
     required this.subtitle,
     required this.onPlay,
+    this.onShuffle,
     this.onEditRules,
     this.onDownload,
     this.onExport,
@@ -495,6 +499,7 @@ class _PlaylistHeader extends ConsumerWidget {
   final PlaylistDto playlist;
   final String subtitle;
   final VoidCallback? onPlay;
+  final VoidCallback? onShuffle;
   final VoidCallback? onEditRules;
   final VoidCallback? onDownload;
   final VoidCallback? onExport;
@@ -574,6 +579,12 @@ class _PlaylistHeader extends ConsumerWidget {
                   icon: const Icon(Icons.play_arrow_rounded),
                   label: Text(PlaylistStrings.play),
                 ),
+                if (onShuffle != null)
+                  OutlinedButton.icon(
+                    onPressed: onShuffle,
+                    icon: const Icon(Icons.shuffle_rounded),
+                    label: Text(PlaylistStrings.shufflePlay),
+                  ),
                 if (onEditRules != null)
                   OutlinedButton.icon(
                     onPressed: onEditRules,

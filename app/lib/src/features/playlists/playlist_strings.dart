@@ -118,6 +118,7 @@ abstract final class PlaylistStrings {
   static String get sortByDuration => L10n.tr('按时长', 'By Duration');
   static String get reverseOrder => L10n.tr('反转顺序', 'Reverse Order');
   static String get shuffleOrder => L10n.tr('随机顺序', 'Shuffle Order');
+  static String get shufflePlay => L10n.tr('随机播放', 'Shuffle');
   static String get searchPlaylist => L10n.tr('搜索歌单', 'Search playlist');
   static String get clearSearch => L10n.tr('清除', 'Clear');
   static String get noMatchingTracks => L10n.tr('没有匹配的歌曲', 'No matching songs');

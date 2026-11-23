@@ -112,8 +112,12 @@ Future<void> playPlaylistContext(
   BuildContext context,
   PlaylistDto playlist, {
   int startIndex = 0,
+  bool shuffle = false,
 }) async {
   try {
+    if (shuffle) {
+      core.setShuffle(mode: ShuffleModeDto.random);
+    }
     await core.playContext(
       context: PlayContextDto.playlist(playlistId: playlist.id),
       startIndex: startIndex,
