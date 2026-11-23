@@ -589,27 +589,43 @@ String buildWindowsApplyScript({
   final pStage = _psEscape(stagingDir);
   return '''
 \$ErrorActionPreference = 'Stop'
+\$logDir = Join-Path \$env:LOCALAPPDATA 'Lekis'
+New-Item -ItemType Directory -Force -Path \$logDir | Out-Null
+\$log = Join-Path \$logDir 'update.log'
+function Log(\$message) {
+  try { Add-Content -LiteralPath \$log -Value ("{0:o} {1}" -f (Get-Date), \$message) } catch {}
+}
+Log 'waiting for Lekis to exit'
 \$waitPid = $waitPid
-for (\$i = 0; \$i -lt 80; \$i++) {
+for (\$i = 0; \$i -lt 240; \$i++) {
   if (-not (Get-Process -Id \$waitPid -ErrorAction SilentlyContinue)) { break }
   Start-Sleep -Milliseconds 250
 }
 Start-Sleep -Milliseconds 300
 \$copied = \$false
-for (\$attempt = 0; \$attempt -lt 10; \$attempt++) {
+for (\$attempt = 1; \$attempt -le 60; \$attempt++) {
   try {
-    Copy-Item -Path '$pPayload\\*' -Destination '$pTarget' -Recurse -Force
+    Copy-Item -Path '$pPayload\\*' -Destination '$pTarget' -Recurse -Force -ErrorAction Stop
     \$copied = \$true
     break
   } catch {
+    if (\$attempt -eq 1 -or (\$attempt % 10) -eq 0) {
+      Log ("copy attempt \$attempt failed: " + \$_.Exception.Message)
+    }
     Start-Sleep -Milliseconds 500
   }
 }
-if (\$copied) {
+if (\$copied) { Log 'files replaced' } else { Log 'copy failed after retries' }
+try {
   Start-Process -FilePath '$pExe' -WorkingDirectory '$pTarget'
+  Log 'relaunched Lekis'
+} catch {
+  Log ('relaunch failed: ' + \$_.Exception.Message)
 }
 Start-Sleep -Milliseconds 500
-Remove-Item -LiteralPath '$pStage' -Recurse -Force -ErrorAction SilentlyContinue
+if (\$copied) {
+  Remove-Item -LiteralPath '$pStage' -Recurse -Force -ErrorAction SilentlyContinue
+}
 ''';
 }
 

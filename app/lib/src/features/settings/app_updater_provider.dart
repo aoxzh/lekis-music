@@ -8,6 +8,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../platform/desktop_tray/desktop_tray_controller.dart';
 import 'app_updater.dart';
 import 'desktop_self_updater.dart';
 
@@ -220,7 +221,13 @@ class AppUpdaterNotifier extends Notifier<AppUpdaterState> {
     if (staged == null || state.phase == AppUpdaterPhase.restarting) return;
     state = state.copyWith(phase: AppUpdaterPhase.restarting, clearError: true);
     try {
-      await applyStagedDesktopUpdateAndRelaunch(staged);
+      // The helper waits for this process to disappear before replacing files.
+      await applyStagedDesktopUpdateAndRelaunch(staged, exitProcess: false);
+      // exit(0) tears the process down while the native window is still alive;
+      // on Windows that crashed cnativeapi.dll before the helper could run.
+      // Close the window like the tray "Quit" item so Flutter and the native
+      // window manager shut down cleanly.
+      await ref.read(desktopTrayControllerProvider).quitApp();
     } catch (e) {
       state = state.copyWith(
         phase: AppUpdaterPhase.error,

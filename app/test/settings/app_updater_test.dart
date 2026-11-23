@@ -189,6 +189,10 @@ B062125CE0FA2C0A3EAE3F56098C378E00F6551AA1D4BA1765960931BFE13875 *lekis-0.2.0-wi
       );
       expect(win, contains(r'$waitPid = 4242'));
       expect(win, contains("o''brien"));
+      expect(win, contains('files replaced'));
+      expect(win, contains('copy attempt'));
+      expect(win, contains('relaunch failed'));
+      expect(win, contains('Remove-Item -LiteralPath'));
 
       final mac = buildMacOsApplyScript(
         waitPid: 4242,
