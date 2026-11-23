@@ -168,6 +168,13 @@ abstract final class PlaylistStrings {
   static String get newSmartPlaylist => L10n.tr('新建智能歌单', 'New Smart Playlist');
   static String get createAndAdd => L10n.tr('创建并添加', 'Create & Add');
   static String get addToPlaylist => L10n.tr('添加到歌单', 'Add to Playlist');
+  static String get addingTracks => L10n.tr('正在添加到歌单', 'Adding to Playlist');
+  static String addedTracksTo(int added, int failed, String name) => failed == 0
+      ? L10n.tr('已添加 $added 首到「$name」', 'Added $added tracks to "$name"')
+      : L10n.tr(
+          '已添加 $added 首到「$name」，$failed 首失败',
+          'Added $added tracks to "$name"; $failed failed',
+        );
   static String get newShort => L10n.tr('新建', 'New');
   static String get noPlaylistsCreate =>
       L10n.tr('还没有歌单，先新建一个吧', 'No playlists yet — create one first');

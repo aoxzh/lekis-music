@@ -7,6 +7,7 @@ import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_actions.dart';
+import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/tab_bar_style.dart';
@@ -84,6 +85,17 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
     if (ids.isEmpty) return;
     queueTracks(context, ids, where: where);
     _clearSelection();
+  }
+
+  Future<void> _addSelectedToPlaylist() async {
+    final ids = _selected.toList(growable: false);
+    if (ids.isEmpty) return;
+    final added = await showAddTracksToPlaylistSheet(
+      context,
+      ref,
+      trackIds: ids,
+    );
+    if (mounted && added) _clearSelection();
   }
 
   void _play(int index) {
@@ -251,6 +263,13 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
                             onPressed: () => _queueSelected(QueuePlacement.end),
                             icon: const Icon(Icons.add_to_queue_rounded),
                             label: Text(QueueStrings.addToQueue),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _addSelectedToPlaylist,
+                            icon: const Icon(Icons.playlist_add_rounded),
+                            label: Text(
+                              context.l10n.pick('加入歌单', 'Add to Playlist'),
+                            ),
                           ),
                           FilledButton.icon(
                             onPressed: _editSelectedTags,

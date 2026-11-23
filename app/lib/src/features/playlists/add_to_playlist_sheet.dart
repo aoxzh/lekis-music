@@ -1,5 +1,7 @@
 // "添加到歌单"选择器：从曲目行 / 正在播放 / 队列打开。
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/playlists/playlist_actions.dart';
@@ -48,6 +50,172 @@ Future<void> showAddToPlaylistSheet(
         ),
       ),
     );
+}
+
+/// 多选：选择一张歌单后把 [trackIds] 全部加入，返回是否至少添加了一首。
+Future<bool> showAddTracksToPlaylistSheet(
+  BuildContext context,
+  WidgetRef ref, {
+  required List<int> trackIds,
+}) async {
+  if (trackIds.isEmpty) return false;
+  final playlist = await showLekisSheet<PlaylistDto>(
+    context,
+    heightFactor: 0.72,
+    builder: (_) => _AddTracksPlaylistPicker(count: trackIds.length),
+  );
+  if (playlist == null || !context.mounted) return false;
+
+  final progress = ValueNotifier<int>(0);
+  final navigator = Navigator.of(context, rootNavigator: true);
+  unawaited(
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: Text(PlaylistStrings.addingTracks),
+        content: ValueListenableBuilder<int>(
+          valueListenable: progress,
+          builder: (_, done, _) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LinearProgressIndicator(
+                value: trackIds.isEmpty
+                    ? 0
+                    : (done / trackIds.length).clamp(0.0, 1.0),
+              ),
+              const SizedBox(height: LekisSpacing.md),
+              Text('$done / ${trackIds.length}'),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  var added = 0;
+  var failed = 0;
+  try {
+    for (final id in trackIds) {
+      try {
+        final track = await core.getTrack(trackId: id);
+        await core.addToPlaylist(playlistId: playlist.id, trackUid: track.uid);
+        added++;
+      } catch (_) {
+        failed++;
+      }
+      progress.value++;
+    }
+    ref.invalidate(playlistsProvider);
+    ref.invalidate(playlistEntriesProvider(playlist.id));
+    if (navigator.mounted && navigator.canPop()) navigator.pop();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              PlaylistStrings.addedTracksTo(added, failed, playlist.name),
+            ),
+          ),
+        );
+    }
+    return added > 0;
+  } catch (e) {
+    if (navigator.mounted && navigator.canPop()) navigator.pop();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(PlaylistStrings.addFailed(describeCoreError(e))),
+          ),
+        );
+    }
+    return false;
+  } finally {
+    progress.dispose();
+  }
+}
+
+class _AddTracksPlaylistPicker extends StatefulWidget {
+  const _AddTracksPlaylistPicker({required this.count});
+
+  final int count;
+
+  @override
+  State<_AddTracksPlaylistPicker> createState() =>
+      _AddTracksPlaylistPickerState();
+}
+
+class _AddTracksPlaylistPickerState extends State<_AddTracksPlaylistPicker> {
+  late final Future<List<PlaylistDto>> _future = core.listPlaylists();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.lekisColors;
+    return FutureBuilder<List<PlaylistDto>>(
+      future: _future,
+      builder: (context, snapshot) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                LekisSpacing.xl,
+                0,
+                LekisSpacing.xl,
+                LekisSpacing.sm,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    PlaylistStrings.addToPlaylist,
+                    style: theme.textTheme.titleLarge,
+                  ),
+                  Text(
+                    PlaylistStrings.songCount(widget.count),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: switch (snapshot.connectionState) {
+                ConnectionState.waiting => const Center(
+                  child: CircularProgressIndicator(),
+                ),
+                _ when snapshot.hasError => Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(LekisSpacing.xl),
+                    child: Text(
+                      PlaylistStrings.loadFailed(
+                        describeCoreError(snapshot.error!),
+                      ),
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+                _ => _PlaylistPickerList(
+                  playlists: snapshot.data ?? const <PlaylistDto>[],
+                  busyPlaylist: null,
+                  onAdd: (playlist) => Navigator.of(context).pop(playlist),
+                ),
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 class AddToPlaylistSheet extends ConsumerStatefulWidget {
@@ -164,7 +332,10 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(PlaylistStrings.addToPlaylist, style: theme.textTheme.titleLarge),
+                        Text(
+                          PlaylistStrings.addToPlaylist,
+                          style: theme.textTheme.titleLarge,
+                        ),
                         if (widget.trackTitle != null)
                           Text(
                             widget.trackTitle!,
@@ -210,7 +381,9 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
                   child: Padding(
                     padding: const EdgeInsets.all(LekisSpacing.xl),
                     child: Text(
-                      PlaylistStrings.loadFailed(describeCoreError(snapshot.error!)),
+                      PlaylistStrings.loadFailed(
+                        describeCoreError(snapshot.error!),
+                      ),
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: colors.onSurfaceVariant,
@@ -219,7 +392,7 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
                   ),
                 ),
                 _ => _PlaylistPickerList(
-                  data: data!,
+                  playlists: data!.playlists,
                   busyPlaylist: _busyPlaylist,
                   onAdd: (playlist) => _add(data, playlist),
                 ),
@@ -234,12 +407,12 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
 
 class _PlaylistPickerList extends StatelessWidget {
   const _PlaylistPickerList({
-    required this.data,
+    required this.playlists,
     required this.busyPlaylist,
     required this.onAdd,
   });
 
-  final _PickerData data;
+  final List<PlaylistDto> playlists;
   final int? busyPlaylist;
   final ValueChanged<PlaylistDto> onAdd;
 
@@ -247,7 +420,7 @@ class _PlaylistPickerList extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
-    if (data.playlists.isEmpty) {
+    if (playlists.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(LekisSpacing.xl),
@@ -262,9 +435,9 @@ class _PlaylistPickerList extends StatelessWidget {
     }
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: LekisSpacing.sm),
-      itemCount: data.playlists.length,
+      itemCount: playlists.length,
       itemBuilder: (context, i) {
-        final playlist = data.playlists[i];
+        final playlist = playlists[i];
         final smart = playlist.kind == PlaylistKindDto.smart;
         final busy = busyPlaylist == playlist.id;
         return ListTile(
