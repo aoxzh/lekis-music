@@ -4,12 +4,14 @@
 // pages, dialogs and the Now Playing route all stay alive (just hidden) while
 // the window is the mini player, and come back untouched.
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../l10n/app_l10n.dart';
 import '../../theme/theme.dart';
 import '../player/player_providers.dart';
+import '../player/sleep_timer.dart';
 import '../player/widgets/current_track.dart';
 import '../player/widgets/player_controls.dart';
 import 'mini_mode_controller.dart';
@@ -125,6 +127,14 @@ class MiniPlayerView extends ConsumerWidget {
                         ),
                       ),
                     ),
+                    const SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: SleepTimerButton(
+                        key: ValueKey('mini-player.sleep-timer'),
+                        compact: true,
+                      ),
+                    ),
                     IconButton(
                       key: expandKey,
                       tooltip: context.l10n.exitMiniPlayer,
@@ -166,32 +176,46 @@ class MiniPlayerView extends ConsumerWidget {
       ),
     );
 
-    return Material(
-      color: colors.surfaceElevated,
-      child: DecoratedBox(
-        decoration: BoxDecoration(border: Border.all(color: colors.outline)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              // A title-bar double-tap recognizer here delays the first tap
-              // on transport/expand buttons while it waits for a second tap.
-              // Mini mode cannot maximize; retain only its native pan action.
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onPanStart: (_) =>
-                    ref.read(miniWindowGatewayProvider).startDragging(),
-                child: Semantics(
-                  label: context.l10n.miniPlayerMode,
-                  child: body,
+    // Wheel over the strip adjusts volume; mini mode has no room for a
+    // separate slider.
+    void onPointerSignal(PointerSignalEvent event) {
+      if (event is! PointerScrollEvent) return;
+      final current = ref.read(playbackProvider).volume;
+      final delta = event.scrollDelta.dy > 0 ? -0.04 : 0.04;
+      ref
+          .read(playerActionsProvider)
+          .setVolume((current + delta).clamp(0.0, 1.0));
+    }
+
+    return Listener(
+      onPointerSignal: onPointerSignal,
+      child: Material(
+        color: colors.surfaceElevated,
+        child: DecoratedBox(
+          decoration: BoxDecoration(border: Border.all(color: colors.outline)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                // A title-bar double-tap recognizer here delays the first tap
+                // on transport/expand buttons while it waits for a second tap.
+                // Mini mode cannot maximize; retain only its native pan action.
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onPanStart: (_) =>
+                      ref.read(miniWindowGatewayProvider).startDragging(),
+                  child: Semantics(
+                    label: context.l10n.miniPlayerMode,
+                    child: body,
+                  ),
                 ),
               ),
-            ),
-            if (hasTrack)
-              const ThinProgressBar()
-            else
-              const SizedBox(height: 2),
-          ],
+              if (hasTrack)
+                const ThinProgressBar(interactive: true)
+              else
+                const SizedBox(height: 2),
+            ],
+          ),
         ),
       ),
     );

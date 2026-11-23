@@ -387,19 +387,71 @@ class _SeekBarState extends ConsumerState<SeekBar> {
   }
 }
 
-/// Thin, non-interactive progress line (mini player).
-class ThinProgressBar extends ConsumerWidget {
-  const ThinProgressBar({super.key});
+/// Thin progress line (mini player). When [interactive], tapping or dragging
+/// seeks; the mini window is too small for the full seek bar.
+class ThinProgressBar extends ConsumerStatefulWidget {
+  const ThinProgressBar({super.key, this.interactive = false});
+
+  final bool interactive;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ThinProgressBar> createState() => _ThinProgressBarState();
+}
+
+class _ThinProgressBarState extends ConsumerState<ThinProgressBar> {
+  double? _dragProgress;
+
+  void _preview(double dx, double width) {
+    if (width <= 0) return;
+    final duration = ref.read(playbackProvider).durationMs;
+    if (duration <= 0) return;
+    setState(() => _dragProgress = (dx / width).clamp(0.0, 1.0));
+  }
+
+  void _commit() {
+    final value = _dragProgress;
+    final duration = ref.read(playbackProvider).durationMs;
+    if (mounted) setState(() => _dragProgress = null);
+    if (value == null || duration <= 0) return;
+    ref.read(playerActionsProvider).seek((value * duration).round());
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final progress = ref.watch(progressProvider);
+    final shown = _dragProgress ?? progress;
     final colors = context.lekisColors;
-    return LinearProgressIndicator(
-      value: progress,
+    final bar = LinearProgressIndicator(
+      value: shown,
       minHeight: LekisSpacing.xxs,
       color: colors.accent,
       backgroundColor: colors.outline,
+    );
+    if (!widget.interactive) return bar;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapUp: (details) {
+            _preview(details.localPosition.dx, width);
+            _commit();
+          },
+          onHorizontalDragStart: (details) =>
+              _preview(details.localPosition.dx, width),
+          onHorizontalDragUpdate: (details) =>
+              _preview(details.localPosition.dx, width),
+          onHorizontalDragEnd: (_) => _commit(),
+          onHorizontalDragCancel: () {
+            if (mounted) setState(() => _dragProgress = null);
+          },
+          child: SizedBox(
+            height: LekisSizes.touchTargetMin / 2,
+            child: Align(alignment: Alignment.bottomCenter, child: bar),
+          ),
+        );
+      },
     );
   }
 }
