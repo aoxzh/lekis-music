@@ -193,6 +193,36 @@ class SleepTimerNotifier extends Notifier<SleepTimerState> {
     state = SleepTimerState(kind: kind, endsAt: DateTime.now().add(duration));
   }
 
+  /// Push the current timed deadline back by [extra].
+  void extend(Duration extra) {
+    final end = state.endsAt;
+    if (end == null) {
+      set(SleepTimerKind.min15);
+      return;
+    }
+    _timer?.cancel();
+    _fadeTimer?.cancel();
+    _stopEndOfTrackWatch();
+    _fadeDismissed = false;
+    _cancelFade(restoreVolume: true);
+    final total = end.difference(DateTime.now()) + extra;
+    if (total <= Duration.zero) {
+      _finish();
+      return;
+    }
+    final fadeDelay = total - fadeDuration;
+    if (fadeDelay > Duration.zero) {
+      _fadeTimer = Timer(fadeDelay, () => _startFade());
+    }
+    _timer = Timer(total, _finish);
+    state = SleepTimerState(
+      kind: state.kind,
+      endsAt: DateTime.now().add(total),
+      armedTrackId: state.armedTrackId,
+      armedQueueIndex: state.armedQueueIndex,
+    );
+  }
+
   void _startFade({Duration length = fadeDuration}) {
     _fadeTimer?.cancel();
     _fadeTimer = null;
@@ -259,6 +289,8 @@ final sleepTimerProvider =
       SleepTimerNotifier.new,
     );
 
+enum _SleepMenuAction { extend }
+
 /// Moon button in Now Playing: pick a sleep timer without opening Settings.
 class SleepTimerButton extends ConsumerStatefulWidget {
   const SleepTimerButton({super.key, this.compact = false});
@@ -273,15 +305,17 @@ class SleepTimerButton extends ConsumerStatefulWidget {
 class _SleepTimerButtonState extends ConsumerState<SleepTimerButton> {
   Timer? _ticker;
 
-  @override
-  void initState() {
-    super.initState();
-    // Rebuild the badge/tooltip twice a minute while a timer is armed; the
-    // minute changes are all the user needs, and this avoids a per-second
-    // rebuild of the player bar.
-    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted && ref.read(sleepTimerProvider).active) setState(() {});
-    });
+  void _syncTicker(SleepTimerState timer) {
+    final needsTicker = timer.endsAt != null;
+    if (needsTicker && _ticker == null) {
+      // Only timed modes need the minute badge to keep counting down.
+      _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+        if (mounted) setState(() {});
+      });
+    } else if (!needsTicker) {
+      _ticker?.cancel();
+      _ticker = null;
+    }
   }
 
   @override
@@ -292,7 +326,12 @@ class _SleepTimerButtonState extends ConsumerState<SleepTimerButton> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<SleepTimerState>(
+      sleepTimerProvider,
+      (_, next) => _syncTicker(next),
+    );
     final timer = ref.watch(sleepTimerProvider);
+    _syncTicker(timer);
     final active = timer.active;
     final remaining = timer.kind == SleepTimerKind.endOfTrack
         ? null
@@ -318,19 +357,33 @@ class _SleepTimerButtonState extends ConsumerState<SleepTimerButton> {
                   'Sleep timer: ${timer.kind.label} (about $minutes min left)',
                 )
         : L10n.tr('睡眠定时', 'Sleep timer');
-    return PopupMenuButton<SleepTimerKind>(
+    return PopupMenuButton<Object>(
       tooltip: tooltip,
       iconSize: widget.compact ? 20 : null,
       padding: widget.compact ? EdgeInsets.zero : const EdgeInsets.all(8),
       icon: buttonIcon,
-      onSelected: (kind) => ref.read(sleepTimerProvider.notifier).set(kind),
+      onSelected: (value) {
+        final notifier = ref.read(sleepTimerProvider.notifier);
+        if (value is SleepTimerKind) {
+          notifier.set(value);
+        } else if (value == _SleepMenuAction.extend) {
+          notifier.extend(const Duration(minutes: 15));
+        }
+      },
       itemBuilder: (context) => [
         for (final kind in SleepTimerKind.values)
-          CheckedPopupMenuItem<SleepTimerKind>(
+          CheckedPopupMenuItem<Object>(
             value: kind,
             checked: kind == timer.kind,
             child: Text(kind.label),
           ),
+        if (timer.endsAt != null) ...[
+          const PopupMenuDivider(),
+          PopupMenuItem<Object>(
+            value: _SleepMenuAction.extend,
+            child: Text(L10n.tr('再延长 15 分钟', 'Extend 15 min')),
+          ),
+        ],
       ],
     );
   }
