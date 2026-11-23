@@ -14,6 +14,7 @@ import 'package:lekis/src/features/library/library_providers.dart'
     show PagedList, artistIdForNameProvider;
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/layout/window_size.dart';
 import 'package:lekis/src/platform/ui_profile.dart';
@@ -333,6 +334,133 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
     }
   }
 
+  Future<void> _saveQueueAsPlaylist(BuildContext context) async {
+    final length = ref.read(playbackProvider).queueLength;
+    if (length == 0) return;
+    final l10n = context.l10n;
+    final controller = TextEditingController(
+      text:
+          '${l10n.pick('播放队列', 'Queue')} '
+          '${DateTime.now().toString().substring(0, 16).replaceAll('T', ' ')}',
+    );
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(l10n.pick('保存为歌单', 'Save as Playlist')),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: l10n.pick('歌单名称', 'Playlist name'),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(),
+            child: Text(l10n.pick('取消', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialog).pop(controller.text.trim()),
+            child: Text(l10n.pick('保存', 'Save')),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || name.isEmpty || !context.mounted) return;
+    if (!mounted) return;
+    final progress = ValueNotifier<int>(0);
+    final navigator = Navigator.of(context, rootNavigator: true);
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: Text(l10n.pick('正在保存歌单', 'Saving Playlist')),
+          content: ValueListenableBuilder<int>(
+            valueListenable: progress,
+            builder: (_, done, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LinearProgressIndicator(value: (done / length).clamp(0.0, 1.0)),
+                const SizedBox(height: LekisSpacing.md),
+                Text('$done / $length'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    var saved = 0;
+    var failed = 0;
+    try {
+      final playlistId = await core.createPlaylist(name: name);
+      var offset = 0;
+      while (offset < length) {
+        final rows = await core.queueItems(offset: offset, limit: 200);
+        if (rows.isEmpty) break;
+        for (final row in rows) {
+          try {
+            final track = await core.getTrack(trackId: row.id);
+            await core.addToPlaylist(
+              playlistId: playlistId,
+              trackUid: track.uid,
+            );
+            saved++;
+          } catch (_) {
+            failed++;
+          }
+          progress.value = (progress.value + 1).clamp(0, length);
+        }
+        offset += rows.length;
+      }
+      if (saved == 0) {
+        try {
+          await core.deletePlaylist(playlistId: playlistId);
+        } catch (_) {
+          // Best-effort cleanup; the error below is the useful one.
+        }
+      }
+      ref.invalidate(playlistsProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                saved == 0
+                    ? l10n.pick('没有可保存的曲目', 'No tracks could be saved')
+                    : failed == 0
+                    ? l10n.pick(
+                        '已保存 $saved 首到歌单「$name」',
+                        'Saved $saved tracks to "$name"',
+                      )
+                    : l10n.pick(
+                        '已保存 $saved 首到歌单「$name」，$failed 首失败',
+                        'Saved $saved tracks to "$name"; $failed failed',
+                      ),
+              ),
+            ),
+          );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                l10n.pick('保存歌单失败：$e', 'Failed to save playlist: $e'),
+              ),
+            ),
+          );
+      }
+    } finally {
+      if (navigator.mounted && navigator.canPop()) navigator.pop();
+      progress.dispose();
+    }
+  }
+
   void _remove(int index) {
     if (_removing.contains(index)) return;
     final version = ref.read(playbackProvider).queueVersion;
@@ -409,6 +537,9 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
             if (widget.showHeader) ...[
               _QueueHeader(
                 length: queueLength,
+                onSaveAsPlaylist: queueLength == 0
+                    ? null
+                    : () => _saveQueueAsPlaylist(context),
                 onClear: queueLength == 0 ? null : () => _confirmClear(context),
                 onJumpToCurrent: currentIndex == null
                     ? null
@@ -528,15 +659,19 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
   }
 }
 
+enum _QueueHeaderAction { saveAsPlaylist, clear }
+
 class _QueueHeader extends StatelessWidget {
   const _QueueHeader({
     required this.length,
+    this.onSaveAsPlaylist,
     this.onClear,
     this.onJumpToCurrent,
     this.onClose,
   });
 
   final int length;
+  final VoidCallback? onSaveAsPlaylist;
   final VoidCallback? onClear;
   final VoidCallback? onJumpToCurrent;
   final VoidCallback? onClose;
@@ -566,16 +701,43 @@ class _QueueHeader extends StatelessWidget {
             const SizedBox(width: LekisSpacing.sm),
             _CountBadge(count: length),
             const Spacer(),
-            if (onClear != null)
-              IconButton(
-                key: const ValueKey('queue-panel.clear'),
-                tooltip: context.l10n.pick('清空队列', 'Clear queue'),
-                constraints: const BoxConstraints(
-                  minWidth: LekisSizes.touchTargetMin,
-                  minHeight: LekisSizes.touchTargetMin,
-                ),
-                onPressed: onClear,
-                icon: const Icon(Icons.delete_sweep_outlined, size: 20),
+            if (onSaveAsPlaylist != null || onClear != null)
+              PopupMenuButton<_QueueHeaderAction>(
+                key: const ValueKey('queue-panel.more'),
+                tooltip: context.l10n.pick('队列操作', 'Queue actions'),
+                icon: const Icon(Icons.more_horiz_rounded, size: 20),
+                onSelected: (action) {
+                  switch (action) {
+                    case _QueueHeaderAction.saveAsPlaylist:
+                      onSaveAsPlaylist?.call();
+                    case _QueueHeaderAction.clear:
+                      onClear?.call();
+                  }
+                },
+                itemBuilder: (_) => [
+                  if (onSaveAsPlaylist != null)
+                    PopupMenuItem(
+                      value: _QueueHeaderAction.saveAsPlaylist,
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.playlist_add_rounded),
+                        title: Text(
+                          context.l10n.pick('保存为歌单', 'Save as Playlist'),
+                        ),
+                      ),
+                    ),
+                  if (onClear != null)
+                    PopupMenuItem(
+                      value: _QueueHeaderAction.clear,
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.delete_sweep_outlined),
+                        title: Text(context.l10n.pick('清空队列', 'Clear Queue')),
+                      ),
+                    ),
+                ],
               ),
             if (onJumpToCurrent != null)
               IconButton(
