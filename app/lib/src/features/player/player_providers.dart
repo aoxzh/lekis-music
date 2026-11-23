@@ -414,6 +414,18 @@ class PlayerActions {
     _ref.read(playbackSessionProvider).scheduleSave(delay: Duration.zero);
   }
 
+  /// Clear the queue and stop playback. Uses the same SetQueue bridge path
+  /// with an empty list, so no extra FFI API is needed.
+  void clearQueue() {
+    _guard(
+      'clearQueue',
+      () => core.playTracks(
+        trackIds: Int64List.fromList(const <int>[]),
+        start: 0,
+      ),
+    );
+  }
+
   void next() => _guard('next', core.next);
   void previous() => _guard('previous', core.previous);
 

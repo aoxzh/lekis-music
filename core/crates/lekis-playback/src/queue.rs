@@ -287,6 +287,17 @@ mod tests {
         assert_eq!(q.advance(true), Some(TrackId(2)));
     }
 
+    #[test]
+    fn empty_set_clears_queue() {
+        let mut q = Queue::default();
+        q.set(ids(3), 1);
+        q.set(Vec::<TrackId>::new(), 0);
+        assert!(q.is_empty());
+        assert_eq!(q.current(), None);
+        assert_eq!(q.position(), None);
+        assert!(q.ordered().is_empty());
+    }
+
     /// 无缝播放要能往后看两首：repeat-one 看到的是自己，列表循环会绕回队首。
     #[test]
     fn peek_next_steps_matches_advance_semantics() {

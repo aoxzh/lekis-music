@@ -304,6 +304,35 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
     }
   }
 
+  Future<void> _confirmClear(BuildContext context) async {
+    final l10n = context.l10n;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(l10n.pick('清空播放队列？', 'Clear the queue?')),
+        content: Text(
+          l10n.pick(
+            '队列和当前播放都会停止。',
+            'The queue and current playback will stop.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(false),
+            child: Text(l10n.pick('取消', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialog).pop(true),
+            child: Text(l10n.pick('清空', 'Clear')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      ref.read(playerActionsProvider).clearQueue();
+    }
+  }
+
   void _remove(int index) {
     if (_removing.contains(index)) return;
     final version = ref.read(playbackProvider).queueVersion;
@@ -380,6 +409,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
             if (widget.showHeader) ...[
               _QueueHeader(
                 length: queueLength,
+                onClear: queueLength == 0 ? null : () => _confirmClear(context),
                 onJumpToCurrent: currentIndex == null
                     ? null
                     : () => _jumpToCurrent(currentIndex),
@@ -501,11 +531,13 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
 class _QueueHeader extends StatelessWidget {
   const _QueueHeader({
     required this.length,
+    this.onClear,
     this.onJumpToCurrent,
     this.onClose,
   });
 
   final int length;
+  final VoidCallback? onClear;
   final VoidCallback? onJumpToCurrent;
   final VoidCallback? onClose;
 
@@ -534,6 +566,17 @@ class _QueueHeader extends StatelessWidget {
             const SizedBox(width: LekisSpacing.sm),
             _CountBadge(count: length),
             const Spacer(),
+            if (onClear != null)
+              IconButton(
+                key: const ValueKey('queue-panel.clear'),
+                tooltip: context.l10n.pick('清空队列', 'Clear queue'),
+                constraints: const BoxConstraints(
+                  minWidth: LekisSizes.touchTargetMin,
+                  minHeight: LekisSizes.touchTargetMin,
+                ),
+                onPressed: onClear,
+                icon: const Icon(Icons.delete_sweep_outlined, size: 20),
+              ),
             if (onJumpToCurrent != null)
               IconButton(
                 key: const ValueKey('queue-panel.jump-current'),

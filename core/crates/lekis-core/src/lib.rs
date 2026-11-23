@@ -1942,11 +1942,8 @@ impl LekisCore {
     // 播放控制（都是非阻塞的：只是给引擎发命令）
     // -----------------------------------------------------------------------
 
-    /// 用一组曲目替换队列，从 `start` 开始播放。
+    /// 用一组曲目替换队列，从 `start` 开始播放；空列表表示清空队列并停止播放。
     pub fn play_tracks(&self, tracks: Vec<TrackId>, start: u32) -> Result<()> {
-        if tracks.is_empty() {
-            return Err(LekisError::invalid("tracks must not be empty"));
-        }
         self.services.engine.send(EngineCommand::SetQueue {
             tracks,
             start: start as usize,
