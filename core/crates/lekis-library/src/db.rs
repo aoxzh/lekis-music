@@ -49,6 +49,11 @@ fn configure(conn: &Connection) -> Result<()> {
          PRAGMA foreign_keys = ON;
          PRAGMA busy_timeout = 5000;
          PRAGMA temp_store = MEMORY;
+         -- Large scans write in 500-track transactions. Fewer, larger WAL
+         -- checkpoints and a bounded WAL keep fsync work down without letting
+         -- the sidecar files grow without limit.
+         PRAGMA wal_autocheckpoint = 2000;
+         PRAGMA journal_size_limit = 33554432;
          -- 100k-track libraries: keep the hot pages in memory instead of
          -- re-reading the B-trees for every list / search page. 8 MiB per
          -- connection keeps the five-connection pool bounded on phones.
