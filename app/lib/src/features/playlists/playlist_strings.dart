@@ -43,6 +43,8 @@ abstract final class PlaylistStrings {
   static String get duplicating => L10n.tr('正在复制歌单', 'Duplicating Playlist');
   static String duplicated(String name, int count) =>
       L10n.tr('已复制 $count 首到「$name」', 'Copied $count tracks to "$name"');
+  static String duplicatedSmart(String name) =>
+      L10n.tr('已复制智能歌单「$name」', 'Copied smart playlist "$name"');
   static String get duplicateSmartUnsupported => L10n.tr(
     '智能歌单不能直接复制为普通歌单',
     'Smart playlists cannot be duplicated as regular playlists',

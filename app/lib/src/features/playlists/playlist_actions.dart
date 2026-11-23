@@ -183,11 +183,50 @@ Future<void> duplicatePlaylistFlow(
   PlaylistDto playlist,
 ) async {
   if (playlist.kind == PlaylistKindDto.smart) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(PlaylistStrings.duplicateSmartUnsupported)),
+    try {
+      final rules = await core.getPlaylistRules(playlistId: playlist.id);
+      if (rules == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(PlaylistStrings.duplicateSmartUnsupported),
+              ),
+            );
+        }
+        return;
+      }
+      if (!context.mounted) return;
+      final name = await askPlaylistName(
+        context,
+        title: PlaylistStrings.duplicateTitle,
+        initial: PlaylistStrings.duplicateName(playlist.name),
+        confirm: PlaylistStrings.create,
       );
+      if (name == null || !context.mounted) return;
+      final newId = await core.createPlaylist(name: name);
+      try {
+        await core.setPlaylistRules(playlistId: newId, rules: rules);
+      } catch (_) {
+        try {
+          await core.deletePlaylist(playlistId: newId);
+        } catch (_) {
+          // Best-effort cleanup; the original error is the useful one.
+        }
+        rethrow;
+      }
+      ref.invalidate(playlistsProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(content: Text(PlaylistStrings.duplicatedSmart(name))),
+          );
+      }
+    } catch (e) {
+      if (context.mounted) showPlaylistError(context, e);
+    }
     return;
   }
   final name = await askPlaylistName(

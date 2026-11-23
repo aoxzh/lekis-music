@@ -514,11 +514,10 @@ class _PlaylistHeader extends ConsumerWidget {
                       value: 'rename',
                       child: Text(PlaylistStrings.rename),
                     ),
-                    if (playlist.kind != PlaylistKindDto.smart)
-                      PopupMenuItem(
-                        value: 'duplicate',
-                        child: Text(PlaylistStrings.duplicate),
-                      ),
+                    PopupMenuItem(
+                      value: 'duplicate',
+                      child: Text(PlaylistStrings.duplicate),
+                    ),
                     if (onSort != null)
                       PopupMenuItem(
                         value: 'sort',
