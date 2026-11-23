@@ -85,15 +85,13 @@ jobs:
           cargo test --manifest-path core/Cargo.toml --workspace --no-fail-fast 2>&1 | tee core-test.log
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
-            grep -E '^(test .* FAILED|failures:)' core-test.log | head -40 | while IFS= read -r line; do
-              echo "::error::$line"
-            done
-            # 再抓 "---- <name> stdout ----" 段的首行 panic 信息
-            grep -E '^---- .* stdout ----' core-test.log | head -20 | while IFS= read -r line; do
-              echo "::error::$line"
-            done
-            grep -E "panicked at|assertion .* failed|Error:" core-test.log | head -20 | while IFS= read -r line; do
-              echo "::error::  $line"
+            # 把失败附近的上下文（含 panic 的整段）逐行打成 annotation。
+            grep -nE 'panicked at|FAILED|^failures:' core-test.log | head -10 | while IFS= read -r line; do
+              n=${line%%:*}
+              echo "::error::line $n: ${line#*:}"
+              sed -n "$((n)),$((n+5))p" core-test.log | while IFS= read -r ctx; do
+                echo "::error::    $ctx"
+              done
             done
           fi
           exit "$status"
