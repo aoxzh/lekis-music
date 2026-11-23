@@ -5,6 +5,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/downloads/downloads_providers.dart';
@@ -36,6 +37,7 @@ enum _MoreAction {
   playOnDevice,
   editLyrics,
   sources,
+  copyInfo,
   lyricsEarlier,
   lyricsLater,
   lyricsReset,
@@ -124,6 +126,35 @@ class _MoreButton extends ConsumerWidget {
 
   final TrackDto track;
   final bool includeRating;
+
+  Future<void> _copyInfo(BuildContext context) async {
+    final text = [
+      track.title,
+      if (track.artists.isNotEmpty) track.artists.join(' / '),
+      if (track.albumTitle != null && track.albumTitle!.isNotEmpty)
+        track.albumTitle!,
+    ].join(' — ');
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(context.l10n.pick('已复制曲目信息', 'Track info copied')),
+          ),
+        );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(context.l10n.pick('复制失败：$e', 'Copy failed: $e')),
+          ),
+        );
+    }
+  }
 
   Future<void> _adjustLyrics(
     BuildContext context,
@@ -216,6 +247,8 @@ class _MoreButton extends ConsumerWidget {
               trackId: track.id,
               title: track.title,
             );
+          case _MoreAction.copyInfo:
+            unawaited(_copyInfo(context));
           case _MoreAction.lyricsEarlier:
             unawaited(_adjustLyrics(context, ref, (offset) => offset + 500));
           case _MoreAction.lyricsLater:
@@ -271,6 +304,13 @@ class _MoreButton extends ConsumerWidget {
           child: item(
             Icons.storage_rounded,
             context.l10n.pick('查看来源', 'View Sources'),
+          ),
+        ),
+        PopupMenuItem(
+          value: _MoreAction.copyInfo,
+          child: item(
+            Icons.copy_all_rounded,
+            context.l10n.pick('复制曲目信息', 'Copy Track Info'),
           ),
         ),
         const PopupMenuDivider(),
