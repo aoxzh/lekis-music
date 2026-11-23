@@ -87,19 +87,27 @@ void main() {
         expect(find.byType(SegmentedButton<LibrarySegment>), findsNothing);
         expect(find.byIcon(Icons.sort_rounded), findsOneWidget);
         expect(find.byIcon(Icons.view_carousel_rounded), findsOneWidget);
-        await tester.tap(selector);
-        await tester.pumpAndSettle();
         final labels = language == 'en' ? _english : _chinese;
         for (final label in labels) {
-          _expectFullLabel(tester, label, 320);
+          final chip = find.widgetWithText(ChoiceChip, label);
+          expect(chip, findsOneWidget, reason: label);
+          final paragraph = tester.renderObject<RenderParagraph>(
+            find.descendant(of: chip, matching: find.text(label)),
+          );
+          expect(paragraph.didExceedMaxLines, isFalse, reason: label);
         }
-        await tester.tap(find.text(labels[3]).last);
+        final genres = find.widgetWithText(ChoiceChip, labels[3]);
+        await tester.ensureVisible(genres);
+        await tester.pumpAndSettle();
+        await tester.tap(genres);
         await tester.pumpAndSettle();
         expect(container.read(librarySegmentProvider), LibrarySegment.genres);
-        expect(
-          tester.widget<DropdownButton<LibrarySegment>>(selector).value,
-          LibrarySegment.genres,
-        );
+        expect(tester.widget<ChoiceChip>(genres).selected, isTrue);
+        // The selected chip is scrolled into the visible strip.
+        final strip = tester.getRect(selector);
+        final chipRect = tester.getRect(genres);
+        expect(chipRect.left, greaterThanOrEqualTo(strip.left));
+        expect(chipRect.right, lessThanOrEqualTo(strip.right));
         expect(find.byIcon(Icons.sort_rounded), findsNothing);
         expect(find.byIcon(Icons.view_carousel_rounded), findsNothing);
         expect(tester.takeException(), isNull);

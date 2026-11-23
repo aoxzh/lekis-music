@@ -95,10 +95,7 @@ void main() {
           );
         } else {
           await tester.tap(
-            find.descendant(
-              of: picker,
-              matching: find.byType(DropdownButton<String>),
-            ),
+            find.descendant(of: picker, matching: find.byType(FilledButton)),
           );
         }
         await tester.pumpAndSettle();
@@ -107,7 +104,9 @@ void main() {
             find.byKey(const ValueKey('settings-choice-YouTube')),
           );
         } else {
-          await tester.tap(find.text('YouTube').last);
+          await tester.tap(
+            find.byKey(const ValueKey('library-source-YouTube')),
+          );
         }
         await tester.pumpAndSettle();
         expect(container.read(effectiveLibrarySourceProvider), 'YouTube');

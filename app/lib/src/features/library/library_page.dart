@@ -21,6 +21,7 @@ import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/routes.dart';
 import 'package:lekis/src/shell/tab_bar_style.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:lekis/src/widgets/liquid_glass.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -136,12 +137,12 @@ class LibraryHeader extends ConsumerWidget {
       ],
     );
 
+    // Only vertical padding here: the compact category strip scrolls edge to
+    // edge, so each row applies the page gutter itself.
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        gutter,
-        LekisSpacing.lg,
-        gutter,
-        LekisSpacing.md,
+      padding: const EdgeInsets.only(
+        top: LekisSpacing.lg,
+        bottom: LekisSpacing.md,
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -175,93 +176,62 @@ class LibraryHeader extends ConsumerWidget {
               LekisSpacing.sm +
               LekisSpacing.lg;
           final wide =
-              constraints.maxWidth >=
+              constraints.maxWidth - 2 * gutter >=
               requiredWidth + (sources.isEmpty ? 0 : 220);
-          if (source != null) {
-            return Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: LekisSpacing.lg,
-              runSpacing: LekisSpacing.sm,
-              children: [title, tools],
-            );
-          }
+          Widget padded(Widget child) => Padding(
+            padding: EdgeInsets.symmetric(horizontal: gutter),
+            child: child,
+          );
+          final titleRow = Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: LekisSpacing.lg,
+            runSpacing: LekisSpacing.sm,
+            children: [title, tools],
+          );
+          if (source != null) return padded(titleRow);
           if (wide) {
-            return Row(
-              children: [
-                title,
-                const Spacer(),
-                SegmentedButton<LibrarySegment>(
-                  key: const ValueKey('library-segments'),
-                  showSelectedIcon: false,
-                  style: SegmentedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: LekisSpacing.sm,
-                    ),
-                  ),
-                  segments: [
-                    for (final category in categories.entries)
-                      ButtonSegment(
-                        value: category.key,
-                        label: Text(category.value),
+            return padded(
+              Row(
+                children: [
+                  title,
+                  const Spacer(),
+                  SegmentedButton<LibrarySegment>(
+                    key: const ValueKey('library-segments'),
+                    showSelectedIcon: false,
+                    style: SegmentedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: LekisSpacing.sm,
                       ),
-                  ],
-                  selected: {segment},
-                  onSelectionChanged: (values) => select(values.first),
-                ),
-                const SizedBox(width: LekisSpacing.sm),
-                tools,
-              ],
+                    ),
+                    segments: [
+                      for (final category in categories.entries)
+                        ButtonSegment(
+                          value: category.key,
+                          label: Text(category.value),
+                        ),
+                    ],
+                    selected: {segment},
+                    onSelectionChanged: (values) => select(values.first),
+                  ),
+                  const SizedBox(width: LekisSpacing.sm),
+                  tools,
+                ],
+              ),
             );
           }
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Wrap(
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: LekisSpacing.lg,
-                runSpacing: LekisSpacing.sm,
-                children: [title, tools],
-              ),
-              const SizedBox(height: LekisSpacing.sm),
-              DecoratedBox(
-                decoration: ShapeDecoration(
-                  color: context.lekisColors.accentSoft,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(LekisRadius.button),
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: LekisSpacing.md,
-                  ),
-                  child: Semantics(
-                    label: l10n.pick('资料库分类', 'Library category'),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<LibrarySegment>(
-                        key: const ValueKey('library-category-select'),
-                        value: segment,
-                        isExpanded: true,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: theme.colorScheme.onSecondaryContainer,
-                        ),
-                        icon: const Icon(Icons.expand_more_rounded),
-                        items: [
-                          for (final category in categories.entries)
-                            DropdownMenuItem(
-                              value: category.key,
-                              child: Text(category.value),
-                            ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) select(value);
-                        },
-                      ),
-                    ),
-                  ),
-                ),
+              padded(titleRow),
+              const SizedBox(height: LekisSpacing.md),
+              _CategoryStrip(
+                key: const ValueKey('library-category-select'),
+                categories: categories,
+                selected: segment,
+                gutter: gutter,
+                onSelected: select,
               ),
             ],
           );
@@ -271,14 +241,96 @@ class LibraryHeader extends ConsumerWidget {
   }
 }
 
+/// Compact library navigation: every category is a chip in one row that
+/// scrolls sideways (bleeding past the page gutter so a cut-off chip hints
+/// at more); one tap switches. The selected chip is kept in view.
+class _CategoryStrip extends StatefulWidget {
+  const _CategoryStrip({
+    super.key,
+    required this.categories,
+    required this.selected,
+    required this.gutter,
+    required this.onSelected,
+  });
+
+  final Map<LibrarySegment, String> categories;
+  final LibrarySegment selected;
+  final double gutter;
+  final ValueChanged<LibrarySegment> onSelected;
+
+  @override
+  State<_CategoryStrip> createState() => _CategoryStripState();
+}
+
+class _CategoryStripState extends State<_CategoryStrip> {
+  final _keys = <LibrarySegment, GlobalKey>{
+    for (final segment in LibrarySegment.values) segment: GlobalKey(),
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _reveal(false));
+  }
+
+  @override
+  void didUpdateWidget(_CategoryStrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selected != widget.selected) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _reveal(true));
+    }
+  }
+
+  void _reveal(bool animate) {
+    final chip = _keys[widget.selected]?.currentContext;
+    if (!mounted || chip == null || !chip.mounted) return;
+    Scrollable.ensureVisible(
+      chip,
+      alignment: 0.5,
+      duration: animate ? LekisMotion.fast : Duration.zero,
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: context.l10n.pick('资料库分类', 'Library category'),
+      container: true,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.symmetric(horizontal: widget.gutter),
+        child: Row(
+          children: [
+            for (final (index, entry) in widget.categories.entries.indexed) ...[
+              if (index > 0) const SizedBox(width: LekisSpacing.sm),
+              ChoiceChip(
+                key: _keys[entry.key],
+                label: Text(entry.value),
+                selected: entry.key == widget.selected,
+                onSelected: (_) => widget.onSelected(entry.key),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _LibrarySourcePicker extends ConsumerWidget {
   const _LibrarySourcePicker();
+
+  static IconData _iconFor(String value) => value.isEmpty
+      ? Icons.library_music_rounded
+      : Icons.travel_explore_rounded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final source = ref.watch(effectiveLibrarySourceProvider);
+    final l10n = context.l10n;
     final choices = [
-      SettingsChoice('', context.l10n.pick('本地资料库', 'Local Library')),
+      SettingsChoice('', l10n.pick('本地资料库', 'Local Library')),
       for (final plugin in ref.watch(librarySourcePluginsProvider))
         SettingsChoice(plugin.id, plugin.name),
     ];
@@ -290,41 +342,118 @@ class _LibrarySourcePicker extends ConsumerWidget {
           .set(value.isEmpty ? null : value);
     }
 
+    if (UiProfile.current.desktopSettings) {
+      return Semantics(
+        label: l10n.pick('资料库音源', 'Library source'),
+        child: SizedBox(
+          key: const ValueKey('library-source-select'),
+          width: 160,
+          child: SettingsComboBox<String>(
+            value: source ?? '',
+            choices: choices,
+            minWidth: 0,
+            maxWidth: 160,
+            onChanged: select,
+          ),
+        ),
+      );
+    }
+
+    // Mobile: a tonal pill naming the current source; the choice opens as a
+    // bottom sheet (full-width rows, a check on the current one) instead of
+    // a bare Material dropdown.
+    final current = source ?? '';
+    final label = choices
+        .firstWhere((c) => c.value == current, orElse: () => choices.first)
+        .label;
+    Future<void> open() async {
+      final picked = await showLekisSheet<String>(
+        context,
+        heightFactor: null,
+        builder: (context) => _SourceSheet(choices: choices, current: current),
+      );
+      if (picked != null && picked != current) select(picked);
+    }
+
     return Semantics(
-      label: context.l10n.pick('资料库音源', 'Library source'),
-      child: SizedBox(
+      label: l10n.pick('资料库音源', 'Library source'),
+      child: ConstrainedBox(
         key: const ValueKey('library-source-select'),
-        width: 160,
-        child: UiProfile.current.desktopSettings
-            ? SettingsComboBox<String>(
-                value: source ?? '',
-                choices: choices,
-                minWidth: 0,
-                maxWidth: 160,
-                onChanged: select,
-              )
-            : DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: source ?? '',
-                  isExpanded: true,
-                  borderRadius: BorderRadius.circular(LekisRadius.md),
-                  items: [
-                    for (final choice in choices)
-                      DropdownMenuItem(
-                        value: choice.value,
-                        child: Text(
-                          choice.label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) select(value);
-                  },
+        constraints: const BoxConstraints(maxWidth: 180),
+        child: FilledButton.tonal(
+          onPressed: open,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(0, LekisSizes.buttonHeight),
+            padding: const EdgeInsets.only(
+              left: LekisSpacing.md,
+              right: LekisSpacing.sm,
+            ),
+            shape: const StadiumBorder(),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(_iconFor(current)),
+              const SizedBox(width: LekisSpacing.sm),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const Icon(Icons.expand_more_rounded),
+            ],
+          ),
+        ),
       ),
+    );
+  }
+}
+
+class _SourceSheet extends StatelessWidget {
+  const _SourceSheet({required this.choices, required this.current});
+
+  final List<SettingsChoice<String>> choices;
+  final String current;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListView(
+      shrinkWrap: true,
+      padding: const EdgeInsets.only(bottom: LekisSpacing.md),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            LekisSpacing.lg,
+            0,
+            LekisSpacing.lg,
+            LekisSpacing.sm,
+          ),
+          child: Text(
+            context.l10n.pick('资料库音源', 'Library source'),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        for (final choice in choices)
+          ListTile(
+            key: ValueKey('library-source-${choice.value}'),
+            selected: choice.value == current,
+            leading: Icon(_LibrarySourcePicker._iconFor(choice.value)),
+            title: Text(
+              choice.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: choice.value == current
+                ? const Icon(Icons.check_rounded)
+                : null,
+            onTap: () => Navigator.of(context).pop(choice.value),
+          ),
+      ],
     );
   }
 }
