@@ -1,5 +1,10 @@
 # AppKit lyrics use the Swift runtime supplied by macOS 12+. Native dependency
 # build-script link arguments do not propagate to downstream Rust executables or
 # test harnesses, so keep the system runpath on every macOS workspace target.
+#
+# This file must stay at the repository root: Cargo discovers `.cargo/config.toml`
+# from the *current working directory*, not from `--manifest-path`. CI runs
+# `cargo test --manifest-path core/Cargo.toml` from here, while desktop builds run
+# from `app/`; both walk up to this directory and pick the runpath up.
 [target.'cfg(target_os = "macos")']
 rustflags = ["-C", "link-arg=-Wl,-rpath,/usr/lib/swift"]

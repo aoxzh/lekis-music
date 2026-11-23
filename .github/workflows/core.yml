@@ -76,28 +76,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: core
-      # TEMP(debug): 把失败用例名打成 annotation，方便在 API/网页上直接看到。
-      # 定位完就删掉这一段，恢复成直接 `cargo test`。
-      - name: cargo test
-        shell: bash
-        run: |
-          set +e
-          cargo test --manifest-path core/Cargo.toml --workspace --no-fail-fast 2>&1 | tee core-test.log
-          status=${PIPESTATUS[0]}
-          if [ "$status" -ne 0 ]; then
-            cargo test --manifest-path core/Cargo.toml -p lekis-plugin-host --lib               spawn_preserves_literal_arguments -- --nocapture > spawn.log 2>&1
-            i=0
-            tail -n 30 spawn.log | while IFS= read -r line; do
-              i=$((i+1))
-              [ "$i" -gt 8 ] && break
-              echo "::error::$line"
-            done
-            # 关键：把 panic 那段单独再打 3 行（不受上面截断影响的关键信息）
-            grep -nE 'panicked at|called .Result|assertion|left:|right:|must stop' spawn.log | tail -3 | while IFS= read -r l; do
-              echo "::error::PANIC $l"
-            done
-          fi
-          exit "$status"
+      - run: cargo test --manifest-path core/Cargo.toml --workspace --no-fail-fast
 
   docs:
     name: rustdoc

@@ -1074,7 +1074,7 @@ mod tests {
 
     #[cfg(all(unix, not(any(target_os = "android", target_os = "ios"))))]
     #[test]
-    fn spawn_preserves_literal_arguments_and_stops_excess_output_promptly() {
+    fn spawn_preserves_literal_arguments() {
         let mut manifest = manifest("[]", None);
         manifest.permissions.process = vec!["printf".into()];
         let permissions = Permissions::new(&manifest.permissions, &["printf".into()]);
@@ -1086,15 +1086,6 @@ mod tests {
         )
         .unwrap();
         assert_eq!(result["stdout"], "$(echo injected); *");
-        let start = std::time::Instant::now();
-        let error = bridge
-            .spawn_json("printf", r#"["%8388609s", "x"]"#)
-            .unwrap_err();
-        assert!(error.message.contains("8 MiB"));
-        assert!(
-            start.elapsed() < Duration::from_secs(5),
-            "must stop at the quota, not wait for process timeout"
-        );
         let oversized_args = serde_json::to_string(&vec!["x"; 129]).unwrap();
         assert_eq!(
             bridge
@@ -1105,26 +1096,23 @@ mod tests {
         );
     }
 
-    #[cfg(windows)]
+    #[cfg(all(unix, not(any(target_os = "android", target_os = "ios"))))]
     #[test]
-    fn zz_probe_oversized_output_windows() {
+    fn spawn_stops_excess_output_promptly() {
+        // `yes` writes forever on every Unix and behaves the same with GNU and
+        // uutils coreutils. `printf '%8388609s'` used to stand in for it, but
+        // uutils rejects field widths that large instead of producing output.
         let mut manifest = manifest("[]", None);
-        manifest.permissions.process = vec!["powershell".into()];
-        let permissions = Permissions::new(&manifest.permissions, &["powershell".into()]);
+        manifest.permissions.process = vec!["yes".into()];
+        let permissions = Permissions::new(&manifest.permissions, &["yes".into()]);
         let bridge = HostBridge::new(&manifest, permissions, Arc::new(MockTransport::new("{}")));
         let start = std::time::Instant::now();
-        let result = bridge.spawn_json(
-            "powershell",
-            r#"["-NoProfile","-Command","[Console]::Out.Write('x' * 9000000)"]"#,
-        );
-        eprintln!(
-            "PROBE elapsed={:?} ok={} len={:?}",
-            start.elapsed(),
-            result.is_ok(),
-            result.as_ref().map(|s| s.len()).ok()
-        );
-        let error = result.expect_err("9 MB 输出必须报超限");
+        let error = bridge.spawn_json("yes", "[]").unwrap_err();
         assert!(error.message.contains("8 MiB"), "message={}", error.message);
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "must stop at the quota, not wait for process timeout"
+        );
     }
 
     #[test]
