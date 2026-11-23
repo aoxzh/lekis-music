@@ -1,6 +1,8 @@
 // "喜欢的歌曲" 视图：直接读核心的 loved_tracks，不建虚拟歌单。
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/library/album_detail_page.dart'
+    show PlayShuffleButtons;
 import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/paged_track_list.dart';
@@ -13,8 +15,11 @@ import 'package:material_ui/material_ui.dart';
 class LikedSongsView extends ConsumerWidget {
   const LikedSongsView({super.key});
 
-  Future<void> _playAll(BuildContext context) async {
+  Future<void> _playAll(BuildContext context, {bool shuffle = false}) async {
     try {
+      if (shuffle) {
+        core.setShuffle(mode: ShuffleModeDto.random);
+      }
       await core.playContext(
         context: const PlayContextDto.loved(),
         startIndex: 0,
@@ -44,38 +49,46 @@ class LikedSongsView extends ConsumerWidget {
         gutter,
         LekisSpacing.md,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(Icons.favorite_rounded, color: colors.accent),
-          const SizedBox(width: LekisSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Semantics(
-                  header: true,
-                  child: Text(
-                    context.l10n.pick('喜欢的歌曲', 'Liked Songs'),
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
+          Row(
+            children: [
+              Icon(Icons.favorite_rounded, color: colors.accent),
+              const SizedBox(width: LekisSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        context.l10n.pick('喜欢的歌曲', 'Liked Songs'),
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
-                  ),
+                    Text(
+                      count == null
+                          ? context.l10n.pick('正在统计…', 'Counting…')
+                          : context.l10n.pick('$count 首', '$count songs'),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  count == null
-                      ? context.l10n.pick('正在统计…', 'Counting…')
-                      : context.l10n.pick('$count 首', '$count songs'),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          FilledButton.tonalIcon(
-            onPressed: count == 0 ? null : () => _playAll(context),
-            icon: const Icon(Icons.play_arrow_rounded),
-            label: Text(context.l10n.pick('播放全部', 'Play All')),
+          const SizedBox(height: LekisSpacing.md),
+          PlayShuffleButtons(
+            alignment: WrapAlignment.start,
+            onPlay: count == 0 ? null : () => _playAll(context),
+            onShuffle: count == 0
+                ? null
+                : () => _playAll(context, shuffle: true),
           ),
         ],
       ),
