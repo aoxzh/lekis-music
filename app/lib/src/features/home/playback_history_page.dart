@@ -30,23 +30,60 @@ class PlaybackHistoryPage extends ConsumerWidget {
             );
           }
           final gutter = pageGutterOf(context);
-          return ListView.builder(
-            padding: EdgeInsets.fromLTRB(
-              gutter - LekisSpacing.sm,
-              LekisSpacing.sm,
-              gutter - LekisSpacing.sm,
-              scrollEndPadding(context),
-            ),
-            itemExtent: TrackTile.extent,
-            itemCount: tracks.length,
-            itemBuilder: (context, i) {
-              final track = tracks[i];
-              return TrackTile(
-                track: track,
-                onTap: () =>
-                    ref.read(playerActionsProvider).playRows(tracks, start: i),
-              );
-            },
+          final actions = ref.read(playerActionsProvider);
+          return Column(
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  gutter,
+                  LekisSpacing.sm,
+                  gutter,
+                  LekisSpacing.xs,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        l10n.pick(
+                          '最近 ${tracks.length} 首',
+                          '${tracks.length} recent tracks',
+                        ),
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: l10n.pick('播放全部', 'Play all'),
+                      onPressed: () => actions.playRows(tracks),
+                      icon: const Icon(Icons.play_arrow_rounded),
+                    ),
+                    IconButton(
+                      tooltip: l10n.pick('随机播放', 'Shuffle'),
+                      onPressed: () => actions.playRows(tracks, shuffle: true),
+                      icon: const Icon(Icons.shuffle_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  padding: EdgeInsets.fromLTRB(
+                    gutter - LekisSpacing.sm,
+                    0,
+                    gutter - LekisSpacing.sm,
+                    scrollEndPadding(context),
+                  ),
+                  itemExtent: TrackTile.extent,
+                  itemCount: tracks.length,
+                  itemBuilder: (context, i) {
+                    final track = tracks[i];
+                    return TrackTile(
+                      track: track,
+                      onTap: () => actions.playRows(tracks, start: i),
+                    );
+                  },
+                ),
+              ),
+            ],
           );
         },
       ),
