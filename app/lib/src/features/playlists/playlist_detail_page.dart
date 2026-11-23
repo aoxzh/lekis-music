@@ -114,9 +114,11 @@ class _PlaylistDetailViewState extends ConsumerState<PlaylistDetailView> {
   Widget build(BuildContext context) {
     final loaded = ref.watch(playlistProvider(widget.playlistId));
     if (loaded.hasError) {
-      return Center(child: Text(
+      return Center(
+        child: Text(
           PlaylistStrings.playlistLoadFailed(describeCoreError(loaded.error!)),
-        ));
+        ),
+      );
     }
     final playlist = loaded.value;
     if (playlist == null) {
@@ -200,7 +202,9 @@ class _StaticPlaylistBody extends ConsumerWidget {
             child: Padding(
               padding: EdgeInsets.all(gutter),
               child: Text(
-                PlaylistStrings.entriesLoadFailed(describeCoreError(entries.error!)),
+                PlaylistStrings.entriesLoadFailed(
+                  describeCoreError(entries.error!),
+                ),
               ),
             ),
           )
@@ -265,7 +269,10 @@ class _SmartPlaylistBody extends ConsumerWidget {
               playlist: playlist,
               subtitle: rules.value == null
                   ? PlaylistStrings.smartSubtitle
-                  : PlaylistStrings.smartMatched(rows.length, rows.length >= 5000),
+                  : PlaylistStrings.smartMatched(
+                      rows.length,
+                      rows.length >= 5000,
+                    ),
               onPlay: rows.isEmpty
                   ? null
                   : () => playPlaylistContext(context, playlist),
@@ -281,7 +288,9 @@ class _SmartPlaylistBody extends ConsumerWidget {
             child: Padding(
               padding: EdgeInsets.all(gutter),
               child: Text(
-                PlaylistStrings.rulesEvalFailed(describeCoreError(tracks.error!)),
+                PlaylistStrings.rulesEvalFailed(
+                  describeCoreError(tracks.error!),
+                ),
               ),
             ),
           )
@@ -458,6 +467,10 @@ class _PlaylistHeader extends ConsumerWidget {
                         );
                       case 'rename':
                         rename();
+                      case 'duplicate':
+                        unawaited(
+                          duplicatePlaylistFlow(context, ref, playlist),
+                        );
                       case 'delete':
                         delete();
                     }
@@ -487,6 +500,11 @@ class _PlaylistHeader extends ConsumerWidget {
                       value: 'rename',
                       child: Text(PlaylistStrings.rename),
                     ),
+                    if (playlist.kind != PlaylistKindDto.smart)
+                      PopupMenuItem(
+                        value: 'duplicate',
+                        child: Text(PlaylistStrings.duplicate),
+                      ),
                     PopupMenuItem(
                       value: 'delete',
                       child: Text(PlaylistStrings.deletePlaylist),

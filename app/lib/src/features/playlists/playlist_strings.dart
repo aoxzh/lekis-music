@@ -33,8 +33,19 @@ abstract final class PlaylistStrings {
   );
   static String actionFailed(String e) =>
       L10n.tr('操作失败：$e', 'Action failed: $e');
-  static String deleted(String name) => L10n.tr('已删除“$name”', 'Deleted "$name"');
+  static String deleted(String name) =>
+      L10n.tr('已删除“$name”', 'Deleted "$name"');
   static String get renameTitle => L10n.tr('重命名歌单', 'Rename Playlist');
+  static String get duplicate => L10n.tr('复制歌单', 'Duplicate Playlist');
+  static String get duplicateTitle => L10n.tr('复制为歌单', 'Duplicate as Playlist');
+  static String duplicateName(String name) => L10n.tr('$name 副本', '$name copy');
+  static String get duplicating => L10n.tr('正在复制歌单', 'Duplicating Playlist');
+  static String duplicated(String name, int count) =>
+      L10n.tr('已复制 $count 首到「$name」', 'Copied $count tracks to "$name"');
+  static String get duplicateSmartUnsupported => L10n.tr(
+    '智能歌单不能直接复制为普通歌单',
+    'Smart playlists cannot be duplicated as regular playlists',
+  );
   static String get smartSubtitle =>
       L10n.tr('智能歌单 · 规则实时求值', 'Smart playlist · live rules');
   static String songCount(int n) => L10n.tr('$n 首歌曲', _songs(n));
@@ -54,8 +65,7 @@ abstract final class PlaylistStrings {
   static String loadFailed(String e) =>
       L10n.tr('加载失败：$e', 'Couldn\'t load: $e');
   static String get newPlaylist => L10n.tr('新建歌单', 'New Playlist');
-  static String get newSmartPlaylist =>
-      L10n.tr('新建智能歌单', 'New Smart Playlist');
+  static String get newSmartPlaylist => L10n.tr('新建智能歌单', 'New Smart Playlist');
   static String get createAndAdd => L10n.tr('创建并添加', 'Create & Add');
   static String get addToPlaylist => L10n.tr('添加到歌单', 'Add to Playlist');
   static String get newShort => L10n.tr('新建', 'New');
@@ -110,17 +120,22 @@ abstract final class PlaylistStrings {
   );
 
   // M3U / XSPF 导入导出
-  static String importSummaryEmpty() =>
-      L10n.tr('文件里没有条目，已创建空歌单。', 'No entries in the file; created an empty playlist.');
+  static String importSummaryEmpty() => L10n.tr(
+    '文件里没有条目，已创建空歌单。',
+    'No entries in the file; created an empty playlist.',
+  );
   static String importSummaryAll(int matched, int total) => L10n.tr(
     '已导入 $matched 首歌曲（共 $total 条）。',
     'Imported ${_songs(matched)} (of ${_entries(total)}).',
   );
-  static String importSummaryPartial(int matched, int missing, int total) =>
-      L10n.tr(
-        '已导入 $matched 首歌曲，$missing 个路径未匹配（共 $total 条）。',
-        'Imported ${_songs(matched)}; ${_paths(missing)} not matched (of ${_entries(total)}).',
-      );
+  static String importSummaryPartial(
+    int matched,
+    int missing,
+    int total,
+  ) => L10n.tr(
+    '已导入 $matched 首歌曲，$missing 个路径未匹配（共 $total 条）。',
+    'Imported ${_songs(matched)}; ${_paths(missing)} not matched (of ${_entries(total)}).',
+  );
   static String get importedName => L10n.tr('导入的歌单', 'Imported Playlist');
   static String get smartNotExportable => L10n.tr(
     '智能歌单没有固定条目，不能导出',
@@ -128,8 +143,10 @@ abstract final class PlaylistStrings {
   );
   static String get m3uSubtitle =>
       L10n.tr('兼容大多数播放器、车载和 NAS', 'Works with most players, cars and NAS');
-  static String get xspfSubtitle =>
-      L10n.tr('XML 格式，保留艺人和标题元数据', 'XML format; keeps artist and title metadata');
+  static String get xspfSubtitle => L10n.tr(
+    'XML 格式，保留艺人和标题元数据',
+    'XML format; keeps artist and title metadata',
+  );
   static String exportFormat(String format) =>
       L10n.tr('导出 $format', 'Export $format');
   static String exportCount(String name, int n) =>
@@ -153,10 +170,8 @@ abstract final class PlaylistStrings {
       L10n.tr('选择播放列表', 'Choose a playlist file');
   static String readFileFailed(Object e) =>
       L10n.tr('读取文件失败：$e', 'Couldn\'t read file: $e');
-  static String get importNoContent => L10n.tr(
-    '请选择歌单文件或粘贴内容',
-    'Choose a playlist file or paste its contents',
-  );
+  static String get importNoContent =>
+      L10n.tr('请选择歌单文件或粘贴内容', 'Choose a playlist file or paste its contents');
   static String get chooseFile => L10n.tr('选择文件', 'Choose File');
   static String get pasteFromClipboard =>
       L10n.tr('从剪贴板粘贴', 'Paste from Clipboard');
@@ -175,7 +190,8 @@ abstract final class PlaylistStrings {
   static String get openPlaylist => L10n.tr('打开歌单', 'Open Playlist');
 
   // 智能歌单编辑器
-  static String get smartRulesTitle => L10n.tr('智能歌单规则', 'Smart Playlist Rules');
+  static String get smartRulesTitle =>
+      L10n.tr('智能歌单规则', 'Smart Playlist Rules');
   static String rulesLoadFailed(Object e) =>
       L10n.tr('规则加载失败：$e', 'Couldn\'t load rules: $e');
   static String get rulesIntro => L10n.tr(
@@ -219,8 +235,6 @@ abstract final class PlaylistStrings {
   static String rulesInvalid(String e) =>
       L10n.tr('规则无效：$e', 'Invalid rules: $e');
   static String get previewing => L10n.tr('正在预览…', 'Previewing…');
-  static String previewCount(int n) => L10n.tr(
-    '预览：匹配 $n 首',
-    'Preview: ${n == 1 ? '1 match' : '$n matches'}',
-  );
+  static String previewCount(int n) =>
+      L10n.tr('预览：匹配 $n 首', 'Preview: ${n == 1 ? '1 match' : '$n matches'}');
 }

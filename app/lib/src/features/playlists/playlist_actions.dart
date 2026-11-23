@@ -1,5 +1,7 @@
 // Shared playlist dialogs / commands used by the list and detail pages.
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
@@ -134,7 +136,9 @@ Future<bool> deletePlaylistFlow(
     if (context.mounted) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(PlaylistStrings.deleted(playlist.name))));
+        ..showSnackBar(
+          SnackBar(content: Text(PlaylistStrings.deleted(playlist.name))),
+        );
     }
     return true;
   } catch (e) {
@@ -171,6 +175,86 @@ String playlistSubtitle(PlaylistDto playlist) =>
     playlist.kind == PlaylistKindDto.smart
     ? PlaylistStrings.smartSubtitle
     : PlaylistStrings.songCount(playlist.trackCount);
+
+/// Duplicate a regular playlist into a new one, preserving order.
+Future<void> duplicatePlaylistFlow(
+  BuildContext context,
+  WidgetRef ref,
+  PlaylistDto playlist,
+) async {
+  if (playlist.kind == PlaylistKindDto.smart) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(PlaylistStrings.duplicateSmartUnsupported)),
+      );
+    return;
+  }
+  final name = await askPlaylistName(
+    context,
+    title: PlaylistStrings.duplicateTitle,
+    initial: PlaylistStrings.duplicateName(playlist.name),
+    confirm: PlaylistStrings.create,
+  );
+  if (name == null || !context.mounted) return;
+  final progress = ValueNotifier<int>(0);
+  final navigator = Navigator.of(context, rootNavigator: true);
+  unawaited(
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: Text(PlaylistStrings.duplicating),
+        content: ValueListenableBuilder<int>(
+          valueListenable: progress,
+          builder: (_, done, _) => Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox.square(
+                dimension: 22,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: LekisSpacing.md),
+              Text('$done'),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+  var saved = 0;
+  try {
+    final newId = await core.createPlaylist(name: name);
+    var offset = 0;
+    while (true) {
+      final rows = await core.playlistItems(
+        playlistId: playlist.id,
+        offset: offset,
+        limit: 200,
+      );
+      if (rows.isEmpty) break;
+      for (final row in rows) {
+        await core.addToPlaylist(playlistId: newId, trackUid: row.trackUid);
+        saved++;
+        progress.value = saved;
+      }
+      offset += rows.length;
+    }
+    ref.invalidate(playlistsProvider);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text(PlaylistStrings.duplicated(name, saved))),
+        );
+    }
+  } catch (e) {
+    if (context.mounted) showPlaylistError(context, e);
+  } finally {
+    if (navigator.mounted && navigator.canPop()) navigator.pop();
+    progress.dispose();
+  }
+}
 
 /// 长按 / 菜单里用的小标签样式。
 class PlaylistKindChip extends StatelessWidget {
