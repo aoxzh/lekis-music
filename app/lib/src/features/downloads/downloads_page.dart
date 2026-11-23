@@ -365,6 +365,14 @@ class _DownloadsBody extends ConsumerStatefulWidget {
 
 class _DownloadsBodyState extends ConsumerState<_DownloadsBody> {
   _DownloadFilter _filter = _DownloadFilter.all;
+  final TextEditingController _search = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -403,14 +411,24 @@ class _DownloadsBodyState extends ConsumerState<_DownloadsBody> {
           ),
         );
 
+    final query = _query.trim().toLowerCase();
+    bool matches(DownloadEntry entry) =>
+        query.isEmpty ||
+        entry.title.toLowerCase().contains(query) ||
+        entry.subtitle.toLowerCase().contains(query);
+    final active = state.active.where(matches).toList(growable: false);
+    final failed = state.failed.where(matches).toList(growable: false);
+    final ready = state.ready.where(matches).toList(growable: false);
+    final matchCount = active.length + failed.length + ready.length;
+
     final showAll = _filter == _DownloadFilter.all;
     final showActive = showAll || _filter == _DownloadFilter.active;
     final showFailed = showAll || _filter == _DownloadFilter.failed;
     final showReady = showAll || _filter == _DownloadFilter.ready;
     final anythingVisible =
-        (showActive && state.active.isNotEmpty) ||
-        (showFailed && state.failed.isNotEmpty) ||
-        (showReady && state.ready.isNotEmpty);
+        (showActive && active.isNotEmpty) ||
+        (showFailed && failed.isNotEmpty) ||
+        (showReady && ready.isNotEmpty);
 
     Widget chip(String label, _DownloadFilter value, int count) => ChoiceChip(
       label: Text('$label $count'),
@@ -424,6 +442,42 @@ class _DownloadsBodyState extends ConsumerState<_DownloadsBody> {
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           SliverToBoxAdapter(child: _SummaryCard(state: state)),
+          if (state.entries.length >= 8)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  LekisSpacing.xl,
+                  0,
+                  LekisSpacing.xl,
+                  LekisSpacing.sm,
+                ),
+                child: TextField(
+                  controller: _search,
+                  textInputAction: TextInputAction.search,
+                  onChanged: (value) => setState(() => _query = value),
+                  decoration: InputDecoration(
+                    hintText: l10n.pick('搜索下载', 'Search downloads'),
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: l10n.pick('清除', 'Clear'),
+                            onPressed: () {
+                              _search.clear();
+                              setState(() => _query = '');
+                            },
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                    isDense: true,
+                    filled: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(LekisRadius.pill),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(
@@ -436,45 +490,46 @@ class _DownloadsBodyState extends ConsumerState<_DownloadsBody> {
                 spacing: LekisSpacing.sm,
                 runSpacing: LekisSpacing.xs,
                 children: [
-                  chip(
-                    l10n.pick('全部', 'All'),
-                    _DownloadFilter.all,
-                    state.entries.length,
-                  ),
-                  if (state.active.isNotEmpty)
+                  chip(l10n.pick('全部', 'All'), _DownloadFilter.all, matchCount),
+                  if (active.isNotEmpty)
                     chip(
                       l10n.pick('队列', 'Queue'),
                       _DownloadFilter.active,
-                      state.active.length,
+                      active.length,
                     ),
-                  if (state.failed.isNotEmpty)
+                  if (failed.isNotEmpty)
                     chip(
                       l10n.pick('失败', 'Failed'),
                       _DownloadFilter.failed,
-                      state.failed.length,
+                      failed.length,
                     ),
-                  if (state.ready.isNotEmpty)
+                  if (ready.isNotEmpty)
                     chip(
                       l10n.pick('已下载', 'Downloaded'),
                       _DownloadFilter.ready,
-                      state.ready.length,
+                      ready.length,
                     ),
                 ],
               ),
             ),
           ),
-          if (showActive && state.active.isNotEmpty)
-            section(l10n.pick('下载队列', 'Queue'), state.active),
-          if (showFailed && state.failed.isNotEmpty)
-            section(l10n.pick('失败', 'Failed'), state.failed),
-          if (showReady && state.ready.isNotEmpty)
-            section(l10n.pick('已下载', 'Downloaded'), state.ready),
+          if (showActive && active.isNotEmpty)
+            section(l10n.pick('下载队列', 'Queue'), active),
+          if (showFailed && failed.isNotEmpty)
+            section(l10n.pick('失败', 'Failed'), failed),
+          if (showReady && ready.isNotEmpty)
+            section(l10n.pick('已下载', 'Downloaded'), ready),
           if (!anythingVisible)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(LekisSpacing.xl),
                 child: Text(
-                  l10n.pick('这个分类暂时没有下载', 'Nothing in this filter'),
+                  l10n.pick(
+                    query.isEmpty ? '这个分类暂时没有下载' : '没有匹配的下载',
+                    query.isEmpty
+                        ? 'Nothing in this filter'
+                        : 'No matching downloads',
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ),
