@@ -2634,6 +2634,8 @@ pub struct PluginPermissionsDto {
     pub request_header_hosts: Vec<String>,
     /// 是否需要网页登录。
     pub web_sign_in: bool,
+    /// Whether the plugin declares an Android native extension.
+    pub native_android: bool,
     /// 存储配额（KB）。
     pub storage_kb: u32,
 }
@@ -2645,6 +2647,7 @@ impl From<lekis_core::PluginPermissions> for PluginPermissionsDto {
             process: p.process,
             request_header_hosts: p.request_header_hosts,
             web_sign_in: p.web_sign_in,
+            native_android: p.native_android,
             storage_kb: p.storage_kb,
         }
     }
@@ -2689,6 +2692,46 @@ impl From<lekis_core::PluginSettingView> for PluginSettingDto {
     }
 }
 
+/// A source-plugin folder or collection.
+#[derive(Debug, Clone)]
+pub struct PluginFolderDto {
+    /// Opaque plugin browse path.
+    pub id: String,
+    /// Display title.
+    pub title: String,
+    /// Optional description.
+    pub subtitle: Option<String>,
+}
+
+/// One source-plugin browse page, using ordinary playback track IDs.
+#[derive(Debug, Clone)]
+pub struct PluginBrowsePageDto {
+    /// Navigable folders and collections.
+    pub folders: Vec<PluginFolderDto>,
+    /// Playable tracks.
+    pub tracks: Vec<TrackRowDto>,
+    /// Opaque next-page cursor.
+    pub next: Option<String>,
+}
+
+impl From<lekis_core::PluginBrowsePage> for PluginBrowsePageDto {
+    fn from(page: lekis_core::PluginBrowsePage) -> Self {
+        Self {
+            folders: page
+                .folders
+                .into_iter()
+                .map(|folder| PluginFolderDto {
+                    id: folder.id,
+                    title: folder.title,
+                    subtitle: folder.subtitle,
+                })
+                .collect(),
+            tracks: page.tracks.into_iter().map(Into::into).collect(),
+            next: page.next,
+        }
+    }
+}
+
 /// 已安装的本地插件。
 #[derive(Debug, Clone)]
 pub struct PluginInfoDto {
@@ -2702,12 +2745,16 @@ pub struct PluginInfoDto {
     pub api_version: String,
     /// `js` / `wasm` / `none`。
     pub runtime: String,
+    /// Optional foreign-plugin source protocol.
+    pub compatibility: Option<String>,
     /// 插件类型。
     pub kinds: Vec<String>,
     /// 入口文件。
     pub entry: Option<String>,
     /// 是否启用。
     pub enabled: bool,
+    /// Independent user grant to run Android native code.
+    pub native_android_granted: bool,
     /// 清单错误（正常为 `None`）。
     pub error: Option<String>,
     /// 插件目录名。
@@ -2730,9 +2777,11 @@ impl From<lekis_core::PluginInfo> for PluginInfoDto {
             version: p.version,
             api_version: p.api_version,
             runtime: p.runtime,
+            compatibility: p.compatibility,
             kinds: p.kinds,
             entry: p.entry,
             enabled: p.enabled,
+            native_android_granted: p.native_android_granted,
             error: p.error,
             directory: p.directory,
             author: p.author,

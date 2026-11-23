@@ -403,6 +403,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<PlaylistEntryDto> dco_decode_list_playlist_entry_dto(dynamic raw);
 
   @protected
+  List<PluginFolderDto> dco_decode_list_plugin_folder_dto(dynamic raw);
+
+  @protected
   List<PluginInfoDto> dco_decode_list_plugin_info_dto(dynamic raw);
 
   @protected
@@ -457,6 +460,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<SourceInfoDto> dco_decode_list_source_info_dto(dynamic raw);
+
+  @protected
+  List<SpotifyAlbumDto> dco_decode_list_spotify_album_dto(dynamic raw);
 
   @protected
   List<TrackListeningDto> dco_decode_list_track_listening_dto(dynamic raw);
@@ -623,6 +629,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlaylistKindDto dco_decode_playlist_kind_dto(dynamic raw);
 
   @protected
+  PluginBrowsePageDto dco_decode_plugin_browse_page_dto(dynamic raw);
+
+  @protected
+  PluginFolderDto dco_decode_plugin_folder_dto(dynamic raw);
+
+  @protected
   PluginInfoDto dco_decode_plugin_info_dto(dynamic raw);
 
   @protected
@@ -723,6 +735,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SourceListingDto dco_decode_source_listing_dto(dynamic raw);
+
+  @protected
+  SpotifyAlbumDto dco_decode_spotify_album_dto(dynamic raw);
 
   @protected
   SyncReportDto dco_decode_sync_report_dto(dynamic raw);
@@ -1268,6 +1283,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<PluginFolderDto> sse_decode_list_plugin_folder_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<PluginInfoDto> sse_decode_list_plugin_info_dto(
     SseDeserializer deserializer,
   );
@@ -1338,6 +1358,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<SourceInfoDto> sse_decode_list_source_info_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<SpotifyAlbumDto> sse_decode_list_spotify_album_dto(
     SseDeserializer deserializer,
   );
 
@@ -1546,6 +1571,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlaylistKindDto sse_decode_playlist_kind_dto(SseDeserializer deserializer);
 
   @protected
+  PluginBrowsePageDto sse_decode_plugin_browse_page_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PluginFolderDto sse_decode_plugin_folder_dto(SseDeserializer deserializer);
+
+  @protected
   PluginInfoDto sse_decode_plugin_info_dto(SseDeserializer deserializer);
 
   @protected
@@ -1664,6 +1697,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SourceListingDto sse_decode_source_listing_dto(SseDeserializer deserializer);
+
+  @protected
+  SpotifyAlbumDto sse_decode_spotify_album_dto(SseDeserializer deserializer);
 
   @protected
   SyncReportDto sse_decode_sync_report_dto(SseDeserializer deserializer);
@@ -2344,6 +2380,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_plugin_folder_dto(
+    List<PluginFolderDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_plugin_info_dto(
     List<PluginInfoDto> self,
     SseSerializer serializer,
@@ -2442,6 +2484,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_source_info_dto(
     List<SourceInfoDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_spotify_album_dto(
+    List<SpotifyAlbumDto> self,
     SseSerializer serializer,
   );
 
@@ -2710,6 +2758,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_plugin_browse_page_dto(
+    PluginBrowsePageDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_plugin_folder_dto(
+    PluginFolderDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_plugin_info_dto(PluginInfoDto self, SseSerializer serializer);
 
   @protected
@@ -2865,6 +2925,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_source_listing_dto(
     SourceListingDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_spotify_album_dto(
+    SpotifyAlbumDto self,
     SseSerializer serializer,
   );
 

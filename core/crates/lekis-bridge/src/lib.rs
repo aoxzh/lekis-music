@@ -10,6 +10,8 @@ pub mod api;
 mod credentials;
 mod internal;
 mod media_controls;
+#[cfg(any(target_os = "android", test))]
+mod native_plugins;
 mod usb_audio;
 // FRB 生成代码里有大量序列化 unwrap；不把手写代码的 lint 规则套到它上面。
 #[allow(clippy::unwrap_used, clippy::expect_used)]
