@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/library/album_detail_page.dart'
     show PlayShuffleButtons;
 import 'package:lekis/src/features/library/library_providers.dart';
@@ -6,6 +7,8 @@ import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/paged_track_list.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
+import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/features/library/widgets/press_feedback.dart';
 import 'package:material_ui/material_ui.dart';
@@ -99,15 +102,61 @@ class GenreDetailPage extends ConsumerWidget {
       actions.playRows(rows, shuffle: shuffle);
     }
 
+    Future<void> downloadAll() async {
+      final l10n = context.l10n;
+      final messenger = ScaffoldMessenger.of(context);
+      final ids = <int>[];
+      var offset = 0;
+      const batch = 500;
+      try {
+        while (true) {
+          final rows = await core.genreTracks(
+            name: genre,
+            offset: offset,
+            limit: batch,
+          );
+          if (rows.isEmpty) break;
+          ids.addAll([for (final row in rows) row.id]);
+          if (rows.length < batch) break;
+          offset += rows.length;
+        }
+      } catch (e) {
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                l10n.pick('获取流派歌曲失败：$e', 'Failed to load genre songs: $e'),
+              ),
+            ),
+          );
+        return;
+      }
+      if (!context.mounted || ids.isEmpty) return;
+      await startDownloads(context, ref, ids);
+    }
+
     return Scaffold(
       appBar: AppBar(title: Text(genre)),
       body: PagedTrackList(
         list: list,
         header: Padding(
           padding: const EdgeInsets.all(LekisSpacing.lg),
-          child: PlayShuffleButtons(
-            onPlay: playAll,
-            onShuffle: () => playAll(shuffle: true),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PlayShuffleButtons(
+                onPlay: playAll,
+                onShuffle: () => playAll(shuffle: true),
+              ),
+              const SizedBox(width: LekisSpacing.sm),
+              IconButton(
+                key: const ValueKey('genre-download-all'),
+                tooltip: context.l10n.pick('下载全部歌曲', 'Download All Songs'),
+                onPressed: downloadAll,
+                icon: const Icon(Icons.download_for_offline_outlined),
+              ),
+            ],
           ),
         ),
       ),
