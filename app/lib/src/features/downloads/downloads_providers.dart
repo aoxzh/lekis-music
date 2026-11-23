@@ -160,6 +160,16 @@ class DownloadsController extends AsyncNotifier<DownloadsState> {
 
   Future<void> retry(int trackId) => downloadTrack(trackId);
 
+  /// Play every completed download, optionally shuffled.
+  void playAllReady({bool shuffle = false}) {
+    final ids = [
+      for (final entry in state.value?.ready ?? const <DownloadEntry>[])
+        entry.trackId,
+    ];
+    if (ids.isEmpty) return;
+    ref.read(playerActionsProvider).playTracks(ids, shuffle: shuffle);
+  }
+
   /// Re-queue every failed download in one pass. Returns how many were
   /// accepted; the list refresh afterwards reflects anything still failing.
   Future<int> retryFailed() async {

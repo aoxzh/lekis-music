@@ -254,6 +254,12 @@ class DownloadsPage extends ConsumerWidget {
                 _downloadMostPlayed(context, ref);
               case 'clear-completed':
                 _clearCompleted(context, ref);
+              case 'play-downloaded':
+                ref.read(downloadsProvider.notifier).playAllReady();
+              case 'shuffle-downloaded':
+                ref
+                    .read(downloadsProvider.notifier)
+                    .playAllReady(shuffle: true);
               case 'retry-failed':
                 _retryFailed(context, ref);
               case 'clear-failed':
@@ -275,6 +281,22 @@ class DownloadsPage extends ConsumerWidget {
                 title: Text(l10n.pick('下载最常听 50 首', 'Download Top 50')),
               ),
             ),
+            if (hasCompleted)
+              PopupMenuItem(
+                value: 'play-downloaded',
+                child: ListTile(
+                  leading: const Icon(Icons.play_arrow_rounded),
+                  title: Text(l10n.pick('播放已下载', 'Play Downloaded')),
+                ),
+              ),
+            if (hasCompleted)
+              PopupMenuItem(
+                value: 'shuffle-downloaded',
+                child: ListTile(
+                  leading: const Icon(Icons.shuffle_rounded),
+                  title: Text(l10n.pick('随机播放已下载', 'Shuffle Downloaded')),
+                ),
+              ),
             if (hasCompleted)
               PopupMenuItem(
                 value: 'clear-completed',
