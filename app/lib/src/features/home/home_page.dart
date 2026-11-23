@@ -60,6 +60,31 @@ class HomePage extends ConsumerWidget {
     final actions = ref.read(playerActionsProvider);
     final l10n = context.l10n;
 
+    Widget trackShelfActions(List<TrackRowDto> rows, {Widget? extra}) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: l10n.pick('播放全部', 'Play all'),
+          visualDensity: VisualDensity.compact,
+          constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+          padding: EdgeInsets.zero,
+          onPressed: rows.isEmpty ? null : () => actions.playRows(rows),
+          icon: const Icon(Icons.play_arrow_rounded),
+        ),
+        IconButton(
+          tooltip: l10n.pick('随机播放', 'Shuffle'),
+          visualDensity: VisualDensity.compact,
+          constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+          padding: EdgeInsets.zero,
+          onPressed: rows.isEmpty
+              ? null
+              : () => actions.playRows(rows, shuffle: true),
+          icon: const Icon(Icons.shuffle_rounded),
+        ),
+        ?extra,
+      ],
+    );
+
     return Scaffold(
       body: SafeArea(
         // 左右不裁切，使横滑画廊（最近播放 / 最近添加 / 快捷胶囊）直接穿过侧边悬浮玻璃；
@@ -154,14 +179,17 @@ class HomePage extends ConsumerWidget {
                               TrackShelf(
                                 title: l10n.recentlyPlayed,
                                 tracks: played,
-                                trailing: TextButton(
-                                  onPressed: () => Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) =>
-                                          const PlaybackHistoryPage(),
+                                trailing: trackShelfActions(
+                                  played,
+                                  extra: TextButton(
+                                    onPressed: () => Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) =>
+                                            const PlaybackHistoryPage(),
+                                      ),
                                     ),
+                                    child: Text(l10n.seeAll),
                                   ),
-                                  child: Text(l10n.seeAll),
                                 ),
                               ),
                             if (recentAlbums.isNotEmpty)
@@ -175,7 +203,11 @@ class HomePage extends ConsumerWidget {
                                 tracks: recent,
                               ),
                             if (most.isNotEmpty)
-                              TrackShelf(title: l10n.mostPlayed, tracks: most),
+                              TrackShelf(
+                                title: l10n.mostPlayed,
+                                tracks: most,
+                                trailing: trackShelfActions(most),
+                              ),
                           ],
                         ),
                       ),
