@@ -218,13 +218,14 @@ Future<void> enrichTracksFlow(
     ..showSnackBar(result);
 }
 
-/// 从资料库中收集缺失封面或歌词的曲目（每批最多 50 首），按所选范围执行补全。
+/// 从资料库中收集缺失封面或歌词的曲目，按所选范围执行补全。
 ///
-/// 仅补全封面时按专辑去重：同一张缺封面的专辑只查一首代表曲目，避免重复请求与重复候选。
+/// 会分页读取健康报告直到没有更多缺失项，因此一次点击会处理全部缺失曲目；
+/// 进度条显示总数，用户可随时取消。仅补全封面时按专辑去重：同一张缺封面的
+/// 专辑只查一首代表曲目，避免重复请求与重复候选。
 Future<void> enrichMissingFromLibraryFlow(
   BuildContext context, {
   EnrichScope? scope,
-  int batchLimit = 50,
   VoidCallback? onCompleted,
 }) async {
   final chosen = scope ?? await showEnrichScopeDialog(context);
@@ -232,17 +233,22 @@ Future<void> enrichMissingFromLibraryFlow(
 
   final targets = <int, EnrichTarget>{};
   final seenAlbums = <int>{};
-  try {
-    if (chosen == EnrichScope.all || chosen == EnrichScope.artwork) {
+  Future<void> collect(
+    HealthIssueKindDto kind, {
+    bool albumDedupe = false,
+  }) async {
+    const pageSize = 200;
+    var offset = 0;
+    while (true) {
       final rows = await core.libraryHealthPage(
-        kind: HealthIssueKindDto.missingCover,
-        offset: 0,
-        limit: batchLimit * 2,
+        kind: kind,
+        offset: offset,
+        limit: pageSize,
       );
+      if (rows.isEmpty) return;
       for (final row in rows) {
         final albumId = row.albumId?.toInt();
-        // 仅补全封面时同专辑只查一首，应用后会同时挂到整张专辑。
-        if (chosen == EnrichScope.artwork &&
+        if (albumDedupe &&
             albumId != null &&
             !seenAlbums.add(albumId)) {
           continue;
@@ -251,22 +257,21 @@ Future<void> enrichMissingFromLibraryFlow(
           row.trackId,
           () => EnrichTarget(trackId: row.trackId, title: row.title),
         );
-        if (targets.length >= batchLimit) break;
       }
+      if (rows.length < pageSize) return;
+      offset += rows.length;
+    }
+  }
+
+  try {
+    if (chosen == EnrichScope.all || chosen == EnrichScope.artwork) {
+      await collect(
+        HealthIssueKindDto.missingCover,
+        albumDedupe: chosen == EnrichScope.artwork,
+      );
     }
     if (chosen == EnrichScope.all || chosen == EnrichScope.lyrics) {
-      final rows = await core.libraryHealthPage(
-        kind: HealthIssueKindDto.missingLyrics,
-        offset: 0,
-        limit: batchLimit,
-      );
-      for (final row in rows) {
-        targets.putIfAbsent(
-          row.trackId,
-          () => EnrichTarget(trackId: row.trackId, title: row.title),
-        );
-        if (targets.length >= batchLimit) break;
-      }
+      await collect(HealthIssueKindDto.missingLyrics);
     }
   } catch (error) {
     if (!context.mounted) return;
@@ -291,7 +296,7 @@ Future<void> enrichMissingFromLibraryFlow(
       );
     return;
   }
-  final list = targets.values.take(batchLimit).toList();
+  final list = targets.values.toList();
   await enrichTracksFlow(
     context,
     [for (final t in list) t.trackId],
