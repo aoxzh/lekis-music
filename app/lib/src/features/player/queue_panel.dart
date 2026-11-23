@@ -387,6 +387,148 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
     }
   }
 
+  Future<void> _dedupeQueue(BuildContext context) async {
+    final playback = ref.read(playbackProvider);
+    final current = playback.queueIndex;
+    final length = playback.queueLength;
+    if (length < 2) return;
+
+    final progress = ValueNotifier<int>(0);
+    final navigator = Navigator.of(context, rootNavigator: true);
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: Text(context.l10n.pick('正在检查队列', 'Checking Queue')),
+          content: ValueListenableBuilder<int>(
+            valueListenable: progress,
+            builder: (_, done, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LinearProgressIndicator(value: length == 0 ? 0 : done / length),
+                const SizedBox(height: LekisSpacing.md),
+                Text('$done / $length'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final seen = <int>{};
+    final duplicates = <int>[];
+    try {
+      var offset = 0;
+      while (offset < length) {
+        final page = await core.queueItems(
+          offset: offset,
+          limit: math.min(500, length - offset),
+        );
+        if (page.isEmpty) break;
+        for (var i = 0; i < page.length; i++) {
+          final index = offset + i;
+          final id = page[i].id;
+          if (index == current) {
+            // Never remove the row that is currently playing.
+            seen.add(id);
+            continue;
+          }
+          if (!seen.add(id)) duplicates.add(index);
+        }
+        offset += page.length;
+        progress.value = math.min(offset, length);
+        if (page.length < 500) break;
+      }
+    } catch (e) {
+      if (navigator.mounted && navigator.canPop()) navigator.pop();
+      progress.dispose();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                context.l10n.pick('检查队列失败：$e', 'Failed to check queue: $e'),
+              ),
+            ),
+          );
+      }
+      return;
+    }
+    if (navigator.mounted && navigator.canPop()) navigator.pop();
+    progress.dispose();
+    if (!context.mounted) return;
+
+    if (duplicates.isEmpty) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick('队列里没有重复曲目', 'No duplicate queue tracks'),
+            ),
+          ),
+        );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(context.l10n.pick('移除重复曲目？', 'Remove duplicate tracks?')),
+        content: Text(
+          context.l10n.pick(
+            '将移除 ${duplicates.length} 个重复条目，每个曲目保留第一次出现；正在播放的曲目不会移除。',
+            'This removes ${duplicates.length} duplicate entries, keeping the first occurrence of each track; the currently playing track is never removed.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(false),
+            child: Text(context.l10n.pick('取消', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialog).pop(true),
+            child: Text(context.l10n.pick('移除', 'Remove')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    duplicates.sort((a, b) => b.compareTo(a));
+    var removed = 0;
+    var failed = 0;
+    for (final index in duplicates) {
+      try {
+        core.queueRemove(index: index);
+        removed++;
+      } catch (_) {
+        failed++;
+      }
+    }
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              failed == 0
+                  ? context.l10n.pick(
+                      '已移除 $removed 个重复条目',
+                      'Removed $removed duplicate entries',
+                    )
+                  : context.l10n.pick(
+                      '已移除 $removed 个，$failed 个失败',
+                      'Removed $removed; $failed failed',
+                    ),
+            ),
+          ),
+        );
+    }
+  }
+
   Future<void> _showRowMenu(
     BuildContext context,
     TrackRowDto row,
@@ -919,6 +1061,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
                     currentIndex == null || currentIndex + 1 >= queueLength
                     ? null
                     : () => _clearUpcoming(context),
+                onDedupe: queueLength < 2 ? null : () => _dedupeQueue(context),
                 onFind: queueLength == 0 ? null : () => _findInQueue(context),
                 onJumpToCurrent: currentIndex == null
                     ? null
@@ -1044,6 +1187,7 @@ enum _QueueHeaderAction {
   saveAsPlaylist,
   shuffleUpcoming,
   clearUpcoming,
+  dedupe,
   clear,
 }
 
@@ -1055,6 +1199,7 @@ class _QueueHeader extends StatelessWidget {
     this.onClear,
     this.onClearUpcoming,
     this.onShuffleUpcoming,
+    this.onDedupe,
     this.onFind,
     this.onJumpToCurrent,
     this.onClose,
@@ -1066,6 +1211,7 @@ class _QueueHeader extends StatelessWidget {
   final VoidCallback? onClear;
   final VoidCallback? onClearUpcoming;
   final VoidCallback? onShuffleUpcoming;
+  final VoidCallback? onDedupe;
   final VoidCallback? onFind;
   final VoidCallback? onJumpToCurrent;
   final VoidCallback? onClose;
@@ -1100,6 +1246,7 @@ class _QueueHeader extends StatelessWidget {
                 onSaveAsPlaylist != null ||
                 onShuffleUpcoming != null ||
                 onClearUpcoming != null ||
+                onDedupe != null ||
                 onClear != null)
               PopupMenuButton<_QueueHeaderAction>(
                 key: const ValueKey('queue-panel.more'),
@@ -1117,6 +1264,8 @@ class _QueueHeader extends StatelessWidget {
                       onShuffleUpcoming?.call();
                     case _QueueHeaderAction.clearUpcoming:
                       onClearUpcoming?.call();
+                    case _QueueHeaderAction.dedupe:
+                      onDedupe?.call();
                     case _QueueHeaderAction.clear:
                       onClear?.call();
                   }
@@ -1177,6 +1326,18 @@ class _QueueHeader extends StatelessWidget {
                         leading: const Icon(Icons.playlist_remove_rounded),
                         title: Text(
                           context.l10n.pick('清除未播放曲目', 'Clear Upcoming'),
+                        ),
+                      ),
+                    ),
+                  if (onDedupe != null)
+                    PopupMenuItem(
+                      value: _QueueHeaderAction.dedupe,
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.filter_alt_off_rounded),
+                        title: Text(
+                          context.l10n.pick('移除重复曲目', 'Remove Duplicates'),
                         ),
                       ),
                     ),
