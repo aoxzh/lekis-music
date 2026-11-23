@@ -62,6 +62,22 @@ abstract final class PlaylistStrings {
   static String get noTracksToCopy => L10n.tr('没有可复制的曲目', 'No tracks to copy');
   static String copyTracksFailed(String e) =>
       L10n.tr('复制失败：$e', 'Failed to copy: $e');
+  static String get removeDuplicates => L10n.tr('移除重复曲目', 'Remove Duplicates');
+  static String get removeDuplicatesTitle =>
+      L10n.tr('移除重复曲目？', 'Remove Duplicate Tracks?');
+  static String removeDuplicatesBody(int count) => L10n.tr(
+    '将移除 $count 个重复条目，每个曲目保留第一次出现。',
+    'This removes $count duplicate entries, keeping the first occurrence of each track.',
+  );
+  static String get removingDuplicates =>
+      L10n.tr('正在移除重复曲目', 'Removing Duplicates');
+  static String duplicatesRemoved(int removed, int failed) => failed == 0
+      ? L10n.tr('已移除 $removed 个重复条目', 'Removed $removed duplicate entries')
+      : L10n.tr(
+          '已移除 $removed 个，$failed 个失败',
+          'Removed $removed; $failed failed',
+        );
+  static String get noDuplicates => L10n.tr('没有重复曲目', 'No duplicate tracks');
   static String get sortPlaylist => L10n.tr('排序歌单', 'Sort Playlist');
   static String get sortByTitle => L10n.tr('按标题', 'By Title');
   static String get sortByArtist => L10n.tr('按艺人', 'By Artist');

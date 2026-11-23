@@ -616,6 +616,101 @@ Future<void> copyTrackListAsText(
   );
 }
 
+Future<void> removePlaylistDuplicatesFlow(
+  BuildContext context,
+  WidgetRef ref,
+  PlaylistDto playlist,
+  List<PlaylistEntryDto> rows,
+) async {
+  final seen = <String>{};
+  final duplicates = <PlaylistEntryDto>[];
+  for (final row in rows) {
+    if (!seen.add(row.trackUid)) duplicates.add(row);
+  }
+  if (duplicates.isEmpty) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(PlaylistStrings.noDuplicates)));
+    return;
+  }
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialog) => AlertDialog(
+      title: Text(PlaylistStrings.removeDuplicatesTitle),
+      content: Text(PlaylistStrings.removeDuplicatesBody(duplicates.length)),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialog).pop(false),
+          child: Text(PlaylistStrings.cancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(dialog).pop(true),
+          child: Text(PlaylistStrings.removeDuplicates),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return;
+
+  final progress = ValueNotifier<int>(0);
+  final navigator = Navigator.of(context, rootNavigator: true);
+  unawaited(
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: Text(PlaylistStrings.removingDuplicates),
+        content: ValueListenableBuilder<int>(
+          valueListenable: progress,
+          builder: (_, done, _) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LinearProgressIndicator(
+                value: duplicates.isEmpty ? 0 : done / duplicates.length,
+              ),
+              const SizedBox(height: LekisSpacing.md),
+              Text('$done / ${duplicates.length}'),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  var removed = 0;
+  var failed = 0;
+  try {
+    for (final entry in duplicates) {
+      try {
+        await core.removeFromPlaylist(
+          playlistId: playlist.id,
+          positionKey: entry.positionKey,
+        );
+        removed++;
+      } catch (_) {
+        failed++;
+      }
+      progress.value++;
+    }
+    ref.invalidate(playlistEntriesProvider(playlist.id));
+    ref.invalidate(playlistsProvider);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(PlaylistStrings.duplicatesRemoved(removed, failed)),
+          ),
+        );
+    }
+  } catch (e) {
+    if (context.mounted) showPlaylistError(context, e);
+  } finally {
+    if (navigator.mounted && navigator.canPop()) navigator.pop();
+    progress.dispose();
+  }
+}
+
 /// 长按 / 菜单里用的小标签样式。
 class PlaylistKindChip extends StatelessWidget {
   const PlaylistKindChip({super.key, required this.playlist});

@@ -265,6 +265,14 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
               onCopy: rows.isEmpty
                   ? null
                   : () => copyPlaylistAsText(context, rows),
+              onDedupe: rows.length < 2
+                  ? null
+                  : () => removePlaylistDuplicatesFlow(
+                      context,
+                      ref,
+                      playlist,
+                      rows,
+                    ),
               queueTrackIds: playableIds,
             ),
           ),
@@ -465,6 +473,7 @@ class _PlaylistHeader extends ConsumerWidget {
     this.onExport,
     this.onSort,
     this.onCopy,
+    this.onDedupe,
     this.queueTrackIds = const [],
   });
 
@@ -476,6 +485,7 @@ class _PlaylistHeader extends ConsumerWidget {
   final VoidCallback? onExport;
   final VoidCallback? onSort;
   final VoidCallback? onCopy;
+  final VoidCallback? onDedupe;
 
   /// 歌单里能播放的曲目，给"下一首播放 / 加入播放队列"用。
   final List<int> queueTrackIds;
@@ -604,6 +614,8 @@ class _PlaylistHeader extends ConsumerWidget {
                         onSort?.call();
                       case 'copy':
                         onCopy?.call();
+                      case 'dedupe':
+                        onDedupe?.call();
                       case 'delete':
                         delete();
                     }
@@ -646,6 +658,11 @@ class _PlaylistHeader extends ConsumerWidget {
                       PopupMenuItem(
                         value: 'copy',
                         child: Text(PlaylistStrings.copyPlaylist),
+                      ),
+                    if (onDedupe != null)
+                      PopupMenuItem(
+                        value: 'dedupe',
+                        child: Text(PlaylistStrings.removeDuplicates),
                       ),
                     PopupMenuItem(
                       value: 'delete',
