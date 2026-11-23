@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/connect/connect_active.dart';
 import 'package:lekis/src/features/connect/device_picker.dart';
 import 'package:lekis/src/features/connect/remote_now_playing_bar.dart';
+import 'package:lekis/src/features/mini_mode/mini_mode_controller.dart';
 import 'package:lekis/src/features/now_playing/now_playing_route.dart';
 import 'package:lekis/src/features/now_playing/now_playing_tint.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
@@ -218,8 +219,10 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer>
         ),
         onTap: () => openNowPlaying(context),
         customSemanticsActions: {
-          CustomSemanticsAction(label: context.l10n.pick('上一首', 'Previous')):
-              () => ref.read(playerActionsProvider).previous(),
+          CustomSemanticsAction(
+            label: context.l10n.pick('上一首', 'Previous'),
+          ): () =>
+              ref.read(playerActionsProvider).previous(),
           CustomSemanticsAction(label: context.l10n.pick('下一首', 'Next')): () =>
               ref.read(playerActionsProvider).next(),
         },
@@ -316,6 +319,7 @@ class MiniPlayerFace extends ConsumerWidget {
 
   /// The capsule surface. Exposed for widget tests.
   static const Key cardKey = ValueKey('mini-player.card');
+  static const Key miniModeKey = ValueKey('mini-player.mini-mode');
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -349,6 +353,15 @@ class MiniPlayerFace extends ConsumerWidget {
           const ConnectDeviceButton(),
           const PlayPauseButton(),
           const NextButton(),
+          // Desktop windows below 840 dp use this compact bar as well. Keep
+          // the small-window action reachable at the default 800 dp mac size.
+          if (ref.watch(miniModeSupportedProvider))
+            IconButton(
+              key: miniModeKey,
+              tooltip: context.l10n.miniPlayerMode,
+              onPressed: () => ref.read(miniModeProvider.notifier).enter(),
+              icon: const Icon(Icons.picture_in_picture_alt_rounded),
+            ),
         ],
       ),
     );
