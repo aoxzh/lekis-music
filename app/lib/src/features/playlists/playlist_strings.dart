@@ -49,6 +49,22 @@ abstract final class PlaylistStrings {
     '智能歌单不能直接复制为普通歌单',
     'Smart playlists cannot be duplicated as regular playlists',
   );
+  static String get mergePlaylist => L10n.tr('合并其他歌单', 'Merge Playlist');
+  static String get mergePickTitle =>
+      L10n.tr('选择要合并的歌单', 'Choose a Playlist to Merge');
+  static String mergeBody(String name, int count) => L10n.tr(
+    '把「$name」的 $count 首曲目追加到当前歌单末尾。',
+    'Append the $count tracks from "$name" to the end of this playlist.',
+  );
+  static String get mergeAction => L10n.tr('合并', 'Merge');
+  static String get mergeNoOthers =>
+      L10n.tr('没有其他可合并的歌单', 'No other playlists to merge');
+  static String get mergeSmartTarget =>
+      L10n.tr('智能歌单不能直接合并曲目', 'Smart playlists cannot receive merged tracks');
+  static String get mergingPlaylist => L10n.tr('正在合并歌单', 'Merging Playlist');
+  static String mergedPlaylist(int added, int failed) => failed == 0
+      ? L10n.tr('已合并 $added 首曲目', 'Merged $added tracks')
+      : L10n.tr('已合并 $added 首，$failed 首失败', 'Merged $added; $failed failed');
   static String get copyPlaylist => L10n.tr('复制歌单', 'Copy Playlist');
   static String copiedPlaylist(int n) =>
       L10n.tr('已复制歌单（$n 首）', 'Copied $n playlist tracks');

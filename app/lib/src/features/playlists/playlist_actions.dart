@@ -177,6 +177,168 @@ String playlistSubtitle(PlaylistDto playlist) =>
     ? PlaylistStrings.smartSubtitle
     : PlaylistStrings.songCount(playlist.trackCount);
 
+/// Append another playlist's tracks to [target], preserving their order.
+///
+/// Only regular playlists can receive tracks; smart playlists are rule-driven.
+Future<void> mergePlaylistFlow(
+  BuildContext context,
+  WidgetRef ref,
+  PlaylistDto target,
+  List<PlaylistDto> playlists,
+) async {
+  if (target.kind == PlaylistKindDto.smart) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(PlaylistStrings.mergeSmartTarget)));
+    return;
+  }
+  final others = [
+    for (final playlist in playlists)
+      if (playlist.id != target.id) playlist,
+  ];
+  if (others.isEmpty) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(PlaylistStrings.mergeNoOthers)));
+    return;
+  }
+
+  final source = await showDialog<PlaylistDto>(
+    context: context,
+    builder: (dialog) => AlertDialog(
+      title: Text(PlaylistStrings.mergePickTitle),
+      contentPadding: const EdgeInsets.symmetric(vertical: LekisSpacing.sm),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 420),
+        child: SizedBox(
+          width: 420,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: others.length,
+            itemBuilder: (_, i) {
+              final playlist = others[i];
+              return ListTile(
+                leading: Icon(
+                  playlist.kind == PlaylistKindDto.smart
+                      ? Icons.auto_awesome_rounded
+                      : Icons.queue_music_rounded,
+                ),
+                title: Text(
+                  playlist.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(PlaylistStrings.songCount(playlist.trackCount)),
+                onTap: () => Navigator.of(dialog).pop(playlist),
+              );
+            },
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialog).pop(),
+          child: Text(PlaylistStrings.cancel),
+        ),
+      ],
+    ),
+  );
+  if (source == null || !context.mounted) return;
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialog) => AlertDialog(
+      title: Text(PlaylistStrings.mergePlaylist),
+      content: Text(PlaylistStrings.mergeBody(source.name, source.trackCount)),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialog).pop(false),
+          child: Text(PlaylistStrings.cancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(dialog).pop(true),
+          child: Text(PlaylistStrings.mergeAction),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return;
+
+  final total = source.trackCount;
+  final progress = ValueNotifier<int>(0);
+  final navigator = Navigator.of(context, rootNavigator: true);
+  unawaited(
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: Text(PlaylistStrings.mergingPlaylist),
+        content: ValueListenableBuilder<int>(
+          valueListenable: progress,
+          builder: (_, done, _) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LinearProgressIndicator(
+                value: total <= 0 ? null : (done / total).clamp(0.0, 1.0),
+              ),
+              const SizedBox(height: LekisSpacing.md),
+              Text(total <= 0 ? '$done' : '$done / $total'),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  var added = 0;
+  var failed = 0;
+  try {
+    var offset = 0;
+    const pageSize = 500;
+    while (true) {
+      final page = await core.playlistItems(
+        playlistId: source.id,
+        offset: offset,
+        limit: pageSize,
+      );
+      if (page.isEmpty) break;
+      for (final entry in page) {
+        // Unresolved entries are placeholders; do not copy them.
+        if (entry.track != null) {
+          try {
+            await core.addToPlaylist(
+              playlistId: target.id,
+              trackUid: entry.trackUid,
+            );
+            added++;
+          } catch (_) {
+            failed++;
+          }
+        }
+        progress.value++;
+      }
+      offset += page.length;
+      if (page.length < pageSize) break;
+    }
+    ref.invalidate(playlistEntriesProvider(target.id));
+    ref.invalidate(playlistsProvider);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(PlaylistStrings.mergedPlaylist(added, failed)),
+          ),
+        );
+    }
+  } catch (e) {
+    if (context.mounted) showPlaylistError(context, e);
+  } finally {
+    if (navigator.mounted && navigator.canPop()) navigator.pop();
+    progress.dispose();
+  }
+}
+
 /// Duplicate a regular playlist into a new one, preserving order.
 Future<void> duplicatePlaylistFlow(
   BuildContext context,

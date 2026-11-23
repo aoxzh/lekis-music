@@ -211,6 +211,8 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
   Widget build(BuildContext context) {
     final playlist = widget.playlist;
     final entries = ref.watch(playlistEntriesProvider(playlist.id));
+    final playlists =
+        ref.watch(playlistsProvider).value ?? const <PlaylistDto>[];
     final gutter = pageGutterOf(context);
     final rows = entries.value ?? const <PlaylistEntryDto>[];
     final totalDuration = ref.watch(playlistTotalDurationProvider(playlist.id));
@@ -280,6 +282,9 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
                       playlist,
                       rows,
                     )
+                  : null,
+              onMerge: playlist.kind == PlaylistKindDto.static_
+                  ? () => mergePlaylistFlow(context, ref, playlist, playlists)
                   : null,
               queueTrackIds: playableIds,
             ),
@@ -483,6 +488,7 @@ class _PlaylistHeader extends ConsumerWidget {
     this.onCopy,
     this.onDedupe,
     this.onCleanMissing,
+    this.onMerge,
     this.queueTrackIds = const [],
   });
 
@@ -496,6 +502,7 @@ class _PlaylistHeader extends ConsumerWidget {
   final VoidCallback? onCopy;
   final VoidCallback? onDedupe;
   final VoidCallback? onCleanMissing;
+  final VoidCallback? onMerge;
 
   /// 歌单里能播放的曲目，给"下一首播放 / 加入播放队列"用。
   final List<int> queueTrackIds;
@@ -628,6 +635,8 @@ class _PlaylistHeader extends ConsumerWidget {
                         onDedupe?.call();
                       case 'missing':
                         onCleanMissing?.call();
+                      case 'merge':
+                        onMerge?.call();
                       case 'delete':
                         delete();
                     }
@@ -680,6 +689,11 @@ class _PlaylistHeader extends ConsumerWidget {
                       PopupMenuItem(
                         value: 'missing',
                         child: Text(PlaylistStrings.removeMissing),
+                      ),
+                    if (onMerge != null)
+                      PopupMenuItem(
+                        value: 'merge',
+                        child: Text(PlaylistStrings.mergePlaylist),
                       ),
                     PopupMenuItem(
                       value: 'delete',
