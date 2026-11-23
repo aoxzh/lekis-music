@@ -6,34 +6,70 @@ import 'package:material_ui/material_ui.dart';
 
 import '../platform/ui_profile.dart';
 import 'page_transitions.dart';
+import 'theme_settings.dart';
 import 'tokens.dart';
 
 export 'tokens.dart';
 
+Color _onAccent(Color color) =>
+    color.computeLuminance() > 0.5 ? Colors.black : Colors.white;
+
+Color _softAccent(Color color, Color surface, double alpha) =>
+    Color.alphaBlend(color.withValues(alpha: alpha), surface);
+
 /// Light theme.
-ThemeData lekisLightTheme() => _buildTheme(
-  brightness: Brightness.light,
-  background: LekisPalette.lightBackground,
-  surface: LekisPalette.lightSurface,
-  onBackground: LekisPalette.lightOnBackground,
-  onSurface: LekisPalette.lightOnSurface,
-  colors: LekisColors.light,
-);
+ThemeData lekisLightTheme({LekisAccent accent = LekisAccent.moonrise}) {
+  final colors = accent == LekisAccent.moonrise
+      ? LekisColors.light
+      : LekisColors.light.copyWith(
+          accent: accent.light,
+          onAccent: _onAccent(accent.light),
+          accentSoft: _softAccent(
+            accent.light,
+            LekisPalette.lightSurface,
+            0.16,
+          ),
+        );
+  return _buildTheme(
+    brightness: Brightness.light,
+    background: LekisPalette.lightBackground,
+    surface: LekisPalette.lightSurface,
+    onBackground: LekisPalette.lightOnBackground,
+    onSurface: LekisPalette.lightOnSurface,
+    colors: colors,
+  );
+}
 
 /// Dark theme; [oled] swaps background/surface for pure black.
-ThemeData lekisDarkTheme({bool oled = false}) => _buildTheme(
-  brightness: Brightness.dark,
-  background: oled ? LekisPalette.oledBackground : LekisPalette.darkBackground,
-  surface: oled ? LekisPalette.oledSurface : LekisPalette.darkSurface,
-  onBackground: LekisPalette.darkOnBackground,
-  onSurface: LekisPalette.darkOnSurface,
-  colors: oled
+ThemeData lekisDarkTheme({
+  bool oled = false,
+  LekisAccent accent = LekisAccent.moonrise,
+}) {
+  final surface = oled ? LekisPalette.oledSurface : LekisPalette.darkSurface;
+  var colors = oled
       ? LekisColors.dark.copyWith(
           surfaceVariant: LekisPalette.oledSurfaceVariant,
           surfaceElevated: LekisPalette.oledSurfaceElevated,
         )
-      : LekisColors.dark,
-);
+      : LekisColors.dark;
+  if (accent != LekisAccent.moonrise) {
+    colors = colors.copyWith(
+      accent: accent.dark,
+      onAccent: _onAccent(accent.dark),
+      accentSoft: _softAccent(accent.dark, surface, 0.20),
+    );
+  }
+  return _buildTheme(
+    brightness: Brightness.dark,
+    background: oled
+        ? LekisPalette.oledBackground
+        : LekisPalette.darkBackground,
+    surface: surface,
+    onBackground: LekisPalette.darkOnBackground,
+    onSurface: LekisPalette.darkOnSurface,
+    colors: colors,
+  );
+}
 
 /// Text styles straight from the typography tokens (no color; they inherit
 /// from the ambient [DefaultTextStyle]). Prefer `Theme.of(context).textTheme`

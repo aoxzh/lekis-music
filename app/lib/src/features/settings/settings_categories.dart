@@ -15,6 +15,7 @@ import '../../rust/api/dto.dart';
 import '../../shell/app_shell.dart';
 import '../../shell/nav_bar_position.dart';
 import '../../shell/tab_bar_style.dart';
+import '../../theme/theme_settings.dart';
 import '../../theme/tokens.dart';
 import '../enrich/enrich_providers.dart';
 import '../library/library_health_page.dart';
@@ -490,6 +491,7 @@ class _AppearanceSection extends ConsumerWidget {
     final npStyle = ref.watch(nowPlayingStyleProvider);
     final tabBarStyle = ref.watch(tabBarStyleProvider);
     final navBarPosition = ref.watch(navBarPositionProvider);
+    final accent = ref.watch(accentProvider);
     final profile = UiProfile.current;
     void setTheme(ThemePreference p) =>
         settingsGuard(context, () => setThemePreference(ref, p));
@@ -658,6 +660,34 @@ class _AppearanceSection extends ConsumerWidget {
             ),
           ),
         ],
+        SettingsBlockTile(
+          key: const ValueKey('settings-accent'),
+          icon: Icons.color_lens_outlined,
+          title: SettingsStrings.accentColor,
+          hint: SettingsStrings.accentColorHint,
+          child: Wrap(
+            spacing: LekisSpacing.sm,
+            runSpacing: LekisSpacing.xs,
+            children: [
+              for (final option in LekisAccent.values)
+                ChoiceChip(
+                  key: ValueKey('settings-accent-${option.id}'),
+                  avatar: CircleAvatar(
+                    backgroundColor: option.colorFor(
+                      Theme.of(context).brightness,
+                    ),
+                    radius: 8,
+                  ),
+                  label: Text(_accentLabel(l10n, option)),
+                  selected: accent == option,
+                  onSelected: (_) => settingsGuard(
+                    context,
+                    () => setAccentPreference(ref, option),
+                  ),
+                ),
+            ],
+          ),
+        ),
         // Liquid glass vs flat only exists where the glass tab bar does;
         // desktop always draws flat chrome, so the choice is not offered.
         if (profile.offersTabBarStyle) ...[
@@ -713,6 +743,14 @@ class _AppearanceSection extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 // 歌词（样式选择器归正在播放模块所有，这里原样使用）
 // ---------------------------------------------------------------------------
+
+String _accentLabel(L10n l10n, LekisAccent accent) => switch (accent) {
+  LekisAccent.moonrise => l10n.pick('月升紫', 'Moonrise'),
+  LekisAccent.ocean => l10n.pick('深海蓝', 'Ocean'),
+  LekisAccent.forest => l10n.pick('森林绿', 'Forest'),
+  LekisAccent.rose => l10n.pick('玫瑰红', 'Rose'),
+  LekisAccent.amber => l10n.pick('琥珀金', 'Amber'),
+};
 
 class _LyricsSection extends ConsumerWidget {
   const _LyricsSection();

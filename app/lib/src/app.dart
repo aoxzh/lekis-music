@@ -36,6 +36,7 @@ class LekisApp extends ConsumerWidget {
     ref.watch(artworkPrefetchProvider);
     final themeMode = ref.watch(themeModeProvider);
     final oled = ref.watch(oledBlackProvider);
+    final accent = ref.watch(accentProvider);
     final appLocale = ref.watch(appLocaleProvider);
 
     ref.listen<PlaybackFailure?>(playbackErrorProvider, (previous, next) {
@@ -68,8 +69,8 @@ class LekisApp extends ConsumerWidget {
       locale: appLocale.locale,
       supportedLocales: const [Locale('zh', 'CN'), Locale('en', 'US')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      theme: lekisLightTheme(),
-      darkTheme: lekisDarkTheme(oled: oled),
+      theme: lekisLightTheme(accent: accent),
+      darkTheme: lekisDarkTheme(oled: oled, accent: accent),
       themeMode: themeMode,
       themeAnimationDuration: LekisMotion.normal,
       scrollBehavior: const _LekisScrollBehavior(),

@@ -148,6 +148,11 @@ abstract final class SettingsStrings {
   static String get themeLight => L10n.tr('浅色', 'Light');
   static String get themeDark => L10n.tr('深色', 'Dark');
   static String get themeOled => L10n.tr('纯黑', 'OLED');
+  static String get accentColor => L10n.tr('强调色', 'Accent color');
+  static String get accentColorHint => L10n.tr(
+    '选择应用内的高亮颜色，按钮、进度条和选中状态都会跟着变化',
+    'Pick the highlight color used by buttons, progress bars and selected states',
+  );
   static String get themeOledHint =>
       L10n.tr('纯黑适合 OLED 屏幕，更省电', 'True black saves power on OLED displays');
   static String get language => L10n.tr('语言', 'Language');
