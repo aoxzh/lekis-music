@@ -17,7 +17,7 @@ use lekis_library::{Library, TrackFile};
 use lekis_playback::engine::ResolveRequest;
 use lekis_playback::{MediaLocation, MediaSource};
 use lekis_providers::MediaServer;
-use lekis_types::{LekisError, Result, SourceConfig, SourceId, SourceKind, TrackId};
+use lekis_types::{ErrorCode, LekisError, Result, SourceConfig, SourceId, SourceKind, TrackId};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -317,13 +317,16 @@ impl Resolver {
                 .ok_or_else(|| LekisError::invalid(format!("非法音源路径：{}", file.path)))?;
             // 曲库可能是在上一个进程里扫出来的；VFS 连接可能还没登记、或者已经断开。
             // 播放前 stat 一次，失败就丢掉旧连接按源配置重开，避免“能看不能播”。
+            // 给 stat 加超时：NAS 掉线时 SMB/NFS 的调用可能永远不返回，界面会一直转圈。
+            let stat_timeout = std::time::Duration::from_secs(10);
             let existing_ok = if let Some(vfs) = lekis_playback::vfs_access::resolve(file.source_id)
             {
-                if vfs.stat(&path).await.is_ok() {
-                    true
-                } else {
-                    lekis_playback::vfs_access::uninstall(file.source_id);
-                    false
+                match tokio::time::timeout(stat_timeout, vfs.stat(&path)).await {
+                    Ok(Ok(_)) => true,
+                    Ok(Err(_)) | Err(_) => {
+                        lekis_playback::vfs_access::uninstall(file.source_id);
+                        false
+                    }
                 }
             } else {
                 false
@@ -331,7 +334,17 @@ impl Resolver {
             if !existing_ok {
                 self.reopen_vfs(file.source_id).await?;
                 if let Some(vfs) = lekis_playback::vfs_access::resolve(file.source_id) {
-                    vfs.stat(&path).await?;
+                    match tokio::time::timeout(stat_timeout, vfs.stat(&path)).await {
+                        Ok(Ok(_)) => {}
+                        Ok(Err(error)) => return Err(error),
+                        Err(_) => {
+                            lekis_playback::vfs_access::uninstall(file.source_id);
+                            return Err(LekisError::new(
+                                ErrorCode::Network,
+                                "音源响应超时，请检查 NAS 连接",
+                            ));
+                        }
+                    }
                 }
             }
             return Ok(MediaSource {

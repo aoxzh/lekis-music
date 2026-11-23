@@ -180,19 +180,27 @@ final playbackProvider = NotifierProvider<PlaybackController, PlaybackUiState>(
   PlaybackController.new,
 );
 
-/// 最近一次播放命令失败的提示；根布局监听后弹 SnackBar。
+/// 播放命令失败；根布局监听后弹 SnackBar，并可携带“重试”动作。
 ///
-/// core 的播放命令是 Future，旧代码用同步 `try/catch` 包住，异步失败会变成未处理异常，
-/// 用户只看到“点了没反应”。现在统一在这里上报。
-final playbackErrorProvider = NotifierProvider<PlaybackErrorNotifier, String?>(
-  PlaybackErrorNotifier.new,
-);
+/// core 的播放命令有的是同步 void，有的是 Future；旧代码用同步 try/catch
+/// 包住，异步失败会变成未处理异常，用户只看到“点了没反应”。现在统一上报。
+class PlaybackFailure {
+  const PlaybackFailure(this.message, {this.retry});
 
-class PlaybackErrorNotifier extends Notifier<String?> {
+  final String message;
+  final VoidCallback? retry;
+}
+
+final playbackErrorProvider =
+    NotifierProvider<PlaybackErrorNotifier, PlaybackFailure?>(
+      PlaybackErrorNotifier.new,
+    );
+
+class PlaybackErrorNotifier extends Notifier<PlaybackFailure?> {
   @override
-  String? build() => null;
+  PlaybackFailure? build() => null;
 
-  void report(String message) => state = message;
+  void report(PlaybackFailure failure) => state = failure;
   void clear() => state = null;
 }
 
@@ -330,7 +338,11 @@ class PlayerActions {
         final message = e is CoreError ? e.detail : '$e';
         debugPrint('player $what failed: $message');
         try {
-          _ref.read(playbackErrorProvider.notifier).report(message);
+          _ref
+              .read(playbackErrorProvider.notifier)
+              .report(
+                PlaybackFailure(message, retry: () => _guard(what, body)),
+              );
         } catch (_) {
           // The provider can be gone while the app is shutting down.
         }
@@ -373,6 +385,22 @@ class PlayerActions {
     _playback._setVolume(v);
     _guard('setVolume', () => core.setVolume(volume: v));
     _ref.read(playbackSessionProvider).scheduleSave();
+  }
+
+  /// One step of the sleep-timer fade. Updates the slider and the engine but
+  /// does not persist every tick; [restoreVolume] saves the final value.
+  void fadeVolume(double volume) {
+    final v = volume.clamp(0.0, 1.0);
+    _playback._setVolume(v);
+    _guard('fadeVolume', () => core.setVolume(volume: v));
+  }
+
+  /// Restore the pre-fade volume after the sleep timer paused playback.
+  void restoreVolume(double volume) {
+    final v = volume.clamp(0.0, 1.0);
+    _playback._setVolume(v);
+    _guard('restoreVolume', () => core.setVolume(volume: v));
+    _ref.read(playbackSessionProvider).scheduleSave(delay: Duration.zero);
   }
 
   void cycleRepeat() {

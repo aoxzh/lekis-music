@@ -37,13 +37,24 @@ class LekisApp extends ConsumerWidget {
     final oled = ref.watch(oledBlackProvider);
     final appLocale = ref.watch(appLocaleProvider);
 
-    ref.listen<String?>(playbackErrorProvider, (previous, next) {
-      if (next == null || next.isEmpty) return;
+    ref.listen<PlaybackFailure?>(playbackErrorProvider, (previous, next) {
+      if (next == null || next.message.isEmpty) return;
+      final failure = next;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!context.mounted) return;
         messengerKey.currentState
           ?..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(next)));
+          ..showSnackBar(
+            SnackBar(
+              content: Text(failure.message),
+              action: failure.retry == null
+                  ? null
+                  : SnackBarAction(
+                      label: L10n.tr('重试', 'Retry'),
+                      onPressed: failure.retry!,
+                    ),
+            ),
+          );
         ref.read(playbackErrorProvider.notifier).clear();
       });
     });

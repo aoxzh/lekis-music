@@ -21,6 +21,7 @@ import 'package:lekis/src/features/now_playing/now_playing_tint.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_panel.dart';
 import 'package:lekis/src/features/player/queue_view.dart';
+import 'package:lekis/src/features/player/sleep_timer.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/layout/adaptive_two_pane.dart';
@@ -725,6 +726,7 @@ class NowPlayingActions extends ConsumerWidget {
               : null,
         ),
         // Pick another Lekis device to play on / control.
+        const SleepTimerButton(),
         const ConnectDeviceButton(alwaysShow: true),
       ],
     );
