@@ -1,5 +1,7 @@
 // Playback history: the most recent tracks, newest first.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/library/library_providers.dart'
+    show LekisRefX;
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
@@ -173,6 +175,10 @@ class _PlaybackHistoryPageState extends ConsumerState<PlaybackHistoryPage> {
   }
 }
 
-final _historyProvider = FutureProvider.autoDispose<List<TrackRowDto>>(
-  (ref) => core.recentlyPlayed(limit: 500),
-);
+final _historyProvider = FutureProvider.autoDispose<List<TrackRowDto>>((ref) {
+  ref.cacheFor(const Duration(seconds: 30));
+  ref.listen<int>(playbackProvider.select((s) => s.trackId ?? -1), (_, _) {
+    ref.invalidateSelf();
+  });
+  return core.recentlyPlayed(limit: 500);
+});
