@@ -5,10 +5,13 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lekis/src/bridge/core_events.dart';
+import 'package:lekis/src/features/connect/connect_active.dart';
 import 'package:lekis/src/features/mini_mode/mini_mode_controller.dart';
 import 'package:lekis/src/features/mini_mode/mini_player_window.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/player/mini_player.dart';
 import 'package:lekis/src/rust/api/dto.dart';
+import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -18,6 +21,10 @@ class _FakeGateway implements MiniWindowGateway {
   String? stored;
   Rect bounds = const Rect.fromLTWH(100, 100, 1280, 820);
   final calls = <String>[];
+  bool failRestore = false;
+  FullWindowSnapshot snapshot = _full;
+  Completer<void>? captureReady;
+  FullWindowSnapshot? restored;
   void Function(Rect)? _onMoved;
 
   static const _full = FullWindowSnapshot(
@@ -34,7 +41,10 @@ class _FakeGateway implements MiniWindowGateway {
   bool get isAvailable => true;
 
   @override
-  FullWindowSnapshot capture() => _full;
+  Future<FullWindowSnapshot> capture() async {
+    await captureReady?.future;
+    return snapshot;
+  }
 
   @override
   List<Rect> workAreas() => const [Rect.fromLTWH(0, 0, 1920, 1040)];
@@ -47,12 +57,17 @@ class _FakeGateway implements MiniWindowGateway {
 
   @override
   Future<void> restore(FullWindowSnapshot snapshot) async {
+    if (failRestore) throw StateError('temporary native restore failure');
+    restored = snapshot;
     calls.add('restore maximized=${snapshot.maximized}');
     bounds = snapshot.bounds;
   }
 
   @override
   Rect? currentBounds() => bounds;
+
+  @override
+  void startDragging() => calls.add('drag');
 
   @override
   VoidCallback listenMoves(void Function(Rect bounds) onMoved) {
@@ -102,6 +117,25 @@ class _SpyActions extends PlayerActions {
   void next() => calls.add('next');
   @override
   void previous() => calls.add('previous');
+}
+
+class _StatefulPage extends StatefulWidget {
+  const _StatefulPage();
+
+  @override
+  State<_StatefulPage> createState() => _StatefulPageState();
+}
+
+class _StatefulPageState extends State<_StatefulPage> {
+  int count = 0;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: TextButton(
+      onPressed: () => setState(() => count++),
+      child: Text('count=$count'),
+    ),
+  );
 }
 
 void main() {
@@ -192,7 +226,128 @@ void main() {
       expect(container.read(miniModeProvider), isFalse);
       expect(gateway.calls, isEmpty);
     });
+
+    test(
+      'waits for normal window capture and restores fullscreen state',
+      () async {
+        final gateway = _FakeGateway()..captureReady = Completer<void>();
+        gateway.snapshot = const FullWindowSnapshot(
+          bounds: Rect.fromLTWH(100, 100, 800, 600),
+          maximized: false,
+          fullScreen: true,
+          alwaysOnTop: false,
+          resizable: true,
+          maximizable: true,
+          titleBarHidden: false,
+          minimumSize: Size(480, 400),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            miniWindowGatewayProvider.overrideWithValue(gateway),
+            miniModeSupportedProvider.overrideWithValue(true),
+          ],
+        );
+        addTearDown(container.dispose);
+        final mini = container.read(miniModeProvider.notifier);
+        final entering = mini.enter();
+        await Future<void>.delayed(Duration.zero);
+        expect(container.read(miniModeProvider), isFalse);
+        expect(gateway.calls, isEmpty);
+        gateway.captureReady!.complete();
+        await entering;
+        expect(container.read(miniModeProvider), isTrue);
+        await mini.exit();
+        expect(gateway.restored, same(gateway.snapshot));
+        expect(gateway.restored!.fullScreen, isTrue);
+      },
+    );
+
+    test(
+      'keeps mini controls and snapshot when restore fails so exit can retry',
+      () async {
+        final gateway = _FakeGateway();
+        final container = ProviderContainer(
+          overrides: [
+            miniWindowGatewayProvider.overrideWithValue(gateway),
+            miniModeSupportedProvider.overrideWithValue(true),
+          ],
+        );
+        addTearDown(container.dispose);
+        final mini = container.read(miniModeProvider.notifier);
+        await mini.enter();
+        gateway.failRestore = true;
+        await mini.exit();
+        expect(container.read(miniModeProvider), isTrue);
+        gateway.failRestore = false;
+        await mini.exit();
+        expect(container.read(miniModeProvider), isFalse);
+        expect(gateway.restored, same(gateway.snapshot));
+      },
+    );
   });
+
+  testWidgets(
+    'default 800 dp mac window has a working compact-bar mini entry',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1;
+      UiProfile.debugOverride = UiProfile.desktop;
+      addTearDown(() {
+        tester.view.reset();
+        UiProfile.debugOverride = null;
+      });
+      final gateway = _FakeGateway();
+      final container = ProviderContainer(
+        overrides: [
+          coreEventSourceProvider.overrideWithValue(const Stream.empty()),
+          miniWindowGatewayProvider.overrideWithValue(gateway),
+          miniModeSupportedProvider.overrideWithValue(true),
+          playbackProvider.overrideWith(_FakePlayback.new),
+          positionProvider.overrideWith(_FakePosition.new),
+          currentTrackProvider.overrideWith((ref) async => null),
+          currentArtworkProvider.overrideWith((ref) async => null),
+          hasConnectDevicesProvider.overrideWithValue(false),
+          activeRemoteDeviceProvider.overrideWithValue(null),
+        ],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: lekisDarkTheme(),
+            builder: (context, child) => MiniModeHost(child: child!),
+            home: const Scaffold(
+              bottomNavigationBar: SizedBox(
+                height: LekisSizes.miniPlayerHeight,
+                child: MiniPlayerFace(),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(MiniPlayerFace.miniModeKey), findsOneWidget);
+      await tester.tap(find.byKey(MiniPlayerFace.miniModeKey));
+      await tester.pumpAndSettle();
+      expect(container.read(miniModeProvider), isTrue);
+      expect(find.byType(MiniPlayerView), findsOneWidget);
+      // The fake gateway does not own a real window; deliver its resize as
+      // the native embedder does after applyMini.
+      tester.view.physicalSize = kMiniWindowSize;
+      await tester.pumpAndSettle();
+      await tester.dragFrom(
+        tester.getTopLeft(find.byType(MiniPlayerView)) + const Offset(160, 16),
+        const Offset(40, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(gateway.calls, contains('drag'));
+      await tester.tap(find.byKey(MiniPlayerView.expandKey));
+      await tester.pumpAndSettle();
+      expect(container.read(miniModeProvider), isFalse);
+      expect(find.byKey(MiniPlayerFace.miniModeKey), findsOneWidget);
+    },
+  );
 
   testWidgets('MiniModeHost swaps in the mini player and its controls drive '
       'playback', (tester) async {
@@ -250,5 +405,61 @@ void main() {
     expect(container.read(miniModeProvider), isFalse);
     expect(find.byType(MiniPlayerView), findsNothing);
     expect(find.text('full-ui'), findsOneWidget);
+  });
+
+  testWidgets('mini mode preserves the Navigator, open route and page state', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final navigator = GlobalKey<NavigatorState>();
+    final gateway = _FakeGateway();
+    final container = ProviderContainer(
+      overrides: [
+        coreEventSourceProvider.overrideWithValue(const Stream.empty()),
+        miniWindowGatewayProvider.overrideWithValue(gateway),
+        miniModeSupportedProvider.overrideWithValue(true),
+        playbackProvider.overrideWith(_FakePlayback.new),
+        positionProvider.overrideWith(_FakePosition.new),
+        currentTrackProvider.overrideWith((ref) async => null),
+        currentArtworkProvider.overrideWith((ref) async => null),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          navigatorKey: navigator,
+          theme: lekisDarkTheme(),
+          builder: (context, child) => MiniModeHost(child: child!),
+          home: const _StatefulPage(),
+        ),
+      ),
+    );
+    await tester.tap(find.text('count=0'));
+    await tester.pump();
+    final originalNavigator = navigator.currentState;
+    unawaited(
+      navigator.currentState!.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const Scaffold(body: Text('open-route')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    unawaited(container.read(miniModeProvider.notifier).enter());
+    await tester.pumpAndSettle();
+    expect(navigator.currentState, same(originalNavigator));
+    expect(find.text('open-route', skipOffstage: false), findsOneWidget);
+    expect(find.text('count=1', skipOffstage: false), findsOneWidget);
+    await container.read(miniModeProvider.notifier).exit();
+    await tester.pumpAndSettle();
+    expect(navigator.currentState, same(originalNavigator));
+    expect(find.text('open-route'), findsOneWidget);
+    navigator.currentState!.pop();
+    await tester.pumpAndSettle();
+    expect(find.text('count=1'), findsOneWidget);
   });
 }

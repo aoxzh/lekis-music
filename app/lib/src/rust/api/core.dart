@@ -193,6 +193,28 @@ Future<List<TrackRowDto>> recentlyPlayed({required int limit}) =>
 Future<SearchResultsDto> search({required String text, required int limit}) =>
     RustLib.instance.api.crateApiCoreSearch(text: text, limit: limit);
 
+/// Search an enabled source plugin for playable tracks.
+Future<SearchResultsDto> searchPlugin({
+  required String pluginId,
+  required String query,
+  required int limit,
+}) => RustLib.instance.api.crateApiCoreSearchPlugin(
+  pluginId: pluginId,
+  query: query,
+  limit: limit,
+);
+
+/// Browse an enabled source plugin's public pages and collections.
+Future<PluginBrowsePageDto> browsePlugin({
+  required String pluginId,
+  required String path,
+  String? cursor,
+}) => RustLib.instance.api.crateApiCoreBrowsePlugin(
+  pluginId: pluginId,
+  path: path,
+  cursor: cursor,
+);
+
 /// 分页列出重复组；每组的保留版本由核心挑选。
 Future<List<DuplicateGroupDto>> duplicateGroups({
   required int offset,
@@ -355,6 +377,15 @@ Future<void> setPluginEnabled({
 }) => RustLib.instance.api.crateApiCoreSetPluginEnabled(
   pluginId: pluginId,
   enabled: enabled,
+);
+
+/// Grant or revoke Android native code execution independently of plugin settings.
+Future<void> setPluginNativeAndroidAllowed({
+  required String pluginId,
+  required bool allowed,
+}) => RustLib.instance.api.crateApiCoreSetPluginNativeAndroidAllowed(
+  pluginId: pluginId,
+  allowed: allowed,
 );
 
 /// 移除插件及其数据目录和设置。
@@ -552,6 +583,19 @@ Future<BigInt> acceptAllCandidates() =>
 /// 取当前生效的歌词。
 Future<LyricsDto?> lyrics({required PlatformInt64 trackId}) =>
     RustLib.instance.api.crateApiCoreLyrics(trackId: trackId);
+
+/// 强制重试在线歌词查找，保留当前歌词版本。
+Future<LyricsDto?> retryLyrics({required PlatformInt64 trackId}) =>
+    RustLib.instance.api.crateApiCoreRetryLyrics(trackId: trackId);
+
+/// 选择属于此曲目的已存储歌词版本。
+Future<void> activateLyrics({
+  required PlatformInt64 trackId,
+  required PlatformInt64 lyricsId,
+}) => RustLib.instance.api.crateApiCoreActivateLyrics(
+  trackId: trackId,
+  lyricsId: lyricsId,
+);
 
 /// 取一首歌的全部歌词版本（按来源优先级排序）。
 Future<List<LyricsRowDto>> lyricsVersions({required PlatformInt64 trackId}) =>
@@ -927,6 +971,54 @@ List<String> recentLogs({required int limit}) =>
 /// 清空诊断日志缓冲。
 void clearLogs() => RustLib.instance.api.crateApiCoreClearLogs();
 
+/// Search Spotify using the token in the platform credential store.
+Future<List<SpotifyAlbumDto>> searchSpotifyAlbums({
+  required String album,
+  required String artist,
+  required String market,
+}) => RustLib.instance.api.crateApiCoreSearchSpotifyAlbums(
+  album: album,
+  artist: artist,
+  market: market,
+);
+
+/// Search with an ephemeral token, for platforms without encrypted credential storage.
+Future<List<SpotifyAlbumDto>> searchSpotifyAlbumsSession({
+  required String album,
+  required String artist,
+  required String market,
+  required String token,
+}) => RustLib.instance.api.crateApiCoreSearchSpotifyAlbumsSession(
+  album: album,
+  artist: artist,
+  market: market,
+  token: token,
+);
+
+/// Search Apple Music using a stored developer token.
+Future<List<SpotifyAlbumDto>> searchAppleAlbums({
+  required String album,
+  required String artist,
+  required String market,
+}) => RustLib.instance.api.crateApiCoreSearchAppleAlbums(
+  album: album,
+  artist: artist,
+  market: market,
+);
+
+/// Search Apple Music with a session-only developer token.
+Future<List<SpotifyAlbumDto>> searchAppleAlbumsSession({
+  required String album,
+  required String artist,
+  required String market,
+  required String token,
+}) => RustLib.instance.api.crateApiCoreSearchAppleAlbumsSession(
+  album: album,
+  artist: artist,
+  market: market,
+  token: token,
+);
+
 /// 一个子文件夹。`path` 相对音源根目录，用 `/` 分隔，传回 [`list_folder`] 继续往下走。
 class FolderEntryDto {
   final String name;
@@ -994,4 +1086,44 @@ class FolderRootDto {
           sourceId == other.sourceId &&
           name == other.name &&
           trackCount == other.trackCount;
+}
+
+/// A transient Spotify catalogue album, shown with Spotify attribution.
+class SpotifyAlbumDto {
+  final String id;
+  final String title;
+  final List<String> artists;
+  final String? releaseDate;
+  final String? imageUrl;
+  final String spotifyUrl;
+
+  const SpotifyAlbumDto({
+    required this.id,
+    required this.title,
+    required this.artists,
+    this.releaseDate,
+    this.imageUrl,
+    required this.spotifyUrl,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      title.hashCode ^
+      artists.hashCode ^
+      releaseDate.hashCode ^
+      imageUrl.hashCode ^
+      spotifyUrl.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SpotifyAlbumDto &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          title == other.title &&
+          artists == other.artists &&
+          releaseDate == other.releaseDate &&
+          imageUrl == other.imageUrl &&
+          spotifyUrl == other.spotifyUrl;
 }

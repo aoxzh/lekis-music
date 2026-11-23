@@ -15,6 +15,16 @@ part 'desktop_lyrics.freezed.dart';
 bool desktopLyricsIsSupported() =>
     RustLib.instance.api.crateApiDesktopLyricsDesktopLyricsIsSupported();
 
+/// 当前平台是否支持菜单栏歌词（macOS）。
+bool desktopLyricsIsMenuBarSupported() =>
+    RustLib.instance.api.crateApiDesktopLyricsDesktopLyricsIsMenuBarSupported();
+
+/// 独立设置菜单栏歌词，返回实际启用状态。
+bool desktopLyricsSetMenuBarVisible({required bool visible}) => RustLib
+    .instance
+    .api
+    .crateApiDesktopLyricsDesktopLyricsSetMenuBarVisible(visible: visible);
+
 /// 显示桌面悬浮歌词窗口。
 bool desktopLyricsShow() =>
     RustLib.instance.api.crateApiDesktopLyricsDesktopLyricsShow();
@@ -128,6 +138,11 @@ sealed class DesktopLyricsEventDto with _$DesktopLyricsEventDto {
   const DesktopLyricsEventDto._();
 
   const factory DesktopLyricsEventDto.closed() = DesktopLyricsEventDto_Closed;
+  const factory DesktopLyricsEventDto.visibilityChanged({
+    required bool visible,
+  }) = DesktopLyricsEventDto_VisibilityChanged;
+  const factory DesktopLyricsEventDto.menuBarClosed() =
+      DesktopLyricsEventDto_MenuBarClosed;
   const factory DesktopLyricsEventDto.lockChanged({required bool locked}) =
       DesktopLyricsEventDto_LockChanged;
   const factory DesktopLyricsEventDto.control({

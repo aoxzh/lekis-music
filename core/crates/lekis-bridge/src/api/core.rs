@@ -350,6 +350,24 @@ pub async fn search(text: String, limit: u32) -> Result<SearchResultsDto, CoreEr
     Ok(core().search(text, limit).await?.into())
 }
 
+/// Search an enabled source plugin for playable tracks.
+pub async fn search_plugin(
+    plugin_id: String,
+    query: String,
+    limit: u32,
+) -> Result<SearchResultsDto, CoreError> {
+    Ok(core().search_plugin(plugin_id, query, limit).await?.into())
+}
+
+/// Browse an enabled source plugin's public pages and collections.
+pub async fn browse_plugin(
+    plugin_id: String,
+    path: String,
+    cursor: Option<String>,
+) -> Result<PluginBrowsePageDto, CoreError> {
+    Ok(core().browse_plugin(plugin_id, path, cursor).await?.into())
+}
+
 // ---- 重复检测与库健康（LIB-10 / LIB-11）----
 
 /// 分页列出重复组；每组的保留版本由核心挑选。
@@ -598,6 +616,16 @@ pub async fn install_plugin_from_path(path: String) -> Result<PluginInfoDto, Cor
 /// 启用 / 停用插件（状态持久化）。
 pub async fn set_plugin_enabled(plugin_id: String, enabled: bool) -> Result<(), CoreError> {
     Ok(core().set_plugin_enabled(plugin_id, enabled).await?)
+}
+
+/// Grant or revoke Android native code execution independently of plugin settings.
+pub async fn set_plugin_native_android_allowed(
+    plugin_id: String,
+    allowed: bool,
+) -> Result<(), CoreError> {
+    Ok(core()
+        .set_plugin_native_android_allowed(plugin_id, allowed)
+        .await?)
 }
 
 /// 移除插件及其数据目录和设置。
@@ -914,6 +942,21 @@ pub async fn lyrics(track_id: i64) -> Result<Option<LyricsDto>, CoreError> {
         .lyrics(lekis_types::TrackId(track_id))
         .await?
         .map(Into::into))
+}
+
+/// 强制重试在线歌词查找，保留当前歌词版本。
+pub async fn retry_lyrics(track_id: i64) -> Result<Option<LyricsDto>, CoreError> {
+    Ok(core()
+        .retry_lyrics(lekis_types::TrackId(track_id))
+        .await?
+        .map(Into::into))
+}
+
+/// 选择属于此曲目的已存储歌词版本。
+pub async fn activate_lyrics(track_id: i64, lyrics_id: i64) -> Result<(), CoreError> {
+    Ok(core()
+        .activate_lyrics(lekis_types::TrackId(track_id), lyrics_id)
+        .await?)
 }
 
 /// 取一首歌的全部歌词版本（按来源优先级排序）。
@@ -1487,4 +1530,37 @@ pub fn recent_logs(limit: u32) -> Vec<String> {
 #[frb(sync)]
 pub fn clear_logs() {
     lekis_core::logs::clear();
+}
+
+/// A transient Spotify catalogue album, shown with Spotify attribution.
+pub struct SpotifyAlbumDto {
+    pub id: String,
+    pub title: String,
+    pub artists: Vec<String>,
+    pub release_date: Option<String>,
+    pub image_url: Option<String>,
+    pub spotify_url: String,
+}
+
+/// Search Spotify using the token in the platform credential store.
+pub async fn search_spotify_albums(album: String, artist: String, market: String) -> Result<Vec<SpotifyAlbumDto>, CoreError> {
+    Ok(core().search_spotify_albums(album, artist, market).await?.into_iter().map(|a| SpotifyAlbumDto {
+        id: a.id, title: a.title, artists: a.artists, release_date: a.release_date,
+        image_url: a.image_url, spotify_url: a.spotify_url,
+    }).collect())
+}
+
+/// Search with an ephemeral token, for platforms without encrypted credential storage.
+pub async fn search_spotify_albums_session(album: String, artist: String, market: String, token: String) -> Result<Vec<SpotifyAlbumDto>, CoreError> {
+    let rows = lekis_core::search_spotify_albums_with_token(token, album, artist, market).await?;
+    Ok(rows.into_iter().map(|a| SpotifyAlbumDto { id:a.id, title:a.title, artists:a.artists, release_date:a.release_date, image_url:a.image_url, spotify_url:a.spotify_url }).collect())
+}
+
+/// Search Apple Music using a stored developer token.
+pub async fn search_apple_albums(album: String, artist: String, market: String) -> Result<Vec<SpotifyAlbumDto>, CoreError> {
+    Ok(core().search_apple_albums(album, artist, market).await?.into_iter().map(|a| SpotifyAlbumDto { id: a.id, title: a.title, artists: vec![a.artist], release_date: a.release_date, image_url: a.image_url, spotify_url: a.external_url }).collect())
+}
+/// Search Apple Music with a session-only developer token.
+pub async fn search_apple_albums_session(album: String, artist: String, market: String, token: String) -> Result<Vec<SpotifyAlbumDto>, CoreError> {
+    Ok(lekis_core::search_apple_albums_with_token(token, album, artist, market).await?.into_iter().map(|a| SpotifyAlbumDto { id: a.id, title: a.title, artists: vec![a.artist], release_date: a.release_date, image_url: a.image_url, spotify_url: a.external_url }).collect())
 }

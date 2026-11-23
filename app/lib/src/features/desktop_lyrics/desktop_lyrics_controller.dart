@@ -1,6 +1,6 @@
 // 桌面悬浮歌词控制器与宿主（UIX-07）。
 //
-// 桥接层的原生窗口在 Windows 上由 Rust 线程独立渲染；这里只负责：
+// Windows 由 Rust 窗口线程渲染，macOS 使用 AppKit 面板与菜单栏；这里只负责：
 // 1. 持久化开关 / 锁定 / 样式 / 各显示器位置（通过核心设置表）；
 // 2. 换曲或歌词变化时推一次整首歌词；播放状态 / 进度采样变化时推时钟；
 // 3. 接收悬浮窗发回的关闭、锁定、播放控制、位置变化事件。
@@ -20,6 +20,7 @@ import '../sync/sync_providers.dart';
 
 abstract final class DesktopLyricsSettingKeys {
   static const visible = 'desktop_lyrics.visible';
+  static const menuBarVisible = 'desktop_lyrics.menu_bar_visible';
   static const locked = 'desktop_lyrics.locked';
   static const twoLine = 'desktop_lyrics.two_line';
   static const fontSize = 'desktop_lyrics.font_size';
@@ -30,6 +31,8 @@ abstract final class DesktopLyricsSettingKeys {
 /// 可注入的原生窗口通道（单测替换，不创建真实 Win32 窗口）。
 abstract interface class DesktopLyricsGateway {
   bool isSupported();
+  bool isMenuBarSupported();
+  bool setMenuBarVisible(bool visible);
   bool show();
   void hide();
   void setLocked(bool locked);
@@ -53,6 +56,19 @@ class _BridgeDesktopLyricsGateway implements DesktopLyricsGateway {
       return false;
     }
   }
+
+  @override
+  bool isMenuBarSupported() {
+    try {
+      return bridge.desktopLyricsIsMenuBarSupported();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  bool setMenuBarVisible(bool visible) =>
+      bridge.desktopLyricsSetMenuBarVisible(visible: visible);
 
   @override
   bool show() => bridge.desktopLyricsShow();
@@ -99,10 +115,15 @@ final desktopLyricsSupportedProvider = Provider<bool>(
   (ref) => ref.watch(desktopLyricsGatewayProvider).isSupported(),
 );
 
+final menuBarLyricsSupportedProvider = Provider<bool>(
+  (ref) => ref.watch(desktopLyricsGatewayProvider).isMenuBarSupported(),
+);
+
 @immutable
 class DesktopLyricsState {
   const DesktopLyricsState({
     this.visible = false,
+    this.menuBarVisible = false,
     this.locked = false,
     this.twoLine = true,
     this.fontSize = 34,
@@ -111,26 +132,29 @@ class DesktopLyricsState {
   });
 
   final bool visible;
+  final bool menuBarVisible;
   final bool locked;
   final bool twoLine;
   final double fontSize;
   final double opacity;
   final bool initialized;
 
-  bridge.DesktopLyricsStyleDto toStyleDto() => bridge.DesktopLyricsStyleDto(
-    fontSize: fontSize,
-    fontFamily: '',
-    bold: true,
-    // 月夜高亮紫蓝 + 纯白未唱 + 柔黑描边，与主界面色板呼应。
-    sungColor: 0xFF8B7BFF,
-    unsungColor: 0xFFFFFFFF,
-    outlineColor: 0xC8000000,
-    opacity: opacity,
-    twoLine: twoLine,
-  );
+  bridge.DesktopLyricsStyleDto toStyleDto({bool nativeMacStyle = false}) =>
+      bridge.DesktopLyricsStyleDto(
+        fontSize: fontSize,
+        fontFamily: '',
+        bold: !nativeMacStyle,
+        // 月夜高亮紫蓝 + 纯白未唱 + 柔黑描边，与主界面色板呼应。
+        sungColor: nativeMacStyle ? 0xFFFFFFFF : 0xFF8B7BFF,
+        unsungColor: nativeMacStyle ? 0xA6FFFFFF : 0xFFFFFFFF,
+        outlineColor: nativeMacStyle ? 0x90000000 : 0xC8000000,
+        opacity: opacity,
+        twoLine: twoLine,
+      );
 
   DesktopLyricsState copyWith({
     bool? visible,
+    bool? menuBarVisible,
     bool? locked,
     bool? twoLine,
     double? fontSize,
@@ -138,6 +162,7 @@ class DesktopLyricsState {
     bool? initialized,
   }) => DesktopLyricsState(
     visible: visible ?? this.visible,
+    menuBarVisible: menuBarVisible ?? this.menuBarVisible,
     locked: locked ?? this.locked,
     twoLine: twoLine ?? this.twoLine,
     fontSize: fontSize ?? this.fontSize,
@@ -152,8 +177,10 @@ bridge.DesktopLyricsDocDto buildDesktopLyricsDoc({
   required TrackDto? track,
   required ParsedLyrics? lyrics,
 }) {
-  final title = track?.title ?? '';
-  final artist = track?.artists.join(' / ') ?? '';
+  // AsyncLoading may retain the previous provider value while the next track loads.
+  final current = track?.id == trackId ? track : null;
+  final title = current?.title ?? '';
+  final artist = current?.artists.join(' / ') ?? '';
   if (lyrics == null || !lyrics.synced || lyrics.lines.isEmpty) {
     return bridge.DesktopLyricsDocDto(
       trackId: trackId,
@@ -195,7 +222,11 @@ final desktopLyricsProvider =
 
 class DesktopLyricsController extends Notifier<DesktopLyricsState> {
   StreamSubscription<bridge.DesktopLyricsEventDto>? _events;
-  bool _bootstrapped = false;
+  Future<void>? _bootstrapFuture;
+  int _visibilityRevision = 0;
+  int _menuBarRevision = 0;
+  int _lockRevision = 0;
+  int _placementRevision = 0;
 
   @override
   DesktopLyricsState build() {
@@ -206,11 +237,17 @@ class DesktopLyricsController extends Notifier<DesktopLyricsState> {
     return const DesktopLyricsState();
   }
 
-  Future<void> bootstrap() async {
-    if (_bootstrapped) return;
-    _bootstrapped = true;
+  Future<void> bootstrap() => _bootstrapFuture ??= _restore();
+
+  Future<void> _restore() async {
     final gw = ref.read(desktopLyricsGatewayProvider);
     if (!gw.isSupported()) return;
+    final visibilityRevision = _visibilityRevision;
+    final menuBarRevision = _menuBarRevision;
+    final lockRevision = _lockRevision;
+    final placementRevision = _placementRevision;
+    _events?.cancel();
+    _events = gw.events().listen(_onNativeEvent);
 
     final results = await Future.wait([
       gw.getSetting(DesktopLyricsSettingKeys.visible),
@@ -219,18 +256,29 @@ class DesktopLyricsController extends Notifier<DesktopLyricsState> {
       gw.getSetting(DesktopLyricsSettingKeys.fontSize),
       gw.getSetting(DesktopLyricsSettingKeys.opacity),
       gw.getSetting(DesktopLyricsSettingKeys.placements),
+      gw.getSetting(DesktopLyricsSettingKeys.menuBarVisible),
     ]);
-    final wantVisible = results[0] == 'true';
-    final locked = results[1] == 'true';
+    if (!ref.mounted) return;
+    final wantVisible = visibilityRevision == _visibilityRevision
+        ? results[0] == 'true'
+        : state.visible;
+    final wantMenuBar = menuBarRevision == _menuBarRevision
+        ? results[6] == 'true'
+        : state.menuBarVisible;
+    final locked = lockRevision == _lockRevision
+        ? results[1] == 'true'
+        : state.locked;
     final twoLine = results[2] != 'false';
-    final fontSize = (double.tryParse(results[3] ?? '') ?? 34).clamp(
-      18.0,
-      60.0,
-    );
+    final fontSize =
+        (double.tryParse(results[3] ?? '') ??
+                (gw.isMenuBarSupported() ? 26 : 34))
+            .clamp(18.0, 60.0);
     final opacity = (double.tryParse(results[4] ?? '') ?? 1.0).clamp(0.4, 1.0);
     final placements = results[5];
 
-    if (placements != null && placements.isNotEmpty) {
+    if (placements != null &&
+        placements.isNotEmpty &&
+        placementRevision == _placementRevision) {
       gw.setPlacements(placements);
     }
 
@@ -243,25 +291,46 @@ class DesktopLyricsController extends Notifier<DesktopLyricsState> {
       initialized: true,
     );
     state = next;
-    gw.setStyle(next.toStyleDto());
+    gw.setStyle(next.toStyleDto(nativeMacStyle: gw.isMenuBarSupported()));
     gw.setLocked(locked);
 
-    _events?.cancel();
-    _events = gw.events().listen(_onNativeEvent);
+    if (gw.isMenuBarSupported()) {
+      state = state.copyWith(menuBarVisible: gw.setMenuBarVisible(wantMenuBar));
+    }
 
     if (wantVisible) {
       final shown = gw.show();
       state = state.copyWith(visible: shown);
+    } else {
+      gw.hide();
     }
   }
 
   void _onNativeEvent(bridge.DesktopLyricsEventDto event) {
+    if (!ref.mounted) return;
     final gw = ref.read(desktopLyricsGatewayProvider);
     switch (event) {
+      case bridge.DesktopLyricsEventDto_VisibilityChanged(:final visible):
+        _visibilityRevision++;
+        state = state.copyWith(visible: visible);
+        unawaited(
+          gw.setSetting(
+            DesktopLyricsSettingKeys.visible,
+            visible ? 'true' : 'false',
+          ),
+        );
+      case bridge.DesktopLyricsEventDto_MenuBarClosed():
+        _menuBarRevision++;
+        state = state.copyWith(menuBarVisible: false);
+        unawaited(
+          gw.setSetting(DesktopLyricsSettingKeys.menuBarVisible, 'false'),
+        );
       case bridge.DesktopLyricsEventDto_Closed():
+        _visibilityRevision++;
         state = state.copyWith(visible: false);
         unawaited(gw.setSetting(DesktopLyricsSettingKeys.visible, 'false'));
       case bridge.DesktopLyricsEventDto_LockChanged(:final locked):
+        _lockRevision++;
         state = state.copyWith(locked: locked);
         unawaited(
           gw.setSetting(
@@ -280,15 +349,18 @@ class DesktopLyricsController extends Notifier<DesktopLyricsState> {
             actions.next();
         }
       case bridge.DesktopLyricsEventDto_PlacementChanged(:final json):
+        _placementRevision++;
         unawaited(gw.setSetting(DesktopLyricsSettingKeys.placements, json));
     }
   }
 
   Future<void> setVisible(bool visible) async {
+    await bootstrap();
+    if (!ref.mounted) return;
     final gw = ref.read(desktopLyricsGatewayProvider);
     if (!gw.isSupported()) return;
     if (visible) {
-      gw.setStyle(state.toStyleDto());
+      gw.setStyle(state.toStyleDto(nativeMacStyle: gw.isMenuBarSupported()));
       gw.setLocked(state.locked);
       final shown = gw.show();
       state = state.copyWith(visible: shown);
@@ -305,7 +377,22 @@ class DesktopLyricsController extends Notifier<DesktopLyricsState> {
 
   Future<void> toggleVisible() => setVisible(!state.visible);
 
+  Future<void> setMenuBarVisible(bool visible) async {
+    await bootstrap();
+    if (!ref.mounted) return;
+    final gw = ref.read(desktopLyricsGatewayProvider);
+    if (!gw.isMenuBarSupported()) return;
+    final shown = gw.setMenuBarVisible(visible);
+    state = state.copyWith(menuBarVisible: shown);
+    await gw.setSetting(
+      DesktopLyricsSettingKeys.menuBarVisible,
+      shown ? 'true' : 'false',
+    );
+  }
+
   Future<void> setLocked(bool locked) async {
+    await bootstrap();
+    if (!ref.mounted) return;
     final gw = ref.read(desktopLyricsGatewayProvider);
     if (!gw.isSupported()) return;
     gw.setLocked(locked);
@@ -317,9 +404,13 @@ class DesktopLyricsController extends Notifier<DesktopLyricsState> {
   }
 
   Future<void> setTwoLine(bool twoLine) async {
+    await bootstrap();
+    if (!ref.mounted) return;
     final gw = ref.read(desktopLyricsGatewayProvider);
     state = state.copyWith(twoLine: twoLine);
-    if (gw.isSupported()) gw.setStyle(state.toStyleDto());
+    if (gw.isSupported()) {
+      gw.setStyle(state.toStyleDto(nativeMacStyle: gw.isMenuBarSupported()));
+    }
     await gw.setSetting(
       DesktopLyricsSettingKeys.twoLine,
       twoLine ? 'true' : 'false',
@@ -327,10 +418,14 @@ class DesktopLyricsController extends Notifier<DesktopLyricsState> {
   }
 
   Future<void> setFontSize(double fontSize, {bool persist = true}) async {
+    await bootstrap();
+    if (!ref.mounted) return;
     final clamped = fontSize.clamp(18.0, 60.0);
     final gw = ref.read(desktopLyricsGatewayProvider);
     state = state.copyWith(fontSize: clamped);
-    if (gw.isSupported()) gw.setStyle(state.toStyleDto());
+    if (gw.isSupported()) {
+      gw.setStyle(state.toStyleDto(nativeMacStyle: gw.isMenuBarSupported()));
+    }
     if (persist) {
       await gw.setSetting(
         DesktopLyricsSettingKeys.fontSize,
@@ -340,10 +435,14 @@ class DesktopLyricsController extends Notifier<DesktopLyricsState> {
   }
 
   Future<void> setOpacity(double opacity, {bool persist = true}) async {
+    await bootstrap();
+    if (!ref.mounted) return;
     final clamped = opacity.clamp(0.4, 1.0);
     final gw = ref.read(desktopLyricsGatewayProvider);
     state = state.copyWith(opacity: clamped);
-    if (gw.isSupported()) gw.setStyle(state.toStyleDto());
+    if (gw.isSupported()) {
+      gw.setStyle(state.toStyleDto(nativeMacStyle: gw.isMenuBarSupported()));
+    }
     if (persist) {
       await gw.setSetting(
         DesktopLyricsSettingKeys.opacity,

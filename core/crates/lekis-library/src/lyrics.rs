@@ -82,6 +82,15 @@ impl Library {
     /// 生效规则（ENR-03）：来源优先级高者胜；同优先级比置信度；再相同则保留原有的那一份
     /// （避免重复刮削时反复覆盖用户看到的内容）。返回写入行的 ID。
     pub async fn save_lyrics(&self, track: TrackId, lyrics: Lyrics) -> Result<i64> {
+        self.write_lyrics(track, lyrics, false).await
+    }
+
+    /// 保存一个待手动选择的版本，不改变当前生效歌词。
+    pub async fn save_lyrics_inactive(&self, track: TrackId, lyrics: Lyrics) -> Result<i64> {
+        self.write_lyrics(track, lyrics, true).await
+    }
+
+    async fn write_lyrics(&self, track: TrackId, lyrics: Lyrics, inactive: bool) -> Result<i64> {
         if lyrics.content.trim().is_empty() {
             return Err(lekis_types::LekisError::invalid(
                 "lyrics content must not be empty",
@@ -102,20 +111,21 @@ impl Library {
                 .optional()
                 .db()?;
 
-            let wins = match &current {
-                None => true,
-                Some((_, src, conf)) => {
-                    let new_rank = source_rank(&lyrics.source);
-                    let old_rank = source_rank(src);
-                    if new_rank != old_rank {
-                        new_rank > old_rank
-                    } else if (lyrics.confidence as f64 - conf).abs() > f64::EPSILON {
-                        lyrics.confidence as f64 > *conf
-                    } else {
-                        false
+            let wins = !inactive
+                && match &current {
+                    None => true,
+                    Some((_, src, conf)) => {
+                        let new_rank = source_rank(&lyrics.source);
+                        let old_rank = source_rank(src);
+                        if new_rank != old_rank {
+                            new_rank > old_rank
+                        } else if (lyrics.confidence as f64 - conf).abs() > f64::EPSILON {
+                            lyrics.confidence as f64 > *conf
+                        } else {
+                            false
+                        }
                     }
-                }
-            };
+                };
 
             if wins {
                 tx.execute(

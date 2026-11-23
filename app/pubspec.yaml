@@ -28,6 +28,7 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  xml: ^7.1.0
   flutter:
     sdk: flutter
   flutter_localizations:
@@ -78,6 +79,7 @@ flutter:
 
   # The rabbit mascot is the same artwork as the launcher icon.
   assets:
+    - assets/spotify/spotify_white.png
     - assets/brand/mark.png
     - assets/brand/tray_icon.ico
 

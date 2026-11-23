@@ -6,7 +6,6 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:window_manager/window_manager.dart';
 
 import '../../l10n/app_l10n.dart';
 import '../../theme/theme.dart';
@@ -175,7 +174,13 @@ class MiniPlayerView extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              child: DragToMoveArea(
+              // A title-bar double-tap recognizer here delays the first tap
+              // on transport/expand buttons while it waits for a second tap.
+              // Mini mode cannot maximize; retain only its native pan action.
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onPanStart: (_) =>
+                    ref.read(miniWindowGatewayProvider).startDragging(),
                 child: Semantics(
                   label: context.l10n.miniPlayerMode,
                   child: body,

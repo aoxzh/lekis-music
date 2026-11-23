@@ -230,7 +230,7 @@ class _QueueListState extends ConsumerState<QueueList>
                       dimension: artSize,
                       child: TrackArtwork(
                         trackId: row.id,
-                        hasArtwork: row.artworkId != null,
+                        hasArtwork: row.artworkId != null || !row.isLocal,
                         radius: LekisRadius.artworkList,
                         placeholderLabel: row.title,
                       ),

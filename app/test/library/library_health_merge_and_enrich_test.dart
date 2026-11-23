@@ -79,37 +79,38 @@ DuplicateTrackDto _dupTrack({
 );
 
 void main() {
-  testWidgets('flat tab bar selection indicator uses concentric capsule radius', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: lekisDarkTheme(),
-        home: Scaffold(
-          body: Align(
-            alignment: Alignment.bottomCenter,
-            child: LekisTabBar(
-              selected: LekisDestination.home,
-              onSelected: (_) {},
-              style: TabBarStyle.flat,
+  testWidgets(
+    'flat tab bar selection indicator uses concentric capsule radius',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: lekisDarkTheme(),
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.bottomCenter,
+              child: LekisTabBar(
+                selected: LekisDestination.home,
+                onSelected: (_) {},
+                style: TabBarStyle.flat,
+              ),
             ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    final container = tester.widget<Container>(
-      find.byKey(LekisTabBar.selectionKey),
-    );
-    final box = container.decoration! as BoxDecoration;
-    final rect = tester.getRect(find.byKey(LekisTabBar.selectionKey));
-    final expectedRadius = BorderRadius.circular(
-      (rect.width < rect.height ? rect.width : rect.height) / 2,
-    );
-    expect(box.borderRadius, expectedRadius);
-    expect(box.boxShadow, isNull);
-  });
+      final container = tester.widget<Container>(
+        find.byKey(LekisTabBar.selectionKey),
+      );
+      final box = container.decoration! as BoxDecoration;
+      final rect = tester.getRect(find.byKey(LekisTabBar.selectionKey));
+      final expectedRadius = BorderRadius.circular(
+        (rect.width < rect.height ? rect.width : rect.height) / 2,
+      );
+      expect(box.borderRadius, expectedRadius);
+      expect(box.boxShadow, isNull);
+    },
+  );
 
   testWidgets(
     'duplicate group merges unmerged tracks and shows unified state for already-merged tracks',
@@ -206,7 +207,10 @@ void main() {
       await tester.tap(find.text('夜曲'));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('duplicate.merge.20')), findsNothing);
-      expect(find.byKey(const ValueKey('duplicate.sources.20')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('duplicate.sources.20')),
+        findsOneWidget,
+      );
       expect(
         find.byKey(const ValueKey('duplicate.delete-lower.20')),
         findsOneWidget,
@@ -219,7 +223,10 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('duplicate.delete-lower.20')));
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('duplicate.delete-disk-toggle')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('duplicate.delete-disk-toggle')),
+        findsOneWidget,
+      );
       await tester.tap(find.byKey(const ValueKey('duplicate.delete-confirm')));
       await tester.pumpAndSettle();
       expect(gateway.deletedFiles, [(1, '/local/yequ.mp3', true)]);
@@ -290,7 +297,7 @@ void main() {
     expect(find.text('Appearance'), findsOneWidget);
     expect(find.text('Multi-Device Sync'), findsOneWidget);
     expect(find.text('Play on Other Devices'), findsOneWidget);
-    expect(find.text('Desktop Floating Lyrics'), findsOneWidget);
+    expect(find.text('Desktop Lyrics'), findsOneWidget);
     expect(find.text('Add Source'), findsOneWidget);
     expect(find.text('Discover'), findsOneWidget);
     expect(find.text('Merge as Same Track'), findsOneWidget);

@@ -20,6 +20,12 @@ static CREDENTIAL_CIPHER_CLASS: AtomicUsize = AtomicUsize::new(0);
 /// `UsbAudioBridge`（USB DAC 直出，PLY-05）的全局引用，原因同上：探测和设置混音器属性
 /// 发生在解码 / 引擎线程上。
 static USB_AUDIO_BRIDGE_CLASS: AtomicUsize = AtomicUsize::new(0);
+static NATIVE_PLUGIN_BRIDGE_CLASS: AtomicUsize = AtomicUsize::new(0);
+
+pub(crate) fn native_plugin_bridge_class() -> Option<jclass> {
+    let raw = NATIVE_PLUGIN_BRIDGE_CLASS.load(Ordering::Relaxed);
+    (raw != 0).then_some(raw as jclass)
+}
 
 /// 给 `usb_audio.rs` 用的全局类引用（未初始化时为 `None`）。
 pub(crate) fn usb_audio_bridge_class() -> Option<jclass> {
@@ -70,8 +76,62 @@ pub unsafe extern "system" fn Java_dev_lekis_lekis_MainActivity_initRustAndroidC
                 b"dev/lekis/lekis/UsbAudioBridge\0",
                 &USB_AUDIO_BRIDGE_CLASS,
             );
+            cache_class(
+                env,
+                fns,
+                b"dev/lekis/lekis/NativePluginBridge\0",
+                &NATIVE_PLUGIN_BRIDGE_CLASS,
+            );
+            initialize_native_plugins(env, fns, global);
         }
     });
+}
+
+/// SAFETY: env/context are live JNI values on the initialization thread.
+unsafe fn initialize_native_plugins(
+    env: *mut JNIEnv,
+    fns: &jni_sys::JNINativeInterface_,
+    context: jobject,
+) {
+    let Some(class) = native_plugin_bridge_class() else {
+        return;
+    };
+    let (Some(method_id), Some(call), Some(check), Some(clear)) = (
+        fns.GetStaticMethodID,
+        fns.CallStaticVoidMethodA,
+        fns.ExceptionCheck,
+        fns.ExceptionClear,
+    ) else {
+        return;
+    };
+    unsafe {
+        let method = method_id(
+            env,
+            class,
+            b"initialize\0".as_ptr().cast(),
+            b"(Landroid/content/Context;)V\0".as_ptr().cast(),
+        );
+        if check(env) != 0 {
+            clear(env);
+            return;
+        }
+        if method.is_null() {
+            return;
+        }
+        call(
+            env,
+            class,
+            method,
+            [jni_sys::jvalue { l: context }].as_ptr(),
+        );
+        if check(env) != 0 {
+            clear(env);
+            return;
+        }
+    }
+    if let Err(error) = crate::native_plugins::register() {
+        tracing::warn!(target: "plugins", code = error.code.as_str(), "cannot register Android native plugin executor");
+    }
 }
 
 /// 在 Java 线程上缓存 `dev.lekis.lekis.CredentialCipher` 的全局引用。
@@ -150,6 +210,10 @@ unsafe fn cache_class(
         }
         let global = new_global(env, local);
         delete_local_ref(env, local);
+        if exception_check(env) != 0 {
+            exception_clear(env);
+            return;
+        }
         if !global.is_null() {
             slot.store(global as usize, Ordering::Relaxed);
         }

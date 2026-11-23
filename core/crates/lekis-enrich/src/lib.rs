@@ -19,13 +19,16 @@
 //! | [`scrobble`] | DIS-07 的第三方听歌记录上报（Last.fm / ListenBrainz / Libre.fm）|
 //! | `md5` | Last.fm 签名要用的 MD5（RFC 1321），仅供 [`scrobble`] 内部使用 |
 
+pub mod apple_music;
 pub mod artwork_ingest;
+pub mod bangumi;
 pub mod cache;
 pub mod http;
 pub mod providers;
 pub mod providers_extra;
 pub mod scoring;
 pub mod scrobble;
+pub mod spotify;
 pub mod throttle;
 
 mod md5;

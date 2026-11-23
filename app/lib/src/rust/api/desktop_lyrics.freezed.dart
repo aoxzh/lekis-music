@@ -56,11 +56,13 @@ extension DesktopLyricsEventDtoPatterns on DesktopLyricsEventDto {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( DesktopLyricsEventDto_Closed value)?  closed,TResult Function( DesktopLyricsEventDto_LockChanged value)?  lockChanged,TResult Function( DesktopLyricsEventDto_Control value)?  control,TResult Function( DesktopLyricsEventDto_PlacementChanged value)?  placementChanged,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( DesktopLyricsEventDto_Closed value)?  closed,TResult Function( DesktopLyricsEventDto_VisibilityChanged value)?  visibilityChanged,TResult Function( DesktopLyricsEventDto_MenuBarClosed value)?  menuBarClosed,TResult Function( DesktopLyricsEventDto_LockChanged value)?  lockChanged,TResult Function( DesktopLyricsEventDto_Control value)?  control,TResult Function( DesktopLyricsEventDto_PlacementChanged value)?  placementChanged,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case DesktopLyricsEventDto_Closed() when closed != null:
-return closed(_that);case DesktopLyricsEventDto_LockChanged() when lockChanged != null:
+return closed(_that);case DesktopLyricsEventDto_VisibilityChanged() when visibilityChanged != null:
+return visibilityChanged(_that);case DesktopLyricsEventDto_MenuBarClosed() when menuBarClosed != null:
+return menuBarClosed(_that);case DesktopLyricsEventDto_LockChanged() when lockChanged != null:
 return lockChanged(_that);case DesktopLyricsEventDto_Control() when control != null:
 return control(_that);case DesktopLyricsEventDto_PlacementChanged() when placementChanged != null:
 return placementChanged(_that);case _:
@@ -81,11 +83,13 @@ return placementChanged(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( DesktopLyricsEventDto_Closed value)  closed,required TResult Function( DesktopLyricsEventDto_LockChanged value)  lockChanged,required TResult Function( DesktopLyricsEventDto_Control value)  control,required TResult Function( DesktopLyricsEventDto_PlacementChanged value)  placementChanged,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( DesktopLyricsEventDto_Closed value)  closed,required TResult Function( DesktopLyricsEventDto_VisibilityChanged value)  visibilityChanged,required TResult Function( DesktopLyricsEventDto_MenuBarClosed value)  menuBarClosed,required TResult Function( DesktopLyricsEventDto_LockChanged value)  lockChanged,required TResult Function( DesktopLyricsEventDto_Control value)  control,required TResult Function( DesktopLyricsEventDto_PlacementChanged value)  placementChanged,}){
 final _that = this;
 switch (_that) {
 case DesktopLyricsEventDto_Closed():
-return closed(_that);case DesktopLyricsEventDto_LockChanged():
+return closed(_that);case DesktopLyricsEventDto_VisibilityChanged():
+return visibilityChanged(_that);case DesktopLyricsEventDto_MenuBarClosed():
+return menuBarClosed(_that);case DesktopLyricsEventDto_LockChanged():
 return lockChanged(_that);case DesktopLyricsEventDto_Control():
 return control(_that);case DesktopLyricsEventDto_PlacementChanged():
 return placementChanged(_that);}
@@ -102,11 +106,13 @@ return placementChanged(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( DesktopLyricsEventDto_Closed value)?  closed,TResult? Function( DesktopLyricsEventDto_LockChanged value)?  lockChanged,TResult? Function( DesktopLyricsEventDto_Control value)?  control,TResult? Function( DesktopLyricsEventDto_PlacementChanged value)?  placementChanged,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( DesktopLyricsEventDto_Closed value)?  closed,TResult? Function( DesktopLyricsEventDto_VisibilityChanged value)?  visibilityChanged,TResult? Function( DesktopLyricsEventDto_MenuBarClosed value)?  menuBarClosed,TResult? Function( DesktopLyricsEventDto_LockChanged value)?  lockChanged,TResult? Function( DesktopLyricsEventDto_Control value)?  control,TResult? Function( DesktopLyricsEventDto_PlacementChanged value)?  placementChanged,}){
 final _that = this;
 switch (_that) {
 case DesktopLyricsEventDto_Closed() when closed != null:
-return closed(_that);case DesktopLyricsEventDto_LockChanged() when lockChanged != null:
+return closed(_that);case DesktopLyricsEventDto_VisibilityChanged() when visibilityChanged != null:
+return visibilityChanged(_that);case DesktopLyricsEventDto_MenuBarClosed() when menuBarClosed != null:
+return menuBarClosed(_that);case DesktopLyricsEventDto_LockChanged() when lockChanged != null:
 return lockChanged(_that);case DesktopLyricsEventDto_Control() when control != null:
 return control(_that);case DesktopLyricsEventDto_PlacementChanged() when placementChanged != null:
 return placementChanged(_that);case _:
@@ -126,10 +132,12 @@ return placementChanged(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  closed,TResult Function( bool locked)?  lockChanged,TResult Function( DesktopLyricsControlDto action)?  control,TResult Function( String json)?  placementChanged,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  closed,TResult Function( bool visible)?  visibilityChanged,TResult Function()?  menuBarClosed,TResult Function( bool locked)?  lockChanged,TResult Function( DesktopLyricsControlDto action)?  control,TResult Function( String json)?  placementChanged,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case DesktopLyricsEventDto_Closed() when closed != null:
-return closed();case DesktopLyricsEventDto_LockChanged() when lockChanged != null:
+return closed();case DesktopLyricsEventDto_VisibilityChanged() when visibilityChanged != null:
+return visibilityChanged(_that.visible);case DesktopLyricsEventDto_MenuBarClosed() when menuBarClosed != null:
+return menuBarClosed();case DesktopLyricsEventDto_LockChanged() when lockChanged != null:
 return lockChanged(_that.locked);case DesktopLyricsEventDto_Control() when control != null:
 return control(_that.action);case DesktopLyricsEventDto_PlacementChanged() when placementChanged != null:
 return placementChanged(_that.json);case _:
@@ -150,10 +158,12 @@ return placementChanged(_that.json);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  closed,required TResult Function( bool locked)  lockChanged,required TResult Function( DesktopLyricsControlDto action)  control,required TResult Function( String json)  placementChanged,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  closed,required TResult Function( bool visible)  visibilityChanged,required TResult Function()  menuBarClosed,required TResult Function( bool locked)  lockChanged,required TResult Function( DesktopLyricsControlDto action)  control,required TResult Function( String json)  placementChanged,}) {final _that = this;
 switch (_that) {
 case DesktopLyricsEventDto_Closed():
-return closed();case DesktopLyricsEventDto_LockChanged():
+return closed();case DesktopLyricsEventDto_VisibilityChanged():
+return visibilityChanged(_that.visible);case DesktopLyricsEventDto_MenuBarClosed():
+return menuBarClosed();case DesktopLyricsEventDto_LockChanged():
 return lockChanged(_that.locked);case DesktopLyricsEventDto_Control():
 return control(_that.action);case DesktopLyricsEventDto_PlacementChanged():
 return placementChanged(_that.json);}
@@ -170,10 +180,12 @@ return placementChanged(_that.json);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  closed,TResult? Function( bool locked)?  lockChanged,TResult? Function( DesktopLyricsControlDto action)?  control,TResult? Function( String json)?  placementChanged,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  closed,TResult? Function( bool visible)?  visibilityChanged,TResult? Function()?  menuBarClosed,TResult? Function( bool locked)?  lockChanged,TResult? Function( DesktopLyricsControlDto action)?  control,TResult? Function( String json)?  placementChanged,}) {final _that = this;
 switch (_that) {
 case DesktopLyricsEventDto_Closed() when closed != null:
-return closed();case DesktopLyricsEventDto_LockChanged() when lockChanged != null:
+return closed();case DesktopLyricsEventDto_VisibilityChanged() when visibilityChanged != null:
+return visibilityChanged(_that.visible);case DesktopLyricsEventDto_MenuBarClosed() when menuBarClosed != null:
+return menuBarClosed();case DesktopLyricsEventDto_LockChanged() when lockChanged != null:
 return lockChanged(_that.locked);case DesktopLyricsEventDto_Control() when control != null:
 return control(_that.action);case DesktopLyricsEventDto_PlacementChanged() when placementChanged != null:
 return placementChanged(_that.json);case _:
@@ -208,6 +220,106 @@ int get hashCode => runtimeType.hashCode;
 @override
 String toString() {
     return 'DesktopLyricsEventDto.closed()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class DesktopLyricsEventDto_VisibilityChanged extends DesktopLyricsEventDto {
+  const DesktopLyricsEventDto_VisibilityChanged({required this.visible}): super._();
+
+
+ final  bool visible;
+
+/// Create a copy of DesktopLyricsEventDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$DesktopLyricsEventDto_VisibilityChangedCopyWith<DesktopLyricsEventDto_VisibilityChanged> get copyWith => _$DesktopLyricsEventDto_VisibilityChangedCopyWithImpl<DesktopLyricsEventDto_VisibilityChanged>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is DesktopLyricsEventDto_VisibilityChanged&&(identical(other.visible, visible) || other.visible == visible));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,visible);
+}
+
+@override
+String toString() {
+    return 'DesktopLyricsEventDto.visibilityChanged(visible: $visible)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $DesktopLyricsEventDto_VisibilityChangedCopyWith<$Res> implements $DesktopLyricsEventDtoCopyWith<$Res> {
+  factory $DesktopLyricsEventDto_VisibilityChangedCopyWith(DesktopLyricsEventDto_VisibilityChanged value, $Res Function(DesktopLyricsEventDto_VisibilityChanged) _then) = _$DesktopLyricsEventDto_VisibilityChangedCopyWithImpl;
+@useResult
+$Res call({
+ bool visible
+});
+
+
+
+
+}
+/// @nodoc
+class _$DesktopLyricsEventDto_VisibilityChangedCopyWithImpl<$Res>
+    implements $DesktopLyricsEventDto_VisibilityChangedCopyWith<$Res> {
+  _$DesktopLyricsEventDto_VisibilityChangedCopyWithImpl(this._self, this._then);
+
+  final DesktopLyricsEventDto_VisibilityChanged _self;
+  final $Res Function(DesktopLyricsEventDto_VisibilityChanged) _then;
+
+/// Create a copy of DesktopLyricsEventDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? visible = null,}) {
+  return _then(DesktopLyricsEventDto_VisibilityChanged(
+visible: null == visible ? _self.visible : visible // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class DesktopLyricsEventDto_MenuBarClosed extends DesktopLyricsEventDto {
+  const DesktopLyricsEventDto_MenuBarClosed(): super._();
+
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is DesktopLyricsEventDto_MenuBarClosed);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'DesktopLyricsEventDto.menuBarClosed()';
 }
 
 

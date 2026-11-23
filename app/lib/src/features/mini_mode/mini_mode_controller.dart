@@ -40,6 +40,7 @@ class FullWindowSnapshot {
   const FullWindowSnapshot({
     required this.bounds,
     required this.maximized,
+    this.fullScreen = false,
     required this.alwaysOnTop,
     required this.resizable,
     required this.maximizable,
@@ -49,6 +50,7 @@ class FullWindowSnapshot {
 
   final Rect bounds;
   final bool maximized;
+  final bool fullScreen;
   final bool alwaysOnTop;
   final bool resizable;
   final bool maximizable;
@@ -62,7 +64,7 @@ abstract interface class MiniWindowGateway {
   /// A native window exists and can be reshaped.
   bool get isAvailable;
 
-  FullWindowSnapshot capture();
+  Future<FullWindowSnapshot> capture();
 
   /// Work areas (screen minus task bar) of the connected displays.
   List<Rect> workAreas();
@@ -72,6 +74,8 @@ abstract interface class MiniWindowGateway {
   Future<void> restore(FullWindowSnapshot snapshot);
 
   Rect? currentBounds();
+
+  void startDragging();
 
   /// Calls [onMoved] with the window's new bounds whenever it is moved;
   /// returns a function that stops listening.
@@ -160,18 +164,44 @@ class _NativeMiniWindowGateway implements MiniWindowGateway {
       !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
 
   @override
-  FullWindowSnapshot capture() {
+  Future<FullWindowSnapshot> capture() async {
     final w = _window;
     if (w == null) throw StateError('the app window is not active');
+    final fullScreen = w.isFullScreen;
+    // AppKit leaves fullscreen asynchronously. Wait for its completion before
+    // reading the restored normal frame or changing style/size constraints.
+    if (fullScreen) await _setFullScreen(w, false);
     return FullWindowSnapshot(
       bounds: w.bounds.toRect(),
       maximized: w.isMaximized,
+      fullScreen: fullScreen,
       alwaysOnTop: w.isAlwaysOnTop,
       resizable: w.isResizable,
       maximizable: w.isMaximizable,
       titleBarHidden: w.titleBarStyle == TitleBarStyle.hidden,
       minimumSize: w.minimumSize.toSize(),
     );
+  }
+
+  Future<void> _setFullScreen(Window window, bool fullScreen) async {
+    if (window.isFullScreen == fullScreen) return;
+    if (!Platform.isMacOS) {
+      window.isFullScreen = fullScreen;
+      return;
+    }
+    final finished = Completer<void>();
+    final listener = window.addListener((event) {
+      if ((fullScreen && event is WindowEnteredFullScreenEvent) ||
+          (!fullScreen && event is WindowExitedFullScreenEvent)) {
+        if (!finished.isCompleted) finished.complete();
+      }
+    });
+    try {
+      window.isFullScreen = fullScreen;
+      await finished.future.timeout(const Duration(seconds: 5));
+    } finally {
+      window.removeListener(listener);
+    }
   }
 
   @override
@@ -201,8 +231,8 @@ class _NativeMiniWindowGateway implements MiniWindowGateway {
   @override
   Future<void> applyMini(Rect bounds) async {
     final w = _window;
-    if (w == null) return;
-    if (w.isFullScreen) w.isFullScreen = false;
+    if (w == null) throw StateError('the app window is unavailable');
+    await _setFullScreen(w, false);
     if (w.isMaximized) w.unmaximize();
     await _setRunnerCompact(true);
     w.minimumSize = const Size(200, 72).toNative();
@@ -218,7 +248,7 @@ class _NativeMiniWindowGateway implements MiniWindowGateway {
   @override
   Future<void> restore(FullWindowSnapshot snapshot) async {
     final w = _window;
-    if (w == null) return;
+    if (w == null) throw StateError('the app window is unavailable');
     w.isAlwaysOnTop = snapshot.alwaysOnTop;
     w.isResizable = snapshot.resizable;
     w.titleBarStyle = snapshot.titleBarHidden
@@ -232,10 +262,14 @@ class _NativeMiniWindowGateway implements MiniWindowGateway {
     if (w.isMinimized) w.restore();
     if (!w.isVisible) w.show();
     w.focus();
+    if (snapshot.fullScreen) await _setFullScreen(w, true);
   }
 
   @override
   Rect? currentBounds() => _window?.bounds.toRect();
+
+  @override
+  void startDragging() => _window?.startDragging();
 
   @override
   VoidCallback listenMoves(void Function(Rect bounds) onMoved) {
@@ -297,7 +331,8 @@ class MiniModeController extends Notifier<bool> {
     _busy = true;
     try {
       final gateway = _gateway;
-      final full = gateway.capture();
+      final full = await gateway.capture();
+      _full = full;
       Offset? saved;
       try {
         saved = parseMiniPosition(
@@ -311,7 +346,6 @@ class MiniModeController extends Notifier<bool> {
         fullBounds: full.bounds,
         workAreas: gateway.workAreas(),
       );
-      _full = full;
       // Switch the view first so the first small frame already is the mini
       // player rather than a squashed full layout.
       state = true;
@@ -342,13 +376,17 @@ class MiniModeController extends Notifier<bool> {
     _stopListening?.call();
     _stopListening = null;
     final full = _full;
-    _full = null;
     try {
       if (full != null) await _gateway.restore(full);
+      _full = null;
+      state = false;
     } catch (error, stack) {
       debugPrint('mini mode: restore failed: $error\n$stack');
+      // Keep the expand button and snapshot so a temporary native failure can
+      // be retried instead of stranding the full UI in a tiny window.
+      state = full != null;
+      if (state) _stopListening = _gateway.listenMoves(_onMoved);
     }
-    state = false;
   }
 
   void _onMoved(Rect bounds) {

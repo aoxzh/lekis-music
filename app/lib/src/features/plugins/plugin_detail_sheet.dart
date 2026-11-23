@@ -1,6 +1,8 @@
+import '../../l10n/app_l10n.dart';
 // 插件详情 / 设置面板。设置项由清单声明，密码值永远不回显。
 
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../platform/ui_profile.dart';
 import '../../rust/api/core.dart' as core;
@@ -9,6 +11,7 @@ import '../../theme/tokens.dart';
 import '../settings/widgets/settings_widgets.dart';
 import '../sources/common.dart';
 import 'plugin_format.dart';
+import 'plugin_browse_page.dart';
 import 'strings.dart';
 
 /// Mobile: a tall bottom sheet. Desktop: a centred dialog.
@@ -126,6 +129,23 @@ class _PluginDetailSheetState extends State<_PluginDetailSheet> {
                 ),
               ],
             ),
+            if (plugin.compatibility == 'mygo') ...[
+              const SizedBox(height: LekisSpacing.md),
+              Text(
+                context.l10n.pick(
+                  'MyGO 兼容插件：支持搜索、公开内容浏览和直接音频播放。网页登录、远程播放及后台转码暂不支持。',
+                  'MyGO compatibility: search, public collections and direct audio. Web sign-in, remote playback and background transcoding are unavailable.',
+                ),
+              ),
+              if (plugin.enabled && plugin.error == null)
+                TextButton.icon(
+                  icon: const Icon(Icons.folder_outlined),
+                  label: Text(context.l10n.pick('浏览音源', 'Browse source')),
+                  onPressed: () =>
+                      Navigator.of(context)
+                          .push(PluginBrowsePage.route(plugin.id, plugin.name)),
+                ),
+            ],
             if (plugin.error != null) ...[
               const SizedBox(height: LekisSpacing.md),
               _ErrorBox(message: plugin.error!),
@@ -150,6 +170,15 @@ class _PluginDetailSheetState extends State<_PluginDetailSheet> {
               ],
             ),
             const SizedBox(height: LekisSpacing.xl),
+            if (plugin.error == null &&
+                plugin.permissions.nativeAndroid &&
+                defaultTargetPlatform == TargetPlatform.android)
+              _NativeAndroidPermission(plugin: plugin),
+            if (plugin.error == null &&
+                defaultTargetPlatform != TargetPlatform.android &&
+                defaultTargetPlatform != TargetPlatform.iOS)
+              for (final program in plugin.permissions.process)
+                _ProcessPermission(pluginId: plugin.id, program: program),
             SettingsSectionHeader(PluginStrings.settings),
             if (plugin.error != null)
               Text(
@@ -536,4 +565,104 @@ class _ErrorBox extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Process grants belong to the host, separate from plugin-controlled settings.
+class _ProcessPermission extends StatefulWidget {
+  const _ProcessPermission({required this.pluginId, required this.program});
+  final String pluginId;
+  final String program;
+  @override
+  State<_ProcessPermission> createState() => _ProcessPermissionState();
+}
+
+class _ProcessPermissionState extends State<_ProcessPermission> {
+  late final String _key =
+      'plugin.process.${widget.pluginId}.${widget.program}';
+  late Future<String?> _grant = core.getSetting(key: _key);
+  bool _saving = false;
+
+  Future<void> _set(bool value) async {
+    setState(() => _saving = true);
+    try {
+      await core.setSetting(key: _key, value: value.toString());
+      if (mounted) setState(() => _grant = Future.value(value.toString()));
+    } catch (error) {
+      if (mounted) showFeatureSnack(context, describeCoreError(error));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<String?>(
+    future: _grant,
+    builder: (context, snapshot) {
+      if (snapshot.hasError) {
+        return TextButton(
+          onPressed: () => setState(() => _grant = core.getSetting(key: _key)),
+          child: Text(
+            context.l10n.pick('重试读取程序权限', 'Retry loading process permission'),
+          ),
+        );
+      }
+      return SettingsSwitchTile(
+        icon: Icons.terminal_rounded,
+        title: context.l10n.pick(
+          '允许启动 ${widget.program}',
+          'Allow running ${widget.program}',
+        ),
+        subtitle: context.l10n.pick(
+          '仅桌面端。请先安装该程序；允许后，程序可以访问本机文件和网络。',
+          'Desktop only. Install the program first. It can access local files and the network.',
+        ),
+        value: snapshot.data == 'true',
+        onChanged: _saving || snapshot.connectionState != ConnectionState.done
+            ? null
+            : _set,
+      );
+    },
+  );
+}
+
+/// Native code runs with the app's permissions, outside the JavaScript sandbox.
+class _NativeAndroidPermission extends StatefulWidget {
+  const _NativeAndroidPermission({required this.plugin});
+  final PluginInfoDto plugin;
+
+  @override
+  State<_NativeAndroidPermission> createState() =>
+      _NativeAndroidPermissionState();
+}
+
+class _NativeAndroidPermissionState extends State<_NativeAndroidPermission> {
+  late bool _allowed = widget.plugin.nativeAndroidGranted;
+  bool _saving = false;
+
+  Future<void> _set(bool value) async {
+    setState(() => _saving = true);
+    try {
+      await core.setPluginNativeAndroidAllowed(
+        pluginId: widget.plugin.id,
+        allowed: value,
+      );
+      if (mounted) setState(() => _allowed = value);
+    } catch (error) {
+      if (mounted) showFeatureSnack(context, describeCoreError(error));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => SettingsSwitchTile(
+    icon: Icons.extension_outlined,
+    title: context.l10n.pick('允许运行 Android 扩展', 'Allow Android extension'),
+    subtitle: context.l10n.pick(
+      '扩展代码与应用拥有相同权限，可以访问应用数据和网络，不受插件域名限制。请仅允许你信任的插件。关闭后将停止后续调用，已经运行的代码可能仍会继续。',
+      'Native code has the same permissions as the app, including app data and network access, without plugin domain restrictions. Only allow plugins you trust. Turning this off blocks future calls; running code may continue.',
+    ),
+    value: _allowed,
+    onChanged: _saving ? null : _set,
+  );
 }

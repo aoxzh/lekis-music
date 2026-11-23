@@ -27,7 +27,7 @@ mod md5;
 mod xml;
 
 use async_trait::async_trait;
-use lekis_types::{Result, SourceKind};
+use lekis_types::{Lyrics, Result, SourceKind};
 
 /// 服务器上的一首歌（同步到本地资料库前的中间形式）。
 #[derive(Debug, Clone, PartialEq)]
@@ -40,6 +40,14 @@ pub struct RemoteTrack {
     pub artists: Vec<String>,
     /// 专辑。
     pub album: Option<String>,
+    /// Opaque album identity scoped to this source.
+    pub external_album_id: Option<String>,
+    /// Album-level artists.
+    pub album_artists: Vec<String>,
+    /// Disc and track position.
+    pub disc_no: Option<u32>,
+    /// Track number within the disc.
+    pub track_no: Option<u32>,
     /// 时长（毫秒）。
     pub duration_ms: u64,
     /// MusicBrainz 录音 ID（服务器提供的话）。
@@ -90,6 +98,16 @@ pub trait MediaServer: Send + Sync {
 
     /// 获取播放地址。
     async fn stream(&self, external_id: &str, quality: StreamQuality) -> Result<StreamTarget>;
+
+    /// Server album artwork, if supported and available.
+    async fn album_artwork(&self, _album_id: &str) -> Result<Option<Vec<u8>>> {
+        Ok(None)
+    }
+
+    /// Server-native lyrics, if supported and available.
+    async fn lyrics(&self, _external_id: &str) -> Result<Option<Lyrics>> {
+        Ok(None)
+    }
 
     /// 上报播放（服务器自己的播放统计）。
     async fn scrobble(&self, external_id: &str, played_at_ms: i64) -> Result<()>;

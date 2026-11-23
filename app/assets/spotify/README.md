@@ -1,0 +1,1 @@
+Spotify full white logo is from the official [Spotify developer logo package](https://developer.spotify.com/images/guidelines/design/2024-spotify-full-logo.zip). Spotify and the Spotify logo are trademarks of Spotify AB. Use is subject to [Spotify's branding guidelines](https://developer.spotify.com/documentation/design).

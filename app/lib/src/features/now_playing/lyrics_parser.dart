@@ -4,6 +4,7 @@
 // core ever returns pre-parsed lines, drop this file.
 
 import 'package:flutter/foundation.dart';
+import 'package:xml/xml.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 
 /// One word (or character) of an enhanced-LRC line.
@@ -345,51 +346,100 @@ ParsedLyrics? _parseLrc(String content, int userOffsetMs) {
   return ParsedLyrics(synced: true, lines: lines);
 }
 
-final RegExp _ttmlP = RegExp(
-  r'<p\b([^>]*)>(.*?)</p>',
-  dotAll: true,
-  caseSensitive: false,
-);
-final RegExp _ttmlBegin = RegExp(r'\bbegin="([^"]+)"');
-final RegExp _tags = RegExp(r'<[^>]+>');
-
 int? _ttmlTime(String t) {
   t = t.trim();
   if (t.endsWith('ms')) {
-    return double.tryParse(t.substring(0, t.length - 2))?.round();
+    final ms = double.tryParse(t.substring(0, t.length - 2));
+    return ms != null && ms.isFinite ? ms.round() : null;
   }
   if (t.endsWith('s')) {
     final s = double.tryParse(t.substring(0, t.length - 1));
-    return s == null ? null : (s * 1000).round();
+    return s == null || !s.isFinite ? null : (s * 1000).round();
   }
   final parts = t.split(':');
   double total = 0;
   for (final p in parts) {
     final v = double.tryParse(p);
-    if (v == null) return null;
+    if (v == null || !v.isFinite || v < 0) return null;
     total = total * 60 + v;
   }
   return (total * 1000).round();
 }
 
-String _unescape(String s) => s
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>')
-    .replaceAll('&quot;', '"')
-    .replaceAll('&apos;', "'")
-    .replaceAll('&amp;', '&');
-
 ParsedLyrics? _parseTtml(String content, int userOffsetMs) {
-  final out = <LyricLine>[];
-  for (final m in _ttmlP.allMatches(content)) {
-    final begin = _ttmlBegin.firstMatch(m.group(1)!);
-    final ms = begin == null ? null : _ttmlTime(begin.group(1)!);
-    if (ms == null) continue;
-    final text = _unescape(
-      m.group(2)!.replaceAll(RegExp(r'<br\s*/?>'), ' ').replaceAll(_tags, ''),
-    ).replaceAll(RegExp(r'\s+'), ' ').trim();
-    out.add(LyricLine((ms - userOffsetMs).clamp(0, 1 << 31), text));
+  final XmlDocument document;
+  try {
+    document = XmlDocument.parse(content);
+  } on XmlException {
+    return null;
   }
-  if (out.isEmpty) return null;
-  return ParsedLyrics(synced: true, lines: _foldTimed(out));
+  final rows = <LyricLine>[];
+  for (final p in document.descendantElements.where(
+    (e) => e.name.local == 'p',
+  )) {
+    final start = _ttmlTime(p.getAttribute('begin') ?? '');
+    if (start == null) continue;
+    final text = StringBuffer();
+    final translations = <String>[];
+    final words = <LyricWord>[];
+    void read(XmlNode node) {
+      if (node is XmlText || node is XmlCDATA) {
+        text.write(node.value);
+        return;
+      }
+      if (node is! XmlElement) return;
+      final role = node.attributes
+          .where((a) => a.name.local == 'role')
+          .firstOrNull
+          ?.value;
+      if (role == 'x-translation' || role == 'x-roman') {
+        translations.add(node.innerText.trim());
+        return;
+      }
+      if (node.name.local == 'br') {
+        text.write(' ');
+        return;
+      }
+      final begin = _ttmlTime(node.getAttribute('begin') ?? '');
+      final end = _ttmlTime(node.getAttribute('end') ?? '');
+      if (begin != null &&
+          end != null &&
+          end >= begin &&
+          node.childElements.isEmpty) {
+        final value = node.innerText;
+        words.add(
+          LyricWord(
+            _clampMs(begin - userOffsetMs),
+            _clampMs(end - userOffsetMs),
+            value,
+          ),
+        );
+        text.write(value);
+      } else {
+        for (final child in node.children) {
+          read(child);
+        }
+      }
+    }
+
+    for (final child in p.children) {
+      read(child);
+    }
+    final primary = text.toString().trim();
+    final at = _clampMs(start - userOffsetMs);
+    rows.add(
+      LyricLine(
+        at,
+        primary,
+        words: words.isNotEmpty && words.map((w) => w.text).join() == primary
+            ? words
+            : null,
+      ),
+    );
+    for (final translation in translations) {
+      if (translation.isNotEmpty) rows.add(LyricLine(at, translation));
+    }
+  }
+  if (rows.isEmpty) return null;
+  return ParsedLyrics(synced: true, lines: _foldTimed(rows));
 }

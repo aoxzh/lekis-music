@@ -17,7 +17,8 @@
 //!   我们用 `Promise::finish()` 反复执行 QuickJS 的 job 队列直到 Promise 落定。
 //!   因为宿主 API（`host.http` 等）在 Rust 侧是同步阻塞的，所以插件 `await host.http...`
 //!   一定能落定；如果插件自己 `await` 一个永远不落定的东西（比如等外部事件），
-//!   队列会空掉，这时返回错误而不是挂死（见 [`JsRuntime`] 的“已知限制”）。
+//!   队列会空掉，这时返回错误而不是挂死（见 [`JsRuntime`] 的“已知限制”）。MyGO
+//!   兼容层另外提供有界的 fetch/timer 事件队列，在同一调用期限内驱动。
 //! - **超时**：`Runtime::set_interrupt_handler` + deadline。QuickJS 在执行 JS 期间会定期回调它，
 //!   返回 `true` 就抛一个不可捕获的异常并让出控制权。注意它只对 JS 代码生效：如果插件卡在
 //!   宿主 API 里（比如 HTTP 请求），靠的是请求自身的超时。
@@ -32,8 +33,9 @@ use crate::permission::Permissions;
 use async_trait::async_trait;
 use lekis_types::{ErrorCode, LekisError, Result};
 use rquickjs::context::EvalOptions;
-use rquickjs::{CaughtError, Context, Ctx, Function, Module, Object, Runtime, Value};
+use rquickjs::{CaughtError, Context, Ctx, Function, Module, Object, Promise, Runtime, Value};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -229,10 +231,11 @@ pub trait PluginRuntime: Send + Sync {
 ///
 /// # 已知限制
 ///
-/// - **没有事件循环**：QuickJS 是同步引擎。宿主的 `host.*` API 在 Rust 侧同步阻塞，
+/// - **原生 API 没有事件循环**：QuickJS 是同步引擎。宿主的 `host.*` API 在 Rust 侧同步阻塞，
 ///   所以 `async function` / `await host.http...` 正常工作；但插件不能等「宿主以后会推过来的事件」
 ///   （没有 `setTimeout`、没有事件订阅）。等不到东西的 Promise 会让队列空掉，
-///   [`PluginRuntime::call`] 返回错误而不是挂死。
+///   [`PluginRuntime::call`] 返回错误而不是挂死。MyGO 兼容层有独立的 fetch/setTimeout
+///   队列（最多 8 个请求、256 个定时器），受相同调用期限约束；不提供 setInterval。
 /// - **ES 模块有限支持**：支持 `export function search(...)` 这种写法（也支持不带 `export` 的
 ///   全局函数脚本，两种都认）。但**不支持模块间 `import`**：没有模块解析器，
 ///   插件必须打包成单个文件（这和 SDK 的构建约定一致）。
@@ -251,7 +254,7 @@ pub struct JsRuntime {
     /// 单次调用超时。
     call_timeout: Duration,
     /// 串行化同一插件的调用：一个插件实例同一时刻只跑一个 JS 调用。
-    gate: tokio::sync::Mutex<()>,
+    gate: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl std::fmt::Debug for JsRuntime {
@@ -286,7 +289,45 @@ impl JsRuntime {
         source: &str,
         transport: Arc<dyn HttpTransport>,
     ) -> Result<Self> {
-        let host = Arc::new(HostBridge::new(&manifest, permissions.clone(), transport));
+        Self::load_configured(manifest, permissions, source, transport, None)
+    }
+
+    /// Load with a manager-owned native root and a separate platform grant.
+    pub fn load_with_native(
+        manifest: PluginManifest,
+        permissions: Permissions,
+        source: &str,
+        plugin_root: std::path::PathBuf,
+        granted: bool,
+    ) -> Result<Self> {
+        Self::load_configured(
+            manifest,
+            permissions,
+            source,
+            Arc::new(ReqwestTransport::new()),
+            Some((plugin_root, granted)),
+        )
+    }
+
+    fn load_configured(
+        manifest: PluginManifest,
+        permissions: Permissions,
+        source: &str,
+        transport: Arc<dyn HttpTransport>,
+        native: Option<(std::path::PathBuf, bool)>,
+    ) -> Result<Self> {
+        let mut host = HostBridge::new(&manifest, permissions.clone(), transport);
+        if let Some((root, granted)) = native {
+            host.configure_native(
+                root,
+                manifest
+                    .native
+                    .as_ref()
+                    .and_then(|native| native.android.clone()),
+                granted,
+            )?;
+        }
+        let host = Arc::new(host);
         let call_timeout = DEFAULT_CALL_TIMEOUT;
         let capabilities = probe_capabilities(&host, &manifest.id, source, call_timeout)?;
 
@@ -307,7 +348,7 @@ impl JsRuntime {
             capabilities,
             host,
             call_timeout,
-            gate: tokio::sync::Mutex::new(()),
+            gate: Arc::new(tokio::sync::Mutex::new(())),
         })
     }
 
@@ -319,6 +360,21 @@ impl JsRuntime {
     /// 改单次调用超时。主要给测试用（默认 [`DEFAULT_CALL_TIMEOUT`]）。
     pub fn set_call_timeout(&mut self, timeout: Duration) {
         self.call_timeout = timeout;
+    }
+
+    /// Snapshot plugin-private values for durable application storage.
+    pub fn storage_snapshot(&self) -> Result<BTreeMap<String, String>> {
+        self.host.storage_snapshot()
+    }
+
+    /// Restore persisted private values with quota checks.
+    pub fn restore_storage(&self, values: BTreeMap<String, String>) -> Result<()> {
+        self.host.restore_storage(values)
+    }
+
+    /// Provide the active plugin locale resource.
+    pub fn set_translations(&self, values: BTreeMap<String, String>) -> Result<()> {
+        self.host.set_translations(values)
     }
 
     /// 当前的调用超时。
@@ -356,7 +412,7 @@ impl PluginRuntime for JsRuntime {
             .map_err(|e| LekisError::invalid(format!("插件参数无法序列化：{e}")))?;
 
         // 同一插件串行执行（见类型文档）。
-        let _guard = self.gate.lock().await;
+        let guard = self.gate.clone().lock_owned().await;
 
         let host = self.host.clone();
         let source = self.source.clone();
@@ -365,6 +421,7 @@ impl PluginRuntime for JsRuntime {
 
         // JS 执行是同步阻塞的，放到 blocking 线程，别占住异步执行器。
         let join = tokio::task::spawn_blocking(move || {
+            let _guard = guard;
             execute(host, manifest_id, source, timeout, capability, params_json)
         })
         .await;
@@ -416,7 +473,7 @@ fn probe_capabilities(
         .map_err(|e| LekisError::new(ErrorCode::Plugin, format!("创建 JS 上下文失败：{e}")))?;
 
     let result = context.with(|ctx| {
-        let plugin = match prepare(&ctx, host, source) {
+        let plugin = match prepare(&ctx, host, source, timeout, &timed_out) {
             Ok(plugin) => plugin,
             Err(caught) => {
                 return Err(caught_to_leki_error(
@@ -490,23 +547,25 @@ fn execute_inner(
     let context = Context::full(&runtime)
         .map_err(|e| LekisError::new(ErrorCode::Plugin, format!("创建 JS 上下文失败：{e}")))?;
 
-    let result = context.with(|ctx| match prepare(&ctx, host, source) {
-        Ok(plugin) => call_capability(
-            &ctx,
-            &plugin,
-            capability,
-            params_json,
-            manifest_id,
-            &timed_out,
-        ),
-        Err(caught) => Err(caught_to_leki_error(
-            &ctx,
-            manifest_id,
-            "加载",
-            caught,
-            &timed_out,
-        )),
-    });
+    let result = context.with(
+        |ctx| match prepare(&ctx, host, source, timeout, &timed_out) {
+            Ok(plugin) => call_capability(
+                &ctx,
+                &plugin,
+                capability,
+                params_json,
+                manifest_id,
+                &timed_out,
+            ),
+            Err(caught) => Err(caught_to_leki_error(
+                &ctx,
+                manifest_id,
+                "加载",
+                caught,
+                &timed_out,
+            )),
+        },
+    );
 
     drop(context);
     result
@@ -519,11 +578,51 @@ fn prepare<'js>(
     ctx: &Ctx<'js>,
     host: &Arc<HostBridge>,
     source: &str,
+    timeout: Duration,
+    timed_out: &Arc<AtomicBool>,
 ) -> std::result::Result<LoadedPlugin<'js>, CaughtError<'js>> {
+    let deadline = Instant::now() + timeout;
+    let flag = timed_out.clone();
+    let check = Function::new(ctx.clone(), move || {
+        let expired = Instant::now() >= deadline;
+        if expired {
+            flag.store(true, Ordering::SeqCst);
+        }
+        expired
+    })
+    .map_err(|e| CaughtError::from_error(ctx, e))?;
+    ctx.globals()
+        .set("__lekis_check_deadline", check)
+        .map_err(|e| CaughtError::from_error(ctx, e))?;
     install(ctx, host).map_err(|e| CaughtError::from_error(ctx, e))?;
     let _: Value = ctx
         .eval(crate::js_host::BOOTSTRAP_JS)
         .map_err(|e| CaughtError::from_error(ctx, e))?;
+
+    if host.is_mygo {
+        crate::mygo::install(ctx, host).map_err(|e| CaughtError::from_error(ctx, e))?;
+        ctx.globals()
+            .set(
+                "__mygo_arch",
+                if cfg!(target_arch = "aarch64") {
+                    "arm64"
+                } else {
+                    std::env::consts::ARCH
+                },
+            )
+            .map_err(|e| CaughtError::from_error(ctx, e))?;
+        let _: Value = ctx
+            .eval(crate::mygo::BOOTSTRAP)
+            .map_err(|e| CaughtError::from_error(ctx, e))?;
+        let namespace = eval_module(ctx, source)?;
+        ctx.globals()
+            .set("__mygo_exports", namespace)
+            .map_err(|e| CaughtError::from_error(ctx, e))?;
+        let adapted: Object = ctx
+            .eval(crate::mygo::ADAPTER)
+            .map_err(|e| CaughtError::from_error(ctx, e))?;
+        return Ok(collect_functions(ctx, Some(adapted)));
+    }
 
     // 先按普通脚本求值：插件 SDK 的模块写法在这个阶段会报 SyntaxError，
     // 那时再按 ES 模块重试。这样“全局函数”式插件和“export 函数”式插件都能跑。
@@ -566,7 +665,7 @@ fn eval_module<'js>(
     let (module, promise) = module.eval().map_err(|e| CaughtError::from_error(ctx, e))?;
     // 没有 top-level await 的模块在 eval 之后就已经求值完成；有的话这里会返回 WouldBlock，
     // 我们当作“求值到能求值的程度”继续（导出表可能还没填满，见类型文档的已知限制）。
-    match promise.finish::<Value>() {
+    match finish_promise(ctx, &promise) {
         Ok(_) => {}
         Err(rquickjs::Error::WouldBlock) => {}
         Err(e) => return Err(CaughtError::from_error(ctx, e)),
@@ -576,13 +675,46 @@ fn eval_module<'js>(
         .map_err(|e| CaughtError::from_error(ctx, e))
 }
 
+/// Drive the compatibility event loop while a Promise waits for fetch/timers.
+/// Native Lekis scripts keep their existing no-event-loop behavior.
+fn finish_promise<'js>(ctx: &Ctx<'js>, promise: &Promise<'js>) -> rquickjs::Result<Value<'js>> {
+    loop {
+        if let Some(check) = ctx
+            .globals()
+            .get::<_, Option<Function>>("__lekis_check_deadline")?
+        {
+            if check.call::<_, bool>(())? {
+                return Err(rquickjs::Exception::throw_message(
+                    ctx,
+                    "Plugin call deadline exceeded",
+                ));
+            }
+        }
+        match promise.finish::<Value>() {
+            Err(rquickjs::Error::WouldBlock) => {
+                let pending = ctx.globals().get::<_, Option<Function>>("__mygo_pending")?;
+                let Some(pending) = pending else {
+                    return Err(rquickjs::Error::WouldBlock);
+                };
+                if !pending.call::<_, bool>(())? {
+                    return Err(rquickjs::Error::WouldBlock);
+                }
+                let tick: Function = ctx.globals().get("__mygo_tick")?;
+                tick.call::<_, ()>(())?;
+                std::thread::sleep(Duration::from_millis(2));
+            }
+            result => return result,
+        }
+    }
+}
+
 /// 如果 `value` 是 Promise 就把它跑到落定，否则原样返回。
 fn settle_promise<'js>(
     ctx: &Ctx<'js>,
     value: Value<'js>,
 ) -> std::result::Result<(), CaughtError<'js>> {
     match value.try_into_promise() {
-        Ok(promise) => match promise.finish::<Value>() {
+        Ok(promise) => match finish_promise(ctx, &promise) {
             Ok(_) => Ok(()),
             // 队列跑空但 Promise 还没落定：插件在等外部事件，QuickJS 里不会有下文了。
             Err(rquickjs::Error::WouldBlock) => Ok(()),
@@ -653,7 +785,7 @@ fn call_capability<'js>(
 
     // async 函数返回 Promise，同步函数直接返回值；两种都接受。
     let resolved = match raw.try_into_promise() {
-        Ok(promise) => promise.finish::<Value>().map_err(|e| {
+        Ok(promise) => finish_promise(ctx, &promise).map_err(|e| {
             caught_to_leki_error(
                 ctx,
                 manifest_id,
@@ -1024,6 +1156,39 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "live public QQ Music endpoints"]
+    async fn qq_lyrics_example_live() {
+        let source = include_str!("../../../../plugin-sdk/examples/qq-lyrics/index.js");
+        let runtime = runtime(&["c.y.qq.com"], source);
+        let result = runtime.call(Capability::Lyrics, json!({"track":{"title":"晴天","artists":["周杰伦"],"durationMs":269000}})).await.unwrap();
+        assert_eq!(result["format"], "lrc");
+        assert!(!result["content"].as_str().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn qq_lyrics_example_matches_before_fetching() {
+        struct QqTransport;
+        impl HttpTransport for QqTransport {
+            fn fetch(&self, request: HttpRequest) -> std::result::Result<HttpResponse, HostError> {
+                let text = if request.url.contains("client_search_cp") {
+                    r#"{"code":0,"data":{"song":{"list":[{"songname":"晴天","songmid":"mid1","interval":269,"singer":[{"name":"周杰伦"}]}]}}}"#
+                } else {
+                    assert!(request.url.contains("songmid=mid1"));
+                    assert_eq!(request.headers.get("Referer").map(String::as_str), Some("https://y.qq.com/"));
+                    r#"{"code":0,"lyric":"[00:01.00]line"}"#
+                };
+                Ok(HttpResponse { status: 200, headers: BTreeMap::new(), text: text.into() })
+            }
+        }
+        let source = include_str!("../../../../plugin-sdk/examples/qq-lyrics/index.js");
+        let runtime = runtime_with_transport(&["c.y.qq.com"], source, Arc::new(QqTransport));
+        let result = runtime.call(Capability::Lyrics, json!({"track": {"title":"晴天", "artists":["周杰伦"], "durationMs":269000}})).await.unwrap();
+        assert_eq!(result["content"], "[00:01.00]line");
+        let result = runtime.call(Capability::Lyrics, json!({"track": {"title":"wrong", "artists":["周杰伦"]}})).await.unwrap();
+        assert!(result.is_null());
+    }
+
+    #[tokio::test]
     async fn allowed_http_goes_through_transport() {
         let transport = Arc::new(MockTransport::new(r#"{"plainLyrics":"第一行歌词"}"#));
         let source = r#"
@@ -1155,6 +1320,51 @@ mod tests {
         let second = second.await.unwrap().unwrap();
         assert_eq!(first["query"], json!("a"));
         assert_eq!(second["query"], json!("b"));
+    }
+
+    #[tokio::test]
+    async fn cancelled_caller_keeps_execution_gate_until_blocking_work_finishes() {
+        use std::sync::atomic::AtomicUsize;
+        struct SlowTransport {
+            active: AtomicUsize,
+            maximum: AtomicUsize,
+            started: AtomicBool,
+        }
+        impl HttpTransport for SlowTransport {
+            fn fetch(&self, _: HttpRequest) -> std::result::Result<HttpResponse, HostError> {
+                let count = self.active.fetch_add(1, Ordering::SeqCst) + 1;
+                self.maximum.fetch_max(count, Ordering::SeqCst);
+                self.started.store(true, Ordering::SeqCst);
+                std::thread::sleep(Duration::from_millis(80));
+                self.active.fetch_sub(1, Ordering::SeqCst);
+                Ok(HttpResponse {
+                    status: 200,
+                    headers: BTreeMap::new(),
+                    text: "{}".into(),
+                })
+            }
+        }
+        let transport = Arc::new(SlowTransport {
+            active: AtomicUsize::new(0),
+            maximum: AtomicUsize::new(0),
+            started: AtomicBool::new(false),
+        });
+        let runtime = Arc::new(runtime_with_transport(
+            &["api.example.com"],
+            r#"async function search() { await host.http.get("https://api.example.com/data"); return {items:[]}; }"#,
+            transport.clone(),
+        ));
+        let task = {
+            let runtime = runtime.clone();
+            tokio::spawn(async move { runtime.call(Capability::Search, json!({})).await })
+        };
+        while !transport.started.load(Ordering::SeqCst) {
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+        task.abort();
+        let _ = task.await;
+        runtime.call(Capability::Search, json!({})).await.unwrap();
+        assert_eq!(transport.maximum.load(Ordering::SeqCst), 1);
     }
 
     #[test]

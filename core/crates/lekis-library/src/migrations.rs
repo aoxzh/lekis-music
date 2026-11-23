@@ -26,6 +26,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     ),
     (10, include_str!("../migrations/0010_radio_station.sql")),
     (11, include_str!("../migrations/0011_podcast.sql")),
+    (12, include_str!("../migrations/0012_remote_albums.sql")),
 ];
 
 pub(crate) fn run(conn: &mut Connection) -> Result<()> {

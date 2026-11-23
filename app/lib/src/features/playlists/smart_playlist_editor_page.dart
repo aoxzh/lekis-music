@@ -831,7 +831,7 @@ class _PreviewTracks extends StatelessWidget {
                 dimension: 36,
                 child: TrackArtwork(
                   trackId: track.id.toInt(),
-                  hasArtwork: track.artworkId != null,
+                  hasArtwork: track.artworkId != null || !track.isLocal,
                   placeholderLabel: track.title,
                 ),
               ),

@@ -1,7 +1,7 @@
 {
   "name": "@lekis/plugin-sdk",
-  "version": "0.1.0",
-  "description": "Type definitions for Lekis Music plugins (plugin API 1.0).",
+  "version": "0.3.0",
+  "description": "Type definitions for Lekis Music plugins (plugin API 1.2).",
   "type": "module",
   "types": "./src/index.ts",
   "exports": {

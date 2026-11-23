@@ -145,14 +145,14 @@ impl Library {
         };
         let sql = format!(
             "SELECT {TRACK_ROW_COLUMNS}
-             FROM track t
+             FROM catalog_track t
              LEFT JOIN album a ON a.id = t.album_id
              LEFT JOIN user_state u ON u.track_uid = t.uid
              ORDER BY {order}
              LIMIT ?1 OFFSET ?2"
         );
         self.read(move |c| {
-            let mut stmt = c.prepare_cached(&sql).db()?;
+            let mut stmt = c.prepare_cached(&crate::catalog::query(&sql)).db()?;
             let rows = stmt
                 .query_map(params![q.limit, q.offset], map_track_row)
                 .db()?;
@@ -395,9 +395,13 @@ impl Library {
     /// 曲目总数。
     pub async fn track_count(&self) -> Result<u64> {
         self.read(|c| {
-            c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get::<_, i64>(0))
-                .db()
-                .map(|n| n as u64)
+            c.query_row(
+                &crate::catalog::query("SELECT COUNT(*) FROM catalog_track"),
+                [],
+                |r| r.get::<_, i64>(0),
+            )
+            .db()
+            .map(|n| n as u64)
         })
         .await
     }
@@ -422,19 +426,29 @@ impl Library {
 
     /// 专辑总数（滚动条用）。
     pub async fn album_count(&self) -> Result<u64> {
-        self.count("SELECT COUNT(*) FROM album", None).await
+        self.count(
+            &crate::catalog::query("SELECT COUNT(*) FROM catalog_album"),
+            None,
+        )
+        .await
     }
 
     /// 艺人总数（滚动条用）。
     pub async fn artist_count(&self) -> Result<u64> {
-        self.count("SELECT COUNT(*) FROM artist", None).await
+        self.count(
+            &crate::catalog::query("SELECT COUNT(*) FROM catalog_artist"),
+            None,
+        )
+        .await
     }
 
     /// 某个流派的曲目数。
     pub async fn genre_track_count(&self, name: &str) -> Result<u64> {
         self.count(
-            "SELECT COUNT(*) FROM track_genre tg JOIN genre g ON g.id = tg.genre_id
-              WHERE g.name = ?1",
+            &crate::catalog::query(
+                "SELECT COUNT(*) FROM track_genre tg JOIN genre g ON g.id = tg.genre_id
+              JOIN catalog_track t ON t.id = tg.track_id WHERE g.name = ?1",
+            ),
             Some(name.to_string()),
         )
         .await
@@ -443,18 +457,21 @@ impl Library {
     /// 收藏的曲目数。
     pub async fn loved_count(&self) -> Result<u64> {
         self.count(
-            "SELECT COUNT(*) FROM user_state u JOIN track t ON t.uid = u.track_uid
+            &crate::catalog::query(
+                "SELECT COUNT(*) FROM user_state u JOIN catalog_track t ON t.uid = u.track_uid
               WHERE u.loved = 1",
+            ),
             None,
         )
         .await
     }
 
-    async fn count(&self, sql: &'static str, arg: Option<String>) -> Result<u64> {
+    async fn count(&self, sql: &str, arg: Option<String>) -> Result<u64> {
+        let sql = sql.to_owned();
         self.read(move |c| {
             let n: i64 = match arg {
-                Some(a) => c.query_row(sql, params![a], |r| r.get(0)),
-                None => c.query_row(sql, [], |r| r.get(0)),
+                Some(a) => c.query_row(&sql, params![a], |r| r.get(0)),
+                None => c.query_row(&sql, [], |r| r.get(0)),
             }
             .db()?;
             Ok(n.max(0) as u64)
@@ -472,7 +489,7 @@ impl Library {
         }
         let sql = format!(
             "SELECT {TRACK_ROW_COLUMNS}
-             FROM track t
+             FROM catalog_track t
              JOIN user_state u ON u.track_uid = t.uid
              LEFT JOIN album a ON a.id = t.album_id
              WHERE u.last_played IS NOT NULL
@@ -480,7 +497,7 @@ impl Library {
              LIMIT ?1"
         );
         self.read(move |c| {
-            let mut stmt = c.prepare_cached(&sql).db()?;
+            let mut stmt = c.prepare_cached(&crate::catalog::query(&sql)).db()?;
             let rows = stmt.query_map(params![limit], map_track_row).db()?;
             rows.collect::<rusqlite::Result<Vec<_>>>().db()
         })
@@ -709,7 +726,7 @@ impl Library {
         }
         let sql = format!(
             "SELECT {TRACK_ROW_COLUMNS}
-             FROM track t
+             FROM catalog_track t
              LEFT JOIN album a ON a.id = t.album_id
              LEFT JOIN user_state u ON u.track_uid = t.uid
              WHERE COALESCE(u.play_count, 0) > 0
@@ -717,7 +734,7 @@ impl Library {
              LIMIT ?1"
         );
         self.read(move |c| {
-            let mut stmt = c.prepare_cached(&sql).db()?;
+            let mut stmt = c.prepare_cached(&crate::catalog::query(&sql)).db()?;
             let rows = stmt.query_map(params![limit], map_track_row).db()?;
             rows.collect::<rusqlite::Result<Vec<_>>>().db()
         })
@@ -734,7 +751,7 @@ impl Library {
         }
         let sql = format!(
             "SELECT {TRACK_ROW_COLUMNS}
-             FROM track t
+             FROM catalog_track t
              JOIN user_state u ON u.track_uid = t.uid
              LEFT JOIN album a ON a.id = t.album_id
              WHERE u.loved = 1
@@ -742,7 +759,7 @@ impl Library {
              LIMIT ?1 OFFSET ?2"
         );
         self.read(move |c| {
-            let mut stmt = c.prepare_cached(&sql).db()?;
+            let mut stmt = c.prepare_cached(&crate::catalog::query(&sql)).db()?;
             let rows = stmt.query_map(params![limit, offset], map_track_row).db()?;
             rows.collect::<rusqlite::Result<Vec<_>>>().db()
         })

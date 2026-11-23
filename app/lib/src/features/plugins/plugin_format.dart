@@ -49,6 +49,9 @@ String pluginPermissionSummary(PluginPermissionsDto permissions) {
   if (permissions.process.isNotEmpty) {
     parts.add('${PluginStrings.process}：${permissions.process.join('、')}');
   }
+  if (permissions.nativeAndroid) {
+    parts.add(L10n.tr('Android 原生扩展', 'Android native extension'));
+  }
   if (permissions.webSignIn) parts.add(PluginStrings.webSignIn);
   final storage = _storageLabel(permissions.storageKb);
   if (parts.isEmpty) {

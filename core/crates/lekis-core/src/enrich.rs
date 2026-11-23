@@ -17,7 +17,8 @@
 
 use crate::config::CoreConfig;
 use lekis_enrich::artwork_ingest;
-use lekis_enrich::providers::{CoverArtArchive, ITunes, Lrclib};
+use lekis_enrich::bangumi::BangumiArtwork;
+use lekis_enrich::providers::{AmllLyrics, CoverArtArchive, ITunes, Lrclib};
 use lekis_enrich::providers_extra::{
     DeezerArtwork, KugouLyrics, LyricsOvh, MusicBrainzCoverArt, NetEaseArtwork, NetEaseLyrics,
     VocaDbArtwork,
@@ -69,6 +70,9 @@ impl EnrichPipeline {
     /// 构造流水线。某个提供方构造失败（比如 TLS 初始化不了）时跳过它，不影响其它。
     pub(crate) fn new(config: &CoreConfig) -> Self {
         let mut lyrics_providers: Vec<Box<dyn LyricsProvider>> = Vec::new();
+        if let Ok(p) = AmllLyrics::new() {
+            lyrics_providers.push(Box::new(p));
+        }
         if let Ok(p) = Lrclib::new() {
             lyrics_providers.push(Box::new(p));
         }
@@ -102,6 +106,10 @@ impl EnrichPipeline {
             artwork_providers.push(Box::new(p));
         }
 
+        if let Ok(p) = BangumiArtwork::new() {
+            artwork_providers.push(Box::new(p));
+        }
+
         Self {
             lyrics_providers,
             artwork_providers,
@@ -109,91 +117,115 @@ impl EnrichPipeline {
         }
     }
 
-    async fn query_lyrics_cascade(&self, hint: &TrackHint) -> Vec<Candidate<LyricsPayload>> {
+    async fn query_lyrics_cascade(
+        &self,
+        hint: &TrackHint,
+    ) -> Result<Vec<Candidate<LyricsPayload>>> {
         let mut all = Vec::new();
+        let mut first_error = None;
         for provider in &self.lyrics_providers {
             match provider.find_lyrics(hint).await {
                 Ok(list) => {
                     let has_synced_hit = list.iter().any(|c| {
-                        c.payload.format == LyricsFormat::Lrc
-                            && lekis_enrich::scoring::score(hint, c) >= AUTO_APPLY_THRESHOLD
+                        c.payload.format != LyricsFormat::Plain
+                            && c.provider_confidence >= AUTO_APPLY_THRESHOLD
                     });
                     all.extend(list);
                     if has_synced_hit {
                         break;
                     }
                 }
-                Err(e) => {
-                    tracing::warn!(
-                        target: "lekis_core::enrich",
-                        provider = provider.name(),
-                        code = %e.code.as_str(),
-                        "歌词提供方查询失败，继续下一个"
-                    );
+                Err(error) => {
+                    tracing::warn!(target: "lekis_core::enrich", provider = provider.name(), code = %error.code.as_str(), "歌词提供方查询失败，继续下一个");
+                    first_error.get_or_insert(error);
                 }
             }
         }
         all.sort_by(|a, b| {
-            let sa = lekis_enrich::scoring::score(hint, a)
-                + if a.payload.format == LyricsFormat::Lrc {
-                    0.05
-                } else {
-                    0.0
-                };
-            let sb = lekis_enrich::scoring::score(hint, b)
-                + if b.payload.format == LyricsFormat::Lrc {
-                    0.05
-                } else {
-                    0.0
-                };
-            sb.total_cmp(&sa)
+            let rank = |c: &Candidate<LyricsPayload>| {
+                (
+                    c.provider_confidence >= AUTO_APPLY_THRESHOLD,
+                    c.payload.format != LyricsFormat::Plain,
+                )
+            };
+            rank(b)
+                .cmp(&rank(a))
+                .then_with(|| b.provider_confidence.total_cmp(&a.provider_confidence))
         });
-        all
+        if all.is_empty() {
+            if let Some(error) = first_error {
+                return Err(error);
+            }
+        }
+        Ok(all)
     }
 
-    async fn query_artwork_cascade(&self, hint: &TrackHint) -> Vec<Candidate<ArtworkPayload>> {
-        let mut all = Vec::new();
+    // Stop only after an image has actually downloaded and decoded. A matching
+    // MusicBrainz release can have no CAA image; its guessed URL is not success.
+    async fn fill_artwork(
+        &self,
+        library: &Library,
+        track: &Track,
+        hint: &TrackHint,
+    ) -> Result<EnrichReport> {
+        let mut report = EnrichReport::default();
         for provider in &self.artwork_providers {
             match provider.find_artwork(hint).await {
-                Ok(list) => {
-                    let has_strong_hit = list
-                        .iter()
-                        .any(|c| lekis_enrich::scoring::score(hint, c) >= AUTO_APPLY_THRESHOLD);
-                    all.extend(list);
-                    if has_strong_hit {
+                Ok(candidates) => {
+                    let result = self.apply_artwork(library, track, hint, candidates).await?;
+                    let applied = result.auto_applied > 0;
+                    report.absorb(result);
+                    if applied {
                         break;
                     }
                 }
-                Err(e) => {
-                    tracing::warn!(
-                        target: "lekis_core::enrich",
-                        provider = provider.name(),
-                        code = %e.code.as_str(),
-                        "封面提供方查询失败，继续下一个"
-                    );
+                Err(error) => {
+                    tracing::warn!(target: "lekis_core::enrich", provider=provider.name(), code=%error.code.as_str(), "封面来源暂不可用，继续下一个")
                 }
             }
         }
-        all.sort_by(|a, b| {
-            lekis_enrich::scoring::score(hint, b).total_cmp(&lekis_enrich::scoring::score(hint, a))
-        });
-        all
+        Ok(report)
     }
 
-    /// 只查歌词（按优先级级联所有免 Key 歌词源）。播放时按需调用，不碰封面。
-    pub(crate) async fn fetch_lyrics(&self, library: &Library, track_id: TrackId) -> Result<()> {
-        if self.lyrics_providers.is_empty() {
-            return Ok(());
-        }
-        if library.active_lyrics(track_id).await?.is_some() {
+    pub(crate) async fn fetch_plugin_lyrics(
+        &self,
+        library: &Library,
+        manager: &crate::plugins::PluginManager,
+        track_id: TrackId,
+    ) -> Result<()> {
+        let available = manager.list().await?;
+        if !available.iter().any(|p| p.enabled && p.kinds.iter().any(|k| k == "lyrics" || k == "source")) {
             return Ok(());
         }
         let track = library.get_track(track_id).await?;
         let hint = hint_for(&track, library).await?;
-        let candidates = self.query_lyrics_cascade(&hint).await;
+        let candidates = manager.lyric_candidates(available, track_id, &hint).await?;
+        if !candidates.is_empty() {
+            self.apply_lyrics(library, track_id, &hint, candidates).await?;
+        }
+        Ok(())
+    }
+
+    /// 只查歌词（按优先级级联所有免 Key 歌词源）。播放时按需调用，不碰封面。
+    pub(crate) async fn fetch_lyrics(
+        &self,
+        library: &Library,
+        track_id: TrackId,
+        force: bool,
+    ) -> Result<bool> {
+        if self.lyrics_providers.is_empty() {
+            return Ok(false);
+        }
+        if !force && library.active_lyrics(track_id).await?.is_some() {
+            return Ok(false);
+        }
+        let track = library.get_track(track_id).await?;
+        let hint = hint_for(&track, library).await?;
+        let candidates = self.query_lyrics_cascade(&hint).await?;
+        let found = !candidates.is_empty();
         self.apply_lyrics(library, track_id, &hint, candidates)
             .await?;
-        Ok(())
+        Ok(found)
     }
 
     /// 对一首歌跑一次补全（遵守 `enrich.scope`：`all` / `artwork` / `lyrics`）。
@@ -217,20 +249,25 @@ impl EnrichPipeline {
 
         // ---- 歌词（ENR-03）----
         if want_lyrics && library.active_lyrics(track_id).await?.is_none() {
-            let candidates = self.query_lyrics_cascade(&hint).await;
-            report.absorb(
-                self.apply_lyrics(library, track_id, &hint, candidates)
-                    .await?,
-            );
+            match self.query_lyrics_cascade(&hint).await {
+                Ok(candidates) => report.absorb(
+                    self.apply_lyrics(library, track_id, &hint, candidates)
+                        .await?,
+                ),
+                // Batch enrichment should still fetch artwork when every lyrics
+                // source is unavailable. Explicit fetch/retry keeps typed errors.
+                Err(error) => {
+                    tracing::warn!(target: "lekis_core::enrich", code = %error.code.as_str(), "歌词查询失败，继续补全封面")
+                }
+            }
         }
 
         // ---- 封面（ENR-01）----
-        if want_artwork && library.effective_artwork_id(track_id).await?.is_none() {
-            let artwork_candidates = self.query_artwork_cascade(&hint).await;
-            report.absorb(
-                self.apply_artwork(library, &track, &hint, artwork_candidates)
-                    .await?,
-            );
+        if want_artwork
+            && !plugin_only_track(library, track_id).await?
+            && library.effective_artwork_id(track_id).await?.is_none()
+        {
+            report.absorb(self.fill_artwork(library, &track, &hint).await?);
         }
 
         Ok(report)
@@ -241,46 +278,54 @@ impl EnrichPipeline {
         &self,
         library: &Library,
         track_id: TrackId,
-        hint: &TrackHint,
+        _hint: &TrackHint,
         candidates: Vec<Candidate<LyricsPayload>>,
     ) -> Result<EnrichReport> {
         let mut report = EnrichReport::default();
         let mut queued: Vec<NewEnrichCandidate> = Vec::new();
-
+        let existing = library.list_lyrics(track_id).await?;
+        let mut selected = existing.iter().find(|row| row.is_active).map(|row| row.id);
         for candidate in candidates.into_iter().take(MAX_PROVIDERS_PER_KIND) {
-            let score = lekis_enrich::scoring::score(hint, &candidate);
-            match decide(score) {
+            // Providers already combine metadata identity and their own reliability.
+            let score = candidate.provider_confidence;
+            let decision = decide(score);
+            if matches!(decision, Decision::Discard) {
+                report.discarded += 1;
+                continue;
+            }
+            let lyrics = Lyrics {
+                format: candidate.payload.format,
+                content: candidate.payload.content,
+                source: candidate.source.clone(),
+                offset_ms: 0,
+                confidence: score,
+            };
+            let id = if let Some(row) = existing.iter().find(|row| {
+                row.lyrics.source == lyrics.source
+                    && row.lyrics.format == lyrics.format
+                    && row.lyrics.content == lyrics.content
+            }) {
+                row.id
+            } else {
+                library
+                    .save_lyrics_inactive(track_id, lyrics.clone())
+                    .await?
+            };
+            match decision {
                 Decision::AutoApply => {
-                    let lyrics = Lyrics {
-                        format: candidate.payload.format,
-                        content: candidate.payload.content,
-                        source: candidate.source.clone(),
-                        offset_ms: 0,
-                        confidence: score,
-                    };
-                    library.save_lyrics(track_id, lyrics).await?;
-                    report.auto_applied += 1;
-                    // 已自动补全到高置信度歌词，不再把其余低顺位候选塞进待确认队列。
-                    break;
+                    if selected.is_none() { selected = Some(id); report.auto_applied += 1; }
                 }
-                Decision::Review => {
-                    queued.push(NewEnrichCandidate {
-                        track_id: Some(track_id),
-                        album_id: None,
-                        kind: "lyrics".into(),
-                        payload_json: serde_json::json!({
-                            "format": format_to_str(candidate.payload.format),
-                            "content": candidate.payload.content,
-                        })
-                        .to_string(),
-                        source: candidate.source,
-                        score,
-                    });
-                }
-                Decision::Discard => report.discarded += 1,
+                Decision::Review => queued.push(NewEnrichCandidate {
+                    track_id: Some(track_id), album_id: None, kind: "lyrics".into(),
+                    payload_json: serde_json::json!({ "format": format_to_str(lyrics.format), "content": lyrics.content }).to_string(),
+                    source: candidate.source, score,
+                }),
+                Decision::Discard => {}
             }
         }
-
+        if let Some(id) = selected {
+            library.activate_lyrics(track_id, id).await?;
+        }
         report.queued = library.insert_enrich_candidates(queued).await? as u32;
         Ok(report)
     }
@@ -290,14 +335,15 @@ impl EnrichPipeline {
         &self,
         library: &Library,
         track: &Track,
-        hint: &TrackHint,
+        _hint: &TrackHint,
         candidates: Vec<Candidate<ArtworkPayload>>,
     ) -> Result<EnrichReport> {
         let mut report = EnrichReport::default();
         let mut queued: Vec<NewEnrichCandidate> = Vec::new();
 
         for candidate in candidates.into_iter().take(MAX_PROVIDERS_PER_KIND) {
-            let score = lekis_enrich::scoring::score(hint, &candidate);
+            // Built-in providers already score metadata once (see providers.rs).
+            let score = candidate.provider_confidence.clamp(0.0, 1.0);
             let payload_json = serde_json::json!({
                 "url": candidate.payload.url,
                 "width": candidate.payload.width,
@@ -310,8 +356,8 @@ impl EnrichPipeline {
                     &self.cache_dir,
                     library,
                     ArtworkTarget {
-                        track_id: Some(track.id),
-                        album_id: track.album_id,
+                        track_id: None,
+                        album_id: None,
                         replace_album: false,
                     },
                     &candidate.payload.url,
@@ -319,9 +365,15 @@ impl EnrichPipeline {
                 )
                 .await
                 {
-                    Ok(_) => {
-                        report.auto_applied += 1;
-                        // 封面已成功落盘并绑定曲目与专辑，立刻结束，不再把其它候选塞进待确认队列。
+                    Ok(artwork_id) => {
+                        // The user may have selected a cover while the download was running.
+                        // Attach only if both track and album are still uncovered.
+                        if library
+                            .set_track_artwork_if_missing(track.id, artwork_id)
+                            .await?
+                        {
+                            report.auto_applied += 1;
+                        }
                         break;
                     }
                     Err(e) => {
@@ -359,6 +411,12 @@ impl EnrichPipeline {
     ) -> Result<()> {
         apply_candidate(&self.cache_dir, library, row).await
     }
+}
+
+/// Plugin catalog entries get their artwork from the website, never album search.
+async fn plugin_only_track(library: &Library, track_id: TrackId) -> Result<bool> {
+    let files = library.track_files(track_id).await?;
+    Ok(!files.is_empty() && files.iter().all(|f| f.source_kind == SourceKind::Plugin))
 }
 
 /// 封面要挂到哪里。
@@ -422,15 +480,22 @@ pub(crate) async fn store_artwork_bytes(
 
     // 曲目级优先；同时给专辑打上，让别的曲目也能用（ENR-01）。
     if let Some(track_id) = target.track_id {
-        library
-            .set_track_artwork(track_id, Some(artwork_id))
-            .await?;
+        if source == "user" {
+            library.set_user_track_artwork(track_id, artwork_id).await?;
+        } else {
+            library
+                .set_track_artwork(track_id, Some(artwork_id))
+                .await?;
+        }
     }
     if let Some(album_id) = target.album_id {
         if target.replace_album || library.get_album(album_id).await?.artwork_id.is_none() {
             library
                 .set_album_artwork(album_id, Some(artwork_id))
                 .await?;
+            if source == "user" {
+                library.set_user_album_artwork(album_id, artwork_id).await?;
+            }
         }
     }
     // 封面落盘生效后，自动清理该曲目及所属专辑下所有已过期的待确认封面候选。
@@ -540,6 +605,13 @@ pub(crate) async fn apply_candidate(
             library.set_track_overlay(track_id, Some(overlay)).await
         }
         "artwork" => {
+            if let Some(id) = row.track_id {
+                if plugin_only_track(library, id).await? {
+                    return Err(LekisError::unsupported(
+                        "在线音源使用网站封面，不应用本地专辑封面候选",
+                    ));
+                }
+            }
             let value: serde_json::Value = serde_json::from_str(&row.payload_json)
                 .map_err(|e| LekisError::invalid(format!("候选内容不是合法 JSON：{e}")))?;
             let url = value
@@ -557,7 +629,8 @@ pub(crate) async fn apply_candidate(
                 album_id: row.album_id,
                 replace_album: row.track_id.is_none(),
             };
-            store_artwork(cache_dir, library, target, url, &row.source).await?;
+            // Accepted artwork is an explicit user choice, protected from automatic replacement.
+            store_artwork(cache_dir, library, target, url, "user").await?;
             Ok(())
         }
         _ => Ok(()),
@@ -706,3 +779,11 @@ mod tests {
         (img.width(), img.height())
     }
 }
+
+#[cfg(test)]
+#[path = "enrich_lyrics_tests.rs"]
+mod lyrics_tests;
+
+#[cfg(test)]
+#[path = "enrich_artwork_tests.rs"]
+mod artwork_tests;

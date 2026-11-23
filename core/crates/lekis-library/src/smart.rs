@@ -1420,7 +1420,7 @@ impl Library {
 
         let sql = format!(
             "SELECT {TRACK_ROW_COLUMNS}
-             FROM track t
+             FROM catalog_track t
              LEFT JOIN album a ON a.id = t.album_id
              LEFT JOIN user_state u ON u.track_uid = t.uid
              WHERE {where_sql}
@@ -1433,7 +1433,7 @@ impl Library {
         args.push(Value::Integer(take as i64));
         args.push(Value::Integer(i64::from(offset)));
         self.read(move |c| {
-            let mut stmt = c.prepare_cached(&sql).db()?;
+            let mut stmt = c.prepare_cached(&crate::catalog::query(&sql)).db()?;
             let rows = stmt
                 .query_map(params_from_iter(args.iter()), map_track_row)
                 .db()?;
@@ -1449,7 +1449,7 @@ impl Library {
     pub async fn count_smart_rules(&self, rules: &SmartRules) -> Result<u64> {
         rules.validate()?;
         let (where_sql, mut args) = rules.to_sql(&AllowedColumns::standard())?;
-        let from = "FROM track t
+        let from = "FROM catalog_track t
              LEFT JOIN album a ON a.id = t.album_id
              LEFT JOIN user_state u ON u.track_uid = t.uid";
         let sql = match rules.limit {
@@ -1466,7 +1466,11 @@ impl Library {
         };
         self.read(move |c| {
             let count: i64 = c
-                .query_row(&sql, params_from_iter(args.iter()), |r| r.get(0))
+                .query_row(
+                    &crate::catalog::query(&sql),
+                    params_from_iter(args.iter()),
+                    |r| r.get(0),
+                )
                 .db()?;
             Ok(count.max(0) as u64)
         })

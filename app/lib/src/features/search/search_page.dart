@@ -1,3 +1,9 @@
+import 'package:lekis/src/features/plugins/plugins_providers.dart';
+
+import '../plugins/plugin_browse_page.dart';
+import '../settings/widgets/settings_widgets.dart';
+import 'spotify_catalog_page.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/album_detail_page.dart';
 import 'package:lekis/src/features/library/artist_detail_page.dart';
@@ -18,7 +24,10 @@ import 'package:material_ui/material_ui.dart';
 
 /// Search across songs, albums and artists (debounced).
 class SearchPage extends ConsumerStatefulWidget {
-  const SearchPage({super.key});
+  const SearchPage({super.key, this.pluginId});
+
+  /// Fixed source for Library. Its query/results are independent of Search.
+  final String? pluginId;
 
   @override
   ConsumerState<SearchPage> createState() => _SearchPageState();
@@ -26,8 +35,16 @@ class SearchPage extends ConsumerStatefulWidget {
 
 class _SearchPageState extends ConsumerState<SearchPage> {
   late final TextEditingController _text = TextEditingController(
-    text: ref.read(searchQueryProvider),
+    text: widget.pluginId == null ? ref.read(searchQueryProvider) : '',
   );
+
+  @override
+  void didUpdateWidget(covariant SearchPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.pluginId != widget.pluginId) {
+      _text.text = widget.pluginId == null ? ref.read(searchQueryProvider) : '';
+    }
+  }
 
   bool get _isDesktop => UiProfile.current.pointerFirst;
 
@@ -37,14 +54,34 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     super.dispose();
   }
 
-  void _set(String v) => ref.read(searchQueryProvider.notifier).set(v);
+  void _set(String v) {
+    if (widget.pluginId == null) {
+      ref.read(searchQueryProvider.notifier).set(v);
+    } else {
+      setState(() {});
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final gutter = pageGutterOf(context);
-    final query = ref.watch(searchQueryProvider);
-    final results = ref.watch(searchResultsProvider);
+    final fixedSource = widget.pluginId;
+    final query = fixedSource == null
+        ? ref.watch(searchQueryProvider)
+        : _text.text;
+    final results = fixedSource == null
+        ? ref.watch(searchResultsProvider)
+        : ref.watch(librarySourceSearchProvider((fixedSource, query)));
+    final source = fixedSource ?? ref.watch(searchSourceProvider);
+    final sources = (ref.watch(pluginListProvider).value ?? <PluginInfoDto>[])
+        .where(
+          (plugin) =>
+              plugin.enabled &&
+              plugin.error == null &&
+              plugin.kinds.contains('source'),
+        )
+        .toList();
 
     final field = Padding(
       padding: EdgeInsets.fromLTRB(
@@ -56,7 +93,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       child: SearchBar(
         controller: _text,
         autoFocus: _isDesktop,
-        hintText: l10n.pick('歌曲、专辑、艺人', 'Songs, albums, artists'),
+        hintText: source == null
+            ? l10n.pick('歌曲、专辑、艺人', 'Songs, albums, artists')
+            : l10n.pick('搜索歌曲', 'Search songs'),
         leading: const Icon(Icons.search_rounded),
         trailing: [
           if (query.isNotEmpty)
@@ -79,22 +118,34 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     var loading = false;
     if (query.trim().isEmpty) {
       body = _Hint(
-        text: l10n.pick('搜索你的资料库', 'Search Your Library'),
-        message: l10n.pick(
-          '输入歌名、专辑、艺人，或直接输入拼音。',
-          'Type a song, album, or artist name.',
-        ),
+        text: source == null
+            ? l10n.pick('搜索你的资料库', 'Search Your Library')
+            : l10n.pick('搜索在线音乐', 'Search online music'),
+        message: source == null
+            ? l10n.pick(
+                '输入歌名、专辑、艺人，或直接输入拼音。',
+                'Type a song, album, or artist name.',
+              )
+            : l10n.pick('输入歌名、艺人或歌曲链接。', 'Enter a song, artist, or song URL.'),
       );
     } else {
       final data = results.value;
-      if (data == null) {
-        loading = !(results.hasError && !results.isLoading);
-        body = loading
-            ? const SizedBox.shrink()
-            : LoadErrorView(
-                error: results.error!,
-                onRetry: () => ref.invalidate(searchResultsProvider),
-              );
+      // Riverpod retains previous data while refreshing and after a failure.
+      // Only a completed, successful request may expose playable results.
+      if (results.hasError && !results.isLoading) {
+        body = LoadErrorView(
+          error: results.error!,
+          onRetry: () {
+            if (fixedSource == null) {
+              ref.invalidate(searchResultsProvider);
+            } else {
+              ref.invalidate(librarySourceSearchProvider((fixedSource, query)));
+            }
+          },
+        );
+      } else if (results.isLoading || data == null) {
+        loading = true;
+        body = const SizedBox.shrink();
       } else if (data.tracks.isEmpty &&
           data.albums.isEmpty &&
           data.artists.isEmpty) {
@@ -109,7 +160,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           ),
         );
       } else {
-        body = _Results(results: data, stale: results.isLoading);
+        body = _Results(results: data, onlinePlugin: source != null);
       }
     }
 
@@ -120,8 +171,106 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             field,
+            if (fixedSource == null)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  key: const ValueKey('spotify-catalog-entry'),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const SpotifyCatalogPage(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.album_outlined),
+                  label: Text(l10n.pick('在线专辑目录', 'Online album catalogue')),
+                ),
+              ),
+            if (sources.isNotEmpty || source != null)
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: gutter),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final choices = [
+                      SettingsChoice('', l10n.pick('资料库', 'Library')),
+                      if (source != null &&
+                          !sources.any((plugin) => plugin.id == source))
+                        SettingsChoice(
+                          source,
+                          l10n.pick('音源不可用', 'Source unavailable'),
+                        ),
+                      for (final plugin in sources)
+                        SettingsChoice(plugin.id, plugin.name),
+                    ];
+                    void select(String value) => ref
+                        .read(searchSourceProvider.notifier)
+                        .set(value.isEmpty ? null : value);
+                    final width = constraints.maxWidth.clamp(0.0, 280.0);
+                    final selectedPlugin = sources
+                        .where((plugin) => plugin.id == source)
+                        .firstOrNull;
+                    return Wrap(
+                      spacing: LekisSpacing.md,
+                      runSpacing: LekisSpacing.xs,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (fixedSource == null)
+                          Semantics(
+                            label: l10n.pick('搜索音源', 'Search source'),
+                            child: UiProfile.current.desktopSettings
+                                ? SettingsComboBox<String>(
+                                    value: source ?? '',
+                                    choices: choices,
+                                    minWidth: width.clamp(0.0, 128.0),
+                                    maxWidth: width,
+                                    onChanged: select,
+                                  )
+                                : SizedBox(
+                                    width: width,
+                                    child: DropdownButton<String>(
+                                      value: source ?? '',
+                                      isExpanded: true,
+                                      underline: const SizedBox.shrink(),
+                                      borderRadius: BorderRadius.circular(
+                                        LekisRadius.md,
+                                      ),
+                                      items: [
+                                        for (final choice in choices)
+                                          DropdownMenuItem(
+                                            value: choice.value,
+                                            child: Text(
+                                              choice.label,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                      ],
+                                      onChanged: (value) {
+                                        if (value != null) select(value);
+                                      },
+                                    ),
+                                  ),
+                          ),
+                        if (selectedPlugin?.compatibility == 'mygo')
+                          TextButton.icon(
+                            icon: const Icon(Icons.folder_outlined),
+                            label: Text(l10n.pick('浏览音源', 'Browse source')),
+                            onPressed: () => Navigator.of(context).push(
+                              PluginBrowsePage.route(
+                                selectedPlugin!.id,
+                                selectedPlugin.name,
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
             Expanded(
               child: LekisLoadingSwitcher(
+                // Do not retain the previous request's interactive content
+                // during the switcher's delayed skeleton or outgoing fade.
+                key: ValueKey((query.trim(), source, loading)),
                 loading: loading,
                 skeleton: SkeletonTrackListView(
                   header: Padding(
@@ -154,10 +303,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 }
 
 class _Results extends ConsumerWidget {
-  const _Results({required this.results, required this.stale});
+  const _Results({required this.results, this.onlinePlugin = false});
 
   final SearchResultsDto results;
-  final bool stale;
+  final bool onlinePlugin;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -178,65 +327,62 @@ class _Results extends ConsumerWidget {
     );
 
     final l10n = context.l10n;
-    return AnimatedOpacity(
-      opacity: stale ? 0.6 : 1,
-      duration: LekisMotion.fast,
-      child: CustomScrollView(
-        slivers: [
-          if (tracks.isNotEmpty)
-            SliverToBoxAdapter(child: sectionTitle(l10n.segSongs)),
-          SliverPadding(
-            padding: EdgeInsets.symmetric(horizontal: gutter - LekisSpacing.sm),
-            sliver: SliverFixedExtentList.builder(
-              itemExtent: TrackTile.extent,
-              itemCount: tracks.length,
-              itemBuilder: (context, i) => TrackTile(
-                track: tracks[i],
+    return CustomScrollView(
+      slivers: [
+        if (tracks.isNotEmpty)
+          SliverToBoxAdapter(child: sectionTitle(l10n.segSongs)),
+        SliverPadding(
+          padding: EdgeInsets.symmetric(horizontal: gutter - LekisSpacing.sm),
+          sliver: SliverFixedExtentList.builder(
+            itemExtent: TrackTile.extent,
+            itemCount: tracks.length,
+            itemBuilder: (context, i) => TrackTile(
+              track: tracks[i],
+              onlinePlugin: onlinePlugin,
+              onTap: () =>
+                  ref.read(playerActionsProvider).playRows(tracks, start: i),
+            ),
+          ),
+        ),
+        if (results.albums.isNotEmpty)
+          SliverToBoxAdapter(
+            child: ArtworkShelf(
+              title: l10n.segAlbums,
+              itemCount: results.albums.length,
+              itemBuilder: (context, i) => AlbumCard(
+                album: results.albums[i],
                 onTap: () =>
-                    ref.read(playerActionsProvider).playRows(tracks, start: i),
+                    Navigator.of(context)
+                        .push(AlbumDetailPage.route(results.albums[i].id)),
               ),
             ),
           ),
-          if (results.albums.isNotEmpty)
-            SliverToBoxAdapter(
-              child: ArtworkShelf(
-                title: l10n.segAlbums,
-                itemCount: results.albums.length,
-                itemBuilder: (context, i) => AlbumCard(
-                  album: results.albums[i],
-                  onTap: () =>
-                      Navigator.of(context)
-                          .push(AlbumDetailPage.route(results.albums[i].id)),
+        if (results.artists.isNotEmpty)
+          SliverToBoxAdapter(child: sectionTitle(l10n.segArtists)),
+        SliverPadding(
+          padding: EdgeInsets.symmetric(horizontal: gutter - LekisSpacing.sm),
+          sliver: SliverList.builder(
+            itemCount: results.artists.length,
+            itemBuilder: (context, i) {
+              final a = results.artists[i];
+              return ListTile(
+                minTileHeight: LekisSizes.touchTargetMin + LekisSpacing.md,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(LekisRadius.sm),
                 ),
-              ),
-            ),
-          if (results.artists.isNotEmpty)
-            SliverToBoxAdapter(child: sectionTitle(l10n.segArtists)),
-          SliverPadding(
-            padding: EdgeInsets.symmetric(horizontal: gutter - LekisSpacing.sm),
-            sliver: SliverList.builder(
-              itemCount: results.artists.length,
-              itemBuilder: (context, i) {
-                final a = results.artists[i];
-                return ListTile(
-                  minTileHeight: LekisSizes.touchTargetMin + LekisSpacing.md,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(LekisRadius.sm),
-                  ),
-                  leading: ArtistAvatar(name: a.name),
-                  title: Text(a.name),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () =>
-                      Navigator.of(context).push(ArtistDetailPage.route(a.id)),
-                );
-              },
-            ),
+                leading: ArtistAvatar(name: a.name),
+                title: Text(a.name),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () =>
+                    Navigator.of(context).push(ArtistDetailPage.route(a.id)),
+              );
+            },
           ),
-          SliverPadding(
-            padding: EdgeInsets.only(bottom: scrollEndPadding(context)),
-          ),
-        ],
-      ),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.only(bottom: scrollEndPadding(context)),
+        ),
+      ],
     );
   }
 }

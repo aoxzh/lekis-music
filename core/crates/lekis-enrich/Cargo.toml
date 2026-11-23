@@ -11,6 +11,7 @@ lekis-types.workspace = true
 async-trait.workspace = true
 # 在线提供方（LRCLIB / Cover Art Archive / iTunes）都是 HTTPS + JSON。
 reqwest.workspace = true
+httpdate.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 # 令牌桶（[`throttle::RateLimiter`]）的等待和互斥用 tokio 的 time / sync。

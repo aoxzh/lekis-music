@@ -407,7 +407,7 @@ class _QueueRow extends StatelessWidget {
                   dimension: LekisSizes.listArtwork - LekisSpacing.md,
                   child: TrackArtwork(
                     trackId: row.id,
-                    hasArtwork: row.artworkId != null,
+                    hasArtwork: row.artworkId != null || !row.isLocal,
                     radius: LekisRadius.artworkList,
                     placeholderLabel: row.title,
                   ),

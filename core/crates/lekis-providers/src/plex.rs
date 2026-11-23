@@ -16,7 +16,7 @@
 use crate::xml::{self, XmlElement};
 use crate::{http, MediaServer, RemoteTrack, StreamQuality, StreamTarget};
 use async_trait::async_trait;
-use lekis_types::{ErrorCode, LekisError, Result, SourceKind};
+use lekis_types::{ErrorCode, LekisError, Lyrics, LyricsFormat, Result, SourceKind};
 use reqwest::Url;
 
 /// Plex 音乐库的 section 类型。注意是 `artist` 而不是 `music`：
@@ -102,6 +102,21 @@ impl Plex {
         let response = request.send().await.map_err(http::network)?;
         http::ensure_status(&response, what)?;
         response.text().await.map_err(http::network)
+    }
+
+    async fn lyrics_get(&self, client: &reqwest::Client, url: Url, limit: usize) -> Result<Option<Vec<u8>>> {
+        let mut request = client.get(url);
+        for (name, value) in self.headers() { request = request.header(name, value); }
+        let mut response = request.send().await.map_err(http::network)?;
+        if response.status() == reqwest::StatusCode::NOT_FOUND { return Ok(None); }
+        http::ensure_status(&response, "plex lyrics")?;
+        if response.content_length().is_some_and(|n| n > limit as u64) { return Err(LekisError::invalid("Plex lyrics response too large")); }
+        let mut data = Vec::new();
+        while let Some(chunk) = response.chunk().await.map_err(http::network)? {
+            if data.len() + chunk.len() > limit { return Err(LekisError::invalid("Plex lyrics response too large")); }
+            data.extend_from_slice(&chunk);
+        }
+        Ok(Some(data))
     }
 
     /// 取 `MediaContainer` 根元素。
@@ -268,6 +283,36 @@ impl MediaServer for Plex {
         }
     }
 
+    async fn lyrics(&self, external_id: &str) -> Result<Option<Lyrics>> {
+        // Never forward the Plex token through a server-provided redirect.
+        let client = reqwest::Client::builder()
+            .user_agent(http::USER_AGENT).timeout(http::TIMEOUT)
+            .connect_timeout(http::CONNECT_TIMEOUT)
+            .redirect(reqwest::redirect::Policy::none())
+            .build().map_err(|e| LekisError::internal(format!("Plex client: {e}")))?;
+        let url = self.url(&format!("/library/metadata/{}", encode_path_segment(external_id)), &[])?;
+        let Some(metadata) = self.lyrics_get(&client, url, 2 * 1024 * 1024).await? else { return Ok(None) };
+        let root = xml::parse(&String::from_utf8_lossy(&metadata))?;
+        let key = root.children_named("Track")
+            .flat_map(|track| track.children_named("Media"))
+            .flat_map(|media| media.children_named("Part"))
+            .flat_map(|part| part.children_named("Stream"))
+            .find(|stream| stream.attr("streamType") == Some("4") && stream.attr("format").is_some_and(|f| f.eq_ignore_ascii_case("lrc")))
+            .and_then(|stream| stream.attr("key"));
+        let Some(key) = key else { return Ok(None) };
+        if key.is_empty() || key.starts_with("//") || key.contains('\\') || key.contains("://") || key.chars().any(char::is_control) {
+            return Err(LekisError::invalid("Plex lyric stream key is not a relative path"));
+        }
+        let path = if key.starts_with('/') { key.to_owned() } else { format!("/{key}") };
+        let url = self.url(&path, &[])?;
+        let base = Url::parse(&self.base_url).map_err(|_| LekisError::invalid("invalid Plex server URL"))?;
+        if url.origin() != base.origin() { return Err(LekisError::invalid("Plex lyric stream is not same-origin")); }
+        let Some(data) = self.lyrics_get(&client, url, 1024 * 1024).await? else { return Ok(None) };
+        let content = String::from_utf8(data).map_err(|_| LekisError::invalid("Plex lyrics are not UTF-8"))?;
+        if content.trim().is_empty() { return Ok(None); }
+        Ok(Some(Lyrics { format: LyricsFormat::Lrc, content, source: "server:plex".into(), offset_ms: 0, confidence: 1.0 }))
+    }
+
     async fn scrobble(&self, external_id: &str, played_at_ms: i64) -> Result<()> {
         // Plex 的 scrobble 用 ratingKey；时间由服务器自己记，我们只需要触发一次。
         let _ = played_at_ms;
@@ -398,6 +443,7 @@ fn track_to_remote(track: &XmlElement) -> RemoteTrack {
         });
 
     RemoteTrack {
+            external_album_id: None, album_artists: vec![], disc_no: None, track_no: None,
         external_id: track.attr("ratingKey").unwrap_or_default().to_string(),
         title: track.attr("title").unwrap_or_default().to_string(),
         artists: if artist.is_empty() {
@@ -588,5 +634,52 @@ mod tests {
             .iter()
             .any(|(name, value)| *name == "X-Plex-Token" && value == "super-secret-token"));
         assert!(headers.iter().any(|(name, _)| *name == "Accept"));
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod server_lyrics_tests {
+    use super::*;
+    use std::io::{Read, Write};
+
+    #[tokio::test]
+    async fn lrc_stream_uses_plex_auth_and_rejects_external_key() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let task = std::thread::spawn(move || {
+            for (expected, body) in [
+                ("/library/metadata/42", "<MediaContainer><Track><Media><Part><Stream streamType=\"4\" format=\"lrc\" key=\"/library/parts/4/lyrics\"/></Part></Media></Track></MediaContainer>"),
+                ("/library/parts/4/lyrics", "[00:01.00]Hello"),
+                ("/library/metadata/43", "<MediaContainer><Track><Media><Part><Stream streamType=\"4\" format=\"lrc\" key=\"https://evil.invalid/lyrics\"/></Part></Media></Track></MediaContainer>"),
+            ] {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut buf = [0; 4096]; let count = stream.read(&mut buf).unwrap();
+                let request = String::from_utf8_lossy(&buf[..count]).to_ascii_lowercase();
+                assert!(request.starts_with(&format!("get {expected} ")));
+                assert!(request.contains("x-plex-token: secret"));
+                write!(stream, "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+            }
+        });
+        let plex = Plex::new(&format!("http://{addr}"), "secret".into()).unwrap();
+        let lyric = plex.lyrics("42").await.unwrap().unwrap();
+        assert_eq!(lyric.format, LyricsFormat::Lrc);
+        assert_eq!(lyric.content, "[00:01.00]Hello");
+        assert!(plex.lyrics("43").await.is_err());
+        task.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn does_not_forward_plex_token_on_redirect() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let task = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buf = [0; 4096]; let _ = stream.read(&mut buf).unwrap();
+            stream.write_all(b"HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:9/steal\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").unwrap();
+        });
+        let plex = Plex::new(&format!("http://{addr}"), "secret".into()).unwrap();
+        assert!(plex.lyrics("42").await.is_err());
+        task.join().unwrap();
     }
 }

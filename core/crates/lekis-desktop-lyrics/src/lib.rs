@@ -9,12 +9,14 @@
 //! - 只有在播放且有逐字填充时才按显示器刷新率重绘；逐行歌词只在换行时重绘，
 //!   暂停 / 隐藏时线程阻塞在消息循环里。
 //! - 平台相关部分在 `Platform` 后面：Windows 用 Win32 分层窗口 + Direct2D/DirectWrite；
-//!   macOS（NSPanel）/ Linux 以后各自实现，目前 [`DesktopLyrics::is_supported`] 返回 `false`。
+//!   macOS 用主线程 AppKit NSPanel；Linux 等平台暂未实现。
 
 pub mod model;
 pub mod placement;
 pub mod timeline;
 
+#[cfg(target_os = "macos")]
+mod mac;
 #[cfg(target_os = "windows")]
 mod win;
 
@@ -31,6 +33,7 @@ pub type EventHandler = Arc<dyn Fn(Event) + Send + Sync>;
 /// 窗口线程读取的共享状态。
 pub(crate) struct State {
     pub(crate) visible: bool,
+    pub(crate) menu_bar_visible: bool,
     pub(crate) locked: bool,
     pub(crate) style: Style,
     pub(crate) doc: Option<Arc<LyricsDoc>>,
@@ -50,7 +53,7 @@ impl Shared {
         self.state.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+    #[cfg_attr(not(any(target_os = "windows", target_os = "macos")), allow(dead_code))]
     pub(crate) fn emit(&self, event: Event) {
         let handler = self
             .handler
@@ -95,6 +98,7 @@ impl DesktopLyrics {
             shared: Arc::new(Shared {
                 state: Mutex::new(State {
                     visible: false,
+                    menu_bar_visible: false,
                     locked: false,
                     style: Style::default(),
                     doc: None,
@@ -110,7 +114,31 @@ impl DesktopLyrics {
 
     /// 当前平台是否有实现。
     pub fn is_supported() -> bool {
-        cfg!(target_os = "windows")
+        cfg!(any(target_os = "windows", target_os = "macos"))
+    }
+
+    /// 当前平台是否支持原生菜单栏歌词。
+    pub fn is_menu_bar_supported() -> bool {
+        cfg!(target_os = "macos")
+    }
+
+    /// 独立设置菜单栏歌词，不改变桌面悬浮窗口；返回实际可见状态。
+    pub fn set_menu_bar_visible(&self, visible: bool) -> bool {
+        if !Self::is_menu_bar_supported() {
+            return false;
+        }
+        self.shared.state().menu_bar_visible = visible;
+        if visible && !self.ensure_platform() {
+            self.shared.state().menu_bar_visible = false;
+            return false;
+        }
+        self.notify(Change::Visibility);
+        visible
+    }
+
+    /// 菜单栏歌词是否启用。
+    pub fn is_menu_bar_visible(&self) -> bool {
+        self.shared.state().menu_bar_visible
     }
 
     /// 设置事件回调（替换之前的）。
@@ -183,7 +211,12 @@ impl DesktopLyrics {
 
     /// 换曲时推送整首歌词（含曲名，用于没有同步歌词时显示）。
     pub fn set_lyrics(&self, doc: LyricsDoc) {
-        self.shared.state().doc = Some(Arc::new(doc));
+        let mut state = self.shared.state();
+        if state.doc.as_deref() == Some(&doc) {
+            return;
+        }
+        state.doc = Some(Arc::new(doc));
+        drop(state);
         self.notify(Change::Lyrics);
     }
 
@@ -202,7 +235,7 @@ impl DesktopLyrics {
             };
             s.clock = clock;
             s.clock_at = now;
-            s.visible
+            (s.visible || s.menu_bar_visible)
                 && (prev.playing != clock.playing
                     || prev.track_id != clock.track_id
                     || expected.abs_diff(clock.position_ms) > SEEK_WAKE_MS
@@ -247,7 +280,103 @@ fn start_platform(shared: Arc<Shared>) -> Result<Box<dyn Platform>, String> {
     win::start(shared).map(|p| Box::new(p) as Box<dyn Platform>)
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
+fn start_platform(shared: Arc<Shared>) -> Result<Box<dyn Platform>, String> {
+    mac::start(shared).map(|platform| Box::new(platform) as Box<dyn Platform>)
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 fn start_platform(_shared: Arc<Shared>) -> Result<Box<dyn Platform>, String> {
     Err("desktop lyrics are not implemented on this platform yet".into())
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)] // Test setup should fail immediately if its own state is invalid.
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    fn controller() -> DesktopLyrics {
+        DesktopLyrics {
+            shared: Arc::new(Shared {
+                state: Mutex::new(State {
+                    visible: false,
+                    menu_bar_visible: false,
+                    locked: false,
+                    style: Style::default(),
+                    doc: None,
+                    clock: Clock::default(),
+                    clock_at: Instant::now(),
+                    placements: Placements::default(),
+                }),
+                handler: Mutex::new(None),
+            }),
+            platform: Mutex::new(None),
+        }
+    }
+
+    struct Counter(Arc<AtomicUsize>);
+    impl Platform for Counter {
+        fn notify(&self, _: Change) {
+            self.0.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    #[test]
+    fn duplicate_lyrics_reuse_document_without_waking_renderer() {
+        let controller = controller();
+        let count = Arc::new(AtomicUsize::new(0));
+        *controller.platform.lock().expect("platform") = Some(Box::new(Counter(count.clone())));
+        let mut doc = LyricsDoc {
+            title: "one".into(),
+            ..LyricsDoc::default()
+        };
+        controller.set_lyrics(doc.clone());
+        let previous = controller.shared.state().doc.clone().expect("doc");
+        controller.set_lyrics(doc.clone());
+        assert_eq!(count.load(Ordering::Relaxed), 1);
+        assert!(Arc::ptr_eq(
+            &previous,
+            controller.shared.state().doc.as_ref().expect("doc")
+        ));
+        doc.title = "two".into();
+        controller.set_lyrics(doc);
+        assert_eq!(count.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn updating_hidden_state_does_not_start_native_platform() {
+        let controller = controller();
+        controller.set_lyrics(LyricsDoc::default());
+        controller.set_style(Style::default());
+        controller.set_locked(true);
+        controller.set_clock(Clock {
+            playing: true,
+            track_id: Some(1),
+            position_ms: 100,
+        });
+        controller.hide();
+        assert!(controller.platform.lock().expect("platform").is_none());
+        assert!(!controller.is_visible());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn menu_bar_remains_active_when_desktop_is_hidden_and_receives_clock_wakes() {
+        let controller = controller();
+        let count = Arc::new(AtomicUsize::new(0));
+        *controller.platform.lock().expect("platform") = Some(Box::new(Counter(count.clone())));
+        assert!(controller.set_menu_bar_visible(true));
+        controller.hide();
+        assert!(!controller.is_visible());
+        assert!(controller.is_menu_bar_visible());
+        controller.set_clock(Clock {
+            track_id: Some(1),
+            playing: true,
+            position_ms: 400,
+        });
+        assert_eq!(count.load(Ordering::Relaxed), 2);
+        assert!(!controller.set_menu_bar_visible(false));
+        assert!(!controller.is_menu_bar_visible());
+    }
 }

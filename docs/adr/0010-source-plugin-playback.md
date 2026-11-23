@@ -1,27 +1,35 @@
-# ADR-0010: Source plugin search and playback contract
+# ADR-0010: Connect source plugins to native playback
 
-Status: proposed
+Status: proposed (local implementation; no upstream review)
 
 ## Context
 
-The plugin SDK declares source search and stream capabilities, but the host does not yet connect them to the normal library and playback flow. Source results must remain usable in queues and playlists, while stream URLs can expire and may carry sensitive request headers. Some source plugins also need the SDK's already-declared desktop process API, which the host does not currently implement.
+The JS sandbox exposes source capability names, but the app only manages plugin files and settings. Playback assumes all non-filesystem sources are media servers. The SDK already specifies desktop process permissions and a spawn function, without a runtime implementation.
 
-## Proposed decision
+## Decision
 
-Extend plugin API 1.1 with an optional search limit; retain API 1.0 compatibility. Import search results as normal library tracks with a stable identity derived from the plugin ID and the opaque, case-sensitive provider track ID. Refreshing metadata must preserve local track IDs and references, and a new search must not delete previously referenced results.
+API 1.1 adds an optional search limit and implements the existing desktop spawn contract. API 1.0 manifests remain compatible. No new crate or database migration is required.
 
-Resolve the stream when playback starts instead of persisting signed URLs. Check the returned URL against the plugin's network permissions, check request headers against the declared header-host permissions, and reject expired results before passing them to the existing native HTTP range reader and decoder.
+Source search returns ordinary library rows. An append-only remote-track operation keeps previous search results referenced by queues and playlists. Plugin identity lives in the source configuration, and external song IDs remain opaque. Resolution invokes stream before playback and validates returned hosts, header-host declarations, and expiry. The existing range reader and decoder consume the result.
 
-Implement the existing desktop `host.spawn` contract with a separate, default-denied user grant for each declared program. Run as the current user, without a shell or stdin; apply a 45-second timeout and independent 8 MiB stdout and stderr limits. A spawned process is not confined by the JavaScript network allowlist. Mobile reports this operation as unsupported. Revoking the grant prevents later calls, and uninstall clears the grant.
+Runtime construction merges persisted app settings into the plugin defaults. Runtime caches are replaced when source, settings, or process grants change, while per-plugin JSON storage survives restart and runtime replacement. Storage quotas count both key and value bytes. Writes use private Unix permissions and atomic replacement; storage is not encrypted. An owned task retains the per-plugin gate through execution and persistence even if its caller is cancelled.
 
-Persist per-plugin JSON storage across runtime replacement and restart, with quotas counting key and value bytes. Save atomically with private Unix permissions. Storage is not encrypted and must not be presented as a credential vault. Runtime settings and grants are host-owned; their changes invalidate cached runtimes. Preserve per-plugin serialization through execution and persistence when the caller is cancelled.
+Process grants are separate host settings, disabled by default and cleared on uninstall. Both declaration and grant are required. Programs run as the current OS user, without a shell or stdin, with a 45-second timeout and independent 8 MiB stdout/stderr limits. An external program is not confined by the JS network permission list. Mobile returns unsupported. App-level source calls allow 60 seconds; standalone JS runtimes keep their existing 15-second default.
 
-## Consequences and boundaries
+## Consequences
 
-The proposed flow reuses existing track, queue, playlist and playback machinery. Search initially imports the first page of tracks. No new crate or database migration is proposed. Process access is privileged and optional, not a sandbox for external programs.
+The UI can search a selected plugin and reuse normal queue controls, favorites and playlists. Catalog search results are stored locally; signed stream URLs are not. Search consumes the first page of tracks and preserves optional `artworkUrl` metadata. Artwork is fetched on demand through the existing artwork/hash/path API, cached as 128/256/512/1024 WebP tiers and attached to the ordinary track artwork reference. The downloader validates the installed plugin network permissions on every redirect, rejects URL credentials, bounds bytes, dimensions and decoded allocations, and limits concurrent requests to four with same-track deduplication. Failures do not hide playable tracks; a 30-second retry delay prevents event-driven retry storms. Search refresh and background playback refresh repair legacy imports without overwriting manual covers. No image URL is exposed through new frontend DTO fields. The generic browse facade imports stable track rows; MyGO sources expose public folders/collections and cursor paging in the app. Account sign-in and WASM remain unsupported.
 
-MyGO compatibility, artwork ingestion, browsing and Android native extensions are separate proposals and are not approved by this decision. No third-party streaming source plugin is included in the repository.
+A manual generic smoke tool verifies the real JS host and native decoder without an audio output device. Third-party source packages remain outside the upstream repository, consistent with its contribution policy.
 
-## Validation required before implementation is merged
+## MyGO protocol compatibility
 
-Test API 1.0 compatibility, source identity and refresh, queue references, URL and header permission checks, expiration, storage quotas and restart/cancellation behavior, and process grant, timeout and output limits. Exercise the real JavaScript host and decoder with a generic test plugin. Review the permission experience and privacy implications before enabling this path.
+Recognize original MyGO manifests and adapt their documented JavaScript interface without copying AGPL implementation code. Normalize short IDs into a reserved namespace. Adapt source search/stream, public home and collection browsing, JSON storage, translations, MD5, platform and standard URL/fetch helpers. Unsupported login, remote playback, long-running process handles and module imports fail explicitly. No service-specific plugin ships in the core repository.
+
+The small `md-5` 0.10 dependency (MIT OR Apache-2.0) implements the digest required by compatibility APIs; it is not used for cryptographic security. Existing reqwest permission checks apply to every fetch redirect; response and process output sizes remain bounded. Each blocking JS execution owns its serialization guard through completion.
+
+Plugin track identity is based on portable plugin ID and case-sensitive provider track ID rather than mutable metadata. Metadata refreshes preserve local track IDs, favorites and queue references; distinct provider IDs do not collapse solely because their titles match. Native media resolution can fall back when an unavailable plugin candidate has alternatives.
+
+## Validation and limits
+
+Unit tests cover storage restart/error/cancellation behavior, quota and permissions, compatibility mappings and browse identity. Offline plugin tests and live smoke runs use the real QuickJS host and Rust decoder without sending audio to an output device. Full macOS application packaging requires Xcode and remains a separate environment check.

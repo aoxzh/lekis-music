@@ -1,3 +1,4 @@
+import 'package:lekis/src/features/plugins/plugins_providers.dart';
 // Library data layer: Riverpod providers over the Rust core.
 //
 // Widgets never call the core directly; they read these providers (and the
@@ -552,3 +553,25 @@ final selectedArtistProvider = _valueProvider<int?>(null);
 
 /// 文件夹视图当前所在的位置；`null` 表示第一层（有曲目的音源）。
 final selectedFolderProvider = _valueProvider<FolderLocation?>(null);
+
+/// null is the user's catalog; online caches are never included in that catalog.
+final librarySourceProvider = NotifierProvider<SimpleValue<String?>, String?>(
+  () => SimpleValue<String?>(null),
+);
+
+final librarySourcePluginsProvider = Provider<List<PluginInfoDto>>((ref) {
+  return (ref.watch(pluginListProvider).value ?? <PluginInfoDto>[])
+      .where(
+        (plugin) =>
+            plugin.enabled &&
+            plugin.error == null &&
+            plugin.kinds.contains('source'),
+      )
+      .toList();
+});
+
+final effectiveLibrarySourceProvider = Provider<String?>((ref) {
+  final selected = ref.watch(librarySourceProvider);
+  final sources = ref.watch(librarySourcePluginsProvider);
+  return sources.any((plugin) => plugin.id == selected) ? selected : null;
+});

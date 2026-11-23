@@ -104,6 +104,15 @@ fn validate_mbid(mbid: &str) -> Result<&str> {
 // LRCLIB
 // ============================================================================
 
+#[cfg(test)]
+#[path = "providers/lrclib_tests.rs"]
+mod lrclib_tests;
+#[path = "providers/amll.rs"]
+mod amll;
+pub use amll::AmllLyrics;
+#[path = "providers/lyrics_matching.rs"]
+mod lyrics_matching;
+
 /// LRCLIB 歌词（ENR-03 来源 ③）。
 ///
 /// 先走 `/api/get` 精确匹配（`track_name` + `artist_name` + 可选 `album_name`/`duration`），
@@ -114,6 +123,8 @@ pub struct Lrclib {
     client: reqwest::Client,
     limiter: RateLimiter,
     backoff: Backoff,
+    /// LRCLIB-only server cooldown; never blocks unrelated providers.
+    cooldown: std::sync::Mutex<Option<std::time::Instant>>,
     /// 结果缓存（ENR-09）：同一首歌在一次扫描里可能被问两次（取封面时也会顺带问歌词）。
     cache: TtlCache<Vec<Candidate<LyricsPayload>>>,
 }
@@ -144,6 +155,7 @@ impl Lrclib {
             client: http::client()?,
             limiter: RateLimiter::new(Duration::from_secs(1)),
             backoff: Backoff::new(Duration::from_secs(1), Duration::from_secs(60)),
+            cooldown: std::sync::Mutex::new(None),
             cache: TtlCache::new(),
         })
     }
@@ -156,6 +168,56 @@ impl Lrclib {
     /// 清空结果缓存。
     pub fn clear_cache(&self) {
         self.cache.clear();
+    }
+
+    async fn fetch_lyrics(&self, url: reqwest::Url, what: &str) -> Result<Option<String>> {
+        self.limiter.acquire().await;
+        if self
+            .cooldown
+            .lock()
+            .map_err(|_| LekisError::new(ErrorCode::Internal, "LRCLIB cooldown lock"))?
+            .is_some_and(|until| until > std::time::Instant::now())
+        {
+            return Err(LekisError::new(
+                ErrorCode::RateLimited,
+                "LRCLIB：服务器冷却中",
+            ));
+        }
+        let response = self.client.get(url).send().await.map_err(http::network)?;
+        let code = response.status().as_u16();
+        if (200..300).contains(&code) {
+            self.backoff.reset();
+            return response.text().await.map(Some).map_err(http::network);
+        }
+        if code == 404 {
+            return Ok(None);
+        }
+        if code == 429 || code == 503 {
+            let delay = response
+                .headers()
+                .get(reqwest::header::RETRY_AFTER)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| {
+                    value
+                        .parse::<u64>()
+                        .ok()
+                        .map(Duration::from_secs)
+                        .or_else(|| {
+                            httpdate::parse_http_date(value).ok().map(|date| {
+                                date.duration_since(std::time::SystemTime::now())
+                                    .unwrap_or_default()
+                            })
+                        })
+                })
+                .unwrap_or_else(|| self.backoff.record_failure());
+            // No sleep: callers get a typed error while subsequent requests short-circuit.
+            *self
+                .cooldown
+                .lock()
+                .map_err(|_| LekisError::new(ErrorCode::Internal, "LRCLIB cooldown lock"))? =
+                std::time::Instant::now().checked_add(delay);
+        }
+        Err(http::status(code, what))
     }
 
     /// `/api/get` 的地址（精确匹配）。
@@ -183,21 +245,21 @@ impl Lrclib {
             {
                 query.append_pair("album_name", album);
             }
-            if hint.duration_ms > 0 {
-                query.append_pair("duration", &(hint.duration_ms / 1000).to_string());
+            let seconds = hint.duration_ms.saturating_add(500) / 1000;
+            if (1..=3600).contains(&seconds) {
+                query.append_pair("duration", &seconds.to_string());
             }
         }
         Ok(url)
     }
 
-    /// `/api/search` 的地址（模糊检索）。
-    fn search_url(&self, hint: &TrackHint) -> Result<reqwest::Url> {
-        let artist = hint.artists.first().map(String::as_str).unwrap_or("");
-        let query_text = format!("{} {}", hint.title.trim(), artist.trim())
-            .trim()
-            .to_string();
+    /// Structured fields avoid matching a title solely in an unrelated album name.
+    fn search_url(&self, title: &str, artist: Option<&str>) -> Result<reqwest::Url> {
         let mut url = http::join(&self.base_url, "/api/search")?;
-        url.query_pairs_mut().append_pair("q", &query_text);
+        url.query_pairs_mut().append_pair("track_name", title);
+        if let Some(artist) = artist.filter(|a| !a.trim().is_empty()) {
+            url.query_pairs_mut().append_pair("artist_name", artist);
+        }
         Ok(url)
     }
 }
@@ -223,47 +285,57 @@ impl LyricsProvider for Lrclib {
             return Ok(cached);
         }
 
-        let exact = self.exact_url(hint)?;
-        let body = fetch(
-            &self.client,
-            &self.limiter,
-            &self.backoff,
-            exact,
-            "LRCLIB /api/get",
-        )
-        .await?;
-        if let Some(body) = body {
-            if let Some(entry) = parse_lrclib_record(&body)? {
-                let candidates = lyrics_candidates(self.name(), hint, std::slice::from_ref(&entry));
-                if !candidates.is_empty() {
-                    self.cache.insert(key, candidates.clone());
-                    return Ok(candidates);
+        let mut candidates = Vec::new();
+        let mut first_error = None;
+        // /api/get requires an artist; a missing tag should fall back to search,
+        // rather than sending an invalid request and stopping at HTTP 400.
+        if hint.artists.iter().any(|artist| !artist.trim().is_empty()) {
+            let exact = self.exact_url(hint)?;
+            if let Some(body) = self.fetch_lyrics(exact, "LRCLIB /api/get").await? {
+                if let Some(entry) = parse_lrclib_record(&body)? {
+                    candidates = lyrics_candidates(self.name(), hint, &[entry]);
+                    if lyrics_matching::has_synced_hit(&candidates) {
+                        self.cache.insert(key, candidates.clone());
+                        return Ok(candidates);
+                    }
                 }
             }
         }
 
-        let search = self.search_url(hint)?;
-        let Some(body) = fetch(
-            &self.client,
-            &self.limiter,
-            &self.backoff,
-            search,
-            "LRCLIB /api/search",
-        )
-        .await?
-        else {
-            tracing::debug!(
-                target: "lekis_enrich::providers",
-                provider = "lrclib",
-                "精确匹配与检索都没有结果"
-            );
-            return Ok(Vec::new());
-        };
-        let entries = parse_lrclib_search(&body)?;
-        let candidates = lyrics_candidates(self.name(), hint, &entries);
-        // 只缓存"确实查到了东西"的结果；空结果不缓存，下次还会重新试（唱片可能后补）。
+        // A plain exact result remains usable while we look for a synced edition.
+        // Requests are sequential and bounded, and every returned record is still
+        // checked against the original identity, including artist and version.
+        for (title, artist) in lyrics_matching::search_variants(hint) {
+            let search = self.search_url(&title, artist.as_deref())?;
+            match self.fetch_lyrics(search, "LRCLIB /api/search").await {
+                Ok(Some(body)) => {
+                    let entries = match parse_lrclib_search(&body) {
+                        Ok(entries) => entries,
+                        Err(error) => {
+                            first_error = Some(error);
+                            break;
+                        }
+                    };
+                    candidates.extend(lyrics_candidates(self.name(), hint, &entries));
+                    lyrics_matching::sort(&mut candidates);
+                    if lyrics_matching::has_synced_hit(&candidates) {
+                        break;
+                    }
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    first_error = Some(error);
+                    break;
+                }
+            }
+        }
+        lyrics_matching::sort(&mut candidates);
         if !candidates.is_empty() {
             self.cache.insert(key, candidates.clone());
+            return Ok(candidates);
+        }
+        if let Some(error) = first_error {
+            return Err(error);
         }
         Ok(candidates)
     }
@@ -386,6 +458,24 @@ fn parse_lrclib_search(body: &str) -> Result<Vec<LrcEntry>> {
     }
 }
 
+// A metadata tag or arbitrary nonempty string is not synchronized lyrics.
+fn has_lyric_timestamp(value: &str) -> bool {
+    value.split('[').skip(1).any(|part| {
+        let Some((stamp, text)) = part.split_once(']') else {
+            return false;
+        };
+        let Some((minutes, seconds)) = stamp.split_once(':') else {
+            return false;
+        };
+        !minutes.is_empty()
+            && minutes.bytes().all(|b| b.is_ascii_digit())
+            && seconds
+                .parse::<f64>()
+                .is_ok_and(|v| v.is_finite() && (0.0..60.0).contains(&v))
+            && !text.trim().is_empty()
+    })
+}
+
 /// 把 LRCLIB 记录变成候选：有 `syncedLyrics` 优先给 LRC，否则用 `plainLyrics`。
 fn lyrics_candidates(
     source: &str,
@@ -403,7 +493,7 @@ fn lyrics_candidates(
                 .synced_lyrics
                 .as_deref()
                 .map(str::trim)
-                .filter(|s| !s.is_empty()),
+                .filter(|s| has_lyric_timestamp(s)),
             entry
                 .plain_lyrics
                 .as_deref()
@@ -417,13 +507,9 @@ fn lyrics_candidates(
         };
 
         let matched = entry.to_hint();
-        let confidence = as_confidence(score_match(
-            hint,
-            &matched.title,
-            &matched.artists.join(" / "),
-            matched.album.as_deref(),
-            matched.duration_ms,
-        ));
+        let Some(confidence) = lyrics_matching::confidence(hint, &matched) else {
+            continue;
+        };
         out.push(Candidate {
             payload: LyricsPayload { format, content },
             source: source.to_string(),
@@ -432,7 +518,9 @@ fn lyrics_candidates(
         });
     }
 
-    sort_and_filter(out, hint)
+    out.retain(|candidate| candidate.provider_confidence >= crate::REVIEW_THRESHOLD);
+    lyrics_matching::sort(&mut out);
+    out
 }
 
 /// 按置信度降序，截断到 [`MAX_CANDIDATES`]，并丢掉低于待确认阈值的候选。

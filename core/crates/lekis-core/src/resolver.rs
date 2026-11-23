@@ -26,6 +26,7 @@ use tokio::sync::mpsc;
 /// 解析一次请求需要用到的依赖。
 pub(crate) struct Resolver {
     library: Library,
+    plugins: Option<Arc<crate::plugins::PluginManager>>,
     health: Arc<SourceHealth>,
     /// 已经构造好的服务器客户端（按源 ID 缓存）。
     servers: Mutex<HashMap<SourceId, Arc<dyn MediaServer>>>,
@@ -77,12 +78,19 @@ impl Resolver {
     ) -> Self {
         Self {
             library,
+            plugins: None,
             health,
             servers: Mutex::new(HashMap::new()),
             credentials,
             replaygain_mode: std::sync::RwLock::new(ReplayGainMode::default()),
             connect: Arc::default(),
         }
+    }
+
+    /// Attach source plugins before starting the resolver loop.
+    pub(crate) fn with_plugins(mut self, plugins: Arc<crate::plugins::PluginManager>) -> Self {
+        self.plugins = Some(plugins);
+        self
     }
 
     /// 远端曲目登记表。
@@ -215,12 +223,9 @@ impl Resolver {
         }
         let files = self.library.track_files(track_id).await?;
         let net = self.health.network();
-        let best = selection::pick_best(&files, &|id| self.health.get(id), net)
-            .cloned()
-            .ok_or_else(|| {
-                LekisError::not_found(format!("no playable file for track {track_id}"))
-            })?;
-        self.media_source(track_id, &best, net).await
+        self.resolve_candidates(track_id, files, net)
+            .await
+            .map(|(_, media)| media)
     }
 
     /// 解析一个"下载用"的源（不优先走缓存）。
@@ -229,13 +234,38 @@ impl Resolver {
     pub(crate) async fn resolve_file(&self, track_id: TrackId) -> Result<(TrackFile, MediaSource)> {
         let files = self.library.track_files(track_id).await?;
         let net = self.health.network();
-        let best = selection::pick_best(&files, &|id| self.health.get(id), net)
-            .cloned()
-            .ok_or_else(|| {
-                LekisError::not_found(format!("no playable file for track {track_id}"))
-            })?;
-        let media = self.media_source(track_id, &best, net).await?;
-        Ok((best, media))
+        self.resolve_candidates(track_id, files, net).await
+    }
+
+    /// A disabled, removed or failing plugin must not hide another copy of the song.
+    /// Keep its library references intact for favorites and later reinstallation.
+    async fn resolve_candidates(
+        &self,
+        track_id: TrackId,
+        mut files: Vec<TrackFile>,
+        net: NetworkContext,
+    ) -> Result<(TrackFile, MediaSource)> {
+        let mut plugin_error = None;
+        while let Some(best) = selection::pick_best(&files, &|id| self.health.get(id), net).cloned()
+        {
+            files.retain(|file| {
+                file.source_id != best.source_id
+                    || file.path != best.path
+                    || file.external_id != best.external_id
+            });
+            match self.media_source(track_id, &best, net).await {
+                Ok(media) => return Ok((best, media)),
+                Err(error) if best.source_kind == SourceKind::Plugin => {
+                    tracing::debug!(target: "core", %track_id, source_id = ?best.source_id,
+                        %error, "plugin source unavailable, trying another copy");
+                    plugin_error = Some(error);
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        Err(plugin_error.unwrap_or_else(|| {
+            LekisError::not_found(format!("no playable file for track {track_id}"))
+        }))
     }
 
     /// 把一个具体的文件变成可播放的媒体描述。
@@ -265,6 +295,27 @@ impl Resolver {
                 "server-side track {track_id} has no external id"
             )));
         };
+        if file.source_kind == SourceKind::Plugin {
+            let config = self.library.get_source(file.source_id).await?;
+            if !config.enabled {
+                return Err(LekisError::unsupported("插件音源已停用"));
+            }
+            let plugins = self
+                .plugins
+                .as_ref()
+                .ok_or_else(|| LekisError::unsupported("插件宿主不可用"))?;
+            let stream = plugins.stream(&config.root_path, &external_id).await?;
+            plugins.prefetch_artwork_for_track(track_id);
+            return Ok(MediaSource {
+                track_id,
+                location: MediaLocation::Url {
+                    url: stream.url,
+                    headers: stream.headers.into_iter().collect(),
+                },
+                duration_hint_ms,
+                gain_db,
+            });
+        }
         let server = self.server_for(file.source_id).await?;
         let quality = selection::stream_quality_for(file, net);
         match server.stream(&external_id, quality).await {
@@ -295,7 +346,7 @@ impl Resolver {
     }
 
     /// 取（或构造）某个服务器源的客户端。凭据从系统钥匙串按 `credential_ref` 读。
-    async fn server_for(&self, source_id: SourceId) -> Result<Arc<dyn MediaServer>> {
+    pub(crate) async fn server_for(&self, source_id: SourceId) -> Result<Arc<dyn MediaServer>> {
         if let Ok(map) = self.servers.lock() {
             if let Some(s) = map.get(&source_id) {
                 return Ok(s.clone());
@@ -451,6 +502,14 @@ impl MediaServer for FailoverServer {
         quality: lekis_providers::StreamQuality,
     ) -> Result<lekis_providers::StreamTarget> {
         self.attempt(|s| s.stream(external_id, quality)).await
+    }
+
+    async fn album_artwork(&self, album_id: &str) -> Result<Option<Vec<u8>>> {
+        self.attempt(|s| s.album_artwork(album_id)).await
+    }
+
+    async fn lyrics(&self, external_id: &str) -> Result<Option<lekis_types::Lyrics>> {
+        self.attempt(|s| s.lyrics(external_id)).await
     }
 
     async fn scrobble(&self, external_id: &str, played_at_ms: i64) -> Result<()> {
@@ -696,6 +755,169 @@ mod tests {
             selection::stream_quality_for(&f, NetworkContext::Home),
             lekis_providers::StreamQuality::Original
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod plugin_fallback_tests {
+    use super::*;
+    use lekis_library::DbResultExt;
+    use lekis_providers::{RemoteTrack, StreamQuality, StreamTarget};
+
+    struct AvailableServer;
+
+    #[async_trait::async_trait]
+    impl MediaServer for AvailableServer {
+        fn kind(&self) -> SourceKind {
+            SourceKind::Jellyfin
+        }
+        async fn ping(&self) -> Result<()> {
+            Ok(())
+        }
+        async fn list_tracks(&self, _: u32, _: u32, _: Option<i64>) -> Result<Vec<RemoteTrack>> {
+            Ok(Vec::new())
+        }
+        async fn stream(&self, id: &str, _: StreamQuality) -> Result<StreamTarget> {
+            assert_eq!(id, "server-copy");
+            Ok(StreamTarget {
+                url: "https://server.example/music.flac".into(),
+                headers: Vec::new(),
+                seekable: true,
+            })
+        }
+        async fn scrobble(&self, _: &str, _: i64) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn unavailable_plugin_copies_fall_back_for_playback_and_download() -> Result<()> {
+        for state in ["disabled", "removed", "failed", "source-disabled"] {
+            let root = std::env::temp_dir().join(format!(
+                "lekis-resolver-plugin-{state}-{}-{}",
+                std::process::id(),
+                lekis_types::now_ms()
+            ));
+            std::fs::create_dir_all(&root)?;
+            let library = Library::open(&root.join("library.sqlite"))?;
+            let plugin_id = "dev.lekis.test.fallback";
+            let directory = root.join("plugins").join(plugin_id);
+            std::fs::create_dir_all(&directory)?;
+            std::fs::write(
+                directory.join("plugin.json"),
+                r#"{
+                "id":"dev.lekis.test.fallback", "name":"Fallback", "version":"1.0.0",
+                "apiVersion":"1.0", "minAppVersion":"0.1.0", "runtime":"js",
+                "entry":"index.js", "kinds":["source"], "permissions":{}
+            }"#,
+            )?;
+            std::fs::write(
+                directory.join("index.js"),
+                "export function stream() { throw new Error('provider unavailable'); }",
+            )?;
+            let plugins = Arc::new(crate::plugins::PluginManager::new(&root, library.clone()));
+            let plugin_source = library
+                .add_source(SourceConfig {
+                    id: None,
+                    kind: SourceKind::Plugin,
+                    name: "Plugin".into(),
+                    addresses: Vec::new(),
+                    root_path: plugin_id.into(),
+                    credential_ref: None,
+                    options: Default::default(),
+                    enabled: state != "source-disabled",
+                })
+                .await?;
+            let server_source = library
+                .add_source(SourceConfig {
+                    id: None,
+                    kind: SourceKind::Jellyfin,
+                    name: "Server".into(),
+                    addresses: Vec::new(),
+                    root_path: String::new(),
+                    credential_ref: None,
+                    options: Default::default(),
+                    enabled: true,
+                })
+                .await?;
+            let track = library.write(move |connection| {
+                let now = lekis_types::now_ms();
+                connection.execute(
+                    "INSERT INTO track (uid, title, duration_ms, created_at, updated_at)
+                     VALUES ('plugin-fallback', 'Song', 1000, ?1, ?1)", [now]
+                ).db()?;
+                let track = TrackId(connection.last_insert_rowid());
+                for (source, external_id) in [(plugin_source, "plugin-copy"), (server_source, "server-copy")] {
+                    connection.execute(
+                        "INSERT INTO track_file (track_id, file_id, source_id, external_id, quality_score)
+                         VALUES (?1, NULL, ?2, ?3, 100)",
+                        (track.0, source.0, external_id),
+                    ).db()?;
+                }
+                Ok(track)
+            }).await?;
+            match state {
+                "disabled" => plugins.set_enabled(plugin_id, false).await?,
+                "removed" => plugins.remove(plugin_id).await?,
+                _ => {}
+            }
+            let resolver = Resolver::new(
+                library.clone(),
+                Arc::new(SourceHealth::new()),
+                Arc::new(crate::MemoryCredentialStore::default()),
+            )
+            .with_plugins(plugins);
+            resolver
+                .servers
+                .lock()
+                .unwrap()
+                .insert(server_source, Arc::new(AvailableServer));
+            let files = library.track_files(track).await?;
+            assert_eq!(
+                selection::pick_best(&files, &|_| Reachability::Unknown, NetworkContext::Home)
+                    .unwrap()
+                    .source_id,
+                plugin_source,
+                "fixture must exercise plugin preference"
+            );
+            let media = resolver.resolve(track).await?;
+            assert!(
+                matches!(media.location, MediaLocation::Url { ref url, .. }
+                if url == "https://server.example/music.flac"),
+                "{state}"
+            );
+            resolver.health.record(server_source, Reachability::Unknown);
+            let (file, _) = resolver.resolve_file(track).await?;
+            assert_eq!(
+                file.source_id, server_source,
+                "{state}: download must use the same fallback"
+            );
+            assert_eq!(
+                library.track_files(track).await?.len(),
+                2,
+                "keep persistent references"
+            );
+            // With no alternative, preserve the provider's actual error.
+            let error = resolver
+                .resolve_candidates(
+                    track,
+                    files
+                        .into_iter()
+                        .filter(|file| file.source_id == plugin_source)
+                        .collect(),
+                    NetworkContext::Home,
+                )
+                .await
+                .unwrap_err();
+            if state == "failed" {
+                assert!(error.message.contains("provider unavailable"));
+            }
+            drop(resolver);
+            drop(library);
+            let _ = std::fs::remove_dir_all(root);
+        }
+        Ok(())
     }
 }
 

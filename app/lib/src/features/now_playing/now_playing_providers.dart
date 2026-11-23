@@ -24,4 +24,4 @@ final lyricsProvider = FutureProvider.autoDispose.family<ParsedLyrics?, int>((
   if (dto == null || dto.content.trim().isEmpty) return null;
   final parsed = ParsedLyrics.parse(dto);
   return parsed.isEmpty ? null : parsed;
-});
+}, retry: (retryCount, error) => null);

@@ -22,6 +22,7 @@ PluginInfoDto _plugin({
   kinds: const ['lyrics'],
   entry: 'index.js',
   enabled: enabled,
+  nativeAndroidGranted: false,
   error: error,
   directory: id,
   author: 'Lekis',
@@ -31,6 +32,7 @@ PluginInfoDto _plugin({
     process: [],
     requestHeaderHosts: [],
     webSignIn: false,
+    nativeAndroid: false,
     storageKb: 2048,
   ),
   settings: const [],
@@ -91,6 +93,9 @@ void main() {
     expect(find.text('v1.2.3 · 歌词'), findsOneWidget);
     expect(find.text('dev.lekis.test.lyrics'), findsOneWidget);
     expect(find.text('网络：lrclib.net · 存储 2 MB'), findsOneWidget);
+    final summary = tester.widget<Text>(find.text('网络：lrclib.net · 存储 2 MB'));
+    expect(summary.maxLines, 2);
+    expect(summary.overflow, TextOverflow.ellipsis);
     expect(find.byType(Switch), findsOneWidget);
   });
 

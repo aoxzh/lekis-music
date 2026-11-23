@@ -11,6 +11,11 @@ const Duration searchDebounce = Duration(milliseconds: 250);
 /// Max results per section.
 const int searchLimit = 25;
 
+/// null selects the library; otherwise use an installed source plugin ID.
+final searchSourceProvider = NotifierProvider<SimpleValue<String?>, String?>(
+  () => SimpleValue<String?>(null),
+);
+
 final searchQueryProvider = NotifierProvider<SimpleValue<String>, String>(
   () => SimpleValue<String>(''),
 );
@@ -21,6 +26,7 @@ final searchResultsProvider = FutureProvider.autoDispose<SearchResultsDto?>((
   ref,
 ) async {
   final query = ref.watch(searchQueryProvider).trim();
+  final source = ref.watch(searchSourceProvider);
   if (query.isEmpty) return null;
 
   var cancelled = false;
@@ -28,9 +34,25 @@ final searchResultsProvider = FutureProvider.autoDispose<SearchResultsDto?>((
   await Future<void>.delayed(searchDebounce);
   if (cancelled) throw const _Superseded();
 
-  return core.search(text: query, limit: searchLimit);
-});
+  return source == null
+      ? core.search(text: query, limit: searchLimit)
+      : core.searchPlugin(pluginId: source, query: query, limit: 50);
+}, retry: (_, _) => null);
 
 class _Superseded implements Exception {
   const _Superseded();
 }
+
+/// Library source search has its own query identity; switching sources disposes
+/// the old request and never changes the standalone Search tab's selection.
+final librarySourceSearchProvider = FutureProvider.autoDispose
+    .family<SearchResultsDto?, (String, String)>((ref, request) async {
+      final (pluginId, text) = request;
+      final query = text.trim();
+      if (query.isEmpty) return null;
+      var cancelled = false;
+      ref.onDispose(() => cancelled = true);
+      await Future<void>.delayed(searchDebounce);
+      if (cancelled) throw const _Superseded();
+      return core.searchPlugin(pluginId: pluginId, query: query, limit: 50);
+    }, retry: (_, _) => null);

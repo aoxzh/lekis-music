@@ -1,6 +1,6 @@
 [package]
 name = "lekis-desktop-lyrics"
-description = "桌面悬浮歌词（UIX-07）：Rust 自己持有的原生置顶透明窗口。Windows 用 Win32 分层窗口 + Direct2D/DirectWrite；其他平台暂为空实现。"
+description = "桌面悬浮歌词（UIX-07）：Windows Win32/DirectWrite 与 macOS AppKit 歌词面板和菜单栏歌词。"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,6 +10,9 @@ publish.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
+
+[build-dependencies]
+serde_json.workspace = true
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-numerics = "0.3"

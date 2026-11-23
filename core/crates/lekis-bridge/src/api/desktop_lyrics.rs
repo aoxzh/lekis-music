@@ -1,7 +1,7 @@
 //! 桌面悬浮歌词桥接（UIX-07）。
 //!
-//! 直接转发到 [`lekis_desktop_lyrics::DesktopLyrics`] 单例；窗口线程在 Windows 上
-//! 由 Rust 自己持有，Android / iOS / 其他平台调用安全降级为 no-op。
+//! 直接转发到 [`lekis_desktop_lyrics::DesktopLyrics`] 单例；Windows 原生窗口由
+//! Rust 线程持有，macOS NSPanel 在主线程；Android / iOS 等平台安全降级为 no-op。
 
 use std::sync::Arc;
 
@@ -70,6 +70,8 @@ pub enum DesktopLyricsControlDto {
 #[derive(Debug, Clone)]
 pub enum DesktopLyricsEventDto {
     Closed,
+    VisibilityChanged { visible: bool },
+    MenuBarClosed,
     LockChanged { locked: bool },
     Control { action: DesktopLyricsControlDto },
     PlacementChanged { json: String },
@@ -79,6 +81,18 @@ pub enum DesktopLyricsEventDto {
 #[frb(sync)]
 pub fn desktop_lyrics_is_supported() -> bool {
     DesktopLyrics::is_supported()
+}
+
+/// 当前平台是否支持菜单栏歌词（macOS）。
+#[frb(sync)]
+pub fn desktop_lyrics_is_menu_bar_supported() -> bool {
+    DesktopLyrics::is_menu_bar_supported()
+}
+
+/// 独立设置菜单栏歌词，返回实际启用状态。
+#[frb(sync)]
+pub fn desktop_lyrics_set_menu_bar_visible(visible: bool) -> bool {
+    DesktopLyrics::global().set_menu_bar_visible(visible)
 }
 
 /// 显示桌面悬浮歌词窗口。
@@ -176,6 +190,10 @@ pub fn desktop_lyrics_events(sink: StreamSink<DesktopLyricsEventDto>) {
     DesktopLyrics::global().set_event_handler(Arc::new(move |ev| {
         let dto = match ev {
             Event::Closed => DesktopLyricsEventDto::Closed,
+            Event::VisibilityChanged(visible) => {
+                DesktopLyricsEventDto::VisibilityChanged { visible }
+            }
+            Event::MenuBarClosed => DesktopLyricsEventDto::MenuBarClosed,
             Event::LockChanged(locked) => DesktopLyricsEventDto::LockChanged { locked },
             Event::Control(c) => DesktopLyricsEventDto::Control {
                 action: match c {

@@ -350,7 +350,7 @@ class TrackShelf extends ConsumerWidget {
               ref.read(playerActionsProvider).playRows(tracks, start: i),
           artwork: TrackArtwork(
             trackId: t.id,
-            hasArtwork: t.artworkId != null,
+            hasArtwork: t.artworkId != null || !t.isLocal,
             radius: LekisRadius.artworkGrid,
             placeholderLabel: t.title,
           ),
