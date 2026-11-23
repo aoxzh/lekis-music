@@ -11,6 +11,10 @@
 - **Linux 增加 AppImage**：新增单文件 `lekis-<版本>-linux-x64.AppImage`，`.tar.gz` 继续保留。
 - **应用内更新选包**：优先选择可解压替换的 ZIP / tar.gz，不会误选 DMG、AppImage 或安装器。
 
+### 修复
+
+- **Android 安装兼容性**：release APK 同时使用 v1 / v2 / v3 签名，避免部分国产 ROM 安装器只看 JAR 证书、把 v2-only 安装包误报为「未包含开发者证书」。证书本身不变，覆盖升级不受影响。
+
 ## [0.2.2] - 2026-11-23
 
 从这个版本开始，普通 0.x 版本按正式 GitHub Release 发布（只有 `-beta` / `-rc` 才是 Pre-release），仓库首页会正常显示 Latest Release；应用内更新也只在当前版本带 `-` 后缀时才考虑预发布版本。

@@ -87,6 +87,13 @@ android {
                 storePassword = rs.storePassword
                 keyAlias = rs.keyAlias
                 keyPassword = rs.keyPassword
+                // Some OEM installers (vivo / Huawei) inspect JAR certificates
+                // and report "no developer certificate" for v2-only APKs.
+                // Keep v1 alongside v2/v3; v2+ still supplies the strong
+                // whole-file signature on Android 7+.
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }
