@@ -10,6 +10,7 @@ import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
+import 'package:lekis/src/rust/api/dto.dart' show LyricsFormatDto;
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -57,6 +58,8 @@ class LyricsView extends ConsumerWidget {
     final theme = Theme.of(context);
     var synced = false;
     var offsetMs = 0;
+    var lyricsSource = '';
+    LyricsFormatDto? lyricsFormat;
     final Widget body = lyrics.when(
       // An online lookup can take a few seconds; local ones are instant, so
       // the searching state only appears after a short pause.
@@ -87,6 +90,8 @@ class LyricsView extends ConsumerWidget {
         }
         synced = parsed.synced;
         offsetMs = parsed.offsetMs;
+        lyricsSource = parsed.source;
+        lyricsFormat = parsed.format;
         final showTranslation =
             ref.watch(settingProvider(SettingKeys.lyricsTranslation)).value !=
             'false';
@@ -99,6 +104,8 @@ class LyricsView extends ConsumerWidget {
                 ],
                 synced: parsed.synced,
                 offsetMs: parsed.offsetMs,
+                source: parsed.source,
+                format: parsed.format,
               );
         final base = LekisText.lyricsActive.copyWith(
           color: theme.colorScheme.onSurface,
@@ -152,6 +159,15 @@ class LyricsView extends ConsumerWidget {
               Stack(fit: StackFit.expand, children: [...previous, ?current]),
           child: body,
         ),
+        if (lyricsSource.isNotEmpty)
+          Positioned(
+            left: LekisSpacing.md,
+            bottom: LekisSpacing.md,
+            child: _LyricsSourceBadge(
+              source: lyricsSource,
+              format: lyricsFormat,
+            ),
+          ),
         if (synced)
           Positioned(
             right: LekisSpacing.md,
@@ -159,6 +175,60 @@ class LyricsView extends ConsumerWidget {
             child: _LyricsOffsetBar(trackId: trackId, offsetMs: offsetMs),
           ),
       ],
+    );
+  }
+}
+
+/// Small provenance badge over the lyrics: embedded, sidecar, online, manual.
+class _LyricsSourceBadge extends StatelessWidget {
+  const _LyricsSourceBadge({required this.source, this.format});
+
+  final String source;
+  final LyricsFormatDto? format;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.lekisColors;
+    final theme = Theme.of(context);
+    final l10n = context.l10n;
+    final sourceLabel = switch (source) {
+      'embedded' => l10n.pick('内嵌歌词', 'Embedded'),
+      'sidecar' => l10n.pick('同名文件', 'Sidecar'),
+      'lrclib' => l10n.pick('在线歌词', 'Online'),
+      'manual' => l10n.pick('手动编辑', 'Manual'),
+      _ => source,
+    };
+    final formatLabel = switch (format) {
+      LyricsFormatDto.lrc => 'LRC',
+      LyricsFormatDto.enhancedLrc => 'Enhanced LRC',
+      LyricsFormatDto.ttml => 'TTML',
+      LyricsFormatDto.plain => 'Text',
+      null => null,
+    };
+    final label = formatLabel == null
+        ? sourceLabel
+        : '$sourceLabel · $formatLabel';
+    return Material(
+      color: colors.surfaceElevated.withValues(alpha: 0.92),
+      elevation: 2,
+      borderRadius: BorderRadius.circular(LekisRadius.pill),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 220),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: LekisSpacing.sm,
+            vertical: LekisSpacing.xxs,
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

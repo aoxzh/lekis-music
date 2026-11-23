@@ -51,6 +51,8 @@ class ParsedLyrics {
     required this.lines,
     required this.synced,
     this.offsetMs = 0,
+    this.source = '',
+    this.format,
   });
 
   final List<LyricLine> lines;
@@ -59,6 +61,12 @@ class ParsedLyrics {
   /// User-configured offset applied by the parser, shown by the quick-sync
   /// controls in the lyrics pane.
   final int offsetMs;
+
+  /// Where the lyrics came from: embedded, sidecar, lrclib, manual…
+  final String source;
+
+  /// Raw format reported by the core, if any.
+  final LyricsFormatDto? format;
 
   bool get isEmpty => lines.isEmpty;
 
@@ -91,11 +99,22 @@ class ParsedLyrics {
     // Anything without usable timestamps falls back to static text. The
     // offset is kept only for synced lyrics; a plain text view has nothing to
     // shift, so it stays at zero.
-    if (parsed == null) return _plain(content);
+    if (parsed == null) {
+      final plain = _plain(content);
+      return ParsedLyrics(
+        lines: plain.lines,
+        synced: plain.synced,
+        offsetMs: plain.offsetMs,
+        source: dto.source,
+        format: dto.format,
+      );
+    }
     return ParsedLyrics(
       lines: parsed.lines,
       synced: parsed.synced,
       offsetMs: dto.offsetMs,
+      source: dto.source,
+      format: dto.format,
     );
   }
 
