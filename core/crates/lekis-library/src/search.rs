@@ -27,18 +27,18 @@ impl Library {
             // 曲目。
             let mut stmt = c
                 .prepare_cached(
-                    "SELECT t.id, t.title, t.artist_line, a.title, t.duration_ms,
+                    &crate::catalog::query("SELECT t.id, t.title, t.artist_line, a.title, t.duration_ms,
                             COALESCE(t.artwork_id, a.artwork_id), t.quality_badge,
                             COALESCE(u.loved, 0), t.overlay_json, t.tag_overrides_json,
                             EXISTS(SELECT 1 FROM track_file tf JOIN source src ON src.id = tf.source_id
                                    WHERE tf.track_id = t.id AND src.kind = 'local')
                      FROM search_index s
-                     JOIN track t ON t.id = s.ref_id
+                     JOIN catalog_track t ON t.id = s.ref_id
                      LEFT JOIN album a ON a.id = t.album_id
                      LEFT JOIN user_state u ON u.track_uid = t.uid
                      WHERE s.kind = 'track' AND search_index MATCH ?1
                      ORDER BY bm25(search_index)
-                     LIMIT ?2",
+                     LIMIT ?2"),
                 )
                 .db()?;
             let tracks = stmt
@@ -50,18 +50,18 @@ impl Library {
             // 专辑。
             let mut stmt = c
                 .prepare_cached(
-                    "SELECT al.id, al.title, al.artist_line, al.year,
-                            (SELECT COUNT(*) FROM track t WHERE t.album_id = al.id),
+                    &crate::catalog::query("SELECT al.id, al.title, al.artist_line, al.year,
+                            (SELECT COUNT(*) FROM catalog_track t WHERE t.album_id = al.id),
                             al.artwork_id, al.mbid_release,
                             (SELECT ar.hash FROM artwork ar WHERE ar.id = COALESCE(al.artwork_id,
-                               (SELECT t2.artwork_id FROM track t2
+                               (SELECT t2.artwork_id FROM catalog_track t2
                                  WHERE t2.album_id = al.id AND t2.artwork_id IS NOT NULL
                                  ORDER BY t2.disc_no, t2.track_no LIMIT 1)))
                      FROM search_index s
-                     JOIN album al ON al.id = s.ref_id
+                     JOIN catalog_album al ON al.id = s.ref_id
                      WHERE s.kind = 'album' AND search_index MATCH ?1
                      ORDER BY bm25(search_index)
-                     LIMIT ?2",
+                     LIMIT ?2"),
                 )
                 .db()?;
             let albums = stmt
@@ -73,12 +73,12 @@ impl Library {
             // 艺人。
             let mut stmt = c
                 .prepare_cached(
-                    "SELECT ar.id, ar.name, ar.sort_name, ar.aliases_json, ar.artwork_id, ar.mbid
+                    &crate::catalog::query("SELECT ar.id, ar.name, ar.sort_name, ar.aliases_json, ar.artwork_id, ar.mbid
                      FROM search_index s
-                     JOIN artist ar ON ar.id = s.ref_id
+                     JOIN catalog_artist ar ON ar.id = s.ref_id
                      WHERE s.kind = 'artist' AND search_index MATCH ?1
                      ORDER BY bm25(search_index)
-                     LIMIT ?2",
+                     LIMIT ?2"),
                 )
                 .db()?;
             let artists = stmt

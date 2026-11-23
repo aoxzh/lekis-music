@@ -100,7 +100,7 @@ pub(crate) fn detect_format(content: &str) -> LyricsFormat {
 
 async fn read_sidecar(vfs: &dyn Vfs, audio: &VfsPath) -> Option<String> {
     let stem_path = audio.as_str().rsplit_once('.').map(|(s, _)| s)?;
-    for ext in ["lrc", "LRC", "ttml", "txt"] {
+    for ext in ["elrc", "ELRC", "lrc", "LRC", "ttml", "txt"] {
         let Some(path) = VfsPath::parse(&format!("{stem_path}.{ext}")) else {
             continue;
         };
@@ -187,6 +187,25 @@ mod tests {
             detect_format("<?xml version=\"1.0\"?><tt>"),
             LyricsFormat::Ttml
         );
+    }
+
+    #[tokio::test]
+    async fn reads_elrc_sidecar_with_japanese_word_timestamps() {
+        let root = std::env::temp_dir().join(format!("lekis-elrc-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(
+            root.join("track.ELRC"),
+            "[00:01.00]<00:01.00>原<00:01.50>文",
+        )
+        .unwrap();
+        let vfs = lekis_vfs::local::LocalVfs::new(&root).unwrap();
+        let lyrics = load(&vfs, &VfsPath::parse("track.flac").unwrap())
+            .await
+            .unwrap();
+        assert_eq!(lyrics.format, LyricsFormat::EnhancedLrc);
+        assert_eq!(lyrics.source, "sidecar");
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

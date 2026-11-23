@@ -19,7 +19,7 @@ use crate::http;
 use crate::md5;
 use crate::{MediaServer, RemoteTrack, StreamQuality, StreamTarget};
 use async_trait::async_trait;
-use lekis_types::{ErrorCode, LekisError, Result, SourceKind};
+use lekis_types::{ErrorCode, LekisError, Lyrics, LyricsFormat, Result, SourceKind};
 use reqwest::Url;
 use serde::Deserialize;
 
@@ -197,6 +197,26 @@ impl MediaServer for OpenSubsonic {
         })
     }
 
+    async fn lyrics(&self, external_id: &str) -> Result<Option<Lyrics>> {
+        if external_id.trim().is_empty() {
+            return Err(LekisError::invalid("empty song ID"));
+        }
+        let result = self
+            .call(
+                "getLyricsBySongId",
+                &[("id", external_id.to_string())],
+                "opensubsonic lyrics",
+            )
+            .await;
+        match result {
+            Ok(envelope) => Ok(envelope.lyrics_list.and_then(structured_lyrics)),
+            Err(error) if matches!(error.code, ErrorCode::NotFound | ErrorCode::Unsupported) => {
+                Ok(None)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
     async fn scrobble(&self, external_id: &str, played_at_ms: i64) -> Result<()> {
         let extra = vec![
             ("id", external_id.to_string()),
@@ -308,6 +328,79 @@ pub(crate) struct Envelope {
     pub(crate) album_list2: Option<AlbumList2>,
     /// `getAlbum` 的结果。
     pub(crate) album: Option<Album>,
+    lyrics_list: Option<LyricsList>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct LyricsList {
+    structured_lyrics: Vec<StructuredLyrics>,
+}
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct StructuredLyrics {
+    synced: bool,
+    offset: i32,
+    line: Vec<LyricLine>,
+}
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct LyricLine {
+    start: Option<u64>,
+    value: String,
+}
+
+fn structured_lyrics(list: LyricsList) -> Option<Lyrics> {
+    let mut usable = list
+        .structured_lyrics
+        .into_iter()
+        .filter(|l| l.line.iter().any(|line| !line.value.trim().is_empty()))
+        .collect::<Vec<_>>();
+    usable.sort_by_key(|l| {
+        std::cmp::Reverse(
+            l.synced
+                && l.line
+                    .iter()
+                    .any(|line| line.start.is_some() && !line.value.trim().is_empty()),
+        )
+    });
+    let lyric = usable.into_iter().next()?;
+    let synced = lyric.synced
+        && lyric
+            .line
+            .iter()
+            .any(|line| line.start.is_some() && !line.value.trim().is_empty());
+    let content = lyric
+        .line
+        .iter()
+        .filter_map(|line| {
+            let value = line.value.replace(['\r', '\n'], " ");
+            if synced {
+                let ms = line.start?;
+                Some(format!(
+                    "[{:02}:{:02}.{:03}]{}",
+                    ms / 60_000,
+                    (ms / 1000) % 60,
+                    ms % 1000,
+                    value
+                ))
+            } else {
+                Some(value)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    Some(Lyrics {
+        format: if synced {
+            LyricsFormat::Lrc
+        } else {
+            LyricsFormat::Plain
+        },
+        content,
+        source: "opensubsonic".into(),
+        offset_ms: lyric.offset,
+        confidence: 1.0,
+    })
 }
 
 /// Subsonic 的错误体。
@@ -466,6 +559,10 @@ fn song_to_track(song: &Song) -> RemoteTrack {
         }
     }
     RemoteTrack {
+        external_album_id: None,
+        album_artists: vec![],
+        disc_no: None,
+        track_no: None,
         external_id: song.id.clone(),
         title: song.title.clone(),
         artists,
@@ -479,6 +576,68 @@ fn song_to_track(song: &Song) -> RemoteTrack {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    #[test]
+    fn structured_song_lyrics_prefer_synced_and_preserve_offset() {
+        let body = r#"{"subsonic-response":{"status":"ok","lyricsList":{"structuredLyrics":[{"synced":false,"line":[{"value":"plain"}]},{"synced":true,"offset":-100,"line":[{"start":1234,"value":"first"},{"start":62005,"value":"second"}]}]}}}"#;
+        let lyrics = super::parse_envelope(body, "test")
+            .unwrap()
+            .lyrics_list
+            .and_then(super::structured_lyrics)
+            .unwrap();
+        assert_eq!(lyrics.format, lekis_types::LyricsFormat::Lrc);
+        assert_eq!(lyrics.content, "[00:01.234]first\n[01:02.005]second");
+        assert_eq!(lyrics.offset_ms, -100);
+        let plain = r#"{"subsonic-response":{"status":"ok","lyricsList":{"structuredLyrics":[{"synced":false,"line":[{"value":"hello"}]}]}}}"#;
+        assert_eq!(
+            super::parse_envelope(plain, "test")
+                .unwrap()
+                .lyrics_list
+                .and_then(super::structured_lyrics)
+                .unwrap()
+                .format,
+            lekis_types::LyricsFormat::Plain
+        );
+        assert!(super::parse_envelope(
+            r#"{"subsonic-response":{"status":"ok","lyricsList":{"structuredLyrics":[]}}}"#,
+            "test"
+        )
+        .unwrap()
+        .lyrics_list
+        .and_then(super::structured_lyrics)
+        .is_none());
+    }
+
+    #[tokio::test]
+    async fn song_lyrics_requests_original_id_with_auth() {
+        use crate::MediaServer;
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let thread = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut bytes = [0; 4096];
+            let n = stream.read(&mut bytes).unwrap();
+            let req = String::from_utf8_lossy(&bytes[..n]);
+            assert!(req.contains("/rest/getLyricsBySongId.view?"));
+            assert!(req.contains("id=song-123"));
+            assert!(req.contains("u=alice"));
+            assert!(req.contains("&t="));
+            assert!(!req.contains("password"));
+            let body = r#"{"subsonic-response":{"status":"ok","lyricsList":{"structuredLyrics":[{"synced":true,"line":[{"start":1500,"value":"sample"}]}]}}}"#;
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            )
+            .unwrap();
+        });
+        let client = super::OpenSubsonic::new(&base, "alice", "password".into());
+        let lyrics = client.lyrics("song-123").await.unwrap().unwrap();
+        thread.join().unwrap();
+        assert_eq!(lyrics.content, "[00:01.500]sample");
+    }
+
     use super::*;
 
     const SEARCH3_OK: &str = r#"{

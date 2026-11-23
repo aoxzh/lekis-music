@@ -32,6 +32,7 @@ mod health;
 /// In-memory diagnostic log ring for the Settings screen (SET-03).
 pub mod logs;
 mod lyrics_local;
+mod lyrics_lookup;
 mod offline;
 pub mod platform;
 pub mod plugins;
@@ -51,9 +52,14 @@ pub use events::EventListener;
 pub use folders::{FolderEntry, FolderListing, FolderRoot};
 pub use health::HealthScanReport;
 pub use lekis_playback::PlaybackSnapshot;
+pub use lekis_plugin_host::{
+    register_native_plugin_executor, AndroidNativeSpec, NativePluginExecutor, NativePluginRequest,
+};
 pub use lekis_vfs::ShareInfo;
 pub use platform::{CredentialStore, MemoryCredentialStore, PlatformServices};
-pub use plugins::{PluginInfo, PluginPermissions, PluginSettingView};
+pub use plugins::{
+    PluginBrowsePage, PluginFolder, PluginInfo, PluginPermissions, PluginSettingView,
+};
 pub use podcast::{
     DirectoryPodcast, OpmlImportReport, PodcastRefreshReport, PODCAST_DIRECTORY_MAX,
 };
@@ -79,10 +85,6 @@ use lekis_types::*;
 use std::future::Future;
 use std::sync::Arc;
 use tokio::runtime::{Handle, Runtime};
-
-/// 本次运行里已经在线查过歌词的曲目（查不到也不再重复请求）。
-static LYRICS_TRIED: std::sync::LazyLock<std::sync::Mutex<std::collections::HashSet<TrackId>>> =
-    std::sync::LazyLock::new(Default::default);
 
 /// 统一资料库里一首歌对应的某个可播放来源（含当前选源状态，SRC-13/SRC-14）。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -137,6 +139,7 @@ struct Services {
     clock: std::sync::Mutex<lekis_sync::HlcClock>,
     /// 元数据补全流水线（ENR-01/03/06）。
     enrich: Arc<enrich::EnrichPipeline>,
+    lyrics_lookup: lyrics_lookup::LyricsLookup,
     /// 已经打开的 VFS（播放引擎按 `source_id` 取回来分块读音频）。
     vfs: std::sync::Mutex<std::collections::HashMap<SourceId, Arc<dyn lekis_vfs::Vfs>>>,
     /// 选源器（持有服务器客户端缓存和 ReplayGain 模式）。
@@ -280,6 +283,16 @@ pub mod settings {
 /// `test_source` 的整体超时。
 const TEST_SOURCE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
 
+/// Search Spotify without persisting a short-lived user-provided token.
+pub async fn search_spotify_albums_with_token(token: String, album: String, artist: String, market: String) -> Result<Vec<lekis_enrich::spotify::SpotifyAlbum>> {
+    lekis_enrich::spotify::SpotifyCatalog::new()?.search_albums(&token, &album, &artist, &market).await
+}
+
+/// Search Apple Music with an ephemeral developer token.
+pub async fn search_apple_albums_with_token(token: String, album: String, artist: String, market: String) -> Result<Vec<lekis_enrich::apple_music::AppleAlbum>> {
+    lekis_enrich::apple_music::AppleMusicCatalog::new()?.search_albums(&token, &album, &artist, &market).await
+}
+
 impl LekisCore {
     /// 创建核心，并创建它自己的 tokio 运行时（客户端 App 用这个）。
     pub fn new(config: CoreConfig, platform: PlatformServices) -> Result<Self> {
@@ -336,11 +349,20 @@ impl LekisCore {
         let (resolve_tx, resolve_rx) = tokio::sync::mpsc::channel(16);
         let eq = Arc::new(EqControl::default());
         let engine = PlaybackEngine::spawn_with_eq(resolve_tx, eq.clone());
-        let resolver = Arc::new(resolver::Resolver::new(
-            library.clone(),
-            health.clone(),
-            platform.credentials.clone(),
-        ));
+        plugins::PluginManager::recover_interrupted_installs(&config.data_dir)?;
+        let plugins = Arc::new(
+            plugins::PluginManager::new(&config.data_dir, library.clone())
+                .with_artwork_cache(&config.cache_dir)
+                .with_artwork_events(events.clone()),
+        );
+        let resolver = Arc::new(
+            resolver::Resolver::new(
+                library.clone(),
+                health.clone(),
+                platform.credentials.clone(),
+            )
+            .with_plugins(plugins.clone()),
+        );
         handle.spawn(resolver.clone().run(resolve_rx));
         handle.spawn(events::forward_playback(engine.subscribe(), events.clone()));
         let scrobbler = Arc::new(scrobble::Scrobbler::new(
@@ -350,10 +372,6 @@ impl LekisCore {
         ));
         let radio = radio::RadioBrowser::new()?;
         let podcast = podcast::PodcastClient::new()?;
-        let plugins = Arc::new(plugins::PluginManager::new(
-            &config.data_dir,
-            library.clone(),
-        ));
         let connect = connect::ConnectHub::new(&config.data_dir, platform.credentials.clone());
 
         let services = Arc::new(Services {
@@ -368,6 +386,7 @@ impl LekisCore {
             servers: std::sync::Mutex::new(std::collections::HashMap::new()),
             clock,
             enrich,
+            lyrics_lookup: lyrics_lookup::LyricsLookup::default(),
             vfs: std::sync::Mutex::new(std::collections::HashMap::new()),
             resolver,
             scrobble: scrobbler,
@@ -651,6 +670,30 @@ impl LekisCore {
             .credentials
             .get(credential_ref)
             .is_some()
+    }
+
+    /// Search Spotify albums with a short-lived user-supplied access token saved
+    /// through `set_credential` under `lekis.spotify.access_token`. Results are
+    /// transient: display them with Spotify branding and their `spotify_url`.
+    pub async fn search_spotify_albums(
+        &self, album: String, artist: String, market: String,
+    ) -> Result<Vec<lekis_enrich::spotify::SpotifyAlbum>> {
+        let services = self.services.clone();
+        self.run(async move {
+            let token = services.platform.credentials.get("lekis.spotify.access_token")
+                .ok_or_else(|| LekisError::new(ErrorCode::Auth, "Spotify access token is not configured"))?;
+            lekis_enrich::spotify::SpotifyCatalog::new()?
+                .search_albums(&token, &album, &artist, &market).await
+        }).await
+    }
+
+    /// Search Apple Music using the encrypted platform credential store.
+    pub async fn search_apple_albums(&self, album: String, artist: String, market: String) -> Result<Vec<lekis_enrich::apple_music::AppleAlbum>> {
+        let services = self.services.clone();
+        self.run(async move {
+            let token = services.platform.credentials.get("lekis.apple_music.developer_token").ok_or_else(|| LekisError::new(ErrorCode::Auth, "Apple Music developer token is not configured"))?;
+            search_apple_albums_with_token(token, album, artist, market).await
+        }).await
     }
 
     /// 列出音源。
@@ -1123,6 +1166,52 @@ impl LekisCore {
             .await
     }
 
+    /// Search a specific enabled source plugin; results use ordinary queue-compatible IDs.
+    pub async fn search_plugin(
+        &self,
+        plugin_id: String,
+        query: String,
+        limit: u32,
+    ) -> Result<SearchResults> {
+        let s = self.services.clone();
+        self.run(async move {
+            let results = s.plugins.search(&plugin_id, &query, limit).await?;
+            if !results.tracks.is_empty() {
+                s.events.emit(CoreEvent::LibraryChanged {
+                    scope: LibraryScope::Catalog,
+                });
+                s.events.emit(CoreEvent::LibraryChanged {
+                    scope: LibraryScope::Sources,
+                });
+            }
+            Ok(results)
+        })
+        .await
+    }
+
+    /// Browse a source plugin's home, folders and collections.
+    pub async fn browse_plugin(
+        &self,
+        plugin_id: String,
+        path: String,
+        cursor: Option<String>,
+    ) -> Result<plugins::PluginBrowsePage> {
+        let s = self.services.clone();
+        self.run(async move {
+            let page = s
+                .plugins
+                .browse(&plugin_id, &path, cursor.as_deref())
+                .await?;
+            if !page.tracks.is_empty() {
+                s.events.emit(CoreEvent::LibraryChanged {
+                    scope: LibraryScope::Catalog,
+                });
+            }
+            Ok(page)
+        })
+        .await
+    }
+
     // ---- 重复检测与库健康（LIB-10 / LIB-11）----
 
     /// 分页列出重复组。每组的保留版本按无损 / 音质 / 文件大小挑选。
@@ -1199,10 +1288,24 @@ impl LekisCore {
         let s = self.services.clone();
         self.run(async move {
             let album = s.library.get_album(id).await?;
-            match album.artwork_hash {
-                Some(hash) => s.library.artwork_by_hash(&hash).await,
-                None => Ok(None),
+            if let Some(hash) = album.artwork_hash {
+                return s.library.artwork_by_hash(&hash).await;
             }
+            for (source_id, external_id) in s.library.remote_album_sources(id).await? {
+                let Ok(server) = s.resolver.server_for(source_id).await else { continue };
+                let mut candidates = vec![external_id];
+                candidates.extend(s.library.remote_album_track_ids(id, source_id).await?);
+                for candidate in candidates {
+                    let Ok(Some(bytes)) = server.album_artwork(&candidate).await else { continue };
+                    let target = enrich::ArtworkTarget { track_id: None, album_id: Some(id), replace_album: false };
+                    if enrich::store_artwork_bytes(&s.config.cache_dir, &s.library, target, bytes, "server").await.is_ok() {
+                        if let Some(hash) = s.library.get_album(id).await?.artwork_hash {
+                            return s.library.artwork_by_hash(&hash).await;
+                        }
+                    }
+                }
+            }
+            Ok(None)
         })
         .await
     }
@@ -1452,6 +1555,18 @@ impl LekisCore {
     /// 启用 / 停用插件。状态持久化在资料库设置里。
     pub async fn set_plugin_enabled(&self, plugin_id: String, enabled: bool) -> Result<()> {
         self.services.plugins.set_enabled(&plugin_id, enabled).await
+    }
+
+    /// Grant or revoke execution of a plugin's declared Android native extension.
+    pub async fn set_plugin_native_android_allowed(
+        &self,
+        plugin_id: String,
+        allowed: bool,
+    ) -> Result<()> {
+        self.services
+            .plugins
+            .set_native_android_allowed(&plugin_id, allowed)
+            .await
     }
 
     /// 移除插件目录、插件数据和相关设置。
@@ -2214,23 +2329,30 @@ impl LekisCore {
                 Ok(None) => {}
                 Err(e) => tracing::debug!(target: "core", code = %e.code.as_str(), "local lyrics lookup failed"),
             }
-            // 在线：LRCLIB。每首歌每次运行只试一次，查不到不反复打网络。
-            let first_try = LYRICS_TRIED
-                .lock()
-                .map(|mut set| set.insert(id))
-                .unwrap_or(false);
-            if first_try {
-                let fetch = s.enrich.fetch_lyrics(&s.library, id);
-                match tokio::time::timeout(std::time::Duration::from_secs(12), fetch).await {
-                    Ok(Ok(())) => {}
-                    Ok(Err(e)) => tracing::warn!(target: "core", code = %e.code.as_str(), "LRCLIB lyrics lookup failed"),
-                    Err(_) => tracing::warn!(target: "core", "LRCLIB lyrics lookup timed out"),
-                }
-                return s.library.active_lyrics(id).await;
-            }
-            Ok(None)
+            lookup_online_lyrics(&s, id, false).await
         })
             .await
+    }
+
+    /// 显式重试在线歌词查找，绕过短期失败缓存；保留当前已选择的版本。
+    pub async fn retry_lyrics(&self, id: TrackId) -> Result<Option<Lyrics>> {
+        if id.0 < 0 {
+            return Ok(None);
+        }
+        let s = self.services.clone();
+        self.run(async move { lookup_online_lyrics(&s, id, true).await })
+            .await
+    }
+
+    /// 将已存储的版本设为当前歌词（验证该版本确实属于此曲目）。
+    pub async fn activate_lyrics(&self, id: TrackId, lyrics_id: i64) -> Result<()> {
+        let s = self.services.clone();
+        self.run(async move { s.library.activate_lyrics(id, lyrics_id).await })
+            .await?;
+        self.services.events.emit(CoreEvent::LibraryChanged {
+            scope: LibraryScope::Catalog,
+        });
+        Ok(())
     }
 
     /// 这首歌所有可用歌词（按来源优先级排序，供用户切换）。
@@ -2247,7 +2369,11 @@ impl LekisCore {
     pub async fn set_lyrics(&self, id: TrackId, lyrics: Lyrics) -> Result<i64> {
         let s = self.services.clone();
         let created = self
-            .run(async move { s.library.save_lyrics(id, lyrics).await })
+            .run(async move {
+                let created = s.library.save_lyrics(id, lyrics).await?;
+                s.library.activate_lyrics(id, created).await?;
+                Ok(created)
+            })
             .await?;
         self.services.events.emit(CoreEvent::LibraryChanged {
             scope: LibraryScope::Catalog,
@@ -2274,7 +2400,7 @@ impl LekisCore {
             return Ok(None);
         }
         let s = self.services.clone();
-        self.run(async move { s.library.effective_artwork(id).await })
+        self.run(async move { Ok(s.plugins.artwork_for_track(id, false).await) })
             .await
     }
 
@@ -2292,8 +2418,13 @@ impl LekisCore {
         artwork_id: Option<ArtworkId>,
     ) -> Result<()> {
         let s = self.services.clone();
-        self.run(async move { s.library.set_track_artwork(id, artwork_id).await })
-            .await?;
+        self.run(async move {
+            match artwork_id {
+                Some(art) => s.library.set_user_track_artwork(id, art).await,
+                None => s.library.set_track_artwork(id, None).await,
+            }
+        })
+        .await?;
         self.services.events.emit(CoreEvent::LibraryChanged {
             scope: LibraryScope::Catalog,
         });
@@ -2342,7 +2473,7 @@ impl LekisCore {
                 )
                 .await?;
                 for id in &track_ids {
-                    s.library.set_track_artwork(*id, Some(artwork)).await?;
+                    s.library.set_user_track_artwork(*id, artwork).await?;
                 }
                 Ok(ArtworkChange {
                     artwork_id: artwork,
@@ -3142,6 +3273,133 @@ mod tests {
         Ok((core, root, source, events, rt))
     }
 
+    #[test]
+    fn jellyfin_lyrics_flow_retries_without_duplicate_versions() -> Result<()> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let (core, root, _, _, rt) = core_with_local_tracks("jellyfin-lyrics", &["one.flac"])?;
+        rt.block_on(async {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+            let address = listener.local_addr()?;
+            let server = tokio::spawn(async move {
+                for request_index in 0..4 {
+                    let (mut socket, _) = listener.accept().await.unwrap();
+                    let mut request = [0; 4096];
+                    let n = socket.read(&mut request).await.unwrap();
+                    let request = String::from_utf8_lossy(&request[..n]).to_ascii_lowercase();
+                    assert!(request.starts_with("get /audio/song/lyrics "));
+                    assert!(request.contains("x-emby-token: test-token"));
+                    if request_index == 3 {
+                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                        break;
+                    }
+                    let body = r#"{"Lyrics":[{"Start":10000000,"Text":"server lyric"}]}"#;
+                    let response = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+                    socket.write_all(response.as_bytes()).await.unwrap();
+                }
+            });
+            core.set_credential("lyrics-test".into(), "test-token".into()).await?;
+            let source = core.services.library.add_source(SourceConfig {
+                id: None, kind: SourceKind::Jellyfin, name: "Server".into(),
+                addresses: vec![format!("http://{address}")], root_path: String::new(),
+                credential_ref: Some("lyrics-test".into()), options: Default::default(), enabled: true,
+            }).await?;
+            let track = core.list_tracks(TrackQuery { sort: TrackSort::Title, offset: 0, limit: 10 }).await?[0].id;
+            core.services.library.write(move |conn| {
+                conn.execute("INSERT INTO track_file (track_id, file_id, source_id, external_id, quality_score) VALUES (?1, NULL, ?2, 'song', 100)", (track.0, source.0)).map_err(|e| LekisError::internal(e.to_string()))?;
+                Ok(())
+            }).await?;
+            let found = core.lyrics(track).await?.unwrap();
+            assert_eq!(found.content, "[00:01.000]server lyric");
+            core.retry_lyrics(track).await?;
+            core.retry_lyrics(track).await?;
+            assert_eq!(core.services.library.list_lyrics(track).await?.len(), 1);
+            core.services.library.write(move |conn| {
+                conn.execute("DELETE FROM lyrics WHERE track_id = ?1", [track.0]).map_err(|e| LekisError::internal(e.to_string()))?;
+                Ok(())
+            }).await?;
+            let plugin = root.join("lyrics-plugin-fixture");
+            std::fs::create_dir_all(&plugin)?;
+            std::fs::write(plugin.join("plugin.json"), r#"{"id":"dev.lekis.test.timeoutlyrics","name":"Lyrics","version":"1.0.0","apiVersion":"1.0","minAppVersion":"0.1.0","runtime":"js","entry":"index.js","kinds":["lyrics"],"permissions":{}}"#)?;
+            std::fs::write(plugin.join("index.js"), "export function lyrics() { return {format:'lrc', content:'[00:01.00]fallback', confidence:1}; }")?;
+            core.services.plugins.install(&plugin).await?;
+            // Let the slower general providers run only within this bound; the
+            // plugin candidate must already be stored after the server deadline.
+            let _ = tokio::time::timeout(std::time::Duration::from_millis(4500), core.lyrics(track)).await;
+            let versions = core.services.library.list_lyrics(track).await?;
+            assert!(versions.iter().any(|row| row.lyrics.content == "[00:01.00]fallback"));
+            server.abort();
+            Ok::<_, LekisError>(())
+        })?;
+        drop(core);
+        let _ = std::fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn lyrics_public_manual_override_and_cross_track_activation() -> Result<()> {
+        let (core, root, _, _, rt) =
+            core_with_local_tracks("lyrics-public", &["one.flac", "two.flac"])?;
+        rt.block_on(async {
+            let rows = core
+                .list_tracks(TrackQuery {
+                    sort: TrackSort::Title,
+                    offset: 0,
+                    limit: 10,
+                })
+                .await?;
+            let make = |source: &str, content: &str| Lyrics {
+                source: source.into(),
+                content: content.into(),
+                format: LyricsFormat::Plain,
+                confidence: 1.0,
+                offset_ms: 0,
+            };
+            let embedded = core
+                .services
+                .library
+                .save_lyrics(rows[0].id, make("embedded", "Embedded fixture"))
+                .await?;
+            let manual = core
+                .set_lyrics(rows[0].id, make("manual", "Manual fixture"))
+                .await?;
+            assert_eq!(
+                core.services
+                    .library
+                    .active_lyrics(rows[0].id)
+                    .await?
+                    .map(|lyrics| lyrics.content),
+                Some("Manual fixture".into())
+            );
+            core.activate_lyrics(rows[0].id, embedded).await?;
+            assert_eq!(
+                core.services
+                    .library
+                    .active_lyrics(rows[0].id)
+                    .await?
+                    .map(|lyrics| lyrics.source),
+                Some("embedded".into())
+            );
+            assert_eq!(
+                core.activate_lyrics(rows[1].id, manual)
+                    .await
+                    .unwrap_err()
+                    .code,
+                ErrorCode::NotFound
+            );
+            assert!(core
+                .services
+                .library
+                .active_lyrics(rows[1].id)
+                .await?
+                .is_none());
+            core.activate_lyrics(rows[0].id, manual).await?;
+            Ok::<_, LekisError>(())
+        })?;
+        drop(core);
+        let _ = std::fs::remove_dir_all(root);
+        Ok(())
+    }
+
     fn seen(events: &Collect) -> Vec<CoreEvent> {
         events.0.lock().map(|v| v.clone()).unwrap_or_default()
     }
@@ -3861,4 +4119,69 @@ fn reject_inline_secrets(config: &SourceConfig) -> Result<()> {
         ));
     }
     Ok(())
+}
+
+/// Online lookup is scoped to this core/library; errors remain visible to callers.
+async fn lookup_online_lyrics(
+    s: &Arc<Services>,
+    id: TrackId,
+    force: bool,
+) -> Result<Option<Lyrics>> {
+    s.lyrics_lookup
+        .lookup(id, force, || async {
+            if !force {
+                if let Some(found) = s.library.active_lyrics(id).await? {
+                    return Ok(Some(found));
+                }
+            }
+            let server_deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(3);
+            for file in s.library.track_files(id).await? {
+                if !matches!(file.source_kind, SourceKind::Jellyfin | SourceKind::OpenSubsonic | SourceKind::Plex) { continue; }
+                if tokio::time::Instant::now() >= server_deadline { break; }
+                let Some(external_id) = file.external_id.as_deref() else { continue; };
+                match s.resolver.server_for(file.source_id).await {
+                    Ok(server) => match tokio::time::timeout_at(
+                        server_deadline, server.lyrics(external_id)
+                    ).await {
+                        Ok(Ok(Some(lyrics))) => {
+                            let versions = s.library.list_lyrics(id).await?;
+                            let exists = versions.iter().any(|row| row.lyrics.source == lyrics.source
+                                && row.lyrics.format == lyrics.format && row.lyrics.content == lyrics.content);
+                            if !exists {
+                                if force && s.library.active_lyrics(id).await?.is_some() {
+                                    s.library.save_lyrics_inactive(id, lyrics).await?;
+                                } else {
+                                    s.library.save_lyrics(id, lyrics).await?;
+                                }
+                            }
+                            return s.library.active_lyrics(id).await;
+                        }
+                        Ok(Ok(None)) => {},
+                        Ok(Err(e)) => tracing::debug!(target: "core", code = %e.code.as_str(), "server lyrics lookup failed"),
+                        Err(_) => tracing::debug!(target: "core", "server lyrics lookup timed out"),
+                    },
+                    Err(e) => tracing::debug!(target: "core", code = %e.code.as_str(), "server lyrics client unavailable"),
+                }
+            }
+            if let Err(error) = s.enrich.fetch_plugin_lyrics(&s.library, &s.plugins, id).await {
+                tracing::debug!(target: "core", code = %error.code.as_str(), "plugin lyrics lookup unavailable");
+            }
+            if !force {
+                if let Some(active) = s.library.active_lyrics(id).await? {
+                    return Ok(Some(active));
+                }
+            }
+            let found = tokio::time::timeout(
+                std::time::Duration::from_secs(25),
+                s.enrich.fetch_lyrics(&s.library, id, force),
+            )
+            .await
+            .map_err(|_| LekisError::new(ErrorCode::Network, "lyrics lookup timed out"))??;
+            if found {
+                s.library.active_lyrics(id).await
+            } else {
+                Ok(None)
+            }
+        })
+        .await
 }

@@ -161,9 +161,93 @@ impl Library {
             if n == 0 {
                 return Err(LekisError::not_found(format!("track {id}")));
             }
+            c.execute(
+                "DELETE FROM kv WHERE key IN (?1,?2)",
+                params![
+                    format!("artwork.user.track.{}", id.0),
+                    format!("artwork.plugin.track.{}", id.0)
+                ],
+            )
+            .db()?;
             Ok(())
         })
         .await
+    }
+
+    /// Record a user selection on the reference, independently of the deduplicated image row.
+    pub async fn set_user_track_artwork(&self, id: TrackId, art: ArtworkId) -> Result<()> {
+        self.write(move |c| {
+            let n = c.execute("UPDATE track SET artwork_id=?2, updated_at=?3 WHERE id=?1", params![id.0, art.0, now_ms()]).db()?;
+            if n == 0 { return Err(LekisError::not_found(format!("track {id}"))); }
+            c.execute("INSERT INTO kv(key,value) VALUES (?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value", params![format!("artwork.user.track.{}", id.0), art.0.to_string()]).db()?;
+            Ok(())
+        }).await
+    }
+
+    /// Whether the currently effective reference is an explicit user selection.
+    pub async fn effective_artwork_is_user_selected(&self, id: TrackId) -> Result<bool> {
+        self.read(move |c| {
+            c.query_row("SELECT CASE WHEN track.artwork_id IS NOT NULL THEN EXISTS(SELECT 1 FROM kv WHERE key='artwork.user.track.' || track.id AND value=CAST(track.artwork_id AS TEXT)) ELSE EXISTS(SELECT 1 FROM album JOIN kv ON kv.key='artwork.user.album.' || album.id AND kv.value=CAST(album.artwork_id AS TEXT) WHERE album.id=track.album_id) END FROM track WHERE track.id=?1", params![id.0], |r| r.get(0)).optional().db().map(|v| v.unwrap_or(false))
+        }).await
+    }
+
+    /// Whether the track reference was installed from its plugin website.
+    pub async fn track_artwork_is_plugin(&self, id: TrackId) -> Result<bool> {
+        self.read(move |c| c.query_row("SELECT EXISTS(SELECT 1 FROM track JOIN kv ON kv.key='artwork.plugin.track.' || track.id AND kv.value=CAST(track.artwork_id AS TEXT) WHERE track.id=?1)", params![id.0], |r| r.get(0)).db()).await
+    }
+
+    /// Record an explicit album artwork selection.
+    pub async fn set_user_album_artwork(&self, id: AlbumId, art: ArtworkId) -> Result<()> {
+        self.write(move |c| {
+            let n = c.execute("UPDATE album SET artwork_id=?2 WHERE id=?1", params![id.0, art.0]).db()?;
+            if n == 0 { return Err(LekisError::not_found(format!("album {id}"))); }
+            c.execute("INSERT INTO kv(key,value) VALUES (?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value", params![format!("artwork.user.album.{}", id.0), art.0.to_string()]).db()?;
+            Ok(())
+        }).await
+    }
+
+    /// Attach automatic provider artwork only while neither track nor album has a cover.
+    /// This atomic condition preserves manual edits made during an asynchronous download.
+    pub async fn set_track_artwork_if_missing(
+        &self,
+        id: TrackId,
+        artwork_id: ArtworkId,
+    ) -> Result<bool> {
+        self.write(move |c| {
+            let changed = c.execute(
+                "UPDATE track SET artwork_id = ?2, updated_at = ?3 WHERE id = ?1 AND artwork_id IS NULL
+                 AND NOT EXISTS (SELECT 1 FROM album WHERE album.id = track.album_id AND album.artwork_id IS NOT NULL)",
+                params![id.0, artwork_id.0, now_ms()],
+            ).db()? > 0;
+            if changed {
+                c.execute("UPDATE album SET artwork_id=?2 WHERE id=(SELECT album_id FROM track WHERE id=?1) AND artwork_id IS NULL", params![id.0, artwork_id.0]).db()?;
+            }
+            Ok(changed)
+        }).await
+    }
+
+    /// Replace a legacy automatic album match with the online source's own image.
+    /// The effective cover is compared atomically so a concurrent user edit wins.
+    pub async fn set_plugin_artwork_if_unchanged(
+        &self,
+        id: TrackId,
+        artwork_id: ArtworkId,
+        previous: Option<ArtworkId>,
+    ) -> Result<bool> {
+        self.write(move |c| {
+            let changed = c.execute(
+                "UPDATE track SET artwork_id = ?2, updated_at = ?4 WHERE id = ?1
+                 AND COALESCE(artwork_id, (SELECT artwork_id FROM album WHERE album.id = track.album_id)) IS ?3
+                 AND NOT EXISTS (SELECT 1 FROM kv WHERE (key = 'artwork.user.track.' || track.id AND value = CAST(track.artwork_id AS TEXT)) OR (track.artwork_id IS NULL AND key = 'artwork.user.album.' || track.album_id AND value = CAST(?3 AS TEXT)))
+                 AND (?3 IS NULL OR EXISTS (SELECT 1 FROM artwork WHERE id = ?3
+                   AND source IN ('coverartarchive','itunes','deezer','netease','musicbrainz','vocadb','bangumi')))",
+                params![id.0, artwork_id.0, previous.map(|a| a.0), now_ms()],
+            ).db()? > 0;
+            if changed {
+                c.execute("INSERT INTO kv(key,value) VALUES (?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value", params![format!("artwork.plugin.track.{}", id.0), artwork_id.0.to_string()]).db()?;
+            }
+            Ok(changed)
+        }).await
     }
 
     /// 曲目自己钉的封面（不合并专辑封面），没有返回 `None`。撤销换封面用。
@@ -214,6 +298,11 @@ impl Library {
             if n == 0 {
                 return Err(LekisError::not_found(format!("album {id}")));
             }
+            c.execute(
+                "DELETE FROM kv WHERE key=?1",
+                params![format!("artwork.user.album.{}", id.0)],
+            )
+            .db()?;
             Ok(())
         })
         .await

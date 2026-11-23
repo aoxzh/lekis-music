@@ -438,6 +438,7 @@ mod tests {
         lib.upsert_remote_tracks(
             server,
             vec![RemoteTrackRow {
+            external_album_id: None, album_artists: vec![], disc_no: None, track_no: None,
                 external_id: "jf-1".into(),
                 title: "夜曲".into(),
                 artists: vec!["周杰伦".into()],

@@ -10,6 +10,7 @@
 
 mod artwork;
 mod browse;
+mod catalog;
 mod connect_lookup;
 mod db;
 mod enrich_queue;

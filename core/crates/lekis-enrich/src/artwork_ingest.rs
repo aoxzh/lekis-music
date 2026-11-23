@@ -85,6 +85,21 @@ pub async fn fetch_image(url: &str) -> Result<Vec<u8>> {
     Ok(bytes.to_vec())
 }
 
+/// Bound image dimensions/allocation before decoding untrusted provider artwork.
+fn decode_bounded(bytes: &[u8]) -> Result<image::DynamicImage> {
+    let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes))
+        .with_guessed_format()
+        .map_err(|_| LekisError::new(ErrorCode::Decode, "封面格式无效"))?;
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(8192);
+    limits.max_image_height = Some(8192);
+    limits.max_alloc = Some(64 * 1024 * 1024);
+    reader.limits(limits);
+    reader
+        .decode()
+        .map_err(|_| LekisError::new(ErrorCode::Decode, "封面解码失败或超过尺寸上限"))
+}
+
 /// 计算原始图片字节的哈希（去重用）。
 pub fn hash_bytes(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
@@ -104,8 +119,7 @@ pub fn process_image(bytes: &[u8], target_px: u32) -> Result<ProcessedArtwork> {
     let target = target_px.clamp(96, 4096);
     let hash = hash_bytes(bytes);
 
-    let image = image::load_from_memory(bytes)
-        .map_err(|e| LekisError::new(ErrorCode::Decode, format!("解码封面失败：{e}")))?;
+    let image = decode_bounded(bytes)?;
     let (src_w, src_h) = (image.width(), image.height());
     if src_w == 0 || src_h == 0 {
         return Err(LekisError::new(ErrorCode::Decode, "封面尺寸为 0"));
@@ -326,8 +340,7 @@ pub fn process_tiers(bytes: &[u8], tiers: &[u32]) -> Result<ArtworkTiers> {
         t
     };
     let hash = hash_bytes(bytes);
-    let image = image::load_from_memory(bytes)
-        .map_err(|e| LekisError::new(ErrorCode::Decode, format!("解码封面失败：{e}")))?;
+    let image = decode_bounded(bytes)?;
     if image.width() == 0 || image.height() == 0 {
         return Err(LekisError::new(ErrorCode::Decode, "封面尺寸为 0"));
     }
@@ -448,6 +461,19 @@ mod tests {
         let png = solid_png(64, 64, [240, 240, 238]);
         let out = process_image(&png, 96).unwrap();
         assert_eq!(out.palette.on_primary, 0x00_00_00);
+    }
+
+    #[test]
+    fn rejects_provider_image_dimensions_before_allocation() {
+        let png = solid_png(8193, 1, [1, 2, 3]);
+        assert_eq!(
+            process_tiers(&png, &[]).unwrap_err().code,
+            ErrorCode::Decode
+        );
+        assert_eq!(
+            process_image(&png, 128).unwrap_err().code,
+            ErrorCode::Decode
+        );
     }
 
     #[test]

@@ -89,9 +89,9 @@ pub(crate) fn map_artist_row(r: &Row<'_>) -> rusqlite::Result<Artist> {
 
 /// 专辑列表的列（`track_count` 是实时统计出来的曲目数）。
 const ALBUM_COLUMNS: &str = "a.id, a.title, a.artist_line, a.year,
-     (SELECT COUNT(*) FROM track t WHERE t.album_id = a.id), a.artwork_id, a.mbid_release,
+     (SELECT COUNT(*) FROM catalog_track t WHERE t.album_id = a.id), a.artwork_id, a.mbid_release,
      (SELECT ar.hash FROM artwork ar WHERE ar.id = COALESCE(a.artwork_id,
-        (SELECT t2.artwork_id FROM track t2
+        (SELECT t2.artwork_id FROM catalog_track t2
           WHERE t2.album_id = a.id AND t2.artwork_id IS NOT NULL
           ORDER BY t2.disc_no, t2.track_no LIMIT 1)))";
 
@@ -112,16 +112,17 @@ impl Library {
             TrackSort::Artist => "a.artist_norm, a.sort_title, a.id",
             TrackSort::RecentlyAdded => "a.created_at DESC, a.id DESC",
             TrackSort::MostPlayed => {
-                "(SELECT COALESCE(SUM(u.play_count), 0) FROM track t
+                "(SELECT COALESCE(SUM(u.play_count), 0) FROM catalog_track t
                     LEFT JOIN user_state u ON u.track_uid = t.uid
                    WHERE t.album_id = a.id) DESC, a.sort_title"
             }
             TrackSort::Album => "a.sort_title, a.id",
         };
-        let sql =
-            format!("SELECT {ALBUM_COLUMNS} FROM album a ORDER BY {order} LIMIT ?1 OFFSET ?2");
+        let sql = format!(
+            "SELECT {ALBUM_COLUMNS} FROM catalog_album a ORDER BY {order} LIMIT ?1 OFFSET ?2"
+        );
         self.read(move |c| {
-            let mut stmt = c.prepare_cached(&sql).db()?;
+            let mut stmt = c.prepare_cached(&crate::catalog::query(&sql)).db()?;
             let rows = stmt.query_map(params![limit, offset], map_album_row).db()?;
             rows.collect::<rusqlite::Result<Vec<_>>>().db()
         })
@@ -130,7 +131,9 @@ impl Library {
 
     /// 专辑详情。
     pub async fn get_album(&self, id: AlbumId) -> Result<Album> {
-        let sql = format!("SELECT {ALBUM_COLUMNS} FROM album a WHERE a.id = ?1");
+        let sql = crate::catalog::query(format!(
+            "SELECT {ALBUM_COLUMNS} FROM album a WHERE a.id = ?1"
+        ));
         self.read(move |c| {
             c.query_row(&sql, params![id.0], map_album_row)
                 .optional()
@@ -150,7 +153,7 @@ impl Library {
         check_limit(limit)?;
         let sql = format!(
             "SELECT {}
-             FROM track t
+             FROM catalog_track t
              LEFT JOIN album a ON a.id = t.album_id
              LEFT JOIN user_state u ON u.track_uid = t.uid
              WHERE t.album_id = ?1
@@ -159,7 +162,7 @@ impl Library {
             crate::tracks::TRACK_ROW_COLUMNS
         );
         self.read(move |c| {
-            let mut stmt = c.prepare_cached(&sql).db()?;
+            let mut stmt = c.prepare_cached(&crate::catalog::query(&sql)).db()?;
             let rows = stmt
                 .query_map(params![id.0, limit, offset], crate::tracks::map_track_row)
                 .db()?;
@@ -194,12 +197,12 @@ impl Library {
         check_limit(limit)?;
         self.read(move |c| {
             let mut stmt = c
-                .prepare_cached(
+                .prepare_cached(&crate::catalog::query(
                     "SELECT id, name, sort_name, aliases_json, artwork_id, mbid
-                     FROM artist
+                     FROM catalog_artist
                      ORDER BY COALESCE(sort_name, name), id
                      LIMIT ?1 OFFSET ?2",
-                )
+                ))
                 .db()?;
             let rows = stmt
                 .query_map(params![limit, offset], map_artist_row)
@@ -217,7 +220,9 @@ impl Library {
     pub async fn track_title_index_offsets(&self) -> Result<Vec<LetterOffset>> {
         self.read(|c| {
             let mut stmt = c
-                .prepare_cached("SELECT title_sort_key FROM track ORDER BY title_sort_key, id")
+                .prepare_cached(&crate::catalog::query(
+                    "SELECT title_sort_key FROM catalog_track ORDER BY title_sort_key, id",
+                ))
                 .db()?;
             let rows = stmt
                 .query_map([], |r| r.get::<_, String>(0))
@@ -234,7 +239,7 @@ impl Library {
         self.read(|c| {
             let mut stmt = c
                 .prepare_cached(
-                    "SELECT COALESCE(sort_name, name) FROM artist ORDER BY COALESCE(sort_name, name), id",
+                    &crate::catalog::query("SELECT COALESCE(sort_name, name) FROM catalog_artist ORDER BY COALESCE(sort_name, name), id"),
                 )
                 .db()?;
             let rows = stmt
@@ -272,7 +277,7 @@ impl Library {
         check_limit(limit)?;
         let sql = format!(
             "SELECT {}
-             FROM track t
+             FROM catalog_track t
              JOIN track_artist ta ON ta.track_id = t.id
              LEFT JOIN album a ON a.id = t.album_id
              LEFT JOIN user_state u ON u.track_uid = t.uid
@@ -283,7 +288,7 @@ impl Library {
             crate::tracks::TRACK_ROW_COLUMNS
         );
         self.read(move |c| {
-            let mut stmt = c.prepare_cached(&sql).db()?;
+            let mut stmt = c.prepare_cached(&crate::catalog::query(&sql)).db()?;
             let rows = stmt
                 .query_map(params![id.0, limit, offset], crate::tracks::map_track_row)
                 .db()?;
@@ -297,15 +302,15 @@ impl Library {
         check_limit(limit)?;
         let sql = format!(
             "SELECT {ALBUM_COLUMNS}
-             FROM album a
+             FROM catalog_album a
              WHERE EXISTS (SELECT 1 FROM album_artist aa WHERE aa.album_id = a.id AND aa.artist_id = ?1)
-                OR EXISTS (SELECT 1 FROM track t JOIN track_artist ta ON ta.track_id = t.id
+                OR EXISTS (SELECT 1 FROM catalog_track t JOIN track_artist ta ON ta.track_id = t.id
                            WHERE t.album_id = a.id AND ta.artist_id = ?1)
              ORDER BY COALESCE(a.year, 0) DESC, a.sort_title
              LIMIT ?2 OFFSET ?3"
         );
         self.read(move |c| {
-            let mut stmt = c.prepare_cached(&sql).db()?;
+            let mut stmt = c.prepare_cached(&crate::catalog::query(&sql)).db()?;
             let rows = stmt
                 .query_map(params![id.0, limit, offset], map_album_row)
                 .db()?;
@@ -319,13 +324,14 @@ impl Library {
         check_limit(limit)?;
         self.read(move |c| {
             let mut stmt = c
-                .prepare_cached(
+                .prepare_cached(&crate::catalog::query(
                     "SELECT g.name, COUNT(tg.track_id)
-                     FROM genre g LEFT JOIN track_genre tg ON tg.genre_id = g.id
+                     FROM genre g JOIN track_genre tg ON tg.genre_id = g.id
+                     JOIN catalog_track t ON t.id = tg.track_id
                      GROUP BY g.id
                      ORDER BY COUNT(tg.track_id) DESC, g.name
                      LIMIT ?1",
-                )
+                ))
                 .db()?;
             let rows = stmt
                 .query_map(params![limit], |r| {
@@ -348,7 +354,7 @@ impl Library {
         let name = name.to_string();
         let sql = format!(
             "SELECT {}
-             FROM track t
+             FROM catalog_track t
              JOIN track_genre tg ON tg.track_id = t.id
              JOIN genre g ON g.id = tg.genre_id
              LEFT JOIN album a ON a.id = t.album_id
@@ -359,7 +365,7 @@ impl Library {
             crate::tracks::TRACK_ROW_COLUMNS
         );
         self.read(move |c| {
-            let mut stmt = c.prepare_cached(&sql).db()?;
+            let mut stmt = c.prepare_cached(&crate::catalog::query(&sql)).db()?;
             let rows = stmt
                 .query_map(params![name, limit, offset], crate::tracks::map_track_row)
                 .db()?;
