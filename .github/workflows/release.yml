@@ -1,10 +1,11 @@
 name: release
 
-# 推送 v* 标签（例如 v0.2.2）时：构建签名的 Android arm64-v8a APK 和 Windows x64
-# 免安装 zip，然后**直接发布** GitHub Release（含全部平台产物和校验和），无需人工
-# 再点一次发布。
+# 推送 v* 标签（例如 v0.2.3）时：构建 Android arm64-v8a APK、Windows x64
+# 安装器 EXE + 便携 ZIP、macOS arm64 DMG + ZIP、Linux x64 AppImage + tar.gz，
+# 然后**直接发布** GitHub Release（含全部产物和校验和），无需人工再点一次发布。
 # 版本号带 "-"（beta / rc）时标成 pre-release；普通 0.x 版本按正式 Release 发布，
 # 这样 GitHub 仓库首页的 Releases 区域才会显示 Latest，而不是只看到一排 tag。
+# ZIP / tar.gz 是应用内更新用的可解压载荷；DMG / EXE / AppImage 是给首次安装的。
 #
 # Android 只编设备 ABI：不传 --target-platform 时 Flutter 会把 arm / arm64 / x64 三套 Rust
 # 核心各编一遍（见 tools/dev-android.ps1），所以这里固定 android-arm64。
@@ -190,15 +191,37 @@ jobs:
         shell: pwsh
         run: ./tools/package-windows.ps1 -SkipBuild -Version "$env:VERSION"
 
-      - name: Upload zip
+      # Flutter 的 Windows 版不是单文件 exe（还要 flutter_windows.dll / data/ 等），
+      # 所以用 Inno Setup 打一个每用户安装器；便携 zip 继续保留给应用内更新。
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $release = (Resolve-Path 'app\build\windows\x64\runner\Release').Path
+          foreach ($dll in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
+            $src = Join-Path $env:SystemRoot "System32\$dll"
+            if (Test-Path $src) { Copy-Item $src $release -Force }
+          }
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --yes --no-progress
+            $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          }
+          if (-not (Test-Path $iscc)) { throw 'Inno Setup compiler (ISCC.exe) not found' }
+          New-Item -ItemType Directory -Force dist | Out-Null
+          & $iscc "/DVersion=$env:VERSION" "/DLekisPayloadDir=$release" "/DLekisOutDir=$((Resolve-Path dist).Path)" 'tools\lekis-installer.iss'
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
+
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: dist/*.zip
+          path: |
+            dist/*.zip
+            dist/*-setup.exe
           if-no-files-found: error
 
   macos:
-    name: macos universal
+    name: macos arm64
     runs-on: macos-latest
     needs: version
     env:
@@ -206,9 +229,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Require an Apple Silicon runner
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "arm64" || {
+            echo '::error::macOS releases are Apple Silicon only; this runner is not arm64'
+            exit 1
+          }
+
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin, x86_64-apple-darwin
+          targets: aarch64-apple-darwin
 
       - uses: subosito/flutter-action@v2
         with:
@@ -218,24 +249,47 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: core
-          key: release-macos
+          key: release-macos-arm64
 
-      - name: Build macOS release
+      # Release 构建默认是 Universal；显式开启 arm64-only，省掉 x86_64 的重复编译。
+      - name: Build macOS release (arm64)
         working-directory: app
-        run: flutter build macos --release
-
-      - name: Package macOS zip
         run: |
           set -euo pipefail
-          mkdir -p dist
-          APP_PATH=$(ls -d app/build/macos/Build/Products/Release/*.app | head -n1)
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "dist/lekis-$VERSION-macos-universal.zip"
+          if ! flutter config --enable-macos-arm64-only; then
+            echo '::warning::flutter config flag unavailable; falling back to FLUTTER_XCODE_ARCHS=arm64'
+            echo 'FLUTTER_XCODE_ARCHS=arm64' >> "$GITHUB_ENV"
+          fi
+          flutter build macos --release
 
-      - name: Upload macOS zip
+      - name: Package macOS zip and dmg
+        run: |
+          set -euo pipefail
+          mkdir -p dist/dmg
+          APP_PATH=$(ls -d app/build/macos/Build/Products/Release/*.app | head -n1)
+          test -d "$APP_PATH"
+          exe=$(find "$APP_PATH/Contents/MacOS" -maxdepth 1 -type f -perm -111 | head -n1)
+          archs=$(lipo -archs "$exe")
+          echo "app binary architectures: $archs"
+          test "$archs" = "arm64" || {
+            echo "::error::expected an arm64-only app, got: $archs"
+            exit 1
+          }
+          # zip 给应用内更新（可解压替换 .app），dmg 给首次安装（拖进 Applications）。
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "dist/lekis-$VERSION-macos-arm64.zip"
+          cp -R "$APP_PATH" dist/dmg/
+          ln -s /Applications dist/dmg/Applications
+          hdiutil create -volname "Lekis $VERSION" -srcfolder dist/dmg -ov -format UDZO \
+            "dist/lekis-$VERSION-macos-arm64.dmg"
+          rm -rf dist/dmg
+
+      - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: dist/*macos*.zip
+          path: |
+            dist/*macos-arm64*.zip
+            dist/*macos-arm64*.dmg
           if-no-files-found: error
 
   linux:
@@ -273,20 +327,56 @@ jobs:
         working-directory: app
         run: flutter build linux --release
 
-      - name: Package Linux tar.gz
+      - name: Package Linux tar.gz and AppImage
         run: |
           set -euo pipefail
           mkdir -p dist
+          bundle=app/build/linux/x64/release/bundle
           STAGE="dist/lekis-$VERSION-linux-x64"
           rm -rf "$STAGE"
-          cp -a app/build/linux/x64/release/bundle "$STAGE"
+          cp -a "$bundle" "$STAGE"
           tar -C dist -czf "dist/lekis-$VERSION-linux-x64.tar.gz" "lekis-$VERSION-linux-x64"
 
-      - name: Upload Linux tar.gz
+          # AppImage：单文件、双击即用；tar.gz 仍保留给应用内更新解压替换。
+          appdir="dist/lekis-$VERSION-linux-x64.AppDir"
+          rm -rf "$appdir"
+          mkdir -p "$appdir/usr/bin" "$appdir/usr/share/applications" \
+            "$appdir/usr/share/icons/hicolor/256x256/apps"
+          cp -a "$bundle/." "$appdir/usr/bin/"
+          cp app/assets/brand/mark.png "$appdir/lekis.png"
+          cp app/assets/brand/mark.png "$appdir/usr/share/icons/hicolor/256x256/apps/lekis.png"
+          cat > "$appdir/lekis.desktop" <<'EOF'
+          [Desktop Entry]
+          Name=Lekis Music
+          Exec=lekis %U
+          Icon=lekis
+          Type=Application
+          Categories=AudioVideo;Audio;Player;
+          Terminal=false
+          EOF
+          cp "$appdir/lekis.desktop" "$appdir/usr/share/applications/lekis.desktop"
+          cat > "$appdir/AppRun" <<'EOF'
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "$0")")"
+          exec "$HERE/usr/bin/lekis" "$@"
+          EOF
+          chmod +x "$appdir/AppRun"
+          tool=$(mktemp)
+          curl -fsSL -o "$tool" \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x "$tool"
+          ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 "$tool" "$appdir" \
+            "dist/lekis-$VERSION-linux-x64.AppImage"
+          rm -f "$tool"
+          rm -rf "$appdir" "$STAGE"
+
+      - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
           name: linux
-          path: dist/*.tar.gz
+          path: |
+            dist/*.tar.gz
+            dist/*.AppImage
           if-no-files-found: error
 
   publish:
@@ -311,7 +401,8 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
-          sha256sum *.apk *.zip *.tar.gz > SHA256SUMS.txt
+          find . -maxdepth 1 -type f ! -name 'SHA256SUMS.txt' ! -name 'release-notes.md' -printf '%P\n' | sort |
+            while IFS= read -r file; do sha256sum "$file"; done > SHA256SUMS.txt
           cat SHA256SUMS.txt
           cd ..
           notes="docs/release-notes-$VERSION.md"
@@ -335,4 +426,7 @@ jobs:
             dist/*.apk
             dist/*.zip
             dist/*.tar.gz
+            dist/*.dmg
+            dist/*-setup.exe
+            dist/*.AppImage
             dist/SHA256SUMS.txt

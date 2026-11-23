@@ -2,6 +2,15 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号用语义化版本；只记用户看得见的变化和影响发布的工程变更，内部重构和测试不列。逐项进度和验收情况见 [docs/HANDOFF.md](docs/HANDOFF.md)。
 
+## [未发布]
+
+### 发布
+
+- **macOS 改为 Apple Silicon 单架构**：发布 `macos-arm64` 的 DMG（拖入 Applications 即可安装）和 ZIP；不再生成 Intel / Universal 包，release 构建也不再重复编译 x86_64。
+- **Windows 增加安装器**：新增 Inno Setup 每用户安装器 `lekis-<版本>-windows-x64-setup.exe`，便携 ZIP 继续保留。
+- **Linux 增加 AppImage**：新增单文件 `lekis-<版本>-linux-x64.AppImage`，`.tar.gz` 继续保留。
+- **应用内更新选包**：优先选择可解压替换的 ZIP / tar.gz，不会误选 DMG、AppImage 或安装器。
+
 ## [0.2.2] - 2026-11-23
 
 从这个版本开始，普通 0.x 版本按正式 GitHub Release 发布（只有 `-beta` / `-rc` 才是 Pre-release），仓库首页会正常显示 Latest Release；应用内更新也只在当前版本带 `-` 后缀时才考虑预发布版本。

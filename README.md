@@ -119,9 +119,9 @@
 | Platform | Status | Notes |
 |---|---|---|
 | **Android** (8.0+, arm64-v8a) | **Alpha Preview** | Signed APK via GitHub Releases |
-| **Windows** (10/11 x64) | **Alpha Preview** | Portable ZIP via GitHub Releases; WASAPI exclusive, system tray, SMTC, floating desktop lyrics |
-| **macOS** (Universal) | **Experimental Preview** | ZIP via GitHub Releases (Apple Silicon & Intel) |
-| **Linux** (x64) | **Experimental Preview** | `.tar.gz` bundle via GitHub Releases |
+| **Windows** (10/11 x64) | **Alpha Preview** | Installer EXE or portable ZIP via GitHub Releases; WASAPI exclusive, system tray, SMTC, floating desktop lyrics |
+| **macOS** (Apple Silicon, arm64) | **Experimental Preview** | DMG (drag to Applications) or ZIP via GitHub Releases; Intel builds discontinued |
+| **Linux** (x64) | **Experimental Preview** | AppImage or `.tar.gz` bundle via GitHub Releases |
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed release history.
 
@@ -235,7 +235,7 @@ cd app && flutter build windows --release
 cd app && flutter_rust_bridge_codegen generate
 ```
 
-Windows portable ZIP packaging: `tools/package-windows.ps1` (outputs to `dist/`).
+Windows packaging: `tools/package-windows.ps1` (portable ZIP) and `tools/lekis-installer.iss` (installer EXE). `release.yml` also produces the macOS DMG and Linux AppImage.
 
 ---
 

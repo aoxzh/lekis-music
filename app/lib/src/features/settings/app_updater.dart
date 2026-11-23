@@ -122,6 +122,9 @@ typedef ReleaseAssetMatch = ({
 
 /// Picks the best platform asset and `SHA256SUMS.txt` URL from a GitHub
 /// Release's `assets`.
+///
+/// In-app updates need an archive they can extract, so ZIP (Windows/macOS) and
+/// tar.gz (Linux) win over install-only formats such as EXE, DMG or AppImage.
 ReleaseAssetMatch pickReleaseAsset(
   List<dynamic> assets,
   String fallbackReleaseUrl, {
@@ -167,17 +170,24 @@ ReleaseAssetMatch pickReleaseAsset(
     'windows' =>
       firstMatch((n) => n.contains('windows') && n.endsWith('.zip')) ??
           firstMatch((n) => n.endsWith('.exe') || n.endsWith('.msix')),
-    'macos' => firstMatch(
-      (n) =>
-          n.contains('macos') && (n.endsWith('.dmg') || n.endsWith('.zip')),
-    ),
-    'linux' => firstMatch(
-      (n) =>
-          n.contains('linux') &&
-          (n.endsWith('.tar.gz') ||
-              n.endsWith('.appimage') ||
-              n.endsWith('.deb')),
-    ),
+    // In-app updates replace the extracted .app, so prefer the zip even when
+    // the release also ships a drag-to-Applications dmg.
+    'macos' =>
+      firstMatch((n) => n.contains('macos') && n.endsWith('.zip')) ??
+          firstMatch(
+            (n) =>
+                n.contains('macos') &&
+                (n.endsWith('.dmg') || n.endsWith('.zip')),
+          ),
+    // Same rule on Linux: tar.gz is the in-place update payload; AppImage and
+    // deb are install formats and only used when no tar.gz was published.
+    'linux' =>
+      firstMatch((n) => n.contains('linux') && n.endsWith('.tar.gz')) ??
+          firstMatch(
+            (n) =>
+                n.contains('linux') &&
+                (n.endsWith('.appimage') || n.endsWith('.deb')),
+          ),
     _ => null,
   };
 

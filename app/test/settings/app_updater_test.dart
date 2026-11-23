@@ -61,6 +61,46 @@ void main() {
       );
     });
 
+    test('prefers archive assets that in-app updates can extract', () {
+      const macAssets = [
+        {
+          'name': 'lekis-0.3.0-macos-arm64.dmg',
+          'browser_download_url': 'https://example.com/mac.dmg',
+        },
+        {
+          'name': 'lekis-0.3.0-macos-arm64.zip',
+          'browser_download_url': 'https://example.com/mac.zip',
+        },
+      ];
+      expect(
+        pickReleaseDownloadUrl(
+          macAssets,
+          'https://example.com/release',
+          platformOverride: 'macos',
+        ),
+        'https://example.com/mac.zip',
+      );
+
+      const linuxAssets = [
+        {
+          'name': 'lekis-0.3.0-linux-x64.AppImage',
+          'browser_download_url': 'https://example.com/lekis.AppImage',
+        },
+        {
+          'name': 'lekis-0.3.0-linux-x64.tar.gz',
+          'browser_download_url': 'https://example.com/lekis.tar.gz',
+        },
+      ];
+      expect(
+        pickReleaseDownloadUrl(
+          linuxAssets,
+          'https://example.com/release',
+          platformOverride: 'linux',
+        ),
+        'https://example.com/lekis.tar.gz',
+      );
+    });
+
     test('pickReleaseAsset captures assetName, size and SHA256SUMS.txt', () {
       const assetsWithSums = [
         {
