@@ -7,6 +7,7 @@ import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/album_card.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
+import 'package:lekis/src/features/library/widgets/shelf.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_actions.dart';
@@ -84,6 +85,14 @@ class AlbumDetailView extends ConsumerWidget {
     final loaded = ref.watch(albumProvider(albumId));
     final tracks = ref.watch(albumTracksProvider(albumId));
     final gutter = pageGutterOf(context);
+    final artists = ref.watch(albumArtistsProvider(albumId)).value;
+    final artist = (artists == null || artists.isEmpty) ? null : artists.first;
+    final moreAlbums = artist == null
+        ? const <AlbumDto>[]
+        : (ref.watch(artistAlbumsProvider(artist.id)).value ??
+                  const <AlbumDto>[])
+              .where((album) => album.id != albumId)
+              .toList(growable: false);
 
     final shown = loaded.value ?? initialAlbum;
     if (shown == null) {
@@ -173,6 +182,31 @@ class AlbumDetailView extends ConsumerWidget {
                 ),
               ),
             ),
+            if (artist != null && moreAlbums.isNotEmpty)
+              SliverToBoxAdapter(
+                child: ArtworkShelf(
+                  title: context.l10n.pick(
+                    '更多来自 ${artist.name}',
+                    'More by ${artist.name}',
+                  ),
+                  itemCount: moreAlbums.length,
+                  itemBuilder: (context, i) {
+                    final item = moreAlbums[i];
+                    final tag = AlbumHeroTag(item.id, 'album-more-$albumId');
+                    return AlbumCard(
+                      album: item,
+                      heroTag: tag,
+                      onTap: () => Navigator.of(context).push(
+                        AlbumDetailPage.route(
+                          item.id,
+                          heroTag: tag,
+                          initialAlbum: item,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
             SliverPadding(
               padding: EdgeInsets.only(bottom: scrollEndPadding(context)),
             ),
