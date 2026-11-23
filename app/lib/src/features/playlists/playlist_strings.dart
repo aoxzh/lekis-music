@@ -49,6 +49,13 @@ abstract final class PlaylistStrings {
     '智能歌单不能直接复制为普通歌单',
     'Smart playlists cannot be duplicated as regular playlists',
   );
+  static String get copyPlaylist => L10n.tr('复制歌单', 'Copy Playlist');
+  static String copiedPlaylist(int n) =>
+      L10n.tr('已复制歌单（$n 首）', 'Copied $n playlist tracks');
+  static String get nothingToCopy =>
+      L10n.tr('歌单里没有可复制的曲目', 'No tracks to copy');
+  static String copyPlaylistFailed(String e) =>
+      L10n.tr('复制歌单失败：$e', 'Failed to copy playlist: $e');
   static String get sortPlaylist => L10n.tr('排序歌单', 'Sort Playlist');
   static String get sortByTitle => L10n.tr('按标题', 'By Title');
   static String get sortByArtist => L10n.tr('按艺人', 'By Artist');

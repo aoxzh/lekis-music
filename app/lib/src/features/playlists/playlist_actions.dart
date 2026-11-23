@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
@@ -517,6 +518,56 @@ Future<void> sortPlaylistFlow(
     if (navigator.mounted && navigator.canPop()) navigator.pop();
     progress.dispose();
   }
+}
+
+Future<void> _copyPlaylistLines(
+  BuildContext context,
+  List<String> lines,
+) async {
+  if (lines.isEmpty) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(PlaylistStrings.nothingToCopy)));
+    return;
+  }
+  try {
+    await Clipboard.setData(ClipboardData(text: lines.join('\n')));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(PlaylistStrings.copiedPlaylist(lines.length))),
+      );
+  } catch (e) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(PlaylistStrings.copyPlaylistFailed('$e'))),
+      );
+  }
+}
+
+Future<void> copyPlaylistAsText(
+  BuildContext context,
+  List<PlaylistEntryDto> rows,
+) {
+  return _copyPlaylistLines(context, [
+    for (var i = 0; i < rows.length; i++)
+      '${i + 1}. ${rows[i].track?.title ?? PlaylistStrings.trackUnavailable}'
+          '${(rows[i].track?.artistLine ?? '').isEmpty ? '' : ' — ${rows[i].track!.artistLine}'}',
+  ]);
+}
+
+Future<void> copyPlaylistTracksAsText(
+  BuildContext context,
+  List<TrackRowDto> tracks,
+) {
+  return _copyPlaylistLines(context, [
+    for (var i = 0; i < tracks.length; i++)
+      '${i + 1}. ${tracks[i].title}'
+          '${tracks[i].artistLine.isEmpty ? '' : ' — ${tracks[i].artistLine}'}',
+  ]);
 }
 
 /// 长按 / 菜单里用的小标签样式。

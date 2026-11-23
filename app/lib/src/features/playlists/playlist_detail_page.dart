@@ -232,6 +232,9 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
               onSort: rows.length < 2
                   ? null
                   : () => showPlaylistSortSheet(context, ref, playlist, rows),
+              onCopy: rows.isEmpty
+                  ? null
+                  : () => copyPlaylistAsText(context, rows),
               queueTrackIds: playableIds,
             ),
           ),
@@ -366,6 +369,9 @@ class _SmartPlaylistBody extends ConsumerWidget {
               onEditRules: () => Navigator.of(context).push(
                 SmartPlaylistEditorPage.route(playlist.id, name: playlist.name),
               ),
+              onCopy: rows.isEmpty
+                  ? null
+                  : () => copyPlaylistTracksAsText(context, rows),
               queueTrackIds: [for (final r in rows) r.id],
             ),
           ),
@@ -426,6 +432,7 @@ class _PlaylistHeader extends ConsumerWidget {
     this.onDownload,
     this.onExport,
     this.onSort,
+    this.onCopy,
     this.queueTrackIds = const [],
   });
 
@@ -436,6 +443,7 @@ class _PlaylistHeader extends ConsumerWidget {
   final VoidCallback? onDownload;
   final VoidCallback? onExport;
   final VoidCallback? onSort;
+  final VoidCallback? onCopy;
 
   /// 歌单里能播放的曲目，给"下一首播放 / 加入播放队列"用。
   final List<int> queueTrackIds;
@@ -562,6 +570,8 @@ class _PlaylistHeader extends ConsumerWidget {
                         );
                       case 'sort':
                         onSort?.call();
+                      case 'copy':
+                        onCopy?.call();
                       case 'delete':
                         delete();
                     }
@@ -599,6 +609,11 @@ class _PlaylistHeader extends ConsumerWidget {
                       PopupMenuItem(
                         value: 'sort',
                         child: Text(PlaylistStrings.sortPlaylist),
+                      ),
+                    if (onCopy != null)
+                      PopupMenuItem(
+                        value: 'copy',
+                        child: Text(PlaylistStrings.copyPlaylist),
                       ),
                     PopupMenuItem(
                       value: 'delete',
