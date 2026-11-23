@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -21,6 +22,14 @@ import 'package:lekis/src/shell/tab_bar_style.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Desktop album walls can keep more decoded thumbnails in memory; the
+  // default ~100 MB budget starts evicting covers while scrolling a large
+  // library. Phones keep the platform default to stay memory-friendly.
+  if (defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.linux) {
+    PaintingBinding.instance.imageCache.maximumSizeBytes = 192 * 1024 * 1024;
+  }
   // Draw behind system bars on Android; no orientation lock anywhere.
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
