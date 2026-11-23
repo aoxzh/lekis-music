@@ -278,6 +278,13 @@ class DownloadsPage extends ConsumerWidget {
               ),
             ),
             PopupMenuItem(
+              value: DownloadSortMode.album,
+              child: ListTile(
+                leading: const Icon(Icons.album_outlined),
+                title: Text(l10n.pick('按专辑', 'By Album')),
+              ),
+            ),
+            PopupMenuItem(
               value: DownloadSortMode.newest,
               child: ListTile(
                 leading: const Icon(Icons.schedule_rounded),
@@ -485,6 +492,19 @@ class _DownloadsBodyState extends ConsumerState<_DownloadsBody> {
             );
           case DownloadSortMode.artist:
             list.sort((a, b) {
+              final byArtist = a.subtitle.toLowerCase().compareTo(
+                b.subtitle.toLowerCase(),
+              );
+              return byArtist != 0
+                  ? byArtist
+                  : a.title.toLowerCase().compareTo(b.title.toLowerCase());
+            });
+          case DownloadSortMode.album:
+            list.sort((a, b) {
+              final byAlbum = (a.track?.albumTitle ?? '')
+                  .toLowerCase()
+                  .compareTo((b.track?.albumTitle ?? '').toLowerCase());
+              if (byAlbum != 0) return byAlbum;
               final byArtist = a.subtitle.toLowerCase().compareTo(
                 b.subtitle.toLowerCase(),
               );

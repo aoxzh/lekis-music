@@ -223,7 +223,7 @@ final downloadsProvider =
       DownloadsController.new,
     );
 
-enum DownloadSortMode { default_, title, artist, newest, largest }
+enum DownloadSortMode { default_, title, artist, album, newest, largest }
 
 class DownloadSortController extends Notifier<DownloadSortMode> {
   @override
