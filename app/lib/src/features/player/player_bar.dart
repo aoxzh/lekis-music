@@ -18,6 +18,7 @@ import 'package:lekis/src/features/player/widgets/current_track.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart'
     show playbackOutputProvider;
+import 'package:lekis/src/rust/api/dto.dart' show OutputModeDto;
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/shell/routes.dart';
 import 'package:lekis/src/theme/theme.dart';
@@ -163,6 +164,7 @@ class PlayerBar extends ConsumerWidget {
                 : () => showQueueSheet(context),
           ),
           const ConnectDeviceButton(alwaysShow: true),
+          const _ExclusiveModeButton(),
           if (sleepTimerActive)
             const SleepTimerButton(
               key: ValueKey('player-bar.sleep-timer'),
@@ -270,6 +272,47 @@ class _CurrentLovedButton extends ConsumerWidget {
       trackId: track.id,
       initialLoved: track.loved,
       compact: false,
+    );
+  }
+}
+
+/// Toggle bit-perfect exclusive output from the player bar when the current
+/// device supports it. Hidden on devices/systems without exclusive support.
+class _ExclusiveModeButton extends ConsumerWidget {
+  const _ExclusiveModeButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final output = ref.watch(playbackOutputProvider);
+    if (!output.exclusiveSupported) return const SizedBox.shrink();
+    final exclusive = output.mode == OutputModeDto.exclusive;
+    return IconButton(
+      tooltip: exclusive
+          ? context.l10n.pick('关闭独占模式', 'Disable exclusive mode')
+          : context.l10n.pick('开启独占模式', 'Enable exclusive mode'),
+      icon: Icon(
+        exclusive ? Icons.high_quality_rounded : Icons.high_quality_outlined,
+      ),
+      onPressed: () async {
+        try {
+          await ref
+              .read(playbackOutputProvider.notifier)
+              .setMode(
+                exclusive ? OutputModeDto.shared : OutputModeDto.exclusive,
+              );
+        } catch (_) {
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(
+                  context.l10n.pick('切换输出模式失败', 'Failed to switch output mode'),
+                ),
+              ),
+            );
+        }
+      },
     );
   }
 }
