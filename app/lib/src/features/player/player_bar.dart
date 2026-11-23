@@ -13,6 +13,7 @@ import 'package:lekis/src/features/library/widgets/track_actions.dart'
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_view.dart';
+import 'package:lekis/src/features/player/sleep_timer.dart';
 import 'package:lekis/src/features/player/widgets/current_track.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart'
@@ -64,6 +65,9 @@ class PlayerBar extends ConsumerWidget {
     final desktopLyricsVisible = desktopLyricsSupported
         ? ref.watch(desktopLyricsProvider.select((s) => s.visible))
         : false;
+    final sleepTimerActive = ref.watch(
+      sleepTimerProvider.select((s) => s.active),
+    );
     final colors = context.lekisColors;
     const artSize = LekisSizes.desktopPlayerBarHeight - LekisSpacing.lg * 2;
 
@@ -159,6 +163,11 @@ class PlayerBar extends ConsumerWidget {
                 : () => showQueueSheet(context),
           ),
           const ConnectDeviceButton(alwaysShow: true),
+          if (sleepTimerActive)
+            const SleepTimerButton(
+              key: ValueKey('player-bar.sleep-timer'),
+              compact: true,
+            ),
           const _OutputDeviceButton(key: devicesKey),
           const _WheelVolume(child: _VolumePopoverButton(key: volumeKey)),
           if (miniModeSupported)

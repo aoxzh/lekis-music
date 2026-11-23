@@ -726,7 +726,7 @@ class NowPlayingActions extends ConsumerWidget {
               : null,
         ),
         // Pick another Lekis device to play on / control.
-        const SleepTimerButton(),
+        const SleepTimerButton(key: ValueKey('now-playing.sleep-timer')),
         const ConnectDeviceButton(alwaysShow: true),
       ],
     );
