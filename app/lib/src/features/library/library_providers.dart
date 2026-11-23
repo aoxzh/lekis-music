@@ -453,6 +453,7 @@ final albumProvider = FutureProvider.autoDispose.family<AlbumDto, int>((
   id,
 ) async {
   ref.invalidateOnCatalogChange();
+  ref.cacheFor(const Duration(minutes: 2));
   return core.getAlbum(albumId: id);
 });
 
@@ -481,11 +482,14 @@ final artistIdForNameProvider = FutureProvider.autoDispose.family<int?, String>(
 final albumTracksProvider = FutureProvider.autoDispose
     .family<List<TrackRowDto>, int>((ref, id) async {
       ref.invalidateOnCatalogChange();
+      ref.cacheFor(const Duration(minutes: 2));
       return core.albumTracks(albumId: id, offset: 0, limit: _detailTrackLimit);
     });
 
 final albumArtistsProvider = FutureProvider.autoDispose
     .family<List<ArtistDto>, int>((ref, id) async {
+      ref.invalidateOnCatalogChange();
+      ref.cacheFor(const Duration(minutes: 2));
       return core.albumArtists(albumId: id);
     });
 
@@ -494,18 +498,21 @@ final artistProvider = FutureProvider.autoDispose.family<ArtistDto, int>((
   id,
 ) async {
   ref.invalidateOnCatalogChange();
+  ref.cacheFor(const Duration(minutes: 2));
   return core.getArtist(artistId: id);
 });
 
 final artistAlbumsProvider = FutureProvider.autoDispose
     .family<List<AlbumDto>, int>((ref, id) async {
       ref.invalidateOnCatalogChange();
+      ref.cacheFor(const Duration(minutes: 2));
       return core.artistAlbums(artistId: id, offset: 0, limit: 200);
     });
 
 final artistTracksProvider = FutureProvider.autoDispose
     .family<List<TrackRowDto>, int>((ref, id) async {
       ref.invalidateOnCatalogChange();
+      ref.cacheFor(const Duration(minutes: 2));
       return core.artistTracks(
         artistId: id,
         offset: 0,
