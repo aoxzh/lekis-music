@@ -3,11 +3,16 @@
 // The page intentionally uses only aggregate data from the core: a 100k-track
 // library must not stream every play event into Dart.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/library/album_detail_page.dart';
+import 'package:lekis/src/features/library/artist_detail_page.dart';
+import 'package:lekis/src/features/library/library_providers.dart'
+    show artistIdForNameProvider;
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/sources/common.dart';
 import 'package:lekis/src/features/stats/listening_stats_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
+import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
@@ -55,7 +60,10 @@ class _ListeningStatsPageState extends ConsumerState<ListeningStatsPage> {
                     children: [
                       Expanded(
                         child: Text(
-                          context.l10n.pick('你的听歌足迹', 'Your Listening Footprint'),
+                          context.l10n.pick(
+                            '你的听歌足迹',
+                            'Your Listening Footprint',
+                          ),
                           style: theme.textTheme.headlineSmall,
                         ),
                       ),
@@ -66,7 +74,9 @@ class _ListeningStatsPageState extends ConsumerState<ListeningStatsPage> {
                           items: [
                             DropdownMenuItem<int?>(
                               value: null,
-                              child: Text(context.l10n.pick('全部时间', 'All Time')),
+                              child: Text(
+                                context.l10n.pick('全部时间', 'All Time'),
+                              ),
                             ),
                             for (final y in items)
                               DropdownMenuItem<int?>(
@@ -291,6 +301,7 @@ class _StatsBody extends ConsumerWidget {
                       '${context.l10n.pick('${a.plays} 次', '${a.plays} plays')} · ${_formatHours(a.playedMs.toDouble() / 3600000)}',
                     ),
                     trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _openArtist(context, ref, a.artist),
                   ),
               ],
             ),
@@ -313,6 +324,8 @@ class _StatsBody extends ConsumerWidget {
                     subtitle: Text(
                       '${a.artist.isEmpty ? context.l10n.pick('未知艺人', 'Unknown Artist') : a.artist} · ${context.l10n.pick('${a.plays} 次', '${a.plays} plays')}',
                     ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _openAlbum(context, a),
                   ),
               ],
             ),
@@ -336,7 +349,10 @@ class _StatsBody extends ConsumerWidget {
                       '${item.track.artistLine.isEmpty ? context.l10n.pick('未知艺人', 'Unknown Artist') : item.track.artistLine} · ${item.track.albumTitle ?? context.l10n.pick('未分类', 'Uncategorized')}',
                     ),
                     trailing: Text(
-                      context.l10n.pick('${item.plays} 次', '${item.plays} plays'),
+                      context.l10n.pick(
+                        '${item.plays} 次',
+                        '${item.plays} plays',
+                      ),
                     ),
                     onTap: () => _playFrom(context, ref, i),
                   ),
@@ -346,6 +362,86 @@ class _StatsBody extends ConsumerWidget {
         ],
       ],
     );
+  }
+
+  Future<void> _openArtist(
+    BuildContext context,
+    WidgetRef ref,
+    String name,
+  ) async {
+    try {
+      final id = await ref.read(artistIdForNameProvider(name).future);
+      if (!context.mounted) return;
+      if (id == null) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                context.l10n.pick('资料库里没有这位艺人', 'Artist not found in library'),
+              ),
+            ),
+          );
+        return;
+      }
+      await Navigator.of(context).push(ArtistDetailPage.route(id));
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick('打开艺人失败：$e', 'Failed to open artist: $e'),
+            ),
+          ),
+        );
+    }
+  }
+
+  Future<void> _openAlbum(BuildContext context, AlbumListeningDto album) async {
+    try {
+      final results = await core.search(text: album.title, limit: 20);
+      AlbumDto? match;
+      for (final candidate in results.albums) {
+        if (candidate.title.toLowerCase() != album.title.toLowerCase()) {
+          continue;
+        }
+        if (album.artist.isNotEmpty &&
+            !candidate.artistLine.toLowerCase().contains(
+              album.artist.toLowerCase(),
+            )) {
+          continue;
+        }
+        match = candidate;
+        break;
+      }
+      if (!context.mounted) return;
+      if (match == null) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                context.l10n.pick('资料库里没有这张专辑', 'Album not found in library'),
+              ),
+            ),
+          );
+        return;
+      }
+      await Navigator.of(context).push(AlbumDetailPage.route(match.id.toInt()));
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick('打开专辑失败：$e', 'Failed to open album: $e'),
+            ),
+          ),
+        );
+    }
   }
 
   void _playFrom(BuildContext context, WidgetRef ref, int index) {
