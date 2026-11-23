@@ -8,8 +8,26 @@ import 'package:lekis/src/rust/api/dto.dart';
 /// Keystrokes within this window collapse into one core query.
 const Duration searchDebounce = Duration(milliseconds: 250);
 
-/// Max results per section.
-const int searchLimit = 25;
+/// Max results per section before "Show more".
+const int searchDefaultLimit = 25;
+const int searchMaxLimit = 100;
+const int searchLimitStep = 25;
+
+class SearchLimitController extends Notifier<int> {
+  @override
+  int build() => searchDefaultLimit;
+
+  void more() {
+    if (state >= searchMaxLimit) return;
+    state = (state + searchLimitStep).clamp(searchDefaultLimit, searchMaxLimit);
+  }
+
+  void reset() => state = searchDefaultLimit;
+}
+
+final searchLimitProvider = NotifierProvider<SearchLimitController, int>(
+  SearchLimitController.new,
+);
 
 /// null selects the library; otherwise use an installed source plugin ID.
 final searchSourceProvider = NotifierProvider<SimpleValue<String?>, String?>(
@@ -27,6 +45,7 @@ final searchResultsProvider = FutureProvider.autoDispose<SearchResultsDto?>((
 ) async {
   final query = ref.watch(searchQueryProvider).trim();
   final source = ref.watch(searchSourceProvider);
+  final limit = ref.watch(searchLimitProvider);
   ref.invalidateOnCatalogChange();
   ref.cacheFor(const Duration(seconds: 30));
   if (query.isEmpty) return null;
@@ -37,8 +56,8 @@ final searchResultsProvider = FutureProvider.autoDispose<SearchResultsDto?>((
   if (cancelled) throw const _Superseded();
 
   return source == null
-      ? core.search(text: query, limit: searchLimit)
-      : core.searchPlugin(pluginId: source, query: query, limit: 50);
+      ? core.search(text: query, limit: limit)
+      : core.searchPlugin(pluginId: source, query: query, limit: limit);
 }, retry: (_, _) => null);
 
 class _Superseded implements Exception {

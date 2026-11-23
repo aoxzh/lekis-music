@@ -133,6 +133,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   void _set(String v) {
     _filter = _SearchFilter.all;
+    ref.read(searchLimitProvider.notifier).reset();
     if (widget.pluginId == null) {
       ref.read(searchQueryProvider.notifier).set(v);
     } else {
@@ -419,6 +420,12 @@ class _Results extends ConsumerWidget {
     final albums = results.albums;
     final artists = results.artists;
     final l10n = context.l10n;
+    final limit = ref.watch(searchLimitProvider);
+    final canMore =
+        !onlinePlugin &&
+        (tracks.length >= limit ||
+            albums.length >= limit ||
+            artists.length >= limit);
     final showFilters =
         [
           tracks.isNotEmpty,
@@ -564,6 +571,28 @@ class _Results extends ConsumerWidget {
             },
           ),
         ),
+        if (canMore)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(gutter, LekisSpacing.lg, gutter, 0),
+              child: Center(
+                child: TextButton.icon(
+                  onPressed: limit >= searchMaxLimit
+                      ? null
+                      : () => ref.read(searchLimitProvider.notifier).more(),
+                  icon: const Icon(Icons.expand_more_rounded),
+                  label: Text(
+                    limit >= searchMaxLimit
+                        ? l10n.pick(
+                            '已显示前 $searchMaxLimit 个结果',
+                            'Showing first $searchMaxLimit results',
+                          )
+                        : l10n.pick('显示更多结果', 'Show more results'),
+                  ),
+                ),
+              ),
+            ),
+          ),
         SliverPadding(
           padding: EdgeInsets.only(bottom: scrollEndPadding(context)),
         ),
