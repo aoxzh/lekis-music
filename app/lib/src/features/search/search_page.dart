@@ -99,6 +99,15 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     unawaited(_saveRecent());
   }
 
+  void _forgetRecent(String query) {
+    final next = [
+      for (final q in _recent)
+        if (q != query) q,
+    ];
+    setState(() => _recent = next);
+    unawaited(_saveRecent());
+  }
+
   void _pickRecent(String query) {
     _text.text = query;
     _text.selection = TextSelection.collapsed(offset: query.length);
@@ -205,6 +214,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             ? _RecentSearches(
                 queries: _recent,
                 onPick: _pickRecent,
+                onRemove: _forgetRecent,
                 onClear: _clearRecent,
               )
             : null,
@@ -577,11 +587,13 @@ class _RecentSearches extends StatelessWidget {
   const _RecentSearches({
     required this.queries,
     required this.onPick,
+    required this.onRemove,
     required this.onClear,
   });
 
   final List<String> queries;
   final ValueChanged<String> onPick;
+  final ValueChanged<String> onRemove;
   final VoidCallback onClear;
 
   @override
@@ -612,10 +624,12 @@ class _RecentSearches extends StatelessWidget {
           runSpacing: LekisSpacing.xs,
           children: [
             for (final query in queries)
-              ActionChip(
+              InputChip(
                 avatar: const Icon(Icons.history_rounded, size: 18),
                 label: Text(query),
                 onPressed: () => onPick(query),
+                onDeleted: () => onRemove(query),
+                deleteButtonTooltipMessage: l10n.pick('删除', 'Remove'),
               ),
           ],
         ),
