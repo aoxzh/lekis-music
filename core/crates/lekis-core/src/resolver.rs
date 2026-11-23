@@ -268,6 +268,40 @@ impl Resolver {
         }))
     }
 
+    /// 文件系统源在播放前必须有一个 VFS。启动时/扫描时会登记；如果因为重启、
+    /// 凭据还没加载或旧版本升级导致登记丢了，这里按源配置补开一次，避免“曲库能看
+    /// 但一点播放就报 no vfs resolver installed”。
+    async fn ensure_vfs(&self, source_id: SourceId) -> Result<()> {
+        if lekis_playback::vfs_access::resolve(source_id).is_some() {
+            return Ok(());
+        }
+        let source = self.library.get_source(source_id).await?;
+        if !source.kind.is_filesystem() {
+            return Ok(());
+        }
+        if !source.enabled {
+            return Err(LekisError::unsupported(format!(
+                "音源「{}」已停用",
+                source.name
+            )));
+        }
+        let password = source
+            .credential_ref
+            .as_deref()
+            .filter(|reference| !reference.is_empty())
+            .and_then(|reference| self.credentials.get(reference));
+        match lekis_vfs::open(&source, password) {
+            Ok(vfs) => {
+                lekis_playback::vfs_access::install(source_id, vfs);
+                Ok(())
+            }
+            Err(error) => Err(LekisError::new(
+                error.code,
+                format!("无法连接音源「{}」：{}", source.name, error.message),
+            )),
+        }
+    }
+
     /// 把一个具体的文件变成可播放的媒体描述。
     async fn media_source(
         &self,
@@ -279,6 +313,27 @@ impl Resolver {
         let duration_hint_ms = file.duration_ms;
 
         if file.source_kind.is_filesystem() {
+            let path = lekis_vfs::VfsPath::parse(&file.path)
+                .ok_or_else(|| LekisError::invalid(format!("非法音源路径：{}", file.path)))?;
+            // 曲库可能是在上一个进程里扫出来的；VFS 连接可能还没登记、或者已经断开。
+            // 播放前 stat 一次，失败就丢掉旧连接按源配置重开，避免“能看不能播”。
+            let existing_ok = if let Some(vfs) = lekis_playback::vfs_access::resolve(file.source_id)
+            {
+                if vfs.stat(&path).await.is_ok() {
+                    true
+                } else {
+                    lekis_playback::vfs_access::uninstall(file.source_id);
+                    false
+                }
+            } else {
+                false
+            };
+            if !existing_ok {
+                self.ensure_vfs(file.source_id).await?;
+                if let Some(vfs) = lekis_playback::vfs_access::resolve(file.source_id) {
+                    vfs.stat(&path).await?;
+                }
+            }
             return Ok(MediaSource {
                 track_id,
                 location: MediaLocation::Vfs {
@@ -524,6 +579,7 @@ mod tests {
     use super::*;
     use crate::MemoryCredentialStore;
     use lekis_types::{ReplayGain, SourceConfig};
+    use lekis_vfs::local::LocalVfs;
 
     fn source(
         kind: SourceKind,
@@ -631,6 +687,52 @@ mod tests {
         assert_eq!(ReplayGainMode::Album.pick(&only_track), Some(-2.0));
     }
 
+    /// 文件系统音源的内存 VFS 丢失时，播放前必须按源配置重开，而不是直接报 no vfs。
+    #[tokio::test]
+    async fn media_source_reopens_a_missing_vfs() -> Result<()> {
+        let root = std::env::temp_dir().join(format!(
+            "lekis-resolver-vfs-{}-{}",
+            std::process::id(),
+            lekis_types::now_ms()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("a"))?;
+        std::fs::write(root.join("a").join("b.flac"), b"test")?;
+        let library = Library::open(&root.join("library.sqlite"))?;
+        let source_id = library
+            .add_source(SourceConfig {
+                id: None,
+                kind: SourceKind::Local,
+                name: "nas".into(),
+                addresses: vec![root.to_string_lossy().into_owned()],
+                root_path: String::new(),
+                credential_ref: None,
+                options: Default::default(),
+                enabled: true,
+            })
+            .await?;
+        lekis_playback::vfs_access::uninstall(source_id);
+        let resolver = Resolver::new(
+            library,
+            Arc::new(SourceHealth::new()),
+            Arc::new(MemoryCredentialStore::default()),
+        );
+        let file = tf(source_id.0, SourceKind::Local, 100);
+        let media = resolver
+            .media_source(TrackId(1), &file, NetworkContext::Home)
+            .await?;
+        assert!(matches!(
+            media.location,
+            MediaLocation::Vfs { source_id: id, .. } if id == source_id
+        ));
+        assert!(lekis_playback::vfs_access::resolve(source_id).is_some());
+
+        drop(resolver);
+        lekis_playback::vfs_access::uninstall(source_id);
+        let _ = std::fs::remove_dir_all(&root);
+        Ok(())
+    }
+
     /// ReplayGain 必须真的进入 `MediaSource.gain_db`，而不是只停留在设置解析层。
     #[tokio::test]
     async fn media_source_carries_the_selected_replaygain() -> Result<()> {
@@ -641,13 +743,18 @@ mod tests {
         ));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root)?;
+        std::fs::create_dir_all(root.join("a"))?;
+        std::fs::write(root.join("a").join("b.flac"), b"test")?;
         let library = Library::open(&root.join("library.sqlite"))?;
         let resolver = Resolver::new(
             library,
             Arc::new(SourceHealth::new()),
             Arc::new(MemoryCredentialStore::default()),
         );
-        let mut file = tf(1, SourceKind::Local, 100);
+        let source_id = SourceId(424_247);
+        let vfs: Arc<dyn lekis_vfs::Vfs> = Arc::new(LocalVfs::new(&root)?);
+        lekis_playback::vfs_access::install(source_id, vfs);
+        let mut file = tf(source_id.0, SourceKind::Local, 100);
         file.replaygain = ReplayGain {
             track_gain_db: Some(-7.5),
             album_gain_db: Some(-6.0),
@@ -673,6 +780,7 @@ mod tests {
         assert_eq!(media.gain_db, None, "关闭时不能偷偷套用曲目增益");
 
         drop(resolver);
+        lekis_playback::vfs_access::uninstall(source_id);
         let _ = std::fs::remove_dir_all(&root);
         Ok(())
     }

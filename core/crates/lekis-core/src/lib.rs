@@ -437,6 +437,14 @@ impl LekisCore {
                 }
                 // OFF-04：上次进程中断留下的 downloading 行改回 queued；不自动继续。
                 offline::recover(s.clone()).await;
+                // 旧版本只把封面 / 歌词放在缓存里；新版本第一次启动时后台写回源目录。
+                if let Err(error) = sidecars::backfill_if_needed(&s).await {
+                    tracing::debug!(
+                        target: "core::sidecars",
+                        code = %error.code.as_str(),
+                        "sidecar backfill skipped"
+                    );
+                }
             });
         }
 
@@ -2236,7 +2244,7 @@ impl LekisCore {
         });
         let s3 = self.services.clone();
         if let Err(error) = self
-            .run(async move { sidecars::persist_for_track(&s3, id).await })
+            .run(async move { sidecars::persist_for_track(&s3, id, false).await })
             .await
         {
             tracing::debug!(target: "lekis_core::enrich", code = %error.code.as_str(), "persisting sidecars failed");
@@ -2263,7 +2271,7 @@ impl LekisCore {
                             "补全单曲失败，继续下一首"
                         ),
                     }
-                    if let Err(e) = sidecars::persist_for_track(&s, id).await {
+                    if let Err(e) = sidecars::persist_for_track(&s, id, false).await {
                         tracing::debug!(
                             target: "lekis_core::enrich",
                             code = %e.code.as_str(),
@@ -2432,8 +2440,18 @@ impl LekisCore {
     /// 将已存储的版本设为当前歌词（验证该版本确实属于此曲目）。
     pub async fn activate_lyrics(&self, id: TrackId, lyrics_id: i64) -> Result<()> {
         let s = self.services.clone();
-        self.run(async move { s.library.activate_lyrics(id, lyrics_id).await })
-            .await?;
+        self.run(async move {
+            s.library.activate_lyrics(id, lyrics_id).await?;
+            if let Err(error) = sidecars::persist_for_track(&s, id, true).await {
+                tracing::debug!(
+                    target: "core::sidecars",
+                    code = %error.code.as_str(),
+                    "persisting activated lyrics sidecar failed"
+                );
+            }
+            Ok(())
+        })
+        .await?;
         self.services.events.emit(CoreEvent::LibraryChanged {
             scope: LibraryScope::Catalog,
         });
@@ -2457,6 +2475,13 @@ impl LekisCore {
             .run(async move {
                 let created = s.library.save_lyrics(id, lyrics).await?;
                 s.library.activate_lyrics(id, created).await?;
+                if let Err(error) = sidecars::persist_for_track(&s, id, true).await {
+                    tracing::debug!(
+                        target: "core::sidecars",
+                        code = %error.code.as_str(),
+                        "persisting edited lyrics sidecar failed"
+                    );
+                }
                 Ok(created)
             })
             .await?;
@@ -2505,9 +2530,19 @@ impl LekisCore {
         let s = self.services.clone();
         self.run(async move {
             match artwork_id {
-                Some(art) => s.library.set_user_track_artwork(id, art).await,
-                None => s.library.set_track_artwork(id, None).await,
+                Some(art) => s.library.set_user_track_artwork(id, art).await?,
+                None => s.library.set_track_artwork(id, None).await?,
             }
+            if artwork_id.is_some() {
+                if let Err(error) = sidecars::persist_for_track(&s, id, true).await {
+                    tracing::debug!(
+                        target: "core::sidecars",
+                        code = %error.code.as_str(),
+                        "persisting selected artwork sidecar failed"
+                    );
+                }
+            }
+            Ok(())
         })
         .await?;
         self.services.events.emit(CoreEvent::LibraryChanged {
@@ -2560,6 +2595,24 @@ impl LekisCore {
                 for id in &track_ids {
                     s.library.set_user_track_artwork(*id, artwork).await?;
                 }
+                for id in &track_ids {
+                    if let Err(error) = sidecars::persist_for_track(&s, *id, true).await {
+                        tracing::debug!(
+                            target: "core::sidecars",
+                            code = %error.code.as_str(),
+                            "persisting selected artwork sidecar failed"
+                        );
+                    }
+                }
+                if let Some(album_id) = album_id {
+                    if let Err(error) = sidecars::persist_for_album(&s, album_id, true).await {
+                        tracing::debug!(
+                            target: "core::sidecars",
+                            code = %error.code.as_str(),
+                            "persisting album artwork sidecar failed"
+                        );
+                    }
+                }
                 Ok(ArtworkChange {
                     artwork_id: artwork,
                     previous_tracks,
@@ -2594,9 +2647,23 @@ impl LekisCore {
         self.run(async move {
             for (id, previous) in change.previous_tracks {
                 s.library.set_track_artwork(id, previous).await?;
+                if let Err(error) = sidecars::persist_for_track(&s, id, true).await {
+                    tracing::debug!(
+                        target: "core::sidecars",
+                        code = %error.code.as_str(),
+                        "persisting restored artwork sidecar failed"
+                    );
+                }
             }
             if let Some((id, previous)) = change.previous_album {
                 s.library.set_album_artwork(id, previous).await?;
+                if let Err(error) = sidecars::persist_for_album(&s, id, true).await {
+                    tracing::debug!(
+                        target: "core::sidecars",
+                        code = %error.code.as_str(),
+                        "persisting restored album artwork sidecar failed"
+                    );
+                }
             }
             Ok(())
         })

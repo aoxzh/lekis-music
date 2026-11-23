@@ -99,8 +99,12 @@ pub fn open_decoder(media: &MediaSource, handle: &Handle) -> Result<Box<dyn Deco
         }
         MediaLocation::Vfs { source_id, path } => {
             let Some(vfs) = vfs_access::resolve(*source_id) else {
-                return Err(LekisError::not_implemented(
-                    "vfs playback: no vfs resolver installed",
+                return Err(LekisError::new(
+                    ErrorCode::NotImplemented,
+                    format!(
+                        "音源连接未就绪（source {}），请重新扫描或编辑音源",
+                        source_id.0
+                    ),
                 ));
             };
             let Some(vfs_path) = lekis_vfs::VfsPath::parse(path) else {

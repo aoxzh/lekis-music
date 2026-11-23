@@ -241,8 +241,8 @@ abstract final class SettingsStrings {
   static String get writeEnrichSidecars =>
       L10n.tr('补全结果写入音源目录', 'Save Enrichment to Source Folders');
   static String get writeEnrichSidecarsHint => L10n.tr(
-    '封面写成 cover.jpg / 同名图片，歌词写成同名 .lrc；只读共享和媒体服务器会跳过',
-    'Write covers as cover.jpg / track images and lyrics as matching .lrc files; read-only shares and media servers are skipped',
+    '封面写成 cover.jpg / 同名图片，歌词写成同名 .lrc；升级后会后台把已有结果写回一次，只读共享和媒体服务器会跳过',
+    'Write covers as cover.jpg / track images and lyrics as matching .lrc files; existing results are migrated once in the background. Read-only shares and media servers are skipped',
   );
   static String pendingCount(int n) => L10n.tr('$n 条待确认', '$n pending');
   static String get downloads => L10n.tr('下载', 'Downloads');

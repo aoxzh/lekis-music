@@ -15,7 +15,9 @@ use crate::lyrics_local::vfs_for;
 use crate::Services;
 use bytes::Bytes;
 use lekis_library::{cache_relative_path, EnrichCandidateRow};
-use lekis_types::{ErrorCode, LekisError, Lyrics, LyricsFormat, Result, TrackId};
+use lekis_types::{
+    ErrorCode, LekisError, Lyrics, LyricsFormat, Result, TrackId, TrackQuery, TrackSort,
+};
 use lekis_vfs::{EntryKind, Vfs, VfsPath};
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -23,10 +25,20 @@ use std::sync::Arc;
 /// 关闭侧车写入的设置键；缺省为开启。
 pub(crate) const WRITE_SIDECARS_SETTING: &str = "enrich.write_sidecars";
 
+/// 旧版本补全结果迁移到侧车文件的一次性标记。
+const SIDECAR_BACKFILL_SETTING: &str = "enrich.sidecars_backfill";
+
 const LYRICS_EXTS: &[&str] = &["elrc", "ELRC", "lrc", "LRC", "ttml", "txt"];
 
 /// 把一首歌的生效封面 / 歌词写到它所有文件系统副本旁边。
-pub(crate) async fn persist_for_track(services: &Arc<Services>, track_id: TrackId) -> Result<()> {
+///
+/// `overwrite = false` 时保留现有侧车文件（补全 / 迁移用）；用户手动改封面或歌词时传
+/// `true`，让源目录跟着更新。
+pub(crate) async fn persist_for_track(
+    services: &Arc<Services>,
+    track_id: TrackId,
+    overwrite: bool,
+) -> Result<()> {
     if !sidecars_enabled(services).await? {
         return Ok(());
     }
@@ -81,7 +93,9 @@ pub(crate) async fn persist_for_track(services: &Arc<Services>, track_id: TrackI
 
         if need_lyrics {
             if let Some(lyrics) = &lyrics {
-                if let Err(error) = persist_lyrics(vfs.as_ref(), &path, lyrics, &names).await {
+                if let Err(error) =
+                    persist_lyrics(vfs.as_ref(), &path, lyrics, &names, overwrite).await
+                {
                     tracing::debug!(
                         target: "core::sidecars",
                         path = %path,
@@ -105,6 +119,7 @@ pub(crate) async fn persist_for_track(services: &Arc<Services>, track_id: TrackI
                     artwork,
                     album_level,
                     &names,
+                    overwrite,
                 )
                 .await
                 {
@@ -121,17 +136,12 @@ pub(crate) async fn persist_for_track(services: &Arc<Services>, track_id: TrackI
     Ok(())
 }
 
-/// 用户接受一条补全候选后，把结果写到候选涉及的曲目 / 专辑旁边。
-pub(crate) async fn persist_for_candidate(
+/// 一张专辑的所有曲目都尝试写一遍（多碟目录需要每个目录各有一张封面）。
+pub(crate) async fn persist_for_album(
     services: &Arc<Services>,
-    row: &EnrichCandidateRow,
+    album_id: lekis_types::AlbumId,
+    overwrite: bool,
 ) -> Result<()> {
-    if let Some(track_id) = row.track_id {
-        return persist_for_track(services, track_id).await;
-    }
-    let Some(album_id) = row.album_id else {
-        return Ok(());
-    };
     let mut offset = 0u32;
     loop {
         let tracks = services.library.album_tracks(album_id, offset, 200).await?;
@@ -139,7 +149,7 @@ pub(crate) async fn persist_for_candidate(
             return Ok(());
         }
         for track in &tracks {
-            if let Err(error) = persist_for_track(services, track.id).await {
+            if let Err(error) = persist_for_track(services, track.id, overwrite).await {
                 tracing::debug!(
                     target: "core::sidecars",
                     track = track.id.0,
@@ -155,6 +165,83 @@ pub(crate) async fn persist_for_candidate(
     }
 }
 
+/// 用户接受一条补全候选后，把结果写到候选涉及的曲目 / 专辑旁边。
+pub(crate) async fn persist_for_candidate(
+    services: &Arc<Services>,
+    row: &EnrichCandidateRow,
+) -> Result<()> {
+    if let Some(track_id) = row.track_id {
+        return persist_for_track(services, track_id, false).await;
+    }
+    let Some(album_id) = row.album_id else {
+        return Ok(());
+    };
+    persist_for_album(services, album_id, false).await
+}
+
+/// 升级到带侧车写回的新版本后，把旧版本已经补全到缓存里的封面 / 歌词一次性写回源目录。
+///
+/// 这是后台任务：不阻塞启动，失败只记日志；完成后写一个 marker，之后不再扫描。
+pub(crate) async fn backfill_if_needed(services: &Arc<Services>) -> Result<()> {
+    // Unit tests spin up short-lived cores and delete their temp libraries; a
+    // background writer racing them makes assertions non-deterministic.
+    if cfg!(test) {
+        return Ok(());
+    }
+    // Give the app time to finish startup and let a first play start before a
+    // big migration saturates a NAS connection.
+    tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+    if services
+        .library
+        .get_setting(SIDECAR_BACKFILL_SETTING)
+        .await?
+        .as_deref()
+        == Some("done")
+    {
+        return Ok(());
+    }
+    if !sidecars_enabled(services).await? {
+        return Ok(());
+    }
+    const PAGE: u32 = 500;
+    let mut offset = 0u32;
+    let mut checked = 0u64;
+    loop {
+        let tracks = services
+            .library
+            .list_track_rows(TrackQuery {
+                sort: TrackSort::Title,
+                offset,
+                limit: PAGE,
+            })
+            .await?;
+        if tracks.is_empty() {
+            break;
+        }
+        for track in &tracks {
+            if let Err(error) = persist_for_track(services, track.id, false).await {
+                tracing::debug!(
+                    target: "core::sidecars",
+                    track = track.id.0,
+                    code = %error.code.as_str(),
+                    "backfilling sidecar failed"
+                );
+            }
+            checked += 1;
+        }
+        if tracks.len() < PAGE as usize {
+            break;
+        }
+        offset += tracks.len() as u32;
+    }
+    services
+        .library
+        .set_setting(SIDECAR_BACKFILL_SETTING, "done")
+        .await?;
+    tracing::info!(target: "core::sidecars", checked, "sidecar backfill complete");
+    Ok(())
+}
+
 async fn sidecars_enabled(services: &Arc<Services>) -> Result<bool> {
     let value = services.library.get_setting(WRITE_SIDECARS_SETTING).await?;
     Ok(value.as_deref() != Some("false"))
@@ -165,6 +252,7 @@ async fn persist_lyrics(
     audio: &VfsPath,
     lyrics: &Lyrics,
     names: &HashSet<String>,
+    overwrite: bool,
 ) -> Result<()> {
     if matches!(lyrics.source.as_str(), "sidecar" | "embedded") {
         return Ok(());
@@ -181,9 +269,10 @@ async fn persist_lyrics(
         LyricsFormat::Lrc | LyricsFormat::EnhancedLrc => "lrc",
         LyricsFormat::Ttml => "ttml",
     };
-    if LYRICS_EXTS
-        .iter()
-        .any(|candidate| names.contains(&format!("{base}.{candidate}")))
+    if !overwrite
+        && LYRICS_EXTS
+            .iter()
+            .any(|candidate| names.contains(&format!("{base}.{candidate}")))
     {
         return Ok(());
     }
@@ -194,6 +283,7 @@ async fn persist_lyrics(
         .await
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn persist_cover(
     services: &Arc<Services>,
     vfs: &dyn Vfs,
@@ -202,20 +292,22 @@ async fn persist_cover(
     artwork: &lekis_library::ArtworkRow,
     album_level: bool,
     names: &HashSet<String>,
+    overwrite: bool,
 ) -> Result<()> {
     let Some(stem) = audio.as_str().rsplit_once('.').map(|(stem, _)| stem) else {
         return Ok(());
     };
     let file_name = stem.rsplit_once('/').map(|(_, name)| name).unwrap_or(stem);
     let target = if album_level {
-        if SIDECAR_NAMES.iter().any(|name| names.contains(*name)) {
+        if !overwrite && SIDECAR_NAMES.iter().any(|name| names.contains(*name)) {
             return Ok(());
         }
         dir.join("cover.jpg")
     } else {
-        if TRACK_COVER_EXTS
-            .iter()
-            .any(|ext| names.contains(&format!("{file_name}.{ext}")))
+        if !overwrite
+            && TRACK_COVER_EXTS
+                .iter()
+                .any(|ext| names.contains(&format!("{file_name}.{ext}")))
         {
             return Ok(());
         }
@@ -224,7 +316,7 @@ async fn persist_cover(
         };
         target
     };
-    if names.contains(target.file_name().unwrap_or_default()) {
+    if !overwrite && names.contains(target.file_name().unwrap_or_default()) {
         return Ok(());
     }
     let width = tier_for(artwork.width.unwrap_or(1024));
