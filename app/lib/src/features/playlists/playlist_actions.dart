@@ -295,13 +295,15 @@ Future<void> duplicatePlaylistFlow(
   }
 }
 
-enum PlaylistSortMode { title, artist, album, added }
+enum PlaylistSortMode { title, artist, album, added, reverse, shuffle }
 
 String _sortLabel(PlaylistSortMode mode) => switch (mode) {
   PlaylistSortMode.title => PlaylistStrings.sortByTitle,
   PlaylistSortMode.artist => PlaylistStrings.sortByArtist,
   PlaylistSortMode.album => PlaylistStrings.sortByAlbum,
   PlaylistSortMode.added => PlaylistStrings.sortByAdded,
+  PlaylistSortMode.reverse => PlaylistStrings.reverseOrder,
+  PlaylistSortMode.shuffle => PlaylistStrings.shuffleOrder,
 };
 
 int _compareEntry(
@@ -318,6 +320,7 @@ int _compareEntry(
     PlaylistSortMode.artist => text(ta?.artistLine, tb?.artistLine),
     PlaylistSortMode.album => text(ta?.albumTitle, tb?.albumTitle),
     PlaylistSortMode.added => a.addedAt.toInt().compareTo(b.addedAt.toInt()),
+    PlaylistSortMode.reverse || PlaylistSortMode.shuffle => 0,
   };
   return result != 0 ? result : a.trackUid.compareTo(b.trackUid);
 }
@@ -379,6 +382,16 @@ Future<void> showPlaylistSortSheet(
               Icons.schedule_rounded,
               PlaylistStrings.sortByAdded,
             ),
+            item(
+              PlaylistSortMode.reverse,
+              Icons.swap_vert_rounded,
+              PlaylistStrings.reverseOrder,
+            ),
+            item(
+              PlaylistSortMode.shuffle,
+              Icons.shuffle_rounded,
+              PlaylistStrings.shuffleOrder,
+            ),
           ],
         ),
       );
@@ -401,7 +414,16 @@ Future<void> sortPlaylistFlow(
       ..showSnackBar(SnackBar(content: Text(PlaylistStrings.nothingToSort)));
     return;
   }
-  final target = [...rows]..sort((a, b) => _compareEntry(a, b, mode));
+  final target = switch (mode) {
+    PlaylistSortMode.title ||
+    PlaylistSortMode.artist ||
+    PlaylistSortMode.album ||
+    PlaylistSortMode.added => [
+      ...rows,
+    ]..sort((a, b) => _compareEntry(a, b, mode)),
+    PlaylistSortMode.reverse => rows.reversed.toList(),
+    PlaylistSortMode.shuffle => [...rows]..shuffle(),
+  };
   var same = true;
   for (var i = 0; i < rows.length; i++) {
     if (rows[i].positionKey != target[i].positionKey) {
