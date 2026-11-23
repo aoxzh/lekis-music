@@ -333,9 +333,25 @@ class _StatsBody extends ConsumerWidget {
           const SizedBox(height: LekisSpacing.lg),
         ],
         if (summary.topTracks.isNotEmpty) ...[
-          Text(
-            context.l10n.pick('最常听的曲目', 'Top Tracks'),
-            style: Theme.of(context).textTheme.titleMedium,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  context.l10n.pick('最常听的曲目', 'Top Tracks'),
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              IconButton(
+                tooltip: context.l10n.pick('播放全部', 'Play all'),
+                onPressed: () => _playAll(context, ref),
+                icon: const Icon(Icons.play_arrow_rounded),
+              ),
+              IconButton(
+                tooltip: context.l10n.pick('随机播放', 'Shuffle'),
+                onPressed: () => _playAll(context, ref, shuffle: true),
+                icon: const Icon(Icons.shuffle_rounded),
+              ),
+            ],
           ),
           const SizedBox(height: LekisSpacing.sm),
           Card(
@@ -442,6 +458,15 @@ class _StatsBody extends ConsumerWidget {
           ),
         );
     }
+  }
+
+  void _playAll(BuildContext context, WidgetRef ref, {bool shuffle = false}) {
+    final tracks = summary.topTracks
+        .map((item) => item.track)
+        .toList(growable: false);
+    if (tracks.isEmpty) return;
+    ref.read(playerActionsProvider).playRows(tracks, shuffle: shuffle);
+    Navigator.of(context).pop();
   }
 
   void _playFrom(BuildContext context, WidgetRef ref, int index) {
