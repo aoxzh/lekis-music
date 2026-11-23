@@ -221,6 +221,85 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
       );
   }
 
+  Future<void> _clearUpcoming(BuildContext context) async {
+    final playback = ref.read(playbackProvider);
+    final current = playback.queueIndex;
+    final length = playback.queueLength;
+    if (current == null || current + 1 >= length) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(context.l10n.pick('没有未播放的曲目', 'No upcoming tracks')),
+          ),
+        );
+      return;
+    }
+    final count = length - current - 1;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(context.l10n.pick('清除未播放曲目？', 'Clear upcoming tracks?')),
+        content: Text(
+          context.l10n.pick(
+            '将移除当前曲目之后的 $count 首，当前播放不会停止。',
+            'This removes the $count tracks after the current one; playback keeps going.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(false),
+            child: Text(context.l10n.pick('取消', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialog).pop(true),
+            child: Text(context.l10n.pick('清除', 'Clear')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    var failed = 0;
+    try {
+      for (var i = length - 1; i > current; i--) {
+        try {
+          core.queueRemove(index: i);
+        } catch (_) {
+          failed++;
+        }
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                failed == 0
+                    ? context.l10n.pick('已清除未播放曲目', 'Upcoming tracks cleared')
+                    : context.l10n.pick(
+                        '已清除，$failed 首失败',
+                        'Cleared with $failed failures',
+                      ),
+              ),
+            ),
+          );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                context.l10n.pick('清除队列失败：$e', 'Failed to clear queue: $e'),
+              ),
+            ),
+          );
+      }
+    }
+  }
+
   Future<void> _showRowMenu(
     BuildContext context,
     TrackRowDto row,
@@ -745,6 +824,10 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
                     ? null
                     : () => _saveQueueAsPlaylist(context),
                 onClear: queueLength == 0 ? null : () => _confirmClear(context),
+                onClearUpcoming:
+                    currentIndex == null || currentIndex + 1 >= queueLength
+                    ? null
+                    : () => _clearUpcoming(context),
                 onFind: queueLength == 0 ? null : () => _findInQueue(context),
                 onJumpToCurrent: currentIndex == null
                     ? null
@@ -864,7 +947,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
   }
 }
 
-enum _QueueHeaderAction { find, copy, saveAsPlaylist, clear }
+enum _QueueHeaderAction { find, copy, saveAsPlaylist, clearUpcoming, clear }
 
 class _QueueHeader extends StatelessWidget {
   const _QueueHeader({
@@ -872,6 +955,7 @@ class _QueueHeader extends StatelessWidget {
     this.onCopy,
     this.onSaveAsPlaylist,
     this.onClear,
+    this.onClearUpcoming,
     this.onFind,
     this.onJumpToCurrent,
     this.onClose,
@@ -881,6 +965,7 @@ class _QueueHeader extends StatelessWidget {
   final VoidCallback? onCopy;
   final VoidCallback? onSaveAsPlaylist;
   final VoidCallback? onClear;
+  final VoidCallback? onClearUpcoming;
   final VoidCallback? onFind;
   final VoidCallback? onJumpToCurrent;
   final VoidCallback? onClose;
@@ -913,6 +998,7 @@ class _QueueHeader extends StatelessWidget {
             if (onFind != null ||
                 onCopy != null ||
                 onSaveAsPlaylist != null ||
+                onClearUpcoming != null ||
                 onClear != null)
               PopupMenuButton<_QueueHeaderAction>(
                 key: const ValueKey('queue-panel.more'),
@@ -926,6 +1012,8 @@ class _QueueHeader extends StatelessWidget {
                       onCopy?.call();
                     case _QueueHeaderAction.saveAsPlaylist:
                       onSaveAsPlaylist?.call();
+                    case _QueueHeaderAction.clearUpcoming:
+                      onClearUpcoming?.call();
                     case _QueueHeaderAction.clear:
                       onClear?.call();
                   }
@@ -962,6 +1050,18 @@ class _QueueHeader extends StatelessWidget {
                         leading: const Icon(Icons.playlist_add_rounded),
                         title: Text(
                           context.l10n.pick('保存为歌单', 'Save as Playlist'),
+                        ),
+                      ),
+                    ),
+                  if (onClearUpcoming != null)
+                    PopupMenuItem(
+                      value: _QueueHeaderAction.clearUpcoming,
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.playlist_remove_rounded),
+                        title: Text(
+                          context.l10n.pick('清除未播放曲目', 'Clear Upcoming'),
                         ),
                       ),
                     ),
