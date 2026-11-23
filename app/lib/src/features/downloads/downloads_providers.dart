@@ -116,6 +116,18 @@ class DownloadsController extends AsyncNotifier<DownloadsState> {
     await _refreshQuietly();
   }
 
+  /// Delete every completed offline file and refresh the list once. Returns
+  /// how many downloads were removed.
+  Future<int> clearCompleted() async {
+    final entries = state.value?.ready.toList() ?? const <DownloadEntry>[];
+    if (entries.isEmpty) return 0;
+    for (final entry in entries) {
+      await core.removeDownload(trackId: entry.trackId);
+    }
+    await _refreshQuietly();
+    return entries.length;
+  }
+
   Future<void> retry(int trackId) => downloadTrack(trackId);
 
   void playDownloaded(int trackId) {

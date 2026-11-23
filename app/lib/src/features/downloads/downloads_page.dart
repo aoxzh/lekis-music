@@ -85,10 +85,75 @@ class DownloadsPage extends ConsumerWidget {
     await startDownloads(context, ref, ids);
   }
 
+  Future<void> _clearCompleted(BuildContext context, WidgetRef ref) async {
+    final l10n = context.l10n;
+    final count = ref.read(downloadsProvider).value?.ready.length ?? 0;
+    if (count == 0) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(l10n.pick('没有已完成的下载', 'No completed downloads')),
+          ),
+        );
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(l10n.pick('清理已完成的下载？', 'Clear completed downloads?')),
+        content: Text(
+          l10n.pick(
+            '会删除 $count 个离线文件，之后可以重新下载。',
+            'This removes $count offline files; you can download them again later.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(false),
+            child: Text(l10n.pick('取消', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialog).pop(true),
+            child: Text(l10n.pick('清理', 'Clear')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      final removed = await ref
+          .read(downloadsProvider.notifier)
+          .clearCompleted();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.pick('已清理 $removed 个下载', 'Cleared $removed downloads'),
+            ),
+          ),
+        );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.pick('清理下载失败：$e', 'Failed to clear downloads: $e'),
+            ),
+          ),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final async = ref.watch(downloadsProvider);
+    final hasCompleted = async.value?.ready.isNotEmpty ?? false;
     return SettingsScaffold(
       title: l10n.pick('下载', 'Downloads'),
       actions: [
@@ -100,6 +165,8 @@ class DownloadsPage extends ConsumerWidget {
                 _downloadLoved(context, ref);
               case 'most-played':
                 _downloadMostPlayed(context, ref);
+              case 'clear-completed':
+                _clearCompleted(context, ref);
             }
           },
           itemBuilder: (_) => [
@@ -117,6 +184,16 @@ class DownloadsPage extends ConsumerWidget {
                 title: Text(l10n.pick('下载最常听 50 首', 'Download Top 50')),
               ),
             ),
+            if (hasCompleted)
+              PopupMenuItem(
+                value: 'clear-completed',
+                child: ListTile(
+                  leading: const Icon(Icons.delete_sweep_outlined),
+                  title: Text(
+                    l10n.pick('清理已完成的下载', 'Clear Completed Downloads'),
+                  ),
+                ),
+              ),
           ],
         ),
         IconButton(
@@ -222,9 +299,9 @@ class _SummaryCard extends StatelessWidget {
             subtitle: Text(
               l10n.pick(
                 '共 ${formatBytes(state.totalBytes)}'
-                '${active > 0 ? ' · $active 首正在下载' : ''}',
+                    '${active > 0 ? ' · $active 首正在下载' : ''}',
                 '${formatBytes(state.totalBytes)} total'
-                '${active > 0 ? ' · $active downloading' : ''}',
+                    '${active > 0 ? ' · $active downloading' : ''}',
               ),
             ),
           ),
