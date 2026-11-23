@@ -27,6 +27,8 @@ final searchResultsProvider = FutureProvider.autoDispose<SearchResultsDto?>((
 ) async {
   final query = ref.watch(searchQueryProvider).trim();
   final source = ref.watch(searchSourceProvider);
+  ref.invalidateOnCatalogChange();
+  ref.cacheFor(const Duration(seconds: 30));
   if (query.isEmpty) return null;
 
   var cancelled = false;
@@ -49,6 +51,7 @@ final librarySourceSearchProvider = FutureProvider.autoDispose
     .family<SearchResultsDto?, (String, String)>((ref, request) async {
       final (pluginId, text) = request;
       final query = text.trim();
+      ref.cacheFor(const Duration(seconds: 30));
       if (query.isEmpty) return null;
       var cancelled = false;
       ref.onDispose(() => cancelled = true);
