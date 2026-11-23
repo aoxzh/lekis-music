@@ -31,6 +31,7 @@ class RadioPage extends ConsumerStatefulWidget {
 
 class _RadioPageState extends ConsumerState<RadioPage> {
   final _search = TextEditingController();
+  final _localSearch = TextEditingController();
   final Map<int, bool> _favoriteOverrides = {};
   _RadioTab _tab = _RadioTab.popular;
   String? _countryCode;
@@ -41,6 +42,7 @@ class _RadioPageState extends ConsumerState<RadioPage> {
   void initState() {
     super.initState();
     _search.addListener(_onSearchChanged);
+    _localSearch.addListener(_onSearchChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       // 从正在播放页收藏 / 最近播放后回到这里时，列表需要重新读库。
@@ -54,6 +56,8 @@ class _RadioPageState extends ConsumerState<RadioPage> {
   void dispose() {
     _search.removeListener(_onSearchChanged);
     _search.dispose();
+    _localSearch.removeListener(_onSearchChanged);
+    _localSearch.dispose();
     super.dispose();
   }
 
@@ -61,6 +65,17 @@ class _RadioPageState extends ConsumerState<RadioPage> {
 
   bool _favoriteOf(RadioStationDto station) =>
       _favoriteOverrides[station.id] ?? station.favorite;
+
+  bool _matchesLocal(RadioStationDto station, String query) {
+    bool has(String? value) =>
+        value != null && value.toLowerCase().contains(query);
+    return has(station.name) ||
+        has(station.country) ||
+        has(station.countryCode) ||
+        has(station.language) ||
+        has(station.codec) ||
+        station.tags.any((tag) => tag.toLowerCase().contains(query));
+  }
 
   Future<void> _applyBrowse() async {
     try {
@@ -496,26 +511,77 @@ class _RadioPageState extends ConsumerState<RadioPage> {
                 : null,
           );
         }
-        return ListView.builder(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.fromLTRB(
-            pageGutterOf(context) - LekisSpacing.sm,
-            LekisSpacing.xs,
-            pageGutterOf(context) - LekisSpacing.sm,
-            scrollEndPadding(context),
-          ),
-          itemCount: list.length,
-          itemBuilder: (context, index) {
-            final station = list[index];
-            return RadioStationTile(
-              station: station,
-              playing: currentTrackId == -station.id,
-              favorite: _favoriteOf(station),
-              onPlay: () => _play(list, index),
-              onToggleFavorite: () => _toggleFavorite(station),
-              onDelete: deletable ? () => _deleteCustom(station) : null,
-            );
-          },
+        final query = _localSearch.text.trim().toLowerCase();
+        final filtered = query.isEmpty
+            ? list
+            : [
+                for (final station in list)
+                  if (_matchesLocal(station, query)) station,
+              ];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                pageGutterOf(context),
+                LekisSpacing.xs,
+                pageGutterOf(context),
+                LekisSpacing.sm,
+              ),
+              child: TextField(
+                controller: _localSearch,
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: RadioStrings.localSearchHint,
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: query.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: RadioStrings.clear,
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: _localSearch.clear,
+                        ),
+                  isDense: true,
+                ),
+              ),
+            ),
+            Expanded(
+              child: filtered.isEmpty
+                  ? _EmptyState(
+                      icon: Icons.search_off_rounded,
+                      title: RadioStrings.noMatch,
+                      message: RadioStrings.noMatchBody,
+                      action: OutlinedButton.icon(
+                        onPressed: _localSearch.clear,
+                        icon: const Icon(Icons.close_rounded),
+                        label: Text(RadioStrings.clearSearch),
+                      ),
+                    )
+                  : ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(
+                        pageGutterOf(context) - LekisSpacing.sm,
+                        LekisSpacing.xs,
+                        pageGutterOf(context) - LekisSpacing.sm,
+                        scrollEndPadding(context),
+                      ),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final station = filtered[index];
+                        return RadioStationTile(
+                          station: station,
+                          playing: currentTrackId == -station.id,
+                          favorite: _favoriteOf(station),
+                          onPlay: () => _play(filtered, index),
+                          onToggleFavorite: () => _toggleFavorite(station),
+                          onDelete: deletable
+                              ? () => _deleteCustom(station)
+                              : null,
+                        );
+                      },
+                    ),
+            ),
+          ],
         );
       },
     );
@@ -624,31 +690,119 @@ class _EmptyState extends StatelessWidget {
 }
 
 List<RadioFilterOptionDto> get _fallbackCountries => [
-  RadioFilterOptionDto(name: L10n.tr('中国', 'China'), value: 'CN', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('美国', 'United States'), value: 'US', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('英国', 'United Kingdom'), value: 'GB', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('日本', 'Japan'), value: 'JP', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('德国', 'Germany'), value: 'DE', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('法国', 'France'), value: 'FR', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('加拿大', 'Canada'), value: 'CA', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('澳大利亚', 'Australia'), value: 'AU', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('韩国', 'South Korea'), value: 'KR', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('台湾地区', 'Taiwan'), value: 'TW', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('香港', 'Hong Kong'), value: 'HK', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('新加坡', 'Singapore'), value: 'SG', stationCount: 0),
+  RadioFilterOptionDto(
+    name: L10n.tr('中国', 'China'),
+    value: 'CN',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('美国', 'United States'),
+    value: 'US',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('英国', 'United Kingdom'),
+    value: 'GB',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('日本', 'Japan'),
+    value: 'JP',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('德国', 'Germany'),
+    value: 'DE',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('法国', 'France'),
+    value: 'FR',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('加拿大', 'Canada'),
+    value: 'CA',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('澳大利亚', 'Australia'),
+    value: 'AU',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('韩国', 'South Korea'),
+    value: 'KR',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('台湾地区', 'Taiwan'),
+    value: 'TW',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('香港', 'Hong Kong'),
+    value: 'HK',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('新加坡', 'Singapore'),
+    value: 'SG',
+    stationCount: 0,
+  ),
 ];
 
 List<RadioFilterOptionDto> get _fallbackLanguages => [
-  RadioFilterOptionDto(name: L10n.tr('中文', 'Chinese'), value: 'chinese', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('英语', 'English'), value: 'english', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('日语', 'Japanese'), value: 'japanese', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('韩语', 'Korean'), value: 'korean', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('西班牙语', 'Spanish'), value: 'spanish', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('法语', 'French'), value: 'french', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('德语', 'German'), value: 'german', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('意大利语', 'Italian'), value: 'italian', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('葡萄牙语', 'Portuguese'), value: 'portuguese', stationCount: 0),
-  RadioFilterOptionDto(name: L10n.tr('俄语', 'Russian'), value: 'russian', stationCount: 0),
+  RadioFilterOptionDto(
+    name: L10n.tr('中文', 'Chinese'),
+    value: 'chinese',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('英语', 'English'),
+    value: 'english',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('日语', 'Japanese'),
+    value: 'japanese',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('韩语', 'Korean'),
+    value: 'korean',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('西班牙语', 'Spanish'),
+    value: 'spanish',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('法语', 'French'),
+    value: 'french',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('德语', 'German'),
+    value: 'german',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('意大利语', 'Italian'),
+    value: 'italian',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('葡萄牙语', 'Portuguese'),
+    value: 'portuguese',
+    stationCount: 0,
+  ),
+  RadioFilterOptionDto(
+    name: L10n.tr('俄语', 'Russian'),
+    value: 'russian',
+    stationCount: 0,
+  ),
 ];
 
 const _fallbackTags = [
