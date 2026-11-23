@@ -13,6 +13,7 @@ import 'package:lekis/src/features/library/liked_view.dart';
 import 'package:lekis/src/features/library/widgets/album_card.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/paged_track_list.dart';
+import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/playlists/playlists_view.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/layout/adaptive_two_pane.dart';
@@ -580,10 +581,28 @@ class _SongsSegment extends ConsumerWidget {
     final indexOffsets = sort == TrackSortDto.title
         ? ref.watch(trackIndexOffsetsProvider).value
         : null;
+    final actions = ref.read(playerActionsProvider);
+    final gutter = pageGutterOf(context);
+    final contextFor = PlayContextDto.library_(sort: sort);
     return PagedTrackList(
       key: ValueKey(sort),
       list: ref.watch(songsListProvider(sort)),
       indexOffsets: indexOffsets,
+      header: Padding(
+        padding: EdgeInsets.fromLTRB(
+          gutter,
+          LekisSpacing.md,
+          gutter,
+          LekisSpacing.sm,
+        ),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: PlayShuffleButtons(
+            onPlay: () => actions.playContext(contextFor),
+            onShuffle: () => actions.playContext(contextFor, shuffle: true),
+          ),
+        ),
+      ),
     );
   }
 }
