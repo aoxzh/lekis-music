@@ -6,6 +6,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/album_detail_page.dart';
 import 'package:lekis/src/features/library/artist_detail_page.dart';
@@ -476,6 +477,49 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
     }
   }
 
+  Future<void> _copyQueue(BuildContext context) async {
+    final length = ref.read(playbackProvider).queueLength;
+    if (length == 0) return;
+    final l10n = context.l10n;
+    final limit = math.min(length, 500);
+    try {
+      final rows = await core.queueItems(offset: 0, limit: limit);
+      final text = [
+        for (var i = 0; i < rows.length; i++)
+          '${i + 1}. ${rows[i].title}'
+              '${rows[i].artistLine.isEmpty ? '' : ' — ${rows[i].artistLine}'}',
+      ].join('\n');
+      await Clipboard.setData(ClipboardData(text: text));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              length > limit
+                  ? l10n.pick(
+                      '已复制前 $limit 首（共 $length 首）',
+                      'Copied first $limit of $length tracks',
+                    )
+                  : l10n.pick(
+                      '已复制队列（$length 首）',
+                      'Copied $length queue tracks',
+                    ),
+            ),
+          ),
+        );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(l10n.pick('复制队列失败：$e', 'Failed to copy queue: $e')),
+          ),
+        );
+    }
+  }
+
   void _remove(int index) {
     if (_removing.contains(index)) return;
     final version = ref.read(playbackProvider).queueVersion;
@@ -552,6 +596,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
             if (widget.showHeader) ...[
               _QueueHeader(
                 length: queueLength,
+                onCopy: queueLength == 0 ? null : () => _copyQueue(context),
                 onSaveAsPlaylist: queueLength == 0
                     ? null
                     : () => _saveQueueAsPlaylist(context),
@@ -674,11 +719,12 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
   }
 }
 
-enum _QueueHeaderAction { saveAsPlaylist, clear }
+enum _QueueHeaderAction { copy, saveAsPlaylist, clear }
 
 class _QueueHeader extends StatelessWidget {
   const _QueueHeader({
     required this.length,
+    this.onCopy,
     this.onSaveAsPlaylist,
     this.onClear,
     this.onJumpToCurrent,
@@ -686,6 +732,7 @@ class _QueueHeader extends StatelessWidget {
   });
 
   final int length;
+  final VoidCallback? onCopy;
   final VoidCallback? onSaveAsPlaylist;
   final VoidCallback? onClear;
   final VoidCallback? onJumpToCurrent;
@@ -716,13 +763,15 @@ class _QueueHeader extends StatelessWidget {
             const SizedBox(width: LekisSpacing.sm),
             _CountBadge(count: length),
             const Spacer(),
-            if (onSaveAsPlaylist != null || onClear != null)
+            if (onCopy != null || onSaveAsPlaylist != null || onClear != null)
               PopupMenuButton<_QueueHeaderAction>(
                 key: const ValueKey('queue-panel.more'),
                 tooltip: context.l10n.pick('队列操作', 'Queue actions'),
                 icon: const Icon(Icons.more_horiz_rounded, size: 20),
                 onSelected: (action) {
                   switch (action) {
+                    case _QueueHeaderAction.copy:
+                      onCopy?.call();
                     case _QueueHeaderAction.saveAsPlaylist:
                       onSaveAsPlaylist?.call();
                     case _QueueHeaderAction.clear:
@@ -730,6 +779,16 @@ class _QueueHeader extends StatelessWidget {
                   }
                 },
                 itemBuilder: (_) => [
+                  if (onCopy != null)
+                    PopupMenuItem(
+                      value: _QueueHeaderAction.copy,
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.content_copy_rounded),
+                        title: Text(context.l10n.pick('复制队列', 'Copy Queue')),
+                      ),
+                    ),
                   if (onSaveAsPlaylist != null)
                     PopupMenuItem(
                       value: _QueueHeaderAction.saveAsPlaylist,
