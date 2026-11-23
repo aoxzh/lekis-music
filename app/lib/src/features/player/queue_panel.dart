@@ -103,6 +103,26 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
     });
   }
 
+  void _jumpToCurrent(int? currentIndex) {
+    if (currentIndex == null || !_scroll.hasClients) return;
+    final target = math.max(
+      0.0,
+      currentIndex * QueuePanel.rowExtent - QueuePanel.rowExtent * 2,
+    );
+    final clamped = target
+        .clamp(0.0, _scroll.position.maxScrollExtent)
+        .toDouble();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _scroll.jumpTo(clamped);
+    } else {
+      _scroll.animateTo(
+        clamped,
+        duration: LekisMotion.normal,
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
   void _remove(int index) {
     if (_removing.contains(index)) return;
     final version = ref.read(playbackProvider).queueVersion;
@@ -177,7 +197,13 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (widget.showHeader) ...[
-              _QueueHeader(length: queueLength, onClose: widget.onClose),
+              _QueueHeader(
+                length: queueLength,
+                onJumpToCurrent: currentIndex == null
+                    ? null
+                    : () => _jumpToCurrent(currentIndex),
+                onClose: widget.onClose,
+              ),
               Divider(height: 1, color: colors.outline),
             ],
             Expanded(
@@ -290,9 +316,14 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
 }
 
 class _QueueHeader extends StatelessWidget {
-  const _QueueHeader({required this.length, this.onClose});
+  const _QueueHeader({
+    required this.length,
+    this.onJumpToCurrent,
+    this.onClose,
+  });
 
   final int length;
+  final VoidCallback? onJumpToCurrent;
   final VoidCallback? onClose;
 
   @override
@@ -320,6 +351,17 @@ class _QueueHeader extends StatelessWidget {
             const SizedBox(width: LekisSpacing.sm),
             _CountBadge(count: length),
             const Spacer(),
+            if (onJumpToCurrent != null)
+              IconButton(
+                key: const ValueKey('queue-panel.jump-current'),
+                tooltip: context.l10n.pick('定位到正在播放', 'Jump to Now Playing'),
+                constraints: const BoxConstraints(
+                  minWidth: LekisSizes.touchTargetMin,
+                  minHeight: LekisSizes.touchTargetMin,
+                ),
+                onPressed: onJumpToCurrent,
+                icon: const Icon(Icons.my_location_rounded, size: 20),
+              ),
             if (onClose != null)
               IconButton(
                 tooltip: context.l10n.hideQueue,

@@ -48,7 +48,12 @@ fn configure(conn: &Connection) -> Result<()> {
          PRAGMA synchronous = NORMAL;
          PRAGMA foreign_keys = ON;
          PRAGMA busy_timeout = 5000;
-         PRAGMA temp_store = MEMORY;",
+         PRAGMA temp_store = MEMORY;
+         -- 100k-track libraries: keep the hot pages in memory instead of
+         -- re-reading the B-trees for every list / search page. 8 MiB per
+         -- connection keeps the five-connection pool bounded on phones.
+         PRAGMA cache_size = -8192;
+         PRAGMA mmap_size = 67108864;",
     )
     .db()?;
     register_functions(conn)
@@ -78,6 +83,9 @@ impl Library {
         let mut writer = Connection::open(path).db()?;
         configure(&writer)?;
         migrations::run(&mut writer)?;
+        // Refresh planner statistics only when SQLite decides it is worth it;
+        // do it after migrations so new indexes are visible immediately.
+        writer.execute_batch("PRAGMA optimize;").db()?;
 
         let readers = (0..READER_COUNT)
             .map(|_| {
@@ -86,8 +94,13 @@ impl Library {
                     OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
                 )
                 .db()?;
-                conn.execute_batch("PRAGMA busy_timeout = 5000; PRAGMA query_only = ON;")
-                    .db()?;
+                conn.execute_batch(
+                    "PRAGMA busy_timeout = 5000;
+                     PRAGMA query_only = ON;
+                     PRAGMA cache_size = -8192;
+                     PRAGMA mmap_size = 67108864;",
+                )
+                .db()?;
                 register_functions(&conn)?;
                 Ok(Mutex::new(conn))
             })
