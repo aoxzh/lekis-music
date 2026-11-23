@@ -761,6 +761,9 @@ class _LyricsSection extends ConsumerWidget {
     final sparks = ref.watch(lyricsSparksProvider);
     final ruby = ref.watch(lyricsRubyProvider);
     final fontScale = ref.watch(settingProvider(SettingKeys.lyricsFontScale));
+    final translation = ref.watch(
+      settingProvider(SettingKeys.lyricsTranslation),
+    );
     final scale =
         fontScale.value == '0.85' ||
             fontScale.value == '1.15' ||
@@ -821,6 +824,18 @@ class _LyricsSection extends ConsumerWidget {
             () => ref
                 .read(settingProvider(SettingKeys.lyricsFontScale).notifier)
                 .set(value),
+          ),
+        ),
+        SettingsSwitchTile(
+          icon: Icons.translate_rounded,
+          title: SettingsStrings.lyricsTranslation,
+          subtitle: SettingsStrings.lyricsTranslationHint,
+          value: translation.value != 'false',
+          onChanged: (on) => settingsGuard(
+            context,
+            () => ref
+                .read(settingProvider(SettingKeys.lyricsTranslation).notifier)
+                .set(on ? 'true' : 'false'),
           ),
         ),
         // 火花只对逐字舞台有意义，经典视图下不显示这个开关。

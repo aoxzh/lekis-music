@@ -218,6 +218,12 @@ abstract final class SettingsStrings {
   static String get lyricsFontNormal => L10n.tr('标准', 'Normal');
   static String get lyricsFontLarge => L10n.tr('大', 'Large');
   static String get lyricsFontXLarge => L10n.tr('特大', 'Extra large');
+  static String get lyricsTranslation =>
+      L10n.tr('显示歌词翻译', 'Show lyric translations');
+  static String get lyricsTranslationHint => L10n.tr(
+    '歌词里带翻译/罗马音时在原文下方显示；关闭后只显示原文',
+    'Show translations / romanisation under the original lines when present; turn off to show only the original text',
+  );
   static String get rubyOff => L10n.tr('关闭', 'Off');
   static String get rubyPlain => L10n.tr('拼音', 'Pinyin');
   static String get rubyTone => L10n.tr('带声调', 'With Tones');

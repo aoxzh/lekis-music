@@ -87,6 +87,19 @@ class LyricsView extends ConsumerWidget {
         }
         synced = parsed.synced;
         offsetMs = parsed.offsetMs;
+        final showTranslation =
+            ref.watch(settingProvider(SettingKeys.lyricsTranslation)).value !=
+            'false';
+        final display = showTranslation
+            ? parsed
+            : ParsedLyrics(
+                lines: [
+                  for (final line in parsed.lines)
+                    LyricLine(line.startMs, line.text, words: line.words),
+                ],
+                synced: parsed.synced,
+                offsetMs: parsed.offsetMs,
+              );
         final base = LekisText.lyricsActive.copyWith(
           color: theme.colorScheme.onSurface,
         );
@@ -97,10 +110,10 @@ class LyricsView extends ConsumerWidget {
         final style = base.copyWith(
           fontSize: (base.fontSize ?? 30) * (compact ? 0.8 : 1.0) * scale,
         );
-        if (!parsed.synced) {
+        if (!display.synced) {
           return _PlainLyrics(
             key: const ValueKey('plain'),
-            lyrics: parsed,
+            lyrics: display,
             style: style.copyWith(fontWeight: FontWeight.w600),
           );
         }
@@ -109,7 +122,7 @@ class LyricsView extends ConsumerWidget {
         if (stageStyle == null) {
           return ClassicLyrics(
             key: ValueKey('classic-$trackId'),
-            lyrics: parsed,
+            lyrics: display,
             style: style,
             compact: compact,
             lowPower: lowPower,
@@ -117,7 +130,7 @@ class LyricsView extends ConsumerWidget {
         }
         return LyricsStage(
           key: ValueKey('stage-$trackId'),
-          lyrics: parsed,
+          lyrics: display,
           style: stageStyle,
           sparks: ref.watch(lyricsSparksProvider),
           baseStyle: style,
