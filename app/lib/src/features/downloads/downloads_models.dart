@@ -107,16 +107,19 @@ class DownloadsState {
   final int totalBytes;
 
   bool get isEmpty => entries.isEmpty;
-  bool get hasActive => entries.any((e) => e.isActive || e.isQueued);
+  bool get hasActive => active.isNotEmpty;
 
   DownloadEntry? entryFor(int trackId) => _byTrackId[trackId];
 
-  List<DownloadEntry> get active =>
-      entries.where((e) => e.isActive || e.isQueued).toList(growable: false);
-  List<DownloadEntry> get failed =>
-      entries.where((e) => e.isFailed).toList(growable: false);
-  List<DownloadEntry> get ready =>
-      entries.where((e) => e.isReady).toList(growable: false);
+  late final List<DownloadEntry> active = entries
+      .where((e) => e.isActive || e.isQueued)
+      .toList(growable: false);
+  late final List<DownloadEntry> failed = entries
+      .where((e) => e.isFailed)
+      .toList(growable: false);
+  late final List<DownloadEntry> ready = entries
+      .where((e) => e.isReady)
+      .toList(growable: false);
 
   /// 下载进度事件只改内存里的字节数，不重新查库。
   DownloadsState withProgress(int trackId, int downloaded, int? total) {
