@@ -238,131 +238,161 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
         final errorColor = Theme.of(sheet).colorScheme.error;
         void close() => Navigator.of(sheet).pop();
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (row.albumTitle != null && row.albumTitle!.isNotEmpty)
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (row.albumTitle != null && row.albumTitle!.isNotEmpty)
+                  ListTile(
+                    leading: const Icon(Icons.album_outlined),
+                    title: Text(l10n.pick('查看专辑', 'View Album')),
+                    onTap: () {
+                      close();
+                      unawaited(_openAlbum(context, row, messenger));
+                    },
+                  ),
+                if (row.artistLine.isNotEmpty)
+                  ListTile(
+                    leading: const Icon(Icons.person_outline_rounded),
+                    title: Text(l10n.pick('查看艺人', 'View Artist')),
+                    onTap: () {
+                      close();
+                      unawaited(_openArtist(context, row, messenger));
+                    },
+                  ),
                 ListTile(
-                  leading: const Icon(Icons.album_outlined),
-                  title: Text(l10n.pick('查看专辑', 'View Album')),
-                  onTap: () {
+                  leading: Icon(
+                    loved
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                  ),
+                  title: Text(
+                    loved
+                        ? l10n.pick('取消喜欢', 'Unlike')
+                        : l10n.pick('喜欢', 'Like'),
+                  ),
+                  onTap: () async {
                     close();
-                    unawaited(_openAlbum(context, row, messenger));
-                  },
-                ),
-              if (row.artistLine.isNotEmpty)
-                ListTile(
-                  leading: const Icon(Icons.person_outline_rounded),
-                  title: Text(l10n.pick('查看艺人', 'View Artist')),
-                  onTap: () {
-                    close();
-                    unawaited(_openArtist(context, row, messenger));
-                  },
-                ),
-              ListTile(
-                leading: Icon(
-                  loved
-                      ? Icons.favorite_rounded
-                      : Icons.favorite_border_rounded,
-                ),
-                title: Text(
-                  loved ? l10n.pick('取消喜欢', 'Unlike') : l10n.pick('喜欢', 'Like'),
-                ),
-                onTap: () async {
-                  close();
-                  final ok = await ref
-                      .read(libraryActionsProvider)
-                      .setLoved(row.id, !loved);
-                  if (!ok) {
-                    messenger
-                      ..hideCurrentSnackBar()
-                      ..showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            l10n.pick(
-                              '更新收藏失败，请稍后再试',
-                              'Failed to update favorite, please try again later',
+                    final ok = await ref
+                        .read(libraryActionsProvider)
+                        .setLoved(row.id, !loved);
+                    if (!ok) {
+                      messenger
+                        ..hideCurrentSnackBar()
+                        ..showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              l10n.pick(
+                                '更新收藏失败，请稍后再试',
+                                'Failed to update favorite, please try again later',
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                  }
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.playlist_add_rounded),
-                title: Text(l10n.pick('添加到歌单', 'Add to Playlist')),
-                onTap: () {
-                  close();
-                  unawaited(
-                    showAddToPlaylistSheet(
-                      context,
-                      trackId: row.id,
-                      trackTitle: row.title,
-                    ),
-                  );
-                },
-              ),
-              if (!row.isLocal || downloadState != null)
+                        );
+                    }
+                  },
+                ),
                 ListTile(
-                  leading: Icon(switch (downloadState) {
-                    null => Icons.download_for_offline_outlined,
-                    OfflineStateDto.ready => Icons.delete_outline_rounded,
-                    OfflineStateDto.failed => Icons.refresh_rounded,
-                    OfflineStateDto.downloading => Icons.close_rounded,
-                    OfflineStateDto.queued => Icons.download_rounded,
-                  }),
-                  title: Text(downloadMenuLabel(downloadState)),
+                  leading: const Icon(Icons.playlist_add_rounded),
+                  title: Text(l10n.pick('添加到歌单', 'Add to Playlist')),
                   onTap: () {
                     close();
                     unawaited(
-                      runDownloadMenuAction(
+                      showAddToPlaylistSheet(
                         context,
-                        ref,
-                        row.id,
-                        downloadState,
+                        trackId: row.id,
+                        trackTitle: row.title,
                       ),
                     );
                   },
                 ),
-              ListTile(
-                leading: const Icon(Icons.keyboard_arrow_up_rounded),
-                title: Text(l10n.pick('上移', 'Move up')),
-                enabled: index > 0,
-                onTap: index > 0
-                    ? () {
-                        close();
-                        ref
-                            .read(playerActionsProvider)
-                            .moveQueueItem(index, index - 1);
-                      }
-                    : null,
-              ),
-              ListTile(
-                leading: const Icon(Icons.keyboard_arrow_down_rounded),
-                title: Text(l10n.pick('下移', 'Move down')),
-                enabled: index + 1 < length,
-                onTap: index + 1 < length
-                    ? () {
-                        close();
-                        ref
-                            .read(playerActionsProvider)
-                            .moveQueueItem(index, index + 1);
-                      }
-                    : null,
-              ),
-              ListTile(
-                leading: Icon(Icons.close_rounded, color: errorColor),
-                title: Text(
-                  l10n.pick('从队列移除', 'Remove from Queue'),
-                  style: TextStyle(color: errorColor),
+                if (!row.isLocal || downloadState != null)
+                  ListTile(
+                    leading: Icon(switch (downloadState) {
+                      null => Icons.download_for_offline_outlined,
+                      OfflineStateDto.ready => Icons.delete_outline_rounded,
+                      OfflineStateDto.failed => Icons.refresh_rounded,
+                      OfflineStateDto.downloading => Icons.close_rounded,
+                      OfflineStateDto.queued => Icons.download_rounded,
+                    }),
+                    title: Text(downloadMenuLabel(downloadState)),
+                    onTap: () {
+                      close();
+                      unawaited(
+                        runDownloadMenuAction(
+                          context,
+                          ref,
+                          row.id,
+                          downloadState,
+                        ),
+                      );
+                    },
+                  ),
+                ListTile(
+                  leading: const Icon(Icons.keyboard_arrow_up_rounded),
+                  title: Text(l10n.pick('上移', 'Move up')),
+                  enabled: index > 0,
+                  onTap: index > 0
+                      ? () {
+                          close();
+                          ref
+                              .read(playerActionsProvider)
+                              .moveQueueItem(index, index - 1);
+                        }
+                      : null,
                 ),
-                onTap: () {
-                  close();
-                  _remove(index);
-                },
-              ),
-            ],
+                ListTile(
+                  leading: const Icon(Icons.keyboard_arrow_down_rounded),
+                  title: Text(l10n.pick('下移', 'Move down')),
+                  enabled: index + 1 < length,
+                  onTap: index + 1 < length
+                      ? () {
+                          close();
+                          ref
+                              .read(playerActionsProvider)
+                              .moveQueueItem(index, index + 1);
+                        }
+                      : null,
+                ),
+                ListTile(
+                  leading: const Icon(Icons.vertical_align_top_rounded),
+                  title: Text(l10n.pick('移到顶部', 'Move to top')),
+                  enabled: index > 0,
+                  onTap: index > 0
+                      ? () {
+                          close();
+                          ref
+                              .read(playerActionsProvider)
+                              .moveQueueItem(index, 0);
+                        }
+                      : null,
+                ),
+                ListTile(
+                  leading: const Icon(Icons.vertical_align_bottom_rounded),
+                  title: Text(l10n.pick('移到底部', 'Move to bottom')),
+                  enabled: index + 1 < length,
+                  onTap: index + 1 < length
+                      ? () {
+                          close();
+                          ref
+                              .read(playerActionsProvider)
+                              .moveQueueItem(index, length - 1);
+                        }
+                      : null,
+                ),
+                ListTile(
+                  leading: Icon(Icons.close_rounded, color: errorColor),
+                  title: Text(
+                    l10n.pick('从队列移除', 'Remove from Queue'),
+                    style: TextStyle(color: errorColor),
+                  ),
+                  onTap: () {
+                    close();
+                    _remove(index);
+                  },
+                ),
+              ],
+            ),
           ),
         );
       },
