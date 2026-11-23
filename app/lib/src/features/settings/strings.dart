@@ -11,8 +11,10 @@ abstract final class SettingsStrings {
   static String get groupMore => L10n.tr('更多', 'More');
   static String get playbackHint =>
       L10n.tr('输出设备、无缝播放、均衡器、睡眠定时', 'Output device, gapless, EQ, sleep timer');
-  static String get appearanceHint =>
-      L10n.tr('主题、语言、播放页、显示样式与歌词', 'Theme, language, Now Playing, chrome & lyrics');
+  static String get appearanceHint => L10n.tr(
+    '主题、语言、播放页、显示样式与歌词',
+    'Theme, language, Now Playing, chrome & lyrics',
+  );
   static String get appearanceHintDesktop =>
       L10n.tr('主题、语言、播放页样式与歌词', 'Theme, language, Now Playing style & lyrics');
   static String get searchHint => L10n.tr('查找设置', 'Search settings');
@@ -28,10 +30,8 @@ abstract final class SettingsStrings {
     '独占输出、ReplayGain、听歌记录、插件、备份、日志',
     'Exclusive audio, ReplayGain, scrobbling, plugins, backup & logs',
   );
-  static String get aboutHint => L10n.tr(
-    '版本、作者、问题反馈与项目信息',
-    'Version, author, bug reports & project info',
-  );
+  static String get aboutHint =>
+      L10n.tr('版本、作者、问题反馈与项目信息', 'Version, author, bug reports & project info');
   static String sourcesCount(int n) =>
       L10n.tr('$n 个音源', n == 1 ? '1 source' : '$n sources');
   static String get sourcesNone =>
@@ -228,8 +228,10 @@ abstract final class SettingsStrings {
 
   static String get library => L10n.tr('资料库', 'Library');
   static String get sources => L10n.tr('音源', 'Sources');
-  static String get sourcesHint =>
-      L10n.tr('管理本地文件夹、NAS 和媒体服务器', 'Manage local folders, NAS & media servers');
+  static String get sourcesHint => L10n.tr(
+    '管理本地文件夹、NAS 和媒体服务器',
+    'Manage local folders, NAS & media servers',
+  );
   static String get enrichReview => L10n.tr('待确认的补全', 'Metadata Review');
   static String get enrichReviewHint =>
       L10n.tr('检查自动找到的封面、歌词和标签', 'Review auto-matched artwork, lyrics & tags');
@@ -244,6 +246,14 @@ abstract final class SettingsStrings {
     '封面写成 cover.jpg / 同名图片，歌词写成同名 .lrc；升级后会后台把已有结果写回一次，只读共享和媒体服务器会跳过',
     'Write covers as cover.jpg / track images and lyrics as matching .lrc files; existing results are migrated once in the background. Read-only shares and media servers are skipped',
   );
+  static String get sidecarBackfillDone => L10n.tr(
+    '已有补全结果已写回音源目录',
+    'Existing enrichment has been written to source folders',
+  );
+  static String get sidecarBackfillPending => L10n.tr(
+    '启动后会在后台把已有补全结果写回一次',
+    'Existing enrichment will be migrated once in the background after startup',
+  );
   static String pendingCount(int n) => L10n.tr('$n 条待确认', '$n pending');
   static String get downloads => L10n.tr('下载', 'Downloads');
   static String get downloadsHint =>
@@ -257,8 +267,10 @@ abstract final class SettingsStrings {
   static String get pluginsEmpty => L10n.tr('未安装插件', 'No plugins installed');
   static String get pluginLoadFailed =>
       L10n.tr('读取插件列表失败', 'Failed to load plugins');
-  static String pluginsInstalled(int n) =>
-      L10n.tr('已安装 $n 个插件', n == 1 ? '1 plugin installed' : '$n plugins installed');
+  static String pluginsInstalled(int n) => L10n.tr(
+    '已安装 $n 个插件',
+    n == 1 ? '1 plugin installed' : '$n plugins installed',
+  );
 
   static String get scrobbling => L10n.tr('听歌记录', 'Scrobbling');
   static String get scrobbleEnable => L10n.tr('上报听歌记录', 'Enable Scrobbling');
@@ -270,7 +282,8 @@ abstract final class SettingsStrings {
   static String get scrobbleLastFm => 'Last.fm';
   static String get scrobbleListenBrainz => 'ListenBrainz';
   static String get scrobbleLibreFm => 'Libre.fm';
-  static String get scrobbleAccount => L10n.tr('账号与凭据', 'Account & Credentials');
+  static String get scrobbleAccount =>
+      L10n.tr('账号与凭据', 'Account & Credentials');
   static String get scrobbleUsername => L10n.tr('用户名', 'Username');
   static String get scrobbleApiKey => 'API key';
   static String get scrobbleApiSecret => 'API secret';
@@ -285,9 +298,11 @@ abstract final class SettingsStrings {
   static String get scrobbleSave => L10n.tr('保存', 'Save');
   static String get scrobbleTest => L10n.tr('测试连接', 'Test Connection');
   static String get scrobbleTesting => L10n.tr('正在测试…', 'Testing…');
-  static String get scrobbleSaved => L10n.tr('听歌记录设置已保存', 'Scrobbling settings saved');
+  static String get scrobbleSaved =>
+      L10n.tr('听歌记录设置已保存', 'Scrobbling settings saved');
   static String get scrobbleTestOk => L10n.tr('连接正常', 'Connection OK');
-  static String get scrobbleTestFailed => L10n.tr('连接测试失败', 'Connection failed');
+  static String get scrobbleTestFailed =>
+      L10n.tr('连接测试失败', 'Connection failed');
   static String get scrobbleClearSecrets =>
       L10n.tr('清除已保存的凭据', 'Clear Saved Credentials');
   static String get scrobbleSecretKept =>
@@ -322,17 +337,16 @@ abstract final class SettingsStrings {
     '从 GitHub Releases 检测新版本并获取安装包',
     'Check GitHub Releases for a newer version',
   );
-  static String get checkingUpdates => L10n.tr('正在检查更新…', 'Checking for updates…');
+  static String get checkingUpdates =>
+      L10n.tr('正在检查更新…', 'Checking for updates…');
   static String upToDate(String v) =>
       L10n.tr('已是最新版本（v$v）', 'You are up to date (v$v)');
   static String updateAvailableTitle(String v) =>
       L10n.tr('发现新版本 v$v', 'Update Available: v$v');
   static String updateAvailableSubtitle(String v) =>
       L10n.tr('新版本 v$v 可用，点击更新', 'Version v$v is available — tap to update');
-  static String updateReadySubtitle(String v) => L10n.tr(
-    'v$v 已下载就绪，点击立即重启更新',
-    'v$v is ready — tap to restart and update',
-  );
+  static String updateReadySubtitle(String v) =>
+      L10n.tr('v$v 已下载就绪，点击立即重启更新', 'v$v is ready — tap to restart and update');
   static String get downloadUpdate => L10n.tr('立即下载升级', 'Download Update');
   static String get downloadAndUpdate => L10n.tr('下载并更新', 'Download & Update');
   static String get restartToUpdate => L10n.tr('立即重启更新', 'Restart to Update');
@@ -344,8 +358,10 @@ abstract final class SettingsStrings {
   );
   static String get verifyingUpdate =>
       L10n.tr('正在校验 SHA-256…', 'Verifying SHA-256…');
-  static String get extractingUpdate => L10n.tr('正在解压更新包…', 'Extracting update…');
-  static String get downloadingUpdate => L10n.tr('正在下载更新…', 'Downloading update…');
+  static String get extractingUpdate =>
+      L10n.tr('正在解压更新包…', 'Extracting update…');
+  static String get downloadingUpdate =>
+      L10n.tr('正在下载更新…', 'Downloading update…');
   static String get later => L10n.tr('稍后', 'Later');
   static String get retry => L10n.tr('重试', 'Retry');
   static String get cancel => L10n.tr('取消', 'Cancel');

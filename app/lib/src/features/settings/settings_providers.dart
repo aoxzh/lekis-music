@@ -33,6 +33,9 @@ abstract final class SettingKeys {
 
   /// 补全结果写入音源目录：`false` 关闭；缺省开启。
   static const writeEnrichSidecars = 'enrich.write_sidecars';
+
+  /// 旧补全结果迁移标记；核心完成后写 `done`。
+  static const sidecarBackfill = 'enrich.sidecars_backfill';
 }
 
 enum ReplayGainMode {

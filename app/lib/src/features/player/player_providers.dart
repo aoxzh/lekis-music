@@ -180,6 +180,22 @@ final playbackProvider = NotifierProvider<PlaybackController, PlaybackUiState>(
   PlaybackController.new,
 );
 
+/// 最近一次播放命令失败的提示；根布局监听后弹 SnackBar。
+///
+/// core 的播放命令是 Future，旧代码用同步 `try/catch` 包住，异步失败会变成未处理异常，
+/// 用户只看到“点了没反应”。现在统一在这里上报。
+final playbackErrorProvider = NotifierProvider<PlaybackErrorNotifier, String?>(
+  PlaybackErrorNotifier.new,
+);
+
+class PlaybackErrorNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void report(String message) => state = message;
+  void clear() => state = null;
+}
+
 /// Raw position in milliseconds (every core tick).
 class PositionController extends Notifier<int> {
   @override
@@ -306,13 +322,20 @@ class PlayerActions {
 
   PlaybackController get _playback => _ref.read(playbackProvider.notifier);
 
-  void _guard(String what, void Function() body) {
-    try {
-      body();
-    } catch (e) {
-      final message = e is CoreError ? '${e.kind.name}: ${e.detail}' : '$e';
-      debugPrint('player $what failed: $message');
-    }
+  void _guard(String what, FutureOr<void> Function() body) {
+    unawaited(() async {
+      try {
+        await body();
+      } catch (e) {
+        final message = e is CoreError ? e.detail : '$e';
+        debugPrint('player $what failed: $message');
+        try {
+          _ref.read(playbackErrorProvider.notifier).report(message);
+        } catch (_) {
+          // The provider can be gone while the app is shutting down.
+        }
+      }
+    }());
   }
 
   void playPause() {

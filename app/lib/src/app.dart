@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart';
 import 'dev/perf_probe.dart';
 import 'features/mini_mode/mini_player_window.dart';
 import 'features/player/playback_session.dart';
+import 'features/player/player_providers.dart';
 import 'features/player/widgets/player_controls.dart';
 import 'l10n/app_l10n.dart';
 import 'l10n/app_locale.dart';
@@ -21,6 +22,11 @@ import 'theme/theme_settings.dart';
 class LekisApp extends ConsumerWidget {
   const LekisApp({super.key});
 
+  /// Playback command failures are reported by [playerActionsProvider]; the
+  /// root owns the messenger so a failure is visible on every page.
+  static final GlobalKey<ScaffoldMessengerState> messengerKey =
+      GlobalKey<ScaffoldMessengerState>();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // 常驻服务：播放会话保存 / 恢复，以及播放历史计数。
@@ -31,8 +37,20 @@ class LekisApp extends ConsumerWidget {
     final oled = ref.watch(oledBlackProvider);
     final appLocale = ref.watch(appLocaleProvider);
 
+    ref.listen<String?>(playbackErrorProvider, (previous, next) {
+      if (next == null || next.isEmpty) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        messengerKey.currentState
+          ?..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(next)));
+        ref.read(playbackErrorProvider.notifier).clear();
+      });
+    });
+
     return MaterialApp(
       title: L10n.tr('月兔音乐', 'Lekis Music'),
+      scaffoldMessengerKey: messengerKey,
       onGenerateTitle: (context) => context.l10n.appName,
       debugShowCheckedModeBanner: false,
       locale: appLocale.locale,

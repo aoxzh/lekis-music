@@ -91,16 +91,8 @@ enum SettingsCategory {
     SettingsCategoryGroup.general,
     _appearanceSections,
   ),
-  advanced(
-    Icons.tune_rounded,
-    SettingsCategoryGroup.more,
-    _advancedSections,
-  ),
-  about(
-    Icons.info_outline_rounded,
-    SettingsCategoryGroup.more,
-    _aboutSections,
-  );
+  advanced(Icons.tune_rounded, SettingsCategoryGroup.more, _advancedSections),
+  about(Icons.info_outline_rounded, SettingsCategoryGroup.more, _aboutSections);
 
   const SettingsCategory(this.icon, this.group, this._sections);
 
@@ -263,6 +255,13 @@ class _OrganizeSection extends ConsumerWidget {
     final writeSidecars = ref.watch(
       settingProvider(SettingKeys.writeEnrichSidecars),
     );
+    final backfill = ref.watch(settingProvider(SettingKeys.sidecarBackfill));
+    final sidecarEnabled = writeSidecars.value != 'false';
+    final sidecarHint = !sidecarEnabled
+        ? SettingsStrings.writeEnrichSidecarsHint
+        : backfill.value == 'done'
+        ? SettingsStrings.sidecarBackfillDone
+        : SettingsStrings.sidecarBackfillPending;
     return SettingsSection(
       title: SettingsStrings.organize,
       children: [
@@ -276,17 +275,16 @@ class _OrganizeSection extends ConsumerWidget {
         SettingsSwitchTile(
           icon: Icons.save_alt_rounded,
           title: SettingsStrings.writeEnrichSidecars,
-          subtitle: SettingsStrings.writeEnrichSidecarsHint,
-          value: writeSidecars.value != 'false',
+          subtitle: sidecarHint,
+          value: sidecarEnabled,
           onChanged: writeSidecars.isLoading
               ? null
               : (v) => settingsGuard(
                   context,
                   () => ref
                       .read(
-                        settingProvider(
-                          SettingKeys.writeEnrichSidecars,
-                        ).notifier,
+                        settingProvider(SettingKeys.writeEnrichSidecars)
+                            .notifier,
                       )
                       .set(v ? 'true' : 'false'),
                 ),
@@ -348,10 +346,7 @@ class _PlaybackSection extends ConsumerWidget {
               const SizedBox(width: LekisSpacing.xs),
             ],
             choices: [
-              SettingsChoice<String?>(
-                null,
-                SettingsStrings.systemDefault,
-              ),
+              SettingsChoice<String?>(null, SettingsStrings.systemDefault),
               for (final d in output.devices)
                 SettingsChoice<String?>(
                   d.id,
@@ -1040,9 +1035,8 @@ class _AboutSectionState extends ConsumerState<_AboutSection> {
     await showDialog<void>(
       context: context,
       barrierDismissible: true,
-      builder: (dialogContext) => _UpdateDialog(
-        onOpenLink: (url) => _openLink(context, url),
-      ),
+      builder: (dialogContext) =>
+          _UpdateDialog(onOpenLink: (url) => _openLink(context, url)),
     );
   }
 
@@ -1320,9 +1314,7 @@ class _UpdateDialog extends ConsumerWidget {
               const SizedBox(height: 14),
               Text(
                 state.errorMessage!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: scheme.error,
-                ),
+                style: theme.textTheme.bodySmall?.copyWith(color: scheme.error),
               ),
             ] else if (!canInApp && state.capability?.reason != null) ...[
               const SizedBox(height: 12),
