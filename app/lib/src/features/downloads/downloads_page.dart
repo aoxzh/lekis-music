@@ -271,6 +271,13 @@ class DownloadsPage extends ConsumerWidget {
               ),
             ),
             PopupMenuItem(
+              value: DownloadSortMode.artist,
+              child: ListTile(
+                leading: const Icon(Icons.person_outline_rounded),
+                title: Text(l10n.pick('按艺人', 'By Artist')),
+              ),
+            ),
+            PopupMenuItem(
               value: DownloadSortMode.newest,
               child: ListTile(
                 leading: const Icon(Icons.schedule_rounded),
@@ -476,6 +483,15 @@ class _DownloadsBodyState extends ConsumerState<_DownloadsBody> {
             list.sort(
               (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
             );
+          case DownloadSortMode.artist:
+            list.sort((a, b) {
+              final byArtist = a.subtitle.toLowerCase().compareTo(
+                b.subtitle.toLowerCase(),
+              );
+              return byArtist != 0
+                  ? byArtist
+                  : a.title.toLowerCase().compareTo(b.title.toLowerCase());
+            });
           case DownloadSortMode.newest:
             list.sort(
               (a, b) => b.download.createdAt.toInt().compareTo(
