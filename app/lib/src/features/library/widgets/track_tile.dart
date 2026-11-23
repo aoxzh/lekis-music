@@ -1,3 +1,7 @@
+import 'package:lekis/src/rust/api/core.dart' as core;
+import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
+import 'package:lekis/src/features/library/library_actions.dart'
+    show describeCoreError;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/downloads/downloads_providers.dart';
@@ -53,6 +57,7 @@ class TrackTile extends ConsumerWidget {
     this.leadingNumber,
     this.showArtwork = true,
     this.selected = false,
+    this.onlinePlugin = false,
   });
 
   /// Height of every row – use as `ListView.itemExtent`. 56 dp: the 48 dp
@@ -72,6 +77,9 @@ class TrackTile extends ConsumerWidget {
 
   /// 批量选择时高亮。
   final bool selected;
+
+  /// Explicit source context, since NAS/server tracks are also non-local.
+  final bool onlinePlugin;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -107,7 +115,7 @@ class TrackTile extends ConsumerWidget {
         dimension: LekisSizes.listArtwork,
         child: TrackArtwork(
           trackId: track.id,
-          hasArtwork: track.artworkId != null,
+          hasArtwork: track.artworkId != null || !track.isLocal,
           placeholderLabel: track.title,
         ),
       );
@@ -157,7 +165,11 @@ class TrackTile extends ConsumerWidget {
             trackTitle: track.title,
           );
         case _TrackMenuAction.enrich:
-          enrichTracksFlow(context, [track.id]);
+          if (onlinePlugin) {
+            _fetchPluginLyrics(context, ref, track.id);
+          } else {
+            enrichTracksFlow(context, [track.id]);
+          }
         case _TrackMenuAction.artwork:
           changeArtworkFlow(context, trackIds: [track.id]);
         case _TrackMenuAction.sources:
@@ -209,33 +221,39 @@ class TrackTile extends ConsumerWidget {
           title: Text(context.l10n.pick('评分', 'Rate')),
         ),
       ),
-      PopupMenuItem(
-        value: _TrackMenuAction.editTags,
-        child: ListTile(
-          dense: true,
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.edit_note_rounded),
-          title: Text(context.l10n.pick('编辑标签', 'Edit Tags')),
+      if (track.isLocal)
+        PopupMenuItem(
+          value: _TrackMenuAction.editTags,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.edit_note_rounded),
+            title: Text(context.l10n.pick('编辑标签', 'Edit Tags')),
+          ),
         ),
-      ),
       PopupMenuItem(
         value: _TrackMenuAction.enrich,
         child: ListTile(
           dense: true,
           contentPadding: EdgeInsets.zero,
           leading: Icon(Icons.auto_fix_high_rounded),
-          title: Text(EnrichActionStrings.action),
+          title: Text(
+            onlinePlugin
+                ? context.l10n.pick('补全歌词', 'Fetch Lyrics')
+                : EnrichActionStrings.action,
+          ),
         ),
       ),
-      PopupMenuItem(
-        value: _TrackMenuAction.artwork,
-        child: ListTile(
-          dense: true,
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.image_outlined),
-          title: Text(ArtworkActionStrings.change),
+      if (!onlinePlugin)
+        PopupMenuItem(
+          value: _TrackMenuAction.artwork,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.image_outlined),
+            title: Text(ArtworkActionStrings.change),
+          ),
         ),
-      ),
       PopupMenuItem(
         value: _TrackMenuAction.sources,
         child: ListTile(
@@ -427,5 +445,30 @@ class _QualityBadge extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+Future<void> _fetchPluginLyrics(
+  BuildContext context,
+  WidgetRef ref,
+  int id,
+) async {
+  try {
+    final result = await core.retryLyrics(trackId: id);
+    ref.invalidate(lyricsProvider(id));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result == null
+              ? context.l10n.pick('没有找到歌词', 'No lyrics found')
+              : context.l10n.pick('歌词已更新', 'Lyrics updated'),
+        ),
+      ),
+    );
+  } catch (error) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(describeCoreError(error))));
   }
 }

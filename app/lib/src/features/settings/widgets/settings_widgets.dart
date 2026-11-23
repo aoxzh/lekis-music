@@ -707,6 +707,9 @@ class SettingsComboBox<T> extends StatelessWidget {
     final current = choices.where((c) => c.value == value).firstOrNull;
     return MenuAnchor(
       controller: controller,
+      style: MenuStyle(
+        maximumSize: WidgetStatePropertyAll(Size(maxWidth, double.infinity)),
+      ),
       menuChildren: [
         for (final choice in choices)
           MenuItemButton(
@@ -720,7 +723,19 @@ class SettingsComboBox<T> extends StatelessWidget {
             onPressed: choice.enabled && onChanged != null
                 ? () => onChanged!(choice.value)
                 : null,
-            child: Text(choice.label),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: (maxWidth - LekisSpacing.lg * 3).clamp(
+                  0,
+                  double.infinity,
+                ),
+              ),
+              child: Text(
+                choice.label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ),
       ],
       // Hug the label (within min / max) and keep the arrow on the right

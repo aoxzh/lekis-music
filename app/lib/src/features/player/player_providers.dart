@@ -255,10 +255,10 @@ final currentTrackProvider = FutureProvider<TrackDto?>((ref) async {
 });
 
 final currentArtworkProvider = FutureProvider<ArtworkDto?>((ref) async {
-  ref.invalidateOnCatalogChange();
   final id = ref.watch(playbackProvider.select((s) => s.trackId));
   if (id == null) return null;
-  return core.artwork(trackId: id);
+  // Share the row's lookup/cache while a remote cover is being downloaded.
+  return ref.watch(trackArtworkProvider(id).future);
 });
 
 /// First queue index included in [queuePreviewProvider].

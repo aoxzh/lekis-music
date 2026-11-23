@@ -701,7 +701,7 @@ class _PlaylistEntryTile extends StatelessWidget {
                         )
                       : TrackArtwork(
                           trackId: track.id,
-                          hasArtwork: track.artworkId != null,
+                          hasArtwork: track.artworkId != null || !track.isLocal,
                           placeholderLabel: track.title,
                         ),
                 ),

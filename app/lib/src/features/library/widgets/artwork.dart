@@ -236,7 +236,9 @@ class TrackArtwork extends ConsumerWidget {
 
   final int trackId;
 
-  /// `false` skips the lookup entirely (row has no artwork id).
+  /// `false` skips the lookup for a local row with no artwork id.
+  /// Online rows must still resolve: the core may lazily cache their cover
+  /// before an artwork id has been assigned. URLs and authorization stay there.
   final bool hasArtwork;
   final double? radius;
   final String? placeholderLabel;
@@ -263,9 +265,7 @@ class AlbumArtwork extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final hash = album.artworkId != null
-        ? ref.watch(albumArtworkProvider(album.id)).value?.hash
-        : null;
+    final hash = ref.watch(albumArtworkProvider(album.id)).value?.hash;
     return ArtworkImage(
       hash: hash,
       radius: radius ?? LekisRadius.artworkGrid,

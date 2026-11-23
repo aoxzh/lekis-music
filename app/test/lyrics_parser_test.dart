@@ -163,6 +163,20 @@ void main() {
     expect(l.indexAt(60000), 1);
   });
 
+  test('AMLL word spans keep their times and translation stays separate', () {
+    final l = parse(
+      '<tt xmlns:m="http://www.w3.org/ns/ttml#metadata"><body>'
+      '<p begin="1s"><span begin="1s" end="1.5s">青</span>'
+      '<span begin="1.6s" end="2s">空</span>'
+      '<span m:role="x-translation">蓝天</span></p></body></tt>',
+      LyricsFormatDto.ttml,
+    );
+    expect(l.lines.single.text, '青空');
+    expect(l.lines.single.translation, '蓝天');
+    expect(l.lines.single.words!.last.startMs, 1600);
+    expect(l.lines.single.words!.first.endMs, 1500);
+  });
+
   test('TTML paragraphs are timed', () {
     final l = parse(
       '<tt><body><div>'

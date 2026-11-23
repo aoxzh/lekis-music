@@ -376,8 +376,14 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
                                 busy: _busy.contains(plugin.id),
                                 onToggle: (enabled) => _toggle(plugin, enabled),
                                 onRemove: () => _remove(plugin),
-                                onOpen: () =>
-                                    showPluginDetailSheet(context, plugin),
+                                onOpen: () async {
+                                  await showPluginDetailSheet(context, plugin);
+                                  if (mounted) {
+                                    await ref
+                                        .read(pluginListProvider.notifier)
+                                        .reload();
+                                  }
+                                },
                               ),
                           ],
                         ),
@@ -471,6 +477,8 @@ class _PluginRow extends StatelessWidget {
                   else
                     Text(
                       pluginPermissionSummary(plugin.permissions),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall,
                     ),
                 ],

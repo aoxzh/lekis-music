@@ -340,7 +340,7 @@ class _DownloadTile extends ConsumerWidget {
                 ? Icon(Icons.music_note_rounded, color: colors.onSurfaceVariant)
                 : TrackArtwork(
                     trackId: track.id,
-                    hasArtwork: track.artworkId != null,
+                    hasArtwork: track.artworkId != null || !track.isLocal,
                     placeholderLabel: track.title,
                   ),
           ),

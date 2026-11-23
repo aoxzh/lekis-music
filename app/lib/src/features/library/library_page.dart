@@ -1,3 +1,6 @@
+import 'package:lekis/src/features/search/search_page.dart';
+import 'package:lekis/src/features/settings/widgets/settings_widgets.dart';
+import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/album_detail_page.dart';
 import 'package:lekis/src/features/library/albums_view.dart';
@@ -32,106 +35,26 @@ class LibraryPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final segment = ref.watch(librarySegmentProvider);
-    final gutter = pageGutterOf(context);
-    final theme = Theme.of(context);
-    final l10n = context.l10n;
-
-    final header = Padding(
-      padding: EdgeInsets.fromLTRB(
-        gutter,
-        LekisSpacing.lg,
-        gutter - LekisSpacing.sm,
-        LekisSpacing.md,
-      ),
-      child: Wrap(
-        crossAxisAlignment: WrapCrossAlignment.center,
-        alignment: WrapAlignment.spaceBetween,
-        spacing: LekisSpacing.lg,
-        runSpacing: LekisSpacing.sm,
-        children: [
-          Semantics(
-            header: true,
-            child: Text(
-              l10n.navLibrary,
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SegmentedButton<LibrarySegment>(
-                    showSelectedIcon: false,
-                    style: SegmentedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: LekisSpacing.sm,
-                      ),
-                    ),
-                    segments: [
-                      ButtonSegment(
-                        value: LibrarySegment.albums,
-                        label: Text(l10n.segAlbums),
-                      ),
-                      ButtonSegment(
-                        value: LibrarySegment.artists,
-                        label: Text(l10n.segArtists),
-                      ),
-                      ButtonSegment(
-                        value: LibrarySegment.songs,
-                        label: Text(l10n.segSongs),
-                      ),
-                      ButtonSegment(
-                        value: LibrarySegment.genres,
-                        label: Text(l10n.segGenres),
-                      ),
-                      ButtonSegment(
-                        value: LibrarySegment.playlists,
-                        label: Text(l10n.segPlaylists),
-                      ),
-                      ButtonSegment(
-                        value: LibrarySegment.liked,
-                        label: Text(l10n.segLiked),
-                      ),
-                      ButtonSegment(
-                        value: LibrarySegment.folders,
-                        label: Text(l10n.segFolders),
-                      ),
-                    ],
-                    selected: {segment},
-                    onSelectionChanged: (s) =>
-                        ref.read(librarySegmentProvider.notifier).set(s.first),
-                  ),
-                ),
-              ),
-              if (segment == LibrarySegment.albums)
-                const _SortMenu(target: _SortTarget.albums),
-              if (segment == LibrarySegment.albums)
-                IconButton(
-                  tooltip: l10n.coverFlow,
-                  onPressed: () => openCoverFlow(context),
-                  icon: const Icon(Icons.view_carousel_rounded),
-                ),
-              if (segment == LibrarySegment.songs)
-                const _SortMenu(target: _SortTarget.songs),
-            ],
-          ),
-        ],
-      ),
-    );
-
-    final body = switch (segment) {
-      LibrarySegment.albums => const _AlbumsSegment(),
-      LibrarySegment.artists => const _ArtistsSegment(),
-      LibrarySegment.songs => const _SongsSegment(),
-      LibrarySegment.genres => const GenreList(),
-      LibrarySegment.playlists => const PlaylistsView(),
-      LibrarySegment.liked => const LikedSongsView(),
-      LibrarySegment.folders => const FoldersView(),
-    };
+    final source = ref.watch(effectiveLibrarySourceProvider);
+    ref.listen(librarySourcePluginsProvider, (_, plugins) {
+      final selected = ref.read(librarySourceProvider);
+      if (selected != null && !plugins.any((plugin) => plugin.id == selected)) {
+        ref.read(librarySourceProvider.notifier).set(null);
+        ref.read(selectedAlbumProvider.notifier).set(null);
+        ref.read(selectedArtistProvider.notifier).set(null);
+      }
+    });
+    final body = source != null
+        ? SearchPage(key: ValueKey(source), pluginId: source)
+        : switch (segment) {
+            LibrarySegment.albums => const _AlbumsSegment(),
+            LibrarySegment.artists => const _ArtistsSegment(),
+            LibrarySegment.songs => const _SongsSegment(),
+            LibrarySegment.genres => const GenreList(),
+            LibrarySegment.playlists => const PlaylistsView(),
+            LibrarySegment.liked => const LikedSongsView(),
+            LibrarySegment.folders => const FoldersView(),
+          };
 
     return Scaffold(
       body: SafeArea(
@@ -139,15 +62,268 @@ class LibraryPage extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            header,
+            const LibraryHeader(),
             Expanded(
               child: AnimatedSwitcher(
                 duration: LekisMotion.fast,
-                child: KeyedSubtree(key: ValueKey(segment), child: body),
+                // A source change must immediately remove old playable rows.
+                layoutBuilder: (current, _) =>
+                    current ?? const SizedBox.shrink(),
+                child: KeyedSubtree(
+                  key: ValueKey((source, segment)),
+                  child: body,
+                ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Library navigation and tools adapt to the width of the content pane.
+/// A menu keeps all seven categories discoverable when a segmented row cannot fit.
+class LibraryHeader extends ConsumerWidget {
+  const LibraryHeader({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final segment = ref.watch(librarySegmentProvider);
+    final source = ref.watch(effectiveLibrarySourceProvider);
+    final sources = ref.watch(librarySourcePluginsProvider);
+    final gutter = pageGutterOf(context);
+    final theme = Theme.of(context);
+    final l10n = context.l10n;
+    final categories = <LibrarySegment, String>{
+      LibrarySegment.albums: l10n.segAlbums,
+      LibrarySegment.artists: l10n.segArtists,
+      LibrarySegment.songs: l10n.segSongs,
+      LibrarySegment.genres: l10n.segGenres,
+      LibrarySegment.playlists: l10n.segPlaylists,
+      LibrarySegment.liked: l10n.segLiked,
+      LibrarySegment.folders: l10n.segFolders,
+    };
+    void select(LibrarySegment value) =>
+        ref.read(librarySegmentProvider.notifier).set(value);
+
+    final titleStyle = theme.textTheme.headlineMedium?.copyWith(
+      fontWeight: FontWeight.w700,
+    );
+    final title = Semantics(
+      header: true,
+      child: Text(
+        l10n.navLibrary,
+        key: const ValueKey('library-title'),
+        style: titleStyle,
+      ),
+    );
+    final tools = Row(
+      key: const ValueKey('library-header-actions'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (sources.isNotEmpty) const _LibrarySourcePicker(),
+        if (source == null && segment == LibrarySegment.albums)
+          const _SortMenu(target: _SortTarget.albums),
+        if (source == null && segment == LibrarySegment.albums)
+          IconButton(
+            tooltip: l10n.coverFlow,
+            onPressed: () => openCoverFlow(context),
+            icon: const Icon(Icons.view_carousel_rounded),
+          ),
+        if (source == null && segment == LibrarySegment.songs)
+          const _SortMenu(target: _SortTarget.songs),
+      ],
+    );
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        gutter,
+        LekisSpacing.lg,
+        gutter,
+        LekisSpacing.md,
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          double textWidth(String text, TextStyle? style) {
+            final painter = TextPainter(
+              text: TextSpan(text: text, style: style),
+              textDirection: Directionality.of(context),
+              textScaler: MediaQuery.textScalerOf(context),
+            )..layout();
+            final width = painter.width;
+            painter.dispose();
+            return width;
+          }
+
+          final labelStyle =
+              theme.segmentedButtonTheme.style?.textStyle?.resolve({
+                WidgetState.selected,
+              }) ??
+              theme.textTheme.labelLarge;
+          final labelWidth = categories.values
+              .map((label) => textWidth(label, labelStyle))
+              .reduce((a, b) => a > b ? a : b);
+          // SegmentedButton gives each category the widest label's width.
+          // Fit the actual localized/scaled text and reserve two touch targets.
+          final navigationWidth =
+              categories.length * (labelWidth + LekisSpacing.sm * 2);
+          final requiredWidth =
+              textWidth(l10n.navLibrary, titleStyle) +
+              navigationWidth +
+              2 * kMinInteractiveDimension +
+              LekisSpacing.sm +
+              LekisSpacing.lg;
+          final wide =
+              constraints.maxWidth >=
+              requiredWidth + (sources.isEmpty ? 0 : 220);
+          if (source != null) {
+            return Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: LekisSpacing.lg,
+              runSpacing: LekisSpacing.sm,
+              children: [title, tools],
+            );
+          }
+          if (wide) {
+            return Row(
+              children: [
+                title,
+                const Spacer(),
+                SegmentedButton<LibrarySegment>(
+                  key: const ValueKey('library-segments'),
+                  showSelectedIcon: false,
+                  style: SegmentedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: LekisSpacing.sm,
+                    ),
+                  ),
+                  segments: [
+                    for (final category in categories.entries)
+                      ButtonSegment(
+                        value: category.key,
+                        label: Text(category.value),
+                      ),
+                  ],
+                  selected: {segment},
+                  onSelectionChanged: (values) => select(values.first),
+                ),
+                const SizedBox(width: LekisSpacing.sm),
+                tools,
+              ],
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: LekisSpacing.lg,
+                runSpacing: LekisSpacing.sm,
+                children: [title, tools],
+              ),
+              const SizedBox(height: LekisSpacing.sm),
+              DecoratedBox(
+                decoration: ShapeDecoration(
+                  color: context.lekisColors.accentSoft,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(LekisRadius.button),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: LekisSpacing.md,
+                  ),
+                  child: Semantics(
+                    label: l10n.pick('资料库分类', 'Library category'),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<LibrarySegment>(
+                        key: const ValueKey('library-category-select'),
+                        value: segment,
+                        isExpanded: true,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.onSecondaryContainer,
+                        ),
+                        icon: const Icon(Icons.expand_more_rounded),
+                        items: [
+                          for (final category in categories.entries)
+                            DropdownMenuItem(
+                              value: category.key,
+                              child: Text(category.value),
+                            ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) select(value);
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _LibrarySourcePicker extends ConsumerWidget {
+  const _LibrarySourcePicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final source = ref.watch(effectiveLibrarySourceProvider);
+    final choices = [
+      SettingsChoice('', context.l10n.pick('本地资料库', 'Local Library')),
+      for (final plugin in ref.watch(librarySourcePluginsProvider))
+        SettingsChoice(plugin.id, plugin.name),
+    ];
+    void select(String value) {
+      ref.read(selectedAlbumProvider.notifier).set(null);
+      ref.read(selectedArtistProvider.notifier).set(null);
+      ref
+          .read(librarySourceProvider.notifier)
+          .set(value.isEmpty ? null : value);
+    }
+
+    return Semantics(
+      label: context.l10n.pick('资料库音源', 'Library source'),
+      child: SizedBox(
+        key: const ValueKey('library-source-select'),
+        width: 160,
+        child: UiProfile.current.desktopSettings
+            ? SettingsComboBox<String>(
+                value: source ?? '',
+                choices: choices,
+                minWidth: 0,
+                maxWidth: 160,
+                onChanged: select,
+              )
+            : DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: source ?? '',
+                  isExpanded: true,
+                  borderRadius: BorderRadius.circular(LekisRadius.md),
+                  items: [
+                    for (final choice in choices)
+                      DropdownMenuItem(
+                        value: choice.value,
+                        child: Text(
+                          choice.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) select(value);
+                  },
+                ),
+              ),
       ),
     );
   }
@@ -257,7 +433,9 @@ class _ArtistsSegment extends ConsumerWidget {
       ),
       secondary: twoPane
           ? (selected == null
-                ? _PickPrompt(text: context.l10n.pick('选择一位艺人', 'Select an artist'))
+                ? _PickPrompt(
+                    text: context.l10n.pick('选择一位艺人', 'Select an artist'),
+                  )
                 : ArtistDetailView(key: ValueKey(selected), artistId: selected))
           : null,
     );
