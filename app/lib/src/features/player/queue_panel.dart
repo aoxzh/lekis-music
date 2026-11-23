@@ -300,6 +300,93 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
     }
   }
 
+  Future<void> _shuffleUpcoming(BuildContext context) async {
+    final playback = ref.read(playbackProvider);
+    final current = playback.queueIndex;
+    final length = playback.queueLength;
+    if (current == null || current + 2 >= length) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick('没有足够的未播放曲目', 'Not enough upcoming tracks'),
+            ),
+          ),
+        );
+      return;
+    }
+    final count = length - current - 1;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(context.l10n.pick('打乱未播放曲目？', 'Shuffle upcoming tracks?')),
+        content: Text(
+          context.l10n.pick(
+            '将随机重排当前曲目之后的 $count 首，当前播放不会中断。',
+            'This randomly reorders the $count tracks after the current one; playback keeps going.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(false),
+            child: Text(context.l10n.pick('取消', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialog).pop(true),
+            child: Text(context.l10n.pick('打乱', 'Shuffle')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final random = math.Random();
+    var failed = 0;
+    try {
+      for (var i = current + 1; i < length; i++) {
+        final j = i + random.nextInt(length - i);
+        if (j == i) continue;
+        try {
+          core.queueMove(from: j, to: i);
+        } catch (_) {
+          failed++;
+        }
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                failed == 0
+                    ? context.l10n.pick(
+                        '已打乱 $count 首',
+                        'Shuffled $count tracks',
+                      )
+                    : context.l10n.pick(
+                        '已打乱，$failed 首失败',
+                        'Shuffled with $failed failures',
+                      ),
+              ),
+            ),
+          );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                context.l10n.pick('打乱队列失败：$e', 'Failed to shuffle queue: $e'),
+              ),
+            ),
+          );
+      }
+    }
+  }
+
   Future<void> _showRowMenu(
     BuildContext context,
     TrackRowDto row,
@@ -824,6 +911,10 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
                     ? null
                     : () => _saveQueueAsPlaylist(context),
                 onClear: queueLength == 0 ? null : () => _confirmClear(context),
+                onShuffleUpcoming:
+                    currentIndex == null || currentIndex + 2 >= queueLength
+                    ? null
+                    : () => _shuffleUpcoming(context),
                 onClearUpcoming:
                     currentIndex == null || currentIndex + 1 >= queueLength
                     ? null
@@ -947,7 +1038,14 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
   }
 }
 
-enum _QueueHeaderAction { find, copy, saveAsPlaylist, clearUpcoming, clear }
+enum _QueueHeaderAction {
+  find,
+  copy,
+  saveAsPlaylist,
+  shuffleUpcoming,
+  clearUpcoming,
+  clear,
+}
 
 class _QueueHeader extends StatelessWidget {
   const _QueueHeader({
@@ -956,6 +1054,7 @@ class _QueueHeader extends StatelessWidget {
     this.onSaveAsPlaylist,
     this.onClear,
     this.onClearUpcoming,
+    this.onShuffleUpcoming,
     this.onFind,
     this.onJumpToCurrent,
     this.onClose,
@@ -966,6 +1065,7 @@ class _QueueHeader extends StatelessWidget {
   final VoidCallback? onSaveAsPlaylist;
   final VoidCallback? onClear;
   final VoidCallback? onClearUpcoming;
+  final VoidCallback? onShuffleUpcoming;
   final VoidCallback? onFind;
   final VoidCallback? onJumpToCurrent;
   final VoidCallback? onClose;
@@ -998,6 +1098,7 @@ class _QueueHeader extends StatelessWidget {
             if (onFind != null ||
                 onCopy != null ||
                 onSaveAsPlaylist != null ||
+                onShuffleUpcoming != null ||
                 onClearUpcoming != null ||
                 onClear != null)
               PopupMenuButton<_QueueHeaderAction>(
@@ -1012,6 +1113,8 @@ class _QueueHeader extends StatelessWidget {
                       onCopy?.call();
                     case _QueueHeaderAction.saveAsPlaylist:
                       onSaveAsPlaylist?.call();
+                    case _QueueHeaderAction.shuffleUpcoming:
+                      onShuffleUpcoming?.call();
                     case _QueueHeaderAction.clearUpcoming:
                       onClearUpcoming?.call();
                     case _QueueHeaderAction.clear:
@@ -1050,6 +1153,18 @@ class _QueueHeader extends StatelessWidget {
                         leading: const Icon(Icons.playlist_add_rounded),
                         title: Text(
                           context.l10n.pick('保存为歌单', 'Save as Playlist'),
+                        ),
+                      ),
+                    ),
+                  if (onShuffleUpcoming != null)
+                    PopupMenuItem(
+                      value: _QueueHeaderAction.shuffleUpcoming,
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.shuffle_rounded),
+                        title: Text(
+                          context.l10n.pick('打乱未播放曲目', 'Shuffle Upcoming'),
                         ),
                       ),
                     ),
