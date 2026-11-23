@@ -66,6 +66,7 @@ class _ArtistDetailViewState extends ConsumerState<ArtistDetailView> {
     final tracksAsync = ref.watch(artistTracksProvider(artistId));
     final albums = albumsAsync.value ?? const <AlbumDto>[];
     final tracks = tracksAsync.value ?? const <TrackRowDto>[];
+    final totalDuration = ref.watch(artistTotalDurationProvider(artistId));
     final gutter = pageGutterOf(context);
     final theme = Theme.of(context);
     final actions = ref.read(playerActionsProvider);
@@ -86,14 +87,16 @@ class _ArtistDetailViewState extends ConsumerState<ArtistDetailView> {
         final shown = canExpand && !_showAllSongs
             ? tracks.sublist(0, ArtistDetailView._songPreview)
             : tracks;
-        final totalMs = tracks.fold<int>(
-          0,
-          (sum, track) => sum + track.durationMs.toInt(),
-        );
         final meta = tracks.isEmpty
             ? null
-            : '${context.l10n.pick('${tracks.length} 首歌曲', '${tracks.length} songs')}'
-                  ' · ${formatTotalDuration(Duration(milliseconds: totalMs))}';
+            : [
+                context.l10n.pick(
+                  '${tracks.length} 首歌曲',
+                  '${tracks.length} songs',
+                ),
+                if (totalDuration != null && totalDuration.inSeconds > 0)
+                  formatTotalDuration(totalDuration),
+              ].join(' · ');
         return CustomScrollView(
           key: PageStorageKey('artist-$artistId'),
           slivers: [

@@ -69,6 +69,19 @@ final playlistEntriesProvider = FutureProvider.autoDispose
       return out;
     });
 
+/// Total running time for a playlist, memoized until its entries change.
+final playlistTotalDurationProvider = Provider.autoDispose
+    .family<Duration?, int>((ref, playlistId) {
+      final rows = ref.watch(playlistEntriesProvider(playlistId)).value;
+      if (rows == null || rows.isEmpty) return null;
+      var ms = 0;
+      for (final entry in rows) {
+        final track = entry.track;
+        if (track != null) ms += track.durationMs.toInt();
+      }
+      return ms > 0 ? Duration(milliseconds: ms) : null;
+    });
+
 /// 智能歌单当前求值结果（详情页预览 / 列表）。
 final smartPlaylistTracksProvider = FutureProvider.autoDispose
     .family<List<TrackRowDto>, int>((ref, id) async {

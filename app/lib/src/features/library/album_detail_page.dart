@@ -85,6 +85,7 @@ class AlbumDetailView extends ConsumerWidget {
     final loaded = ref.watch(albumProvider(albumId));
     final tracks = ref.watch(albumTracksProvider(albumId));
     final gutter = pageGutterOf(context);
+    final totalDuration = ref.watch(albumTotalDurationProvider(albumId));
     final artists = ref.watch(albumArtistsProvider(albumId)).value;
     final artist = (artists == null || artists.isEmpty) ? null : artists.first;
     final moreAlbums = artist == null
@@ -114,14 +115,6 @@ class AlbumDetailView extends ConsumerWidget {
         final album = shown;
         final rows = tracks.value ?? const <TrackRowDto>[];
         final actions = ref.read(playerActionsProvider);
-        final totalDuration = rows.isEmpty
-            ? null
-            : Duration(
-                milliseconds: rows.fold<int>(
-                  0,
-                  (sum, row) => sum + row.durationMs.toInt(),
-                ),
-              );
         return CustomScrollView(
           key: PageStorageKey('album-$albumId'),
           slivers: [

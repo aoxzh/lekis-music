@@ -213,6 +213,7 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
     final entries = ref.watch(playlistEntriesProvider(playlist.id));
     final gutter = pageGutterOf(context);
     final rows = entries.value ?? const <PlaylistEntryDto>[];
+    final totalDuration = ref.watch(playlistTotalDurationProvider(playlist.id));
     final playableIds = rows
         .where((entry) => entry.track != null)
         .map((entry) => entry.track!.id)
@@ -221,12 +222,6 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
         .where((entry) => entry.track != null && !entry.track!.isLocal)
         .map((entry) => entry.track!.id)
         .toList(growable: false);
-    var totalMs = 0;
-    for (final entry in rows) {
-      final track = entry.track;
-      if (track != null) totalMs += track.durationMs.toInt();
-    }
-    final totalDuration = totalMs > 0 ? Duration(milliseconds: totalMs) : null;
     final query = _query.trim().toLowerCase();
     final visible = query.isEmpty
         ? rows

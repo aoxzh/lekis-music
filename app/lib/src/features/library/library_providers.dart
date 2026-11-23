@@ -513,6 +513,33 @@ final artistTracksProvider = FutureProvider.autoDispose
       );
     });
 
+/// Total running time for an album, memoized until its track list changes.
+final albumTotalDurationProvider = Provider.autoDispose.family<Duration?, int>((
+  ref,
+  albumId,
+) {
+  final rows = ref.watch(albumTracksProvider(albumId)).value;
+  if (rows == null || rows.isEmpty) return null;
+  var ms = 0;
+  for (final row in rows) {
+    ms += row.durationMs.toInt();
+  }
+  return ms > 0 ? Duration(milliseconds: ms) : null;
+});
+
+/// Total running time for an artist, memoized until its track list changes.
+final artistTotalDurationProvider = Provider.autoDispose.family<Duration?, int>(
+  (ref, artistId) {
+    final tracks = ref.watch(artistTracksProvider(artistId)).value;
+    if (tracks == null || tracks.isEmpty) return null;
+    var ms = 0;
+    for (final track in tracks) {
+      ms += track.durationMs.toInt();
+    }
+    return ms > 0 ? Duration(milliseconds: ms) : null;
+  },
+);
+
 // ---------------------------------------------------------------------------
 // Library page UI state
 // ---------------------------------------------------------------------------
