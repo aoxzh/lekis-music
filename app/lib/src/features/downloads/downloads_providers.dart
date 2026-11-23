@@ -59,22 +59,41 @@ class DownloadsController extends AsyncNotifier<DownloadsState> {
     });
   }
 
-  Future<DownloadsState> _load() async {
+  Future<DownloadsState> _load({DownloadsState? previous}) async {
     final downloads = await core.offlineDownloads();
     final stats = await core.offlineStats();
+
+    // Progress events refresh the list often while several downloads run.
+    // Reuse the metadata already on screen and only resolve new track ids,
+    // eight at a time, instead of firing one bridge call per download.
+    final known = <int, TrackDto?>{
+      for (final entry in previous?.entries ?? const <DownloadEntry>[])
+        entry.trackId: entry.track,
+    };
     final tracks = <int, TrackDto?>{};
-    Future<void> loadTrack(int trackId) async {
-      try {
-        tracks[trackId] = await core.getTrack(trackId: trackId);
-      } catch (e) {
-        debugPrint('download track $trackId unavailable: $e');
-        tracks[trackId] = null;
+    final missing = <int>[];
+    for (final download in downloads) {
+      final id = download.trackId;
+      if (known.containsKey(id)) {
+        tracks[id] = known[id];
+      } else {
+        missing.add(id);
       }
     }
-
-    await Future.wait([
-      for (final download in downloads) loadTrack(download.trackId),
-    ]);
+    const batchSize = 8;
+    for (var start = 0; start < missing.length; start += batchSize) {
+      await Future.wait([
+        for (final trackId in missing.skip(start).take(batchSize))
+          () async {
+            try {
+              tracks[trackId] = await core.getTrack(trackId: trackId);
+            } catch (e) {
+              debugPrint('download track $trackId unavailable: $e');
+              tracks[trackId] = null;
+            }
+          }(),
+      ]);
+    }
     return DownloadsState(
       entries: buildDownloadEntries(downloads: downloads, tracks: tracks),
       readyCount: stats.count.toInt(),
@@ -89,7 +108,7 @@ class DownloadsController extends AsyncNotifier<DownloadsState> {
 
   Future<void> _refreshQuietly() async {
     try {
-      final data = await _load();
+      final data = await _load(previous: state.value);
       if (!_disposed) state = AsyncData(data);
     } catch (e) {
       debugPrint('refresh downloads failed: $e');
