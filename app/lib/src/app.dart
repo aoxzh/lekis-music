@@ -33,6 +33,7 @@ class LekisApp extends ConsumerWidget {
     ref.watch(playbackSessionProvider);
     ref.watch(playHistoryProvider);
     ref.watch(networkContextProvider);
+    ref.watch(artworkPrefetchProvider);
     final themeMode = ref.watch(themeModeProvider);
     final oled = ref.watch(oledBlackProvider);
     final appLocale = ref.watch(appLocaleProvider);

@@ -180,6 +180,38 @@ final playbackProvider = NotifierProvider<PlaybackController, PlaybackUiState>(
   PlaybackController.new,
 );
 
+/// Warm the core's artwork cache for the next queue item while the current
+/// track plays. Remote covers then appear without the usual download delay
+/// when the queue advances; failures are intentionally ignored.
+final artworkPrefetchProvider = Provider<void>((ref) {
+  var generation = 0;
+  var last = '';
+  ref.listen<PlaybackUiState>(playbackProvider, (_, next) {
+    final key = '${next.trackId}:${next.queueIndex}';
+    if (key == last) return;
+    last = key;
+    final index = next.queueIndex;
+    if (index == null) return;
+    final current = ++generation;
+    unawaited(_prefetchNextArtwork(next, index, () => current == generation));
+  });
+});
+
+Future<void> _prefetchNextArtwork(
+  PlaybackUiState state,
+  int index,
+  bool Function() stillCurrent,
+) async {
+  try {
+    if (index + 1 >= state.queueLength) return;
+    final rows = await core.queueItems(offset: index + 1, limit: 1);
+    if (rows.isEmpty || !stillCurrent()) return;
+    await core.artwork(trackId: rows.first.id);
+  } catch (_) {
+    // Prefetch is best-effort; playback must never depend on it.
+  }
+}
+
 /// 播放命令失败；根布局监听后弹 SnackBar，并可携带“重试”动作。
 ///
 /// core 的播放命令有的是同步 void，有的是 Future；旧代码用同步 try/catch
