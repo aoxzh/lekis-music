@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 /// Current application version (kept in sync with `app/pubspec.yaml`).
-const String kLekisAppVersion = '0.2.1';
+const String kLekisAppVersion = '0.2.2';
 
 const String kLekisReleasesApiUrl =
     'https://api.github.com/repos/aoxzh/lekis-music/releases?per_page=10';
@@ -220,13 +220,14 @@ Map<String, String> parseSha256Sums(String body) {
 }
 
 /// Whether a build at [currentVersion] should be offered GitHub
-/// pre-releases: every 0.x release is published as a pre-release (see
-/// release.yml), and so is any version with a `-beta` / `-rc` suffix.
+/// pre-releases: only versions with a `-beta` / `-rc` suffix do. Stable 0.x
+/// releases are published as regular releases (see release.yml), so they must
+/// not opt into pre-release candidates.
 bool includesPrereleases(String currentVersion) {
   final v = currentVersion.startsWith('v')
       ? currentVersion.substring(1)
       : currentVersion;
-  return v.contains('-') || v.startsWith('0.');
+  return v.contains('-');
 }
 
 /// Queries GitHub Releases to check whether a newer version is available.

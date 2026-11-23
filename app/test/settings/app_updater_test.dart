@@ -22,8 +22,8 @@ void main() {
   });
 
   group('includesPrereleases', () {
-    test('0.x and suffixed versions see pre-releases, 1.x stable does not', () {
-      expect(includesPrereleases('0.2.0'), isTrue);
+    test('only suffixed versions see pre-releases', () {
+      expect(includesPrereleases('0.2.0'), isFalse);
       expect(includesPrereleases('0.1.0-alpha.2'), isTrue);
       expect(includesPrereleases('1.0.0-rc.1'), isTrue);
       expect(includesPrereleases('1.0.0'), isFalse);

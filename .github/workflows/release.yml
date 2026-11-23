@@ -1,8 +1,10 @@
 name: release
 
-# 推送 v* 标签（例如 v0.2.0）时：构建签名的 Android arm64-v8a APK 和 Windows x64
-# 免安装 zip，然后创建 pre-release 草稿（draft），人工确认内容后再点发布。
-# 1.0 之前的 0.x 版本都是预览版，标成 pre-release；版本号带 "-"（beta / rc）时同样标成 pre-release。
+# 推送 v* 标签（例如 v0.2.2）时：构建签名的 Android arm64-v8a APK 和 Windows x64
+# 免安装 zip，然后**直接发布** GitHub Release（含全部平台产物和校验和），无需人工
+# 再点一次发布。
+# 版本号带 "-"（beta / rc）时标成 pre-release；普通 0.x 版本按正式 Release 发布，
+# 这样 GitHub 仓库首页的 Releases 区域才会显示 Latest，而不是只看到一排 tag。
 #
 # Android 只编设备 ABI：不传 --target-platform 时 Flutter 会把 arm / arm64 / x64 三套 Rust
 # 核心各编一遍（见 tools/dev-android.ps1），所以这里固定 android-arm64。
@@ -57,7 +59,7 @@ jobs:
               exit 1
             fi
           fi
-          if [[ "$version" == *-* || "$version" == 0.* ]]; then prerelease=true; else prerelease=false; fi
+          if [[ "$version" == *-* ]]; then prerelease=true; else prerelease=false; fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
           echo "version $version (pre-release: $prerelease)"
@@ -323,9 +325,11 @@ jobs:
         with:
           name: Lekis ${{ needs.version.outputs.version }}
           body_path: ${{ steps.notes.outputs.path }}
-          # 先落成草稿：检查过 APK / zip / tar.gz / 校验和再人工点发布。
-          draft: true
+          # 直接发布，不再留成草稿：标签推送后 Release 必须立刻可见。
+          draft: false
           prerelease: ${{ needs.version.outputs.prerelease == 'true' }}
+          # 普通版本标记为 Latest；beta / rc 不抢 Latest。
+          make_latest: ${{ needs.version.outputs.prerelease == 'false' }}
           fail_on_unmatched_files: true
           files: |
             dist/*.apk
