@@ -14,10 +14,18 @@ import 'package:lekis/src/rust/api/dto.dart';
 Future<void> initLekisCore() async {
   // 测试用：--dart-define=LEKIS_DATA_DIR=<目录> 换一个数据库（例如 10 万首假歌的性能测试库）。
   const dataDirOverride = String.fromEnvironment('LEKIS_DATA_DIR');
-  final dataDir = dataDirOverride.isNotEmpty
-      ? Directory(dataDirOverride)
-      : await getApplicationSupportDirectory();
-  final cacheDir = await getApplicationCacheDirectory();
+  // 三个平台查询互不依赖；Android 上每次都是独立的 method-channel 往返，
+  // 并行解析可以缩短首帧前的串行等待。
+  final resolved = await Future.wait<Object>([
+    dataDirOverride.isNotEmpty
+        ? Future<Directory>.value(Directory(dataDirOverride))
+        : getApplicationSupportDirectory(),
+    getApplicationCacheDirectory(),
+    _deviceName(),
+  ]);
+  final dataDir = resolved[0] as Directory;
+  final cacheDir = resolved[1] as Directory;
+  final deviceName = resolved[2] as String;
   await Future.wait([
     dataDir.create(recursive: true),
     cacheDir.create(recursive: true),
@@ -27,7 +35,7 @@ Future<void> initLekisCore() async {
     config: CoreConfigDto(
       dataDir: dataDir.path,
       cacheDir: cacheDir.path,
-      deviceName: await _deviceName(),
+      deviceName: deviceName,
       platform: _platform(),
     ),
   );
@@ -49,9 +57,8 @@ Future<String> _deviceName() async {
   if (Platform.isAndroid) {
     // Android 的主机名对每个 App 都是 "localhost"：问系统要用户起的设备名。
     try {
-      final name = await const MethodChannel(
-        'dev.lekis.lekis/discovery',
-      ).invokeMethod<String>('deviceName');
+      final name = await const MethodChannel('dev.lekis.lekis/discovery')
+          .invokeMethod<String>('deviceName');
       if (name != null && name.trim().isNotEmpty) return name.trim();
     } on Object {
       // 通道不可用（测试环境）时走下面的兜底。
