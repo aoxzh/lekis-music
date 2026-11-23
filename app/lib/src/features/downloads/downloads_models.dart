@@ -90,9 +90,15 @@ class DownloadsState {
     this.entries = const [],
     this.readyCount = 0,
     this.totalBytes = 0,
+    this.structureVersion = 0,
   });
 
   final List<DownloadEntry> entries;
+
+  /// Increments only when the row set/order/metadata changes, not when a
+  /// progress event merely updates bytes. Lets the Downloads page reuse its
+  /// filtered/sorted order while downloads are running.
+  final int structureVersion;
 
   /// Lazy O(1) lookup so a long list of download rows does not scan
   /// [entries] once per track tile.
@@ -160,6 +166,7 @@ class DownloadsState {
     entries: entries ?? this.entries,
     readyCount: readyCount,
     totalBytes: totalBytes,
+    structureVersion: structureVersion,
   );
 }
 

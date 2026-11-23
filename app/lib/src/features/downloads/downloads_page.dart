@@ -404,6 +404,12 @@ class _DownloadsBodyState extends ConsumerState<_DownloadsBody> {
   _DownloadFilter _filter = _DownloadFilter.all;
   final TextEditingController _search = TextEditingController();
   String _query = '';
+  int _viewVersion = -1;
+  String _viewQuery = '';
+  DownloadSortMode? _viewSort;
+  List<int> _activeIds = const [];
+  List<int> _failedIds = const [];
+  List<int> _readyIds = const [];
 
   @override
   void dispose() {
@@ -448,36 +454,71 @@ class _DownloadsBodyState extends ConsumerState<_DownloadsBody> {
           ),
         );
 
-    final query = _query.trim().toLowerCase();
-    bool matches(DownloadEntry entry) =>
-        query.isEmpty ||
-        entry.title.toLowerCase().contains(query) ||
-        entry.subtitle.toLowerCase().contains(query);
+    final hasQuery = _query.trim().isNotEmpty;
     final sortMode = ref.watch(downloadSortProvider);
-    List<DownloadEntry> sorted(List<DownloadEntry> entries) {
-      final list = [...entries];
-      switch (sortMode) {
-        case DownloadSortMode.default_:
-          break;
-        case DownloadSortMode.title:
-          list.sort(
-            (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
-          );
-        case DownloadSortMode.newest:
-          list.sort(
-            (a, b) => b.download.createdAt.toInt().compareTo(
-              a.download.createdAt.toInt(),
-            ),
-          );
-        case DownloadSortMode.largest:
-          list.sort((a, b) => b.totalBytes.compareTo(a.totalBytes));
+    if (_viewVersion != state.structureVersion ||
+        _viewQuery != _query ||
+        _viewSort != sortMode) {
+      _viewVersion = state.structureVersion;
+      _viewQuery = _query;
+      _viewSort = sortMode;
+      final query = _query.trim().toLowerCase();
+      bool matches(DownloadEntry entry) =>
+          query.isEmpty ||
+          entry.title.toLowerCase().contains(query) ||
+          entry.subtitle.toLowerCase().contains(query);
+      List<DownloadEntry> sorted(List<DownloadEntry> entries) {
+        final list = [...entries];
+        switch (sortMode) {
+          case DownloadSortMode.default_:
+            break;
+          case DownloadSortMode.title:
+            list.sort(
+              (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+            );
+          case DownloadSortMode.newest:
+            list.sort(
+              (a, b) => b.download.createdAt.toInt().compareTo(
+                a.download.createdAt.toInt(),
+              ),
+            );
+          case DownloadSortMode.largest:
+            list.sort((a, b) => b.totalBytes.compareTo(a.totalBytes));
+        }
+        return list;
       }
-      return list;
-    }
 
-    final active = sorted(state.active.where(matches).toList(growable: false));
-    final failed = sorted(state.failed.where(matches).toList(growable: false));
-    final ready = sorted(state.ready.where(matches).toList(growable: false));
+      _activeIds = [
+        for (final entry in sorted(
+          state.active.where(matches).toList(growable: false),
+        ))
+          entry.trackId,
+      ];
+      _failedIds = [
+        for (final entry in sorted(
+          state.failed.where(matches).toList(growable: false),
+        ))
+          entry.trackId,
+      ];
+      _readyIds = [
+        for (final entry in sorted(
+          state.ready.where(matches).toList(growable: false),
+        ))
+          entry.trackId,
+      ];
+    }
+    final active = _activeIds
+        .map(state.entryFor)
+        .whereType<DownloadEntry>()
+        .toList(growable: false);
+    final failed = _failedIds
+        .map(state.entryFor)
+        .whereType<DownloadEntry>()
+        .toList(growable: false);
+    final ready = _readyIds
+        .map(state.entryFor)
+        .whereType<DownloadEntry>()
+        .toList(growable: false);
     final matchCount = active.length + failed.length + ready.length;
 
     final showAll = _filter == _DownloadFilter.all;
@@ -584,10 +625,10 @@ class _DownloadsBodyState extends ConsumerState<_DownloadsBody> {
                 padding: const EdgeInsets.all(LekisSpacing.xl),
                 child: Text(
                   l10n.pick(
-                    query.isEmpty ? '这个分类暂时没有下载' : '没有匹配的下载',
-                    query.isEmpty
-                        ? 'Nothing in this filter'
-                        : 'No matching downloads',
+                    hasQuery ? '没有匹配的下载' : '这个分类暂时没有下载',
+                    hasQuery
+                        ? 'No matching downloads'
+                        : 'Nothing in this filter',
                   ),
                   textAlign: TextAlign.center,
                 ),

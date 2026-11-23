@@ -19,6 +19,7 @@ class DownloadsController extends AsyncNotifier<DownloadsState> {
   Timer? _reload;
   Timer? _progress;
   final Map<int, ({int downloaded, int? total})> _pendingProgress = {};
+  int _structureVersion = 0;
   bool _disposed = false;
 
   @override
@@ -119,6 +120,7 @@ class DownloadsController extends AsyncNotifier<DownloadsState> {
       entries: buildDownloadEntries(downloads: downloads, tracks: tracks),
       readyCount: stats.count.toInt(),
       totalBytes: stats.bytes.toInt(),
+      structureVersion: ++_structureVersion,
     );
   }
 
