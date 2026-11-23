@@ -56,6 +56,9 @@ abstract final class PlaylistStrings {
   static String get sortByAdded => L10n.tr('按添加时间', 'By Date Added');
   static String get reverseOrder => L10n.tr('反转顺序', 'Reverse Order');
   static String get shuffleOrder => L10n.tr('随机顺序', 'Shuffle Order');
+  static String get searchPlaylist => L10n.tr('搜索歌单', 'Search playlist');
+  static String get clearSearch => L10n.tr('清除', 'Clear');
+  static String get noMatchingTracks => L10n.tr('没有匹配的歌曲', 'No matching songs');
   static String get sortConfirmTitle => L10n.tr('排序歌单？', 'Sort Playlist?');
   static String sortConfirmBody(String label) => L10n.tr(
     '将按「$label」重新排列并保存顺序。',

@@ -21,6 +21,7 @@ import 'package:lekis/src/shell/nav_icon.dart' show lekisReduceMotion;
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/list_motion.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
+import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_actions.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/features/playlists/playlist_strings.dart';
@@ -138,7 +139,7 @@ class _PlaylistDetailViewState extends ConsumerState<PlaylistDetailView> {
   }
 }
 
-class _StaticPlaylistBody extends ConsumerWidget {
+class _StaticPlaylistBody extends ConsumerStatefulWidget {
   const _StaticPlaylistBody({
     required this.playlist,
     required this.busy,
@@ -157,7 +158,23 @@ class _StaticPlaylistBody extends ConsumerWidget {
   final Future<void> Function(PlaylistEntryDto entry) onRemove;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_StaticPlaylistBody> createState() =>
+      _StaticPlaylistBodyState();
+}
+
+class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
+  final TextEditingController _search = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final playlist = widget.playlist;
     final entries = ref.watch(playlistEntriesProvider(playlist.id));
     final gutter = pageGutterOf(context);
     final rows = entries.value ?? const <PlaylistEntryDto>[];
@@ -175,6 +192,18 @@ class _StaticPlaylistBody extends ConsumerWidget {
       if (track != null) totalMs += track.durationMs.toInt();
     }
     final totalDuration = totalMs > 0 ? Duration(milliseconds: totalMs) : null;
+    final query = _query.trim().toLowerCase();
+    final visible = query.isEmpty
+        ? rows
+        : [
+            for (final entry in rows)
+              if (entry.track != null &&
+                  (entry.track!.title.toLowerCase().contains(query) ||
+                      entry.track!.artistLine.toLowerCase().contains(query) ||
+                      (entry.track!.albumTitle?.toLowerCase().contains(query) ??
+                          false)))
+                entry,
+          ];
 
     return CustomScrollView(
       key: PageStorageKey('playlist-${playlist.id}'),
@@ -207,6 +236,37 @@ class _StaticPlaylistBody extends ConsumerWidget {
             ),
           ),
         ),
+        if (rows.length >= 8)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(gutter, 0, gutter, LekisSpacing.sm),
+              child: TextField(
+                controller: _search,
+                onChanged: (value) => setState(() => _query = value),
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: PlaylistStrings.searchPlaylist,
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: PlaylistStrings.clearSearch,
+                          onPressed: () {
+                            _search.clear();
+                            setState(() => _query = '');
+                          },
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                  isDense: true,
+                  filled: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(LekisRadius.pill),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+          ),
         if (entries.hasError)
           SliverToBoxAdapter(
             child: Padding(
@@ -233,15 +293,32 @@ class _StaticPlaylistBody extends ConsumerWidget {
             hasScrollBody: false,
             child: _EmptyPlaylistBody(isSmart: false),
           )
+        else if (visible.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Text(
+                PlaylistStrings.noMatchingTracks,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          )
         else
           SliverPadding(
             padding: EdgeInsets.symmetric(horizontal: gutter - LekisSpacing.sm),
             sliver: _PlaylistEntryList(
               playlist: playlist,
-              rows: rows,
-              busy: busy,
-              onMove: onMove,
-              onRemove: onRemove,
+              rows: visible,
+              busy: widget.busy || query.isNotEmpty,
+              onMove: widget.onMove,
+              onRemove: widget.onRemove,
+              onPlayIndex: query.isEmpty
+                  ? null
+                  : (i) => ref.read(playerActionsProvider).playRows([
+                      for (final entry in visible) entry.track!,
+                    ], start: i),
             ),
           ),
         SliverPadding(
@@ -566,6 +643,7 @@ class _PlaylistEntryList extends StatefulWidget {
     required this.busy,
     required this.onMove,
     required this.onRemove,
+    this.onPlayIndex,
   });
 
   final PlaylistDto playlist;
@@ -578,6 +656,7 @@ class _PlaylistEntryList extends StatefulWidget {
   )
   onMove;
   final Future<void> Function(PlaylistEntryDto entry) onRemove;
+  final void Function(int index)? onPlayIndex;
 
   @override
   State<_PlaylistEntryList> createState() => _PlaylistEntryListState();
@@ -663,6 +742,8 @@ class _PlaylistEntryListState extends State<_PlaylistEntryList>
               canMoveDown: !busy && i < rows.length - 1,
               onPlay: rows[i].track == null
                   ? null
+                  : widget.onPlayIndex != null
+                  ? () => widget.onPlayIndex!(i)
                   : () => playPlaylistContext(
                       context,
                       widget.playlist,
