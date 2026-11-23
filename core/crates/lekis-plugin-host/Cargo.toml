@@ -11,13 +11,15 @@ lekis-types.workspace = true
 async-trait.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+# MyGO public WBI signing contract (not used for security).
+md-5 = "0.10"
 tracing.workspace = true
 # JS 运行时（PLG-02）。只用默认 feature（不需要 futures / parallel，见 runtime.rs 的说明）。
 rquickjs.workspace = true
 # 宿主 API host.http 的后端。
 reqwest.workspace = true
 # spawn_blocking（跑 JS）、Mutex（串行化调用）、current_thread 运行时（HTTP 工作线程）。
-tokio = { workspace = true, features = ["rt", "sync", "time"] }
+tokio = { workspace = true, features = ["rt", "sync", "time", "process", "io-util"] }
 # 已选型，实现时启用：wasmtime / wasmi（WASM 运行时，1.x）
 
 [dev-dependencies]

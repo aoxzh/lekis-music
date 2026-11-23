@@ -2,11 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://lekis.fm/schema/plugin.schema.json",
   "title": "Lekis plugin manifest (plugin.json)",
-  "description": "Lekis 插件清单 1.0。Rust 端 lekis-plugin-host::manifest::PluginManifest 必须与本文件保持一致。",
+  "description": "Lekis 插件清单 1.2。Rust 端 lekis-plugin-host::manifest::PluginManifest 必须与本文件保持一致。",
   "type": "object",
   "required": ["id", "name", "version", "apiVersion", "minAppVersion", "runtime", "kinds"],
   "properties": {
     "$schema": { "type": "string" },
+    "compatibility": { "description": "Public-contract adapter for an independently authored foreign source plugin.", "enum": ["mygo"] },
     "id": {
       "description": "反向域名格式的唯一 ID，只能包含小写字母、数字和 '-'。",
       "type": "string",
@@ -17,6 +18,22 @@
     "apiVersion": { "description": "插件 API 版本，例如 1.0。宿主只加载主版本号相同的插件。", "type": "string", "pattern": "^\\d+\\.\\d+$" },
     "minAppVersion": { "description": "最低 App 版本。", "type": "string" },
     "runtime": { "enum": ["js", "wasm", "none"] },
+    "native": {
+      "description": "Optional privileged native extensions; separate user grant required. API 1.2.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "android": {
+          "type": "object",
+          "required": ["entry", "className"],
+          "additionalProperties": false,
+          "properties": {
+            "entry": { "type": "string", "minLength": 1, "description": "Plugin-relative .dex file or multi-DEX .jar container. No absolute paths, traversal or symlinks." },
+            "className": { "type": "string", "pattern": "^[a-zA-Z_$][a-zA-Z0-9_$]*(\\.[a-zA-Z_$][a-zA-Z0-9_$]*)+$" }
+          }
+        }
+      }
+    },
     "entry": { "description": "入口文件（相对插件目录）。runtime 不是 none 时必填。", "type": "string" },
     "kinds": {
       "type": "array",

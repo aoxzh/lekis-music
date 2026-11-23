@@ -3,3 +3,6 @@
 
 # MainActivity 里的 external fun initRustAndroidContext 依赖固定 JNI 符号名。
 -keep class dev.lekis.lekis.MainActivity { *; }
+
+# Generic DEX bridge is initialized and called from Rust JNI by its fixed class/method names.
+-keep class dev.lekis.lekis.NativePluginBridge { public static *; }

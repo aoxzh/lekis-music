@@ -133,6 +133,10 @@ flutter {
     source = "../.."
 }
 
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+}
+
 val signingSource = releaseSigning?.source
 if (signingSource != null) {
     logger.lifecycle("Lekis: release builds are signed with the release key from $signingSource.")

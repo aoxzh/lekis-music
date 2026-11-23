@@ -1,5 +1,5 @@
 /**
- * Lekis 插件 SDK —— 插件 API 1.0。
+ * Lekis 插件 SDK —— 插件 API 1.2。
  *
  * 插件就是一个 ES 模块：每个能力导出一个同名函数，参数是一个对象，返回 Promise。
  * 没导出的能力就是不支持。宿主通过全局对象 `host` 提供有限的能力（见 {@link Host}）。
@@ -79,6 +79,8 @@ export interface SearchParams {
   query: string;
   type: "track" | "album" | "artist" | "playlist";
   cursor?: string;
+  /** 宿主请求的最大条目数（API 1.1，可选；宿主仍会截断超出部分）。 */
+  limit?: number;
 }
 export type SearchResult = Page<PluginTrack | PluginAlbum | PluginArtist | PluginPlaylist>;
 
@@ -180,6 +182,13 @@ export interface HttpResponse {
 }
 
 export interface Host {
+  /** API 1.2: optional Android DEX extension. Runs with full app privileges and
+   * requires a separate user grant; false on desktop/iOS or absent executor. */
+  native: {
+    readonly available: boolean;
+    /** The manager selects the manifest entry/class. JS cannot select a path. */
+    call<T = unknown>(operation: string, params?: unknown): Promise<T>;
+  };
   /** HTTP 请求。只能访问 permissions.network 里声明的域名，而且只能用 HTTPS。 */
   http: {
     request(url: string, options?: HttpRequestOptions): Promise<HttpResponse>;
@@ -214,6 +223,8 @@ export interface Host {
   }>;
   /**
    * 启动外部程序（只在桌面端可用），程序名必须在 permissions.process 里声明，并且用户在设置里允许过。
+   * 不经过 shell；单次超时 45 秒；stdout / stderr 各最多 8 MiB。
+   * 外部程序以当前用户身份运行，不受宿主 HTTP 域名白名单约束。
    */
   spawn?(program: string, args: string[]): Promise<{ code: number; stdout: string; stderr: string }>;
   log: {

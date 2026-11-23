@@ -20,6 +20,7 @@ use crate::permission::Permissions;
 use rquickjs::{Ctx, Function, Object};
 use serde::Deserialize;
 use std::collections::BTreeMap;
+use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
@@ -32,6 +33,12 @@ pub const BOOTSTRAP_JS: &str = r#"
   const app = JSON.parse(globalThis.__lekis_app());
 
   const host = {
+    native: {
+      get available() { return globalThis.__lekis_native_available(); },
+      async call(operation, params) {
+        return JSON.parse(globalThis.__lekis_native_call(String(operation), JSON.stringify(params === undefined ? null : params)));
+      },
+    },
     http: {
       async request(url, options) {
         const spec = Object.assign({}, options || {}, { url: String(url) });
@@ -54,6 +61,9 @@ pub const BOOTSTRAP_JS: &str = r#"
       get(url, options) {
         return this.request(url, Object.assign({}, options || {}, { method: "GET" }));
       },
+    },
+    async spawn(program, args) {
+      return JSON.parse(globalThis.__lekis_spawn(String(program), JSON.stringify(args)));
     },
     setting(key, value) {
       if (arguments.length >= 2) {
@@ -79,8 +89,7 @@ pub const BOOTSTRAP_JS: &str = r#"
       },
     },
     t(key) {
-      // i18n 还没接：先把键原样返回，等 locales/<语言>.json 接进来后再查表。
-      return String(key);
+      return globalThis.__lekis_translate(String(key));
     },
     log: {
       debug: (...args) => globalThis.__lekis_log("debug", args.map(String).join(" ")),
@@ -179,7 +188,8 @@ impl HostError {
 
 /// HTTP 传输层。测试里注入 mock，就不会真的发请求。
 pub trait HttpTransport: Send + Sync {
-    /// 发一次请求。域名白名单已经在 [`HostBridge`] 里检查过了，实现层不用再管权限。
+    /// Send exactly one HTTP hop, without automatically following redirects.
+    /// [`HostBridge`] checks the permission of every redirect destination.
     fn fetch(&self, request: HttpRequest) -> std::result::Result<HttpResponse, HostError>;
 }
 
@@ -196,7 +206,7 @@ struct HttpJob {
 /// 所以这里起一个**专用工作线程**，它自己拥有一个 current-thread tokio 运行时，
 /// 主线程通过 channel 同步等结果。线程在传输层被丢弃后自然退出。
 pub struct ReqwestTransport {
-    worker: OnceLock<std::result::Result<std::sync::mpsc::Sender<HttpJob>, String>>,
+    worker: OnceLock<std::result::Result<tokio::sync::mpsc::UnboundedSender<HttpJob>, String>>,
 }
 
 impl ReqwestTransport {
@@ -207,7 +217,9 @@ impl ReqwestTransport {
         }
     }
 
-    fn sender(&self) -> std::result::Result<&std::sync::mpsc::Sender<HttpJob>, HostError> {
+    fn sender(
+        &self,
+    ) -> std::result::Result<&tokio::sync::mpsc::UnboundedSender<HttpJob>, HostError> {
         self.worker
             .get_or_init(spawn_http_worker)
             .as_ref()
@@ -235,8 +247,8 @@ impl HttpTransport for ReqwestTransport {
 }
 
 /// 起 HTTP 工作线程。返回可用的发送端；初始化失败时返回错误说明。
-fn spawn_http_worker() -> std::result::Result<std::sync::mpsc::Sender<HttpJob>, String> {
-    let (jobs, incoming) = std::sync::mpsc::channel::<HttpJob>();
+fn spawn_http_worker() -> std::result::Result<tokio::sync::mpsc::UnboundedSender<HttpJob>, String> {
+    let (jobs, mut incoming) = tokio::sync::mpsc::unbounded_channel::<HttpJob>();
     let (ready, ready_rx) = std::sync::mpsc::channel::<std::result::Result<(), String>>();
     std::thread::Builder::new()
         .name("lekis-plugin-http".to_string())
@@ -251,7 +263,10 @@ fn spawn_http_worker() -> std::result::Result<std::sync::mpsc::Sender<HttpJob>, 
                     return;
                 }
             };
-            let client = match reqwest::Client::builder().build() {
+            let client = match reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+            {
                 Ok(client) => client,
                 Err(e) => {
                     let _ = ready.send(Err(format!("创建 HTTP 客户端失败：{e}")));
@@ -260,10 +275,15 @@ fn spawn_http_worker() -> std::result::Result<std::sync::mpsc::Sender<HttpJob>, 
             };
             let _ = ready.send(Ok(()));
             // 主线程丢掉发送端之后 recv 返回 Err，线程就自然退出。
-            while let Ok(job) = incoming.recv() {
-                let result = runtime.block_on(fetch_async(&client, job.request));
-                let _ = job.reply.send(result);
-            }
+            runtime.block_on(async {
+                while let Some(job) = incoming.recv().await {
+                    let client = client.clone();
+                    tokio::spawn(async move {
+                        let result = fetch_async(&client, job.request).await;
+                        let _ = job.reply.send(result);
+                    });
+                }
+            });
         })
         .map_err(|e| format!("创建工作线程失败：{e}"))?;
     match ready_rx.recv() {
@@ -291,7 +311,7 @@ async fn fetch_async(
         builder = builder.body(body);
     }
 
-    let response = builder.send().await.map_err(|e| {
+    let mut response = builder.send().await.map_err(|e| {
         let reason = if e.is_timeout() { "超时" } else { "失败" };
         HostError::unavailable(format!("请求 {} {reason}：{e}", request.url))
     })?;
@@ -307,10 +327,22 @@ async fn fetch_async(
             )
         })
         .collect::<BTreeMap<_, _>>();
-    let text = response
-        .text()
+    // Plugins fetch metadata. Never buffer an unbounded media response into JS.
+    const MAX_BODY: usize = 8 * 1024 * 1024;
+    let mut body = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
         .await
-        .map_err(|e| HostError::unavailable(format!("读取 {} 的响应体失败：{e}", request.url)))?;
+        .map_err(|e| HostError::unavailable(format!("读取响应体失败：{e}")))?
+    {
+        if body.len().saturating_add(chunk.len()) > MAX_BODY {
+            return Err(HostError::unsupported(
+                "HTTP response exceeds 8 MiB; use stream URLs for media",
+            ));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    let text = String::from_utf8_lossy(&body).into_owned();
 
     Ok(HttpResponse {
         status,
@@ -334,6 +366,8 @@ struct HttpSpec {
     query: BTreeMap<String, serde_json::Value>,
     #[serde(default)]
     timeout_ms: Option<u64>,
+    #[serde(default)]
+    redirect: Option<String>,
 }
 
 /// 插件跑起来之后仍然存在的宿主状态（设置项、私有存储、网络权限）。
@@ -342,6 +376,10 @@ struct HttpSpec {
 /// 由 [`crate::JsRuntime`] 一直持有，所以 `host.storage.set` 写的值在后续调用里还在。
 pub struct HostBridge {
     plugin_id: String,
+    native: Option<crate::native::NativeContext>,
+    pub(crate) is_mygo: bool,
+    pub(crate) inflight_http: AtomicUsize,
+    translations: Mutex<BTreeMap<String, String>>,
     permissions: Permissions,
     transport: Arc<dyn HttpTransport>,
     /// 设置项：清单里的默认值 + 插件改过的值。以后要持久化到用户配置里。
@@ -375,6 +413,10 @@ impl HostBridge {
         let quota = permissions.storage_bytes;
         Self {
             plugin_id: manifest.id.clone(),
+            native: None,
+            is_mygo: manifest.compatibility == Some(crate::manifest::Compatibility::Mygo),
+            inflight_http: AtomicUsize::new(0),
+            translations: Mutex::new(BTreeMap::new()),
             permissions,
             transport,
             settings: Mutex::new(settings),
@@ -383,13 +425,52 @@ impl HostBridge {
         }
     }
 
+    /// Configure manager-selected native metadata before any JS is evaluated.
+    pub(crate) fn configure_native(
+        &mut self,
+        root: std::path::PathBuf,
+        spec: Option<crate::manifest::AndroidNativeSpec>,
+        granted: bool,
+    ) -> lekis_types::Result<()> {
+        self.native = spec
+            .map(|spec| crate::native::NativeContext::new(root, spec, granted))
+            .transpose()?;
+        Ok(())
+    }
+
+    fn native_call(
+        &self,
+        operation: String,
+        params: String,
+    ) -> std::result::Result<String, HostError> {
+        let native = self.native.as_ref().ok_or_else(|| {
+            HostError::unsupported(
+                "No Android native extension is configured by the plugin manager",
+            )
+        })?;
+        let params = serde_json::from_str(&params)
+            .map_err(|_| HostError::setup("Native parameters must be JSON"))?;
+        let value = native.call(operation, params).map_err(|error| HostError {
+            code: match error.code {
+                lekis_types::ErrorCode::InvalidArgument => "setup",
+                lekis_types::ErrorCode::Auth => "signIn",
+                lekis_types::ErrorCode::NotFound => "unavailable",
+                lekis_types::ErrorCode::Unsupported => "unsupported",
+                lekis_types::ErrorCode::RateLimited => "rateLimited",
+                _ => "unavailable",
+            },
+            message: error.message,
+        })?;
+        serde_json::to_string(&value).map_err(|e| HostError::unavailable(e.to_string()))
+    }
+
     /// 插件 id（日志用）。
     pub fn plugin_id(&self) -> &str {
         &self.plugin_id
     }
 
     /// `host.http` 的实现：检查白名单 → 发请求 → 返回响应 JSON。
-    fn http_json(&self, spec: &str) -> std::result::Result<String, HostError> {
+    pub(crate) fn http_json(&self, spec: &str) -> std::result::Result<String, HostError> {
         let spec: HttpSpec = serde_json::from_str(spec)
             .map_err(|e| HostError::setup(format!("host.http 的参数不是合法 JSON：{e}")))?;
 
@@ -409,43 +490,233 @@ impl HostBridge {
                 }
             }
         }
-        let url = url.to_string();
-
-        // 白名单检查必须真的做，而且要在网络访问之前做。
-        if !self.permissions.allows_url(&url) {
-            return Err(HostError::unsupported(format!(
-                "插件 {} 没有访问 {url} 的权限：请在 plugin.json 的 permissions.network 里声明该域名，\
-                 并且只能用 https（http 只允许 localhost）",
-                self.plugin_id
-            )));
-        }
-
-        let request = HttpRequest {
-            url: url.clone(),
+        let mut request = HttpRequest {
+            url: url.to_string(),
             method: spec
                 .method
                 .map(|m| m.to_ascii_uppercase())
-                .unwrap_or_else(|| "GET".to_string()),
+                .unwrap_or_else(|| "GET".into()),
             headers: spec.headers,
             body: spec.body,
-            timeout_ms: Some(spec.timeout_ms.unwrap_or(15_000)),
+            timeout_ms: Some(spec.timeout_ms.unwrap_or(15_000).clamp(1, 60_000)),
         };
-        tracing::debug!(
-            target: "plugin",
-            plugin = %self.plugin_id,
-            %url,
-            method = %request.method,
-            "host.http"
-        );
+        let deadline =
+            std::time::Instant::now() + Duration::from_millis(request.timeout_ms.unwrap_or(15_000));
+        for redirect_count in 0..=8 {
+            // Check every hop; transport must not automatically follow redirects.
+            if !self.permissions.allows_url(&request.url) {
+                return Err(HostError::unsupported(format!(
+                    "插件 {} 没有访问 {} 的权限",
+                    self.plugin_id, request.url
+                )));
+            }
+            if std::time::Instant::now() >= deadline {
+                return Err(HostError::unavailable("HTTP redirect deadline exceeded"));
+            }
+            request.timeout_ms = Some(
+                u64::try_from(
+                    deadline
+                        .saturating_duration_since(std::time::Instant::now())
+                        .as_millis(),
+                )
+                .unwrap_or(60_000)
+                .saturating_add(1),
+            );
+            if request.timeout_ms == Some(0) {
+                return Err(HostError::unavailable("HTTP redirect deadline exceeded"));
+            }
+            let response = self.transport.fetch(request.clone())?;
+            let is_redirect = matches!(response.status, 301 | 302 | 303 | 307 | 308);
+            let location = response
+                .headers
+                .iter()
+                .find(|(name, _)| name.eq_ignore_ascii_case("location"))
+                .map(|(_, value)| value);
+            if is_redirect && spec.redirect.as_deref() == Some("error") {
+                return Err(HostError::unavailable("HTTP redirect refused"));
+            }
+            if is_redirect && spec.redirect.as_deref() != Some("manual") {
+                if let Some(location) = location {
+                    if redirect_count == 8 {
+                        return Err(HostError::unavailable("Too many HTTP redirects"));
+                    }
+                    let previous = reqwest::Url::parse(&request.url)
+                        .map_err(|e| HostError::setup(e.to_string()))?;
+                    let target = previous
+                        .join(location)
+                        .map_err(|e| HostError::setup(e.to_string()))?;
+                    if previous.origin() != target.origin() {
+                        // A redirect is a fresh origin: no session or plugin headers leak.
+                        request.headers.clear();
+                    }
+                    if response.status == 303
+                        || matches!(response.status, 301 | 302) && request.method == "POST"
+                    {
+                        request.method = "GET".into();
+                        request.body = None;
+                        request.headers.retain(|name, _| {
+                            !name.eq_ignore_ascii_case("content-type")
+                                && !name.eq_ignore_ascii_case("content-length")
+                        });
+                    }
+                    request.url = target.to_string();
+                    continue;
+                }
+            }
+            return serde_json::to_string(&serde_json::json!({
+                "url": request.url,
+                "status": response.status,
+                "headers": response.headers,
+                "text": response.text,
+            }))
+            .map_err(|e| HostError::unavailable(format!("响应无法序列化：{e}")));
+        }
+        Err(HostError::unavailable("Too many HTTP redirects"))
+    }
 
-        let response = self.transport.fetch(request)?;
-        let payload = serde_json::json!({
-            "status": response.status,
-            "headers": response.headers,
-            "text": response.text,
-        });
-        serde_json::to_string(&payload)
-            .map_err(|e| HostError::unavailable(format!("响应无法序列化：{e}")))
+    /// Snapshot private storage for the application persistence layer.
+    pub fn storage_snapshot(&self) -> lekis_types::Result<BTreeMap<String, String>> {
+        self.storage
+            .lock()
+            .map(|storage| storage.entries.clone())
+            .map_err(|_| {
+                lekis_types::LekisError::new(
+                    lekis_types::ErrorCode::Plugin,
+                    "plugin storage lock poisoned",
+                )
+            })
+    }
+
+    /// Atomically restore private storage, enforcing the same quota as writes.
+    pub fn restore_storage(&self, entries: BTreeMap<String, String>) -> lekis_types::Result<()> {
+        let used = entries
+            .iter()
+            .try_fold(0u64, |sum, (key, value)| {
+                sum.checked_add(key.len() as u64)?
+                    .checked_add(value.len() as u64)
+            })
+            .ok_or_else(|| lekis_types::LekisError::invalid("plugin storage size overflow"))?;
+        if used > self.quota {
+            return Err(lekis_types::LekisError::invalid(
+                "plugin storage exceeds quota",
+            ));
+        }
+        let mut storage = self.storage.lock().map_err(|_| {
+            lekis_types::LekisError::new(
+                lekis_types::ErrorCode::Plugin,
+                "plugin storage lock poisoned",
+            )
+        })?;
+        *storage = Storage { entries, used };
+        Ok(())
+    }
+
+    /// Supply locale text without exposing files to plugin code.
+    pub fn set_translations(&self, values: BTreeMap<String, String>) -> lekis_types::Result<()> {
+        *self.translations.lock().map_err(|_| {
+            lekis_types::LekisError::new(
+                lekis_types::ErrorCode::Plugin,
+                "plugin translation lock poisoned",
+            )
+        })? = values;
+        Ok(())
+    }
+
+    fn translate(&self, text: &str) -> String {
+        self.translations
+            .lock()
+            .ok()
+            .and_then(|values| values.get(text).cloned())
+            .unwrap_or_else(|| text.into())
+    }
+
+    /// Execute a separately granted desktop program, without a shell.
+    fn spawn_json(&self, program: &str, args: &str) -> std::result::Result<String, HostError> {
+        if !self.permissions.allows_process(program) {
+            return Err(HostError::setup(format!(
+                "请先在插件权限中允许启动 {program}"
+            )));
+        }
+        #[cfg(any(target_os = "android", target_os = "ios"))]
+        {
+            let _ = args;
+            Err(HostError::unsupported("此平台不支持外部程序"))
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        {
+            let args: Vec<String> = serde_json::from_str(args)
+                .map_err(|_| HostError::setup("spawn args 必须是字符串数组"))?;
+            if args.len() > 128 || args.iter().map(String::len).sum::<usize>() > 65_536 {
+                return Err(HostError::setup("spawn 参数过多"));
+            }
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| HostError::unavailable(e.to_string()))?;
+            runtime.block_on(async {
+                use tokio::io::AsyncReadExt;
+                const LIMIT: u64 = 8 * 1024 * 1024;
+                let mut child = tokio::process::Command::new(program)
+                    .args(args)
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped())
+                    .kill_on_drop(true)
+                    .spawn()
+                    .map_err(|e| {
+                        HostError::setup(format!("无法启动 {program}，请安装并加入 PATH：{e}"))
+                    })?;
+                let mut stdout = child
+                    .stdout
+                    .take()
+                    .ok_or_else(|| HostError::unavailable("stdout unavailable"))?
+                    .take(LIMIT + 1);
+                let mut stderr = child
+                    .stderr
+                    .take()
+                    .ok_or_else(|| HostError::unavailable("stderr unavailable"))?
+                    .take(LIMIT + 1);
+                let mut out = Vec::new();
+                let mut err = Vec::new();
+                let result = tokio::time::timeout(Duration::from_secs(45), async {
+                    tokio::try_join!(
+                        async {
+                            let count = stdout.read_to_end(&mut out).await?;
+                            if count as u64 > LIMIT {
+                                return Err(std::io::Error::other("外部程序输出超过 8 MiB"));
+                            }
+                            Ok(())
+                        },
+                        async {
+                            let count = stderr.read_to_end(&mut err).await?;
+                            if count as u64 > LIMIT {
+                                return Err(std::io::Error::other("外部程序输出超过 8 MiB"));
+                            }
+                            Ok(())
+                        },
+                        child.wait()
+                    )
+                })
+                .await;
+                let (_, _, status) = match result {
+                    Ok(Ok(result)) => result,
+                    Ok(Err(error)) => {
+                        let _ = child.kill().await;
+                        return Err(HostError::unavailable(error.to_string()));
+                    }
+                    Err(_) => {
+                        let _ = child.kill().await;
+                        return Err(HostError::unavailable("外部程序运行超时（45 秒）"));
+                    }
+                };
+                Ok(serde_json::json!({
+                    "code": status.code().unwrap_or(-1),
+                    "stdout": String::from_utf8_lossy(&out),
+                    "stderr": String::from_utf8_lossy(&err),
+                })
+                .to_string())
+            })
+        }
     }
 
     /// `host.setting(key)` 的读路径。
@@ -480,8 +751,15 @@ impl HostBridge {
             .storage
             .lock()
             .map_err(|_| HostError::unavailable("私有存储状态被污染（锁中毒）"))?;
-        let previous = storage.entries.get(key).map_or(0, |v| v.len() as u64);
-        let used = storage.used.saturating_sub(previous) + value.len() as u64;
+        let previous = storage
+            .entries
+            .get(key)
+            .map_or(0, |v| (key.len() + v.len()) as u64);
+        let used = storage
+            .used
+            .saturating_sub(previous)
+            .saturating_add(key.len() as u64)
+            .saturating_add(value.len() as u64);
         if used > self.quota {
             return Err(HostError::unsupported(format!(
                 "插件 {} 的私有存储超出配额：{} + {} > {} 字节",
@@ -500,7 +778,7 @@ impl HostBridge {
     fn storage_delete(&self, key: &str) {
         if let Ok(mut storage) = self.storage.lock() {
             if let Some(old) = storage.entries.remove(key) {
-                storage.used = storage.used.saturating_sub(old.len() as u64);
+                storage.used = storage.used.saturating_sub((key.len() + old.len()) as u64);
             }
         }
     }
@@ -541,6 +819,46 @@ impl HostBridge {
 /// 只挂函数（`__lekis_*` 前缀），`host` 对象本身由 [`BOOTSTRAP_JS`] 拼出来。
 pub fn install<'js>(ctx: &Ctx<'js>, host: &Arc<HostBridge>) -> rquickjs::Result<()> {
     let globals = ctx.globals();
+    let bridge = host.clone();
+    globals.set(
+        "__lekis_native_available",
+        Function::new(ctx.clone(), move || {
+            bridge
+                .native
+                .as_ref()
+                .is_some_and(|native| native.available())
+        })?,
+    )?;
+    let bridge = host.clone();
+    globals.set(
+        "__lekis_native_call",
+        Function::new(
+            ctx.clone(),
+            move |ctx: Ctx<'js>, operation: String, params: String| -> rquickjs::Result<String> {
+                bridge
+                    .native_call(operation, params)
+                    .map_err(|error| throw_host_error(&ctx, error))
+            },
+        )?,
+    )?;
+
+    let bridge = host.clone();
+    globals.set(
+        "__lekis_translate",
+        Function::new(ctx.clone(), move |text: String| bridge.translate(&text))?,
+    )?;
+    let bridge = host.clone();
+    globals.set(
+        "__lekis_spawn",
+        Function::new(
+            ctx.clone(),
+            move |ctx: Ctx<'js>, program: String, args: String| -> rquickjs::Result<String> {
+                bridge
+                    .spawn_json(&program, &args)
+                    .map_err(|e| throw_host_error(&ctx, e))
+            },
+        )?,
+    )?;
 
     let bridge = host.clone();
     globals.set(
@@ -644,7 +962,7 @@ impl HostBridge {
 ///
 /// 抛普通对象（而不是 `Error` 实例）是故意的：插件 `catch (e)` 之后 `e.code` 直接可用，
 /// 宿主在 Rust 侧也用同一套「读 `code` 字段」的逻辑把它映射回 [`crate::PluginError`]。
-fn throw_host_error<'js>(ctx: &Ctx<'js>, error: HostError) -> rquickjs::Error {
+pub(crate) fn throw_host_error<'js>(ctx: &Ctx<'js>, error: HostError) -> rquickjs::Error {
     let object = match Object::new(ctx.clone()) {
         Ok(object) => object,
         Err(err) => return err,
@@ -710,6 +1028,121 @@ mod tests {
         HostBridge::new(&manifest, permissions, transport)
     }
 
+    #[cfg(all(unix, not(any(target_os = "android", target_os = "ios"))))]
+    #[test]
+    fn spawn_preserves_literal_arguments_and_stops_excess_output_promptly() {
+        let mut manifest = manifest("[]", None);
+        manifest.permissions.process = vec!["printf".into()];
+        let permissions = Permissions::new(&manifest.permissions, &["printf".into()]);
+        let bridge = HostBridge::new(&manifest, permissions, Arc::new(MockTransport::new("{}")));
+        let result: serde_json::Value = serde_json::from_str(
+            &bridge
+                .spawn_json("printf", r#"["%s", "$(echo injected); *"]"#)
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(result["stdout"], "$(echo injected); *");
+        let start = std::time::Instant::now();
+        let error = bridge
+            .spawn_json("printf", r#"["%8388609s", "x"]"#)
+            .unwrap_err();
+        assert!(error.message.contains("8 MiB"));
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "must stop at the quota, not wait for process timeout"
+        );
+        let oversized_args = serde_json::to_string(&vec!["x"; 129]).unwrap();
+        assert_eq!(
+            bridge
+                .spawn_json("printf", &oversized_args)
+                .unwrap_err()
+                .code,
+            "setup"
+        );
+    }
+
+    #[test]
+    fn redirect_permissions_are_checked_and_cross_origin_headers_are_dropped() {
+        struct Redirects {
+            calls: Mutex<Vec<HttpRequest>>,
+            target: String,
+        }
+        impl HttpTransport for Redirects {
+            fn fetch(&self, request: HttpRequest) -> std::result::Result<HttpResponse, HostError> {
+                let mut calls = self.calls.lock().unwrap();
+                calls.push(request);
+                Ok(if calls.len() == 1 {
+                    HttpResponse {
+                        status: 302,
+                        headers: BTreeMap::from([("Location".into(), self.target.clone())]),
+                        text: String::new(),
+                    }
+                } else {
+                    HttpResponse {
+                        status: 200,
+                        headers: BTreeMap::new(),
+                        text: "ok".into(),
+                    }
+                })
+            }
+        }
+        let transport = Arc::new(Redirects {
+            calls: Mutex::new(vec![]),
+            target: "https://evil.invalid/private".into(),
+        });
+        let bridge = super::tests::bridge(transport.clone());
+        let error = bridge
+            .http_json(r#"{"url":"https://lrclib.net/start","headers":{"Cookie":"secret"}}"#)
+            .unwrap_err();
+        assert_eq!(error.code, "unsupported");
+        assert_eq!(transport.calls.lock().unwrap().len(), 1);
+
+        let transport = Arc::new(Redirects {
+            calls: Mutex::new(vec![]),
+            target: "https://cdn.example.com/audio".into(),
+        });
+        let bridge = super::tests::bridge(transport.clone());
+        let result: serde_json::Value = serde_json::from_str(&bridge.http_json(r#"{"url":"https://lrclib.net/start","headers":{"Cookie":"secret","Referer":"secret-referrer"}}"#).unwrap()).unwrap();
+        assert_eq!(result["url"], "https://cdn.example.com/audio");
+        assert!(transport.calls.lock().unwrap()[1].headers.is_empty());
+
+        let transport = Arc::new(Redirects {
+            calls: Mutex::new(vec![]),
+            target: "https://evil.invalid/private".into(),
+        });
+        let bridge = super::tests::bridge(transport.clone());
+        let result: serde_json::Value = serde_json::from_str(
+            &bridge
+                .http_json(r#"{"url":"https://lrclib.net/start","redirect":"manual"}"#)
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(result["status"], 302);
+        assert_eq!(
+            result["headers"]["Location"],
+            "https://evil.invalid/private"
+        );
+        assert_eq!(transport.calls.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn restore_storage_is_atomic_and_includes_keys_in_quota() {
+        let manifest = manifest("[]", Some(1));
+        let permissions = Permissions::new(&manifest.permissions, &[]);
+        let bridge = HostBridge::new(&manifest, permissions, Arc::new(MockTransport::new("{}")));
+        bridge.storage_set("a", "saved").unwrap();
+        let old = bridge.storage_snapshot().unwrap();
+        assert!(bridge
+            .restore_storage(BTreeMap::from([("k".repeat(1025), String::new())]))
+            .is_err());
+        assert_eq!(bridge.storage_snapshot().unwrap(), old);
+        bridge
+            .restore_storage(BTreeMap::from([("restored".into(), "value".into())]))
+            .unwrap();
+        assert_eq!(bridge.storage_get("restored").as_deref(), Some("value"));
+        assert!(bridge.storage_get("a").is_none());
+    }
+
     #[test]
     fn rejects_urls_outside_whitelist() {
         let transport = Arc::new(MockTransport::new("{}"));
@@ -737,7 +1170,11 @@ mod tests {
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].method, "POST");
         assert_eq!(calls[0].body.as_deref(), Some("payload"));
-        assert_eq!(calls[0].timeout_ms, Some(1234));
+        // Preparing/validating the request consumes part of the shared redirect budget.
+        // Scheduling delays must not make this assertion depend on an exact wall-clock ms.
+        assert!(calls[0]
+            .timeout_ms
+            .is_some_and(|ms| (1..=1234).contains(&ms)));
         assert_eq!(calls[0].headers.get("A").map(String::as_str), Some("b"));
         assert!(calls[0].url.starts_with("https://lrclib.net/api/get?x=1&"));
         assert!(calls[0].url.contains("track_name=%E6%99%B4%E5%A4%A9"));
@@ -784,7 +1221,8 @@ mod tests {
         assert!(bridge.storage_get("a").is_none());
         assert_eq!(bridge.storage_keys(), "[]");
         // 删掉之后配额又空出来了。
-        bridge.storage_set("c", &"y".repeat(1024)).unwrap();
+        bridge.storage_set("c", &"y".repeat(1023)).unwrap();
+        assert!(bridge.storage_set(&"k".repeat(1025), "").is_err());
     }
 
     #[test]

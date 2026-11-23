@@ -6,13 +6,19 @@
 
 pub mod js_host;
 pub mod manifest;
+mod mygo;
+pub mod native;
 pub mod permission;
 pub mod runtime;
 
 pub use js_host::{HostBridge, HttpRequest, HttpResponse, HttpTransport, ReqwestTransport};
-pub use manifest::{Capability, PluginKind, PluginManifest};
+pub use manifest::{
+    AndroidNativeSpec, Capability, Compatibility, NativeSpec, PluginKind, PluginManifest,
+};
 pub use permission::Permissions;
 pub use runtime::{JsRuntime, PluginError, PluginRuntime};
 
 /// 当前宿主实现的插件 API 版本。插件清单的 `apiVersion` 主版本号必须相同。
-pub const PLUGIN_API_VERSION: (u32, u32) = (1, 0);
+pub const PLUGIN_API_VERSION: (u32, u32) = (1, 2);
+
+pub use native::{register_native_plugin_executor, NativePluginExecutor, NativePluginRequest};
