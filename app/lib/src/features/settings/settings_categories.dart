@@ -222,6 +222,7 @@ List<Widget> _advancedSections() => [
     const DesktopTraySettingsSection(),
   const SettingsBackupSection(),
   const _ImageCacheSection(),
+  if (UiProfile.current.pointerFirst) const _ShortcutsSection(),
   const _DiagnosticsSection(),
 ];
 List<Widget> _aboutSections() => const [_AboutSection()];
@@ -1093,6 +1094,93 @@ class _ImageCacheSectionState extends State<_ImageCacheSection> {
             onPressed: cache.currentSize == 0 ? null : _clear,
             child: Text(context.l10n.pick('清除', 'Clear')),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ShortcutsSection extends StatelessWidget {
+  const _ShortcutsSection();
+
+  Future<void> _showShortcuts(BuildContext context) async {
+    final l10n = context.l10n;
+    await showDialog<void>(
+      context: context,
+      builder: (dialog) {
+        final theme = Theme.of(dialog);
+        Widget row(String keys, String label) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 160,
+                child: Text(
+                  keys,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Expanded(child: Text(label)),
+            ],
+          ),
+        );
+        return AlertDialog(
+          title: Text(l10n.pick('播放快捷键', 'Playback Shortcuts')),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                row('Space', l10n.pick('播放 / 暂停', 'Play / pause')),
+                row(
+                  'Ctrl/Cmd + ← / →',
+                  l10n.pick('上一首 / 下一首', 'Previous / next'),
+                ),
+                row(
+                  'Ctrl/Cmd + ↑ / ↓',
+                  l10n.pick('音量 +5% / -5%', 'Volume +5% / -5%'),
+                ),
+                row(
+                  'Shift + ← / →',
+                  l10n.pick('后退 / 前进 10 秒', 'Seek -10s / +10s'),
+                ),
+                row(
+                  'Media keys',
+                  l10n.pick('播放/暂停、上一首、下一首', 'Play/pause, previous, next'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialog).pop(),
+              child: Text(l10n.pick('关闭', 'Close')),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return SettingsSection(
+      title: l10n.pick('键盘快捷键', 'Keyboard Shortcuts'),
+      children: [
+        SettingsTile(
+          icon: Icons.keyboard_outlined,
+          title: l10n.pick('查看播放快捷键', 'View playback shortcuts'),
+          subtitle: Text(
+            l10n.pick(
+              '空格播放/暂停，Ctrl+方向键切换或调节音量',
+              'Space to play/pause, Ctrl+arrows to skip or change volume',
+            ),
+          ),
+          chevron: true,
+          onTap: () => _showShortcuts(context),
         ),
       ],
     );
