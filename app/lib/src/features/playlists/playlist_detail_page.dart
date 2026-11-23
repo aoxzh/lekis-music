@@ -200,6 +200,9 @@ class _StaticPlaylistBody extends ConsumerWidget {
                   ? null
                   : () => startDownloads(context, ref, downloadIds),
               onExport: () => exportPlaylistM3uFlow(context, playlist),
+              onSort: rows.length < 2
+                  ? null
+                  : () => showPlaylistSortSheet(context, ref, playlist, rows),
               queueTrackIds: playableIds,
             ),
           ),
@@ -345,6 +348,7 @@ class _PlaylistHeader extends ConsumerWidget {
     this.onEditRules,
     this.onDownload,
     this.onExport,
+    this.onSort,
     this.queueTrackIds = const [],
   });
 
@@ -354,6 +358,7 @@ class _PlaylistHeader extends ConsumerWidget {
   final VoidCallback? onEditRules;
   final VoidCallback? onDownload;
   final VoidCallback? onExport;
+  final VoidCallback? onSort;
 
   /// 歌单里能播放的曲目，给"下一首播放 / 加入播放队列"用。
   final List<int> queueTrackIds;
@@ -478,6 +483,8 @@ class _PlaylistHeader extends ConsumerWidget {
                         unawaited(
                           duplicatePlaylistFlow(context, ref, playlist),
                         );
+                      case 'sort':
+                        onSort?.call();
                       case 'delete':
                         delete();
                     }
@@ -511,6 +518,11 @@ class _PlaylistHeader extends ConsumerWidget {
                       PopupMenuItem(
                         value: 'duplicate',
                         child: Text(PlaylistStrings.duplicate),
+                      ),
+                    if (onSort != null)
+                      PopupMenuItem(
+                        value: 'sort',
+                        child: Text(PlaylistStrings.sortPlaylist),
                       ),
                     PopupMenuItem(
                       value: 'delete',

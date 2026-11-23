@@ -256,6 +256,208 @@ Future<void> duplicatePlaylistFlow(
   }
 }
 
+enum PlaylistSortMode { title, artist, album, added }
+
+String _sortLabel(PlaylistSortMode mode) => switch (mode) {
+  PlaylistSortMode.title => PlaylistStrings.sortByTitle,
+  PlaylistSortMode.artist => PlaylistStrings.sortByArtist,
+  PlaylistSortMode.album => PlaylistStrings.sortByAlbum,
+  PlaylistSortMode.added => PlaylistStrings.sortByAdded,
+};
+
+int _compareEntry(
+  PlaylistEntryDto a,
+  PlaylistEntryDto b,
+  PlaylistSortMode mode,
+) {
+  final ta = a.track;
+  final tb = b.track;
+  int text(String? x, String? y) =>
+      (x ?? '').toLowerCase().compareTo((y ?? '').toLowerCase());
+  final result = switch (mode) {
+    PlaylistSortMode.title => text(ta?.title, tb?.title),
+    PlaylistSortMode.artist => text(ta?.artistLine, tb?.artistLine),
+    PlaylistSortMode.album => text(ta?.albumTitle, tb?.albumTitle),
+    PlaylistSortMode.added => a.addedAt.toInt().compareTo(b.addedAt.toInt()),
+  };
+  return result != 0 ? result : a.trackUid.compareTo(b.trackUid);
+}
+
+/// Pick a sort order for a static playlist and apply it.
+///
+/// The core only exposes "move this item"; moving every item to the end in
+/// the target order sorts the whole list without re-reading position keys
+/// after each call.
+Future<void> showPlaylistSortSheet(
+  BuildContext context,
+  WidgetRef ref,
+  PlaylistDto playlist,
+  List<PlaylistEntryDto> rows,
+) async {
+  final mode = await showModalBottomSheet<PlaylistSortMode>(
+    context: context,
+    showDragHandle: true,
+    builder: (sheet) {
+      ListTile item(PlaylistSortMode value, IconData icon, String label) =>
+          ListTile(
+            leading: Icon(icon),
+            title: Text(label),
+            onTap: () => Navigator.of(sheet).pop(value),
+          );
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                LekisSpacing.lg,
+                0,
+                LekisSpacing.lg,
+                LekisSpacing.sm,
+              ),
+              child: Text(
+                PlaylistStrings.sortPlaylist,
+                style: Theme.of(sheet).textTheme.titleLarge,
+              ),
+            ),
+            item(
+              PlaylistSortMode.title,
+              Icons.sort_by_alpha_rounded,
+              PlaylistStrings.sortByTitle,
+            ),
+            item(
+              PlaylistSortMode.artist,
+              Icons.person_outline_rounded,
+              PlaylistStrings.sortByArtist,
+            ),
+            item(
+              PlaylistSortMode.album,
+              Icons.album_outlined,
+              PlaylistStrings.sortByAlbum,
+            ),
+            item(
+              PlaylistSortMode.added,
+              Icons.schedule_rounded,
+              PlaylistStrings.sortByAdded,
+            ),
+          ],
+        ),
+      );
+    },
+  );
+  if (mode == null || !context.mounted) return;
+  await sortPlaylistFlow(context, ref, playlist, rows, mode);
+}
+
+Future<void> sortPlaylistFlow(
+  BuildContext context,
+  WidgetRef ref,
+  PlaylistDto playlist,
+  List<PlaylistEntryDto> rows,
+  PlaylistSortMode mode,
+) async {
+  if (rows.length < 2) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(PlaylistStrings.nothingToSort)));
+    return;
+  }
+  final target = [...rows]..sort((a, b) => _compareEntry(a, b, mode));
+  var same = true;
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].positionKey != target[i].positionKey) {
+      same = false;
+      break;
+    }
+  }
+  if (same) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(PlaylistStrings.alreadySorted)));
+    return;
+  }
+
+  final label = _sortLabel(mode);
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialog) => AlertDialog(
+      title: Text(PlaylistStrings.sortConfirmTitle),
+      content: Text(PlaylistStrings.sortConfirmBody(label)),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialog).pop(false),
+          child: Text(PlaylistStrings.cancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(dialog).pop(true),
+          child: Text(PlaylistStrings.sortPlaylist),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return;
+
+  final progress = ValueNotifier<int>(0);
+  final navigator = Navigator.of(context, rootNavigator: true);
+  unawaited(
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: Text(PlaylistStrings.sortingPlaylist),
+        content: ValueListenableBuilder<int>(
+          valueListenable: progress,
+          builder: (_, done, _) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LinearProgressIndicator(
+                value: target.isEmpty ? 0 : done / target.length,
+              ),
+              const SizedBox(height: LekisSpacing.md),
+              Text('$done / ${target.length}'),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  var failed = 0;
+  try {
+    for (final entry in target) {
+      try {
+        await core.movePlaylistItem(
+          playlistId: playlist.id,
+          positionKey: entry.positionKey,
+        );
+      } catch (_) {
+        failed++;
+      }
+      progress.value++;
+    }
+    ref.invalidate(playlistEntriesProvider(playlist.id));
+    ref.invalidate(playlistsProvider);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              failed == 0
+                  ? PlaylistStrings.sortedPlaylist
+                  : PlaylistStrings.sortPartial(failed),
+            ),
+          ),
+        );
+    }
+  } catch (e) {
+    if (context.mounted) showPlaylistError(context, e);
+  } finally {
+    if (navigator.mounted && navigator.canPop()) navigator.pop();
+    progress.dispose();
+  }
+}
+
 /// 长按 / 菜单里用的小标签样式。
 class PlaylistKindChip extends StatelessWidget {
   const PlaylistKindChip({super.key, required this.playlist});

@@ -47,6 +47,23 @@ abstract final class PlaylistStrings {
     '智能歌单不能直接复制为普通歌单',
     'Smart playlists cannot be duplicated as regular playlists',
   );
+  static String get sortPlaylist => L10n.tr('排序歌单', 'Sort Playlist');
+  static String get sortByTitle => L10n.tr('按标题', 'By Title');
+  static String get sortByArtist => L10n.tr('按艺人', 'By Artist');
+  static String get sortByAlbum => L10n.tr('按专辑', 'By Album');
+  static String get sortByAdded => L10n.tr('按添加时间', 'By Date Added');
+  static String get sortConfirmTitle => L10n.tr('排序歌单？', 'Sort Playlist?');
+  static String sortConfirmBody(String label) => L10n.tr(
+    '将按「$label」重新排列并保存顺序。',
+    'This reorders and saves the playlist by $label.',
+  );
+  static String get sortingPlaylist => L10n.tr('正在排序歌单', 'Sorting Playlist');
+  static String get sortedPlaylist => L10n.tr('歌单已排序', 'Playlist sorted');
+  static String sortPartial(int failed) =>
+      L10n.tr('排序完成，$failed 首移动失败', 'Sorted with $failed failed moves');
+  static String get nothingToSort => L10n.tr('没有可排序的曲目', 'No tracks to sort');
+  static String get alreadySorted =>
+      L10n.tr('歌单已经是这个顺序', 'Playlist is already in this order');
   static String get smartSubtitle =>
       L10n.tr('智能歌单 · 规则实时求值', 'Smart playlist · live rules');
   static String songCount(int n) => L10n.tr('$n 首歌曲', _songs(n));
