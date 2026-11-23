@@ -144,6 +144,14 @@ jobs:
           apksigner=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | sort -V | tail -n1)
           certs=$("$apksigner" verify --print-certs "$apk")
           echo "$certs" | grep -E 'Signer #1 certificate (DN|SHA-256)' || echo "$certs"
+          # apksigner hides v1 when the manifest's minSdk >= 24; ask from 23 so a
+          # missing JAR signature (OEM installers check META-INF) fails the build.
+          schemes=$("$apksigner" verify --verbose --min-sdk-version 23 "$apk")
+          echo "$schemes" | grep -E 'Verified using v[123] scheme' || true
+          for scheme in 'v1 scheme (JAR signing)' 'v2 scheme (APK Signature Scheme v2)' 'v3 scheme (APK Signature Scheme v3)'; do
+            grep -Fq "Verified using $scheme: true" <<<"$schemes" \
+              || { echo "::error::$apk is missing $scheme"; exit 1; }
+          done
           # workflow_dispatch 没有 secrets 时允许 debug 签名，标签构建不允许。
           if [[ "$GITHUB_REF" == refs/tags/* ]] && grep -q 'CN=Android Debug' <<<"$certs"; then
             echo "::error::$apk is signed with the debug key"
