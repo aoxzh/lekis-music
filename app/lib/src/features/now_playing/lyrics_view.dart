@@ -9,6 +9,7 @@ import 'package:lekis/src/features/now_playing/lyrics_stage_settings.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
+import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -54,6 +55,8 @@ class LyricsView extends ConsumerWidget {
     final lyrics = ref.watch(lyricsProvider(trackId));
     final lyricsStyle = ref.watch(lyricsStyleProvider);
     final theme = Theme.of(context);
+    var synced = false;
+    var offsetMs = 0;
     final Widget body = lyrics.when(
       // An online lookup can take a few seconds; local ones are instant, so
       // the searching state only appears after a short pause.
@@ -82,6 +85,8 @@ class LyricsView extends ConsumerWidget {
             ),
           );
         }
+        synced = parsed.synced;
+        offsetMs = parsed.offsetMs;
         final base = LekisText.lyricsActive.copyWith(
           color: theme.colorScheme.onSurface,
         );
@@ -125,11 +130,114 @@ class LyricsView extends ConsumerWidget {
     //
     // No floating edit button over the first lyric line any more: 编辑歌词
     // lives in the title row's “更多” menu (now_playing_library_actions).
-    return AnimatedSwitcher(
-      duration: LekisMotion.normal,
-      layoutBuilder: (current, previous) =>
-          Stack(fit: StackFit.expand, children: [...previous, ?current]),
-      child: body,
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        AnimatedSwitcher(
+          duration: LekisMotion.normal,
+          layoutBuilder: (current, previous) =>
+              Stack(fit: StackFit.expand, children: [...previous, ?current]),
+          child: body,
+        ),
+        if (synced)
+          Positioned(
+            right: LekisSpacing.md,
+            bottom: LekisSpacing.md,
+            child: _LyricsOffsetBar(trackId: trackId, offsetMs: offsetMs),
+          ),
+      ],
+    );
+  }
+}
+
+/// Small always-available offset control over synced lyrics: nudge the
+/// timestamps without opening the lyrics editor.
+class _LyricsOffsetBar extends ConsumerWidget {
+  const _LyricsOffsetBar({required this.trackId, required this.offsetMs});
+
+  final int trackId;
+  final int offsetMs;
+
+  Future<void> _set(BuildContext context, WidgetRef ref, int next) async {
+    final value = next.clamp(-60000, 60000);
+    try {
+      await core.setLyricsOffset(trackId: trackId, offsetMs: value);
+      ref.invalidate(lyricsProvider(trackId));
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick(
+                '调整歌词偏移失败：$e',
+                'Failed to adjust lyrics offset: $e',
+              ),
+            ),
+          ),
+        );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.lekisColors;
+    final theme = Theme.of(context);
+    final seconds = (offsetMs / 1000).toStringAsFixed(1);
+    final label = '${offsetMs >= 0 ? '+' : ''}${seconds}s';
+    final l10n = context.l10n;
+    return Material(
+      color: colors.surfaceElevated.withValues(alpha: 0.92),
+      elevation: 2,
+      borderRadius: BorderRadius.circular(LekisRadius.pill),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.xxs),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: l10n.pick('歌词提前 0.5 秒', 'Lyrics 0.5s earlier'),
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              padding: EdgeInsets.zero,
+              iconSize: 18,
+              onPressed: offsetMs >= 60000
+                  ? null
+                  : () => _set(context, ref, offsetMs + 500),
+              icon: const Icon(Icons.fast_rewind_rounded),
+            ),
+            SizedBox(
+              width: 48,
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurface,
+                  fontFeatures: LekisText.tabularFigures,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: l10n.pick('歌词延后 0.5 秒', 'Lyrics 0.5s later'),
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              padding: EdgeInsets.zero,
+              iconSize: 18,
+              onPressed: offsetMs <= -60000
+                  ? null
+                  : () => _set(context, ref, offsetMs - 500),
+              icon: const Icon(Icons.fast_forward_rounded),
+            ),
+            IconButton(
+              tooltip: l10n.pick('重置歌词偏移', 'Reset lyrics offset'),
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              padding: EdgeInsets.zero,
+              iconSize: 18,
+              onPressed: offsetMs == 0 ? null : () => _set(context, ref, 0),
+              icon: const Icon(Icons.restart_alt_rounded),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

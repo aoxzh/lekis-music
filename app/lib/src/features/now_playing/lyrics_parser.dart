@@ -47,10 +47,18 @@ class LyricLine {
 
 @immutable
 class ParsedLyrics {
-  const ParsedLyrics({required this.lines, required this.synced});
+  const ParsedLyrics({
+    required this.lines,
+    required this.synced,
+    this.offsetMs = 0,
+  });
 
   final List<LyricLine> lines;
   final bool synced;
+
+  /// User-configured offset applied by the parser, shown by the quick-sync
+  /// controls in the lyrics pane.
+  final int offsetMs;
 
   bool get isEmpty => lines.isEmpty;
 
@@ -80,8 +88,15 @@ class ParsedLyrics {
       LyricsFormatDto.plain =>
         _looksLikeLrc(content) ? _parseLrc(content, dto.offsetMs) : null,
     };
-    // Anything without usable timestamps falls back to static text.
-    return parsed ?? _plain(content);
+    // Anything without usable timestamps falls back to static text. The
+    // offset is kept only for synced lyrics; a plain text view has nothing to
+    // shift, so it stays at zero.
+    if (parsed == null) return _plain(content);
+    return ParsedLyrics(
+      lines: parsed.lines,
+      synced: parsed.synced,
+      offsetMs: dto.offsetMs,
+    );
   }
 
   static ParsedLyrics _plain(String content) {
