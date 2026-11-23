@@ -86,13 +86,19 @@ class DownloadEntry {
 /// 下载页的完整状态。
 @immutable
 class DownloadsState {
-  const DownloadsState({
+  DownloadsState({
     this.entries = const [],
     this.readyCount = 0,
     this.totalBytes = 0,
   });
 
   final List<DownloadEntry> entries;
+
+  /// Lazy O(1) lookup so a long list of download rows does not scan
+  /// [entries] once per track tile.
+  late final Map<int, DownloadEntry> _byTrackId = {
+    for (final entry in entries) entry.trackId: entry,
+  };
 
   /// 已完成的数量（来自核心的 offline_stats）。
   final int readyCount;
@@ -103,12 +109,7 @@ class DownloadsState {
   bool get isEmpty => entries.isEmpty;
   bool get hasActive => entries.any((e) => e.isActive || e.isQueued);
 
-  DownloadEntry? entryFor(int trackId) {
-    for (final entry in entries) {
-      if (entry.trackId == trackId) return entry;
-    }
-    return null;
-  }
+  DownloadEntry? entryFor(int trackId) => _byTrackId[trackId];
 
   List<DownloadEntry> get active =>
       entries.where((e) => e.isActive || e.isQueued).toList(growable: false);

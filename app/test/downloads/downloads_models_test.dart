@@ -147,6 +147,6 @@ void main() {
     expect(state.ready.map((e) => e.trackId), [4]);
     expect(state.entryFor(4)?.isReady, isTrue);
     expect(state.entryFor(9), isNull);
-    expect(const DownloadsState().isEmpty, isTrue);
+    expect(DownloadsState().isEmpty, isTrue);
   });
 }
