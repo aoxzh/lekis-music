@@ -260,29 +260,69 @@ final sleepTimerProvider =
     );
 
 /// Moon button in Now Playing: pick a sleep timer without opening Settings.
-class SleepTimerButton extends ConsumerWidget {
+class SleepTimerButton extends ConsumerStatefulWidget {
   const SleepTimerButton({super.key, this.compact = false});
 
   /// Smaller icon/padding for the player bar's dense action cluster.
   final bool compact;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SleepTimerButton> createState() => _SleepTimerButtonState();
+}
+
+class _SleepTimerButtonState extends ConsumerState<SleepTimerButton> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    // Rebuild the badge/tooltip twice a minute while a timer is armed; the
+    // minute changes are all the user needs, and this avoids a per-second
+    // rebuild of the player bar.
+    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted && ref.read(sleepTimerProvider).active) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final timer = ref.watch(sleepTimerProvider);
     final active = timer.active;
+    final remaining = timer.kind == SleepTimerKind.endOfTrack
+        ? null
+        : timer.remaining;
+    final minutes = remaining == null
+        ? null
+        : (remaining.inSeconds / 60).ceil().clamp(1, 999);
+    final icon = Icon(
+      active ? Icons.bedtime_rounded : Icons.bedtime_outlined,
+      color: active ? Theme.of(context).colorScheme.primary : null,
+    );
+    final buttonIcon = minutes != null && !widget.compact
+        ? Badge(label: Text(L10n.tr('$minutes 分', '${minutes}m')), child: icon)
+        : icon;
+    final tooltip = active
+        ? minutes == null
+              ? L10n.tr(
+                  '睡眠定时：${timer.kind.label}',
+                  'Sleep timer: ${timer.kind.label}',
+                )
+              : L10n.tr(
+                  '睡眠定时：${timer.kind.label}（剩余约 $minutes 分钟）',
+                  'Sleep timer: ${timer.kind.label} (about $minutes min left)',
+                )
+        : L10n.tr('睡眠定时', 'Sleep timer');
     return PopupMenuButton<SleepTimerKind>(
-      tooltip: active
-          ? L10n.tr(
-              '睡眠定时：${timer.kind.label}',
-              'Sleep timer: ${timer.kind.label}',
-            )
-          : L10n.tr('睡眠定时', 'Sleep timer'),
-      iconSize: compact ? 20 : null,
-      padding: compact ? EdgeInsets.zero : const EdgeInsets.all(8),
-      icon: Icon(
-        active ? Icons.bedtime_rounded : Icons.bedtime_outlined,
-        color: active ? Theme.of(context).colorScheme.primary : null,
-      ),
+      tooltip: tooltip,
+      iconSize: widget.compact ? 20 : null,
+      padding: widget.compact ? EdgeInsets.zero : const EdgeInsets.all(8),
+      icon: buttonIcon,
       onSelected: (kind) => ref.read(sleepTimerProvider.notifier).set(kind),
       itemBuilder: (context) => [
         for (final kind in SleepTimerKind.values)
