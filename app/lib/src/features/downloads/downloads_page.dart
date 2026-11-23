@@ -14,6 +14,7 @@ import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/settings/widgets/settings_widgets.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
+import 'package:lekis/src/platform/reveal_file.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
@@ -671,6 +672,12 @@ class _DownloadTile extends ConsumerWidget {
                 title: Text(l10n.pick('复制文件路径', 'Copy File Path')),
                 onTap: () => Navigator.of(sheet).pop('copy-path'),
               ),
+            if (entry.download.cachePath.isNotEmpty && canRevealFiles)
+              ListTile(
+                leading: const Icon(Icons.folder_open_rounded),
+                title: Text(l10n.pick('在文件夹中显示', 'Show in Folder')),
+                onTap: () => Navigator.of(sheet).pop('reveal'),
+              ),
             if (track?.albumId != null)
               ListTile(
                 leading: const Icon(Icons.album_outlined),
@@ -691,6 +698,19 @@ class _DownloadTile extends ConsumerWidget {
     switch (action) {
       case 'copy-path':
         await _copyPath(context);
+      case 'reveal':
+        final ok = await revealFile(entry.download.cachePath);
+        if (!ok && context.mounted) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(
+                  l10n.pick('无法打开文件夹', 'Could not open the folder'),
+                ),
+              ),
+            );
+        }
       case 'album':
         final albumId = track?.albumId;
         if (albumId == null || !context.mounted) return;
