@@ -273,6 +273,14 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
                       playlist,
                       rows,
                     ),
+              onCleanMissing: rows.any((e) => e.track == null)
+                  ? () => removeMissingPlaylistEntriesFlow(
+                      context,
+                      ref,
+                      playlist,
+                      rows,
+                    )
+                  : null,
               queueTrackIds: playableIds,
             ),
           ),
@@ -474,6 +482,7 @@ class _PlaylistHeader extends ConsumerWidget {
     this.onSort,
     this.onCopy,
     this.onDedupe,
+    this.onCleanMissing,
     this.queueTrackIds = const [],
   });
 
@@ -486,6 +495,7 @@ class _PlaylistHeader extends ConsumerWidget {
   final VoidCallback? onSort;
   final VoidCallback? onCopy;
   final VoidCallback? onDedupe;
+  final VoidCallback? onCleanMissing;
 
   /// 歌单里能播放的曲目，给"下一首播放 / 加入播放队列"用。
   final List<int> queueTrackIds;
@@ -616,6 +626,8 @@ class _PlaylistHeader extends ConsumerWidget {
                         onCopy?.call();
                       case 'dedupe':
                         onDedupe?.call();
+                      case 'missing':
+                        onCleanMissing?.call();
                       case 'delete':
                         delete();
                     }
@@ -663,6 +675,11 @@ class _PlaylistHeader extends ConsumerWidget {
                       PopupMenuItem(
                         value: 'dedupe',
                         child: Text(PlaylistStrings.removeDuplicates),
+                      ),
+                    if (onCleanMissing != null)
+                      PopupMenuItem(
+                        value: 'missing',
+                        child: Text(PlaylistStrings.removeMissing),
                       ),
                     PopupMenuItem(
                       value: 'delete',

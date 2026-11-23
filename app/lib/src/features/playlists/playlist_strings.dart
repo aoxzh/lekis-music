@@ -78,6 +78,22 @@ abstract final class PlaylistStrings {
           'Removed $removed; $failed failed',
         );
   static String get noDuplicates => L10n.tr('没有重复曲目', 'No duplicate tracks');
+  static String get removeMissing => L10n.tr('清理缺失曲目', 'Remove Missing Tracks');
+  static String get removeMissingTitle =>
+      L10n.tr('清理缺失曲目？', 'Remove Missing Tracks?');
+  static String removeMissingBody(int count) => L10n.tr(
+    '将移除 $count 个无法解析的条目，其他曲目保持不变。',
+    'This removes $count unavailable entries; other tracks stay.',
+  );
+  static String get removingMissing =>
+      L10n.tr('正在清理缺失曲目', 'Removing Missing Tracks');
+  static String missingRemoved(int removed, int failed) => failed == 0
+      ? L10n.tr('已移除 $removed 个缺失条目', 'Removed $removed missing entries')
+      : L10n.tr(
+          '已移除 $removed 个，$failed 个失败',
+          'Removed $removed; $failed failed',
+        );
+  static String get noMissing => L10n.tr('没有缺失曲目', 'No missing tracks');
   static String get sortPlaylist => L10n.tr('排序歌单', 'Sort Playlist');
   static String get sortByTitle => L10n.tr('按标题', 'By Title');
   static String get sortByArtist => L10n.tr('按艺人', 'By Artist');
