@@ -17,6 +17,8 @@ import 'package:lekis/src/rust/api/dto.dart';
 
 class DownloadsController extends AsyncNotifier<DownloadsState> {
   Timer? _reload;
+  Timer? _progress;
+  final Map<int, ({int downloaded, int? total})> _pendingProgress = {};
   bool _disposed = false;
 
   @override
@@ -24,6 +26,7 @@ class DownloadsController extends AsyncNotifier<DownloadsState> {
     ref.onDispose(() {
       _disposed = true;
       _reload?.cancel();
+      _progress?.cancel();
     });
     ref.listen<AsyncValue<CoreEventDto>>(coreEventsProvider, _onEvent);
     return _load();
@@ -34,25 +37,43 @@ class DownloadsController extends AsyncNotifier<DownloadsState> {
     if (event == null) return;
     if (event is CoreEventDto_OfflineProgress) {
       final current = state.value;
-      if (current == null) {
+      if (current == null || current.entryFor(event.trackId) == null) {
         _scheduleReload();
         return;
       }
-      final updated = current.withProgress(
-        event.trackId,
-        event.downloaded.toInt(),
-        event.total?.toInt(),
+      _pendingProgress[event.trackId] = (
+        downloaded: event.downloaded.toInt(),
+        total: event.total?.toInt(),
       );
-      if (!identical(updated, current)) state = AsyncData(updated);
-      if (current.entryFor(event.trackId) == null) _scheduleReload();
+      _progress ??= Timer(const Duration(milliseconds: 200), _flushProgress);
     } else if (event is CoreEventDto_OfflineChanged ||
         event is CoreEventDto_OfflineRemoved) {
       _scheduleReload();
     }
   }
 
+  void _flushProgress() {
+    _progress = null;
+    if (_disposed || _pendingProgress.isEmpty) return;
+    final pending = Map<int, ({int downloaded, int? total})>.of(
+      _pendingProgress,
+    );
+    _pendingProgress.clear();
+    final current = state.value;
+    if (current == null) return;
+    final updated = current.withProgresses(pending);
+    if (!identical(updated, current)) state = AsyncData(updated);
+  }
+
+  void _clearProgress() {
+    _progress?.cancel();
+    _progress = null;
+    _pendingProgress.clear();
+  }
+
   void _scheduleReload() {
     if (_disposed) return;
+    _clearProgress();
     _reload?.cancel();
     _reload = Timer(const Duration(milliseconds: 150), () {
       unawaited(_refreshQuietly());
@@ -102,11 +123,13 @@ class DownloadsController extends AsyncNotifier<DownloadsState> {
   }
 
   Future<void> refresh() async {
+    _clearProgress();
     final next = await AsyncValue.guard(_load);
     if (!_disposed) state = next;
   }
 
   Future<void> _refreshQuietly() async {
+    _clearProgress();
     try {
       final data = await _load(previous: state.value);
       if (!_disposed) state = AsyncData(data);

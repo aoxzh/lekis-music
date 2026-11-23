@@ -136,6 +136,26 @@ class DownloadsState {
     return changed ? _copy(entries: next) : this;
   }
 
+  /// Apply a whole batch of progress events with one immutable replacement,
+  /// so several active downloads do not rebuild the list once per event.
+  DownloadsState withProgresses(
+    Map<int, ({int downloaded, int? total})> progress,
+  ) {
+    if (progress.isEmpty) return this;
+    var changed = false;
+    final next = <DownloadEntry>[];
+    for (final entry in entries) {
+      final value = progress[entry.trackId];
+      if (value == null) {
+        next.add(entry);
+      } else {
+        changed = true;
+        next.add(entry.withProgress(value.downloaded, value.total));
+      }
+    }
+    return changed ? _copy(entries: next) : this;
+  }
+
   DownloadsState _copy({List<DownloadEntry>? entries}) => DownloadsState(
     entries: entries ?? this.entries,
     readyCount: readyCount,
