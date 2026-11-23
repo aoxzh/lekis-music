@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:lekis/src/features/plugins/plugins_providers.dart';
 
 import '../plugins/plugin_browse_page.dart';
@@ -18,6 +21,7 @@ import 'package:lekis/src/features/search/search_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/rust/api/dto.dart';
+import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:material_ui/material_ui.dart';
@@ -34,9 +38,68 @@ class SearchPage extends ConsumerStatefulWidget {
 }
 
 class _SearchPageState extends ConsumerState<SearchPage> {
+  static const _recentKey = 'search.recent';
+  static const _maxRecent = 8;
+
   late final TextEditingController _text = TextEditingController(
     text: widget.pluginId == null ? ref.read(searchQueryProvider) : '',
   );
+  List<String> _recent = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.pluginId == null) unawaited(_loadRecent());
+  }
+
+  Future<void> _loadRecent() async {
+    try {
+      final raw = await core.getSetting(key: _recentKey);
+      if (!mounted || raw == null || raw.isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return;
+      final queries = decoded
+          .whereType<String>()
+          .map((q) => q.trim())
+          .where((q) => q.isNotEmpty)
+          .take(_maxRecent)
+          .toList(growable: false);
+      if (queries.isNotEmpty) setState(() => _recent = queries);
+    } catch (_) {
+      // A missing or malformed setting is the same as no history.
+    }
+  }
+
+  Future<void> _saveRecent() async {
+    try {
+      await core.setSetting(key: _recentKey, value: jsonEncode(_recent));
+    } catch (_) {
+      // Search still works if history cannot be persisted.
+    }
+  }
+
+  void _remember(String value) {
+    final query = value.trim();
+    if (query.isEmpty) return;
+    final next = [
+      query,
+      ..._recent.where((q) => q.toLowerCase() != query.toLowerCase()),
+    ].take(_maxRecent).toList(growable: false);
+    setState(() => _recent = next);
+    unawaited(_saveRecent());
+  }
+
+  void _clearRecent() {
+    setState(() => _recent = const []);
+    unawaited(_saveRecent());
+  }
+
+  void _pickRecent(String query) {
+    _text.text = query;
+    _text.selection = TextSelection.collapsed(offset: query.length);
+    _set(query);
+    _remember(query);
+  }
 
   @override
   void didUpdateWidget(covariant SearchPage oldWidget) {
@@ -60,6 +123,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     } else {
       setState(() {});
     }
+  }
+
+  void _submit(String v) {
+    _set(v);
+    _remember(v);
   }
 
   @override
@@ -109,7 +177,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             ),
         ],
         onChanged: _set,
-        onSubmitted: _set,
+        onSubmitted: _submit,
         textInputAction: TextInputAction.search,
       ),
     );
@@ -127,6 +195,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 'Type a song, album, or artist name.',
               )
             : l10n.pick('输入歌名、艺人或歌曲链接。', 'Enter a song, artist, or song URL.'),
+        action: fixedSource == null && _recent.isNotEmpty
+            ? _RecentSearches(
+                queries: _recent,
+                onPick: _pickRecent,
+                onClear: _clearRecent,
+              )
+            : null,
       );
     } else {
       final data = results.value;
@@ -388,11 +463,63 @@ class _Results extends ConsumerWidget {
 }
 
 class _Hint extends StatelessWidget {
-  const _Hint({required this.text, this.message = ''});
+  const _Hint({required this.text, this.message = '', this.action});
   final String text;
   final String message;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) =>
-      LekisEmptyState(title: text, message: message);
+      LekisEmptyState(title: text, message: message, action: action);
+}
+
+class _RecentSearches extends StatelessWidget {
+  const _RecentSearches({
+    required this.queries,
+    required this.onPick,
+    required this.onClear,
+  });
+
+  final List<String> queries;
+  final ValueChanged<String> onPick;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = context.l10n;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              l10n.pick('最近搜索', 'Recent searches'),
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            TextButton(
+              onPressed: onClear,
+              child: Text(l10n.pick('清除', 'Clear')),
+            ),
+          ],
+        ),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: LekisSpacing.sm,
+          runSpacing: LekisSpacing.xs,
+          children: [
+            for (final query in queries)
+              ActionChip(
+                avatar: const Icon(Icons.history_rounded, size: 18),
+                label: Text(query),
+                onPressed: () => onPick(query),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
 }
