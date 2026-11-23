@@ -177,9 +177,8 @@ pub(crate) async fn serve(mut stream: TcpStream, s: Arc<Services>) {
     let head_only = req.method == "HEAD";
     let result = match media.location {
         MediaLocation::Vfs { source_id, path } => {
-            let vfs = s
-                .vfs_get(source_id)
-                .or_else(|| lekis_playback::vfs_access::resolve(source_id));
+            let vfs =
+                lekis_playback::vfs_access::resolve(source_id).or_else(|| s.vfs_get(source_id));
             match vfs {
                 Some(vfs) => serve_vfs(&mut stream, vfs, &path, req.range, head_only).await,
                 None => Err(LekisError::not_found("source not open")),
