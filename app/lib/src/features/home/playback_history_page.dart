@@ -53,6 +53,20 @@ class _PlaybackHistoryPageState extends ConsumerState<PlaybackHistoryPage> {
         title: Text(l10n.pick('播放历史', 'Playback History')),
         actions: [
           IconButton(
+            tooltip: l10n.pick('保存为歌单', 'Save as Playlist'),
+            onPressed: appBarTracks.isEmpty
+                ? null
+                : () => saveTracksAsPlaylistFlow(
+                    context,
+                    ref,
+                    appBarTracks,
+                    suggestedName:
+                        '${l10n.pick('播放历史', 'Playback History')} '
+                        '${DateTime.now().toString().substring(0, 16).replaceAll('T', ' ')}',
+                  ),
+            icon: const Icon(Icons.playlist_add_rounded),
+          ),
+          IconButton(
             tooltip: l10n.pick('复制列表', 'Copy List'),
             onPressed: appBarTracks.isEmpty
                 ? null

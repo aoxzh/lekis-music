@@ -127,6 +127,105 @@ Future<void> playPlaylistContext(
   }
 }
 
+/// Create a new playlist from [tracks], preserving their order.
+///
+/// Track rows only carry local ids, so each row is resolved to its stable uid
+/// before being added.
+Future<void> saveTracksAsPlaylistFlow(
+  BuildContext context,
+  WidgetRef ref,
+  List<TrackRowDto> tracks, {
+  required String suggestedName,
+}) async {
+  if (tracks.isEmpty) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(PlaylistStrings.noTracksToSave)));
+    return;
+  }
+  final name = await askPlaylistName(
+    context,
+    title: PlaylistStrings.saveAsPlaylist,
+    initial: suggestedName,
+    confirm: PlaylistStrings.save,
+  );
+  if (name == null || !context.mounted) return;
+
+  final total = tracks.length;
+  final progress = ValueNotifier<int>(0);
+  final navigator = Navigator.of(context, rootNavigator: true);
+  unawaited(
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: Text(PlaylistStrings.savingPlaylist),
+        content: ValueListenableBuilder<int>(
+          valueListenable: progress,
+          builder: (_, done, _) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LinearProgressIndicator(
+                value: total == 0 ? 0 : (done / total).clamp(0.0, 1.0),
+              ),
+              const SizedBox(height: LekisSpacing.md),
+              Text('$done / $total'),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  var saved = 0;
+  var failed = 0;
+  try {
+    final playlistId = await core.createPlaylist(name: name);
+    for (final row in tracks) {
+      try {
+        final track = await core.getTrack(trackId: row.id);
+        await core.addToPlaylist(playlistId: playlistId, trackUid: track.uid);
+        saved++;
+      } catch (_) {
+        failed++;
+      }
+      progress.value = saved + failed;
+    }
+    if (saved == 0) {
+      try {
+        await core.deletePlaylist(playlistId: playlistId);
+      } catch (_) {
+        // Best-effort cleanup; the empty result is the useful signal.
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(content: Text(PlaylistStrings.savePlaylistEmpty)),
+          );
+      }
+    } else {
+      ref.invalidate(playlistsProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                PlaylistStrings.savedPlaylistTracks(saved, failed, name),
+              ),
+            ),
+          );
+      }
+    }
+  } catch (e) {
+    if (context.mounted) showPlaylistError(context, e);
+  } finally {
+    if (navigator.mounted && navigator.canPop()) navigator.pop();
+    progress.dispose();
+  }
+}
+
 /// 删除并返回是否成功；调用方决定要不要 pop 详情页。
 Future<bool> deletePlaylistFlow(
   BuildContext context,

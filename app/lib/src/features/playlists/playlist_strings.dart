@@ -78,6 +78,18 @@ abstract final class PlaylistStrings {
   static String get noTracksToCopy => L10n.tr('没有可复制的曲目', 'No tracks to copy');
   static String copyTracksFailed(String e) =>
       L10n.tr('复制失败：$e', 'Failed to copy: $e');
+  static String get saveAsPlaylist => L10n.tr('保存为歌单', 'Save as Playlist');
+  static String get savingPlaylist => L10n.tr('正在保存歌单', 'Saving Playlist');
+  static String get noTracksToSave => L10n.tr('没有可保存的曲目', 'No tracks to save');
+  static String get savePlaylistEmpty =>
+      L10n.tr('没有曲目保存成功', 'No tracks were saved');
+  static String savedPlaylistTracks(int saved, int failed, String name) =>
+      failed == 0
+      ? L10n.tr('已保存 $saved 首到「$name」', 'Saved $saved tracks to "$name"')
+      : L10n.tr(
+          '已保存 $saved 首到「$name」，$failed 首失败',
+          'Saved $saved tracks to "$name"; $failed failed',
+        );
   static String get removeDuplicates => L10n.tr('移除重复曲目', 'Remove Duplicates');
   static String get removeDuplicatesTitle =>
       L10n.tr('移除重复曲目？', 'Remove Duplicate Tracks?');
