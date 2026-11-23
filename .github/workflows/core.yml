@@ -89,7 +89,7 @@ jobs:
             grep -nE 'panicked at|FAILED|^failures:' core-test.log | head -10 | while IFS= read -r line; do
               n=${line%%:*}
               echo "::error::line $n: ${line#*:}"
-              sed -n "$((n)),$((n+5))p" core-test.log | while IFS= read -r ctx; do
+              sed -n "$((n-25)),$((n+10))p" core-test.log | while IFS= read -r ctx; do
                 echo "::error::    $ctx"
               done
             done
