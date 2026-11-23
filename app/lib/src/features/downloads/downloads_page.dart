@@ -149,11 +149,68 @@ class DownloadsPage extends ConsumerWidget {
     }
   }
 
+  Future<void> _clearFailed(BuildContext context, WidgetRef ref) async {
+    final l10n = context.l10n;
+    final count = ref.read(downloadsProvider).value?.failed.length ?? 0;
+    if (count == 0) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(l10n.pick('清理失败下载？', 'Clear failed downloads?')),
+        content: Text(
+          l10n.pick(
+            '会移除 $count 条失败记录，不会删除已完成的离线文件。',
+            'This removes $count failed records; completed offline files stay.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(false),
+            child: Text(l10n.pick('取消', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialog).pop(true),
+            child: Text(l10n.pick('清理', 'Clear')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      final removed = await ref.read(downloadsProvider.notifier).clearFailed();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.pick(
+                '已清理 $removed 条失败记录',
+                'Cleared $removed failed records',
+              ),
+            ),
+          ),
+        );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.pick('清理失败记录失败：$e', 'Failed to clear failed records: $e'),
+            ),
+          ),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final async = ref.watch(downloadsProvider);
     final hasCompleted = async.value?.ready.isNotEmpty ?? false;
+    final hasFailed = async.value?.failed.isNotEmpty ?? false;
     return SettingsScaffold(
       title: l10n.pick('下载', 'Downloads'),
       actions: [
@@ -167,6 +224,8 @@ class DownloadsPage extends ConsumerWidget {
                 _downloadMostPlayed(context, ref);
               case 'clear-completed':
                 _clearCompleted(context, ref);
+              case 'clear-failed':
+                _clearFailed(context, ref);
             }
           },
           itemBuilder: (_) => [
@@ -192,6 +251,14 @@ class DownloadsPage extends ConsumerWidget {
                   title: Text(
                     l10n.pick('清理已完成的下载', 'Clear Completed Downloads'),
                   ),
+                ),
+              ),
+            if (hasFailed)
+              PopupMenuItem(
+                value: 'clear-failed',
+                child: ListTile(
+                  leading: const Icon(Icons.error_outline_rounded),
+                  title: Text(l10n.pick('清理失败记录', 'Clear Failed Downloads')),
                 ),
               ),
           ],

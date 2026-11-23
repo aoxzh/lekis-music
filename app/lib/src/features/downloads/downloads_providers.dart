@@ -128,6 +128,17 @@ class DownloadsController extends AsyncNotifier<DownloadsState> {
     return entries.length;
   }
 
+  /// Drop failed download records so the list only shows actionable items.
+  Future<int> clearFailed() async {
+    final entries = state.value?.failed.toList() ?? const <DownloadEntry>[];
+    if (entries.isEmpty) return 0;
+    for (final entry in entries) {
+      await core.removeDownload(trackId: entry.trackId);
+    }
+    await _refreshQuietly();
+    return entries.length;
+  }
+
   Future<void> retry(int trackId) => downloadTrack(trackId);
 
   void playDownloaded(int trackId) {
