@@ -18,6 +18,7 @@ import 'package:lekis/src/features/now_playing/now_playing_layout.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/features/now_playing/now_playing_route.dart';
 import 'package:lekis/src/features/now_playing/now_playing_tint.dart';
+import 'package:lekis/src/features/now_playing/track_sources_sheet.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_panel.dart';
 import 'package:lekis/src/features/player/queue_view.dart';
@@ -906,13 +907,20 @@ class _NowPlayingTitle extends ConsumerWidget {
                 if (hasQuality) ...[
                   Text(' · ', style: subtitleStyle),
                   Flexible(
-                    child: Text(
-                      quality,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    child: _SubtitleLink(
+                      label: quality,
                       style: subtitleStyle?.copyWith(
                         color: theme.colorScheme.primary,
                         fontWeight: FontWeight.w600,
+                      ),
+                      semanticsLabel: context.l10n.pick(
+                        '查看曲目来源',
+                        'View track sources',
+                      ),
+                      onTap: () => showTrackSourcesSheet(
+                        context,
+                        trackId: track.id.toInt(),
+                        title: track.title,
                       ),
                     ),
                   ),

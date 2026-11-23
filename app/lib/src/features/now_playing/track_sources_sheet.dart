@@ -2,6 +2,7 @@
 // Opened from Now Playing's “more” menu and useful when the same song exists
 // in several qualities / locations.
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
@@ -222,7 +223,28 @@ class _SourceTile extends StatelessWidget {
         ),
       ),
       isThreeLine: true,
-      trailing: Icon(reachIcon, size: 20, color: reachColor),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: l10n.pick('复制路径', 'Copy path'),
+            iconSize: 18,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            padding: EdgeInsets.zero,
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: source.path));
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                  SnackBar(content: Text(l10n.pick('已复制路径', 'Path copied'))),
+                );
+            },
+            icon: const Icon(Icons.copy_rounded),
+          ),
+          Icon(reachIcon, size: 20, color: reachColor),
+        ],
+      ),
     );
   }
 }
