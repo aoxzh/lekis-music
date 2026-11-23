@@ -186,14 +186,30 @@ final playbackProvider = NotifierProvider<PlaybackController, PlaybackUiState>(
 final artworkPrefetchProvider = Provider<void>((ref) {
   var generation = 0;
   var last = '';
+  Timer? delay;
+  ref.onDispose(() => delay?.cancel());
+
+  void scheduleNext(PlaybackUiState state, int index) {
+    final current = ++generation;
+    // Let rapid skips settle: only the track the listener actually dwells on
+    // gets its neighbour prefetched. This avoids a burst of cover downloads
+    // while the user is scrubbing the queue.
+    delay?.cancel();
+    delay = Timer(const Duration(milliseconds: 350), () {
+      if (current != generation) return;
+      unawaited(
+        _prefetchNextArtwork(state, index, () => current == generation),
+      );
+    });
+  }
+
   ref.listen<PlaybackUiState>(playbackProvider, (_, next) {
     final key = '${next.trackId}:${next.queueIndex}';
     if (key == last) return;
     last = key;
     final index = next.queueIndex;
     if (index == null) return;
-    final current = ++generation;
-    unawaited(_prefetchNextArtwork(next, index, () => current == generation));
+    scheduleNext(next, index);
   });
 });
 
