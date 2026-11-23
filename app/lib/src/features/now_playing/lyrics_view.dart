@@ -48,6 +48,8 @@ class LyricsView extends ConsumerWidget {
         ),
       );
     }
+    // Keep the next track's lyrics warm while this pane is visible.
+    ref.watch(lyricsPrefetchProvider);
     final lyrics = ref.watch(lyricsProvider(trackId));
     final lyricsStyle = ref.watch(lyricsStyleProvider);
     final theme = Theme.of(context);
@@ -308,7 +310,10 @@ class _PlainLyrics extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              context.l10n.pick('歌词未与播放同步', 'Lyrics are not synced with playback'),
+              context.l10n.pick(
+                '歌词未与播放同步',
+                'Lyrics are not synced with playback',
+              ),
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(
                   alpha: LekisType.lyricsInactiveOpacity,
