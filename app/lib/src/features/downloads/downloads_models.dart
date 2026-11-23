@@ -41,6 +41,9 @@ class DownloadEntry {
   bool get isReady => state == OfflineStateDto.ready;
   bool get isFailed => state == OfflineStateDto.failed;
 
+  /// Last failure reason reported by the core, if any.
+  String? get error => download.error;
+
   /// 0..1；总大小未知时是 `null`（进度条应显示为不确定状态）。
   double? get progress {
     if (totalBytes <= 0) return null;

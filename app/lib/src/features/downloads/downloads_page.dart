@@ -1,10 +1,15 @@
 // 下载页：下载队列、已完成、失败和缓存总大小。
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/downloads/downloads_models.dart';
 import 'package:lekis/src/features/downloads/downloads_providers.dart';
+import 'package:lekis/src/features/library/album_detail_page.dart';
+import 'package:lekis/src/features/library/artist_detail_page.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
+import 'package:lekis/src/features/library/library_providers.dart'
+    show artistIdForNameProvider;
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/settings/widgets/settings_widgets.dart';
@@ -568,6 +573,96 @@ class _DownloadTile extends ConsumerWidget {
     }
   }
 
+  Future<void> _copyPath(BuildContext context) async {
+    final path = entry.download.cachePath;
+    if (path.isEmpty) return;
+    try {
+      await Clipboard.setData(ClipboardData(text: path));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(context.l10n.pick('已复制文件路径', 'File path copied')),
+          ),
+        );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick('复制路径失败：$e', 'Failed to copy path: $e'),
+            ),
+          ),
+        );
+    }
+  }
+
+  Future<void> _showActions(BuildContext context, WidgetRef ref) async {
+    final l10n = context.l10n;
+    final track = entry.track;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (entry.download.cachePath.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.copy_rounded),
+                title: Text(l10n.pick('复制文件路径', 'Copy File Path')),
+                onTap: () => Navigator.of(sheet).pop('copy-path'),
+              ),
+            if (track?.albumId != null)
+              ListTile(
+                leading: const Icon(Icons.album_outlined),
+                title: Text(l10n.pick('查看专辑', 'View Album')),
+                onTap: () => Navigator.of(sheet).pop('album'),
+              ),
+            if (track != null && track.artists.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.person_outline_rounded),
+                title: Text(l10n.pick('查看艺人', 'View Artist')),
+                onTap: () => Navigator.of(sheet).pop('artist'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !context.mounted) return;
+    switch (action) {
+      case 'copy-path':
+        await _copyPath(context);
+      case 'album':
+        final albumId = track?.albumId;
+        if (albumId == null || !context.mounted) return;
+        await Navigator.of(context)
+            .push(AlbumDetailPage.route(albumId.toInt()));
+      case 'artist':
+        final name = track?.artists.first.trim();
+        if (name == null || name.isEmpty) return;
+        final id = await ref.read(artistIdForNameProvider(name).future);
+        if (id == null) {
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(
+                  l10n.pick('资料库里没有这位艺人', 'Artist not found in library'),
+                ),
+              ),
+            );
+          return;
+        }
+        if (!context.mounted) return;
+        await Navigator.of(context).push(ArtistDetailPage.route(id));
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
@@ -613,6 +708,8 @@ class _DownloadTile extends ConsumerWidget {
                 .read(downloadsProvider.notifier)
                 .playDownloaded(entry.trackId)
           : null,
+      onLongPress: () => _showActions(context, ref),
+      onSecondaryTap: () => _showActions(context, ref),
       borderRadius: BorderRadius.circular(LekisRadius.sm),
       child: Padding(
         padding: const EdgeInsets.symmetric(
@@ -667,6 +764,17 @@ class _DownloadTile extends ConsumerWidget {
                           : colors.onSurfaceVariant,
                     ),
                   ),
+                  if (entry.isFailed &&
+                      entry.error != null &&
+                      entry.error!.trim().isNotEmpty)
+                    Text(
+                      entry.error!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.danger,
+                      ),
+                    ),
                   if (entry.isActive) ...[
                     const SizedBox(height: LekisSpacing.xs),
                     ClipRRect(
