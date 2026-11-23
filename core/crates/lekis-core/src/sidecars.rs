@@ -41,6 +41,15 @@ pub(crate) async fn persist_for_track(services: &Arc<Services>, track_id: TrackI
     };
     let artwork = services.library.effective_artwork(track_id).await?;
     let lyrics = services.library.active_lyrics(track_id).await?;
+    let need_lyrics = lyrics
+        .as_ref()
+        .is_some_and(|lyrics| !matches!(lyrics.source.as_str(), "sidecar" | "embedded"));
+    let need_cover = artwork
+        .as_ref()
+        .is_some_and(|artwork| !matches!(artwork.source.as_str(), "sidecar" | "embedded"));
+    if !need_lyrics && !need_cover {
+        return Ok(());
+    }
     let mut written_album_dirs = HashSet::new();
 
     for file in files {
@@ -70,38 +79,42 @@ pub(crate) async fn persist_for_track(services: &Arc<Services>, track_id: TrackI
             .filter_map(|entry| entry.path.file_name().map(str::to_string))
             .collect();
 
-        if let Some(lyrics) = &lyrics {
-            if let Err(error) = persist_lyrics(vfs.as_ref(), &path, lyrics, &names).await {
-                tracing::debug!(
-                    target: "core::sidecars",
-                    path = %path,
-                    code = %error.code.as_str(),
-                    "writing lyrics sidecar failed"
-                );
+        if need_lyrics {
+            if let Some(lyrics) = &lyrics {
+                if let Err(error) = persist_lyrics(vfs.as_ref(), &path, lyrics, &names).await {
+                    tracing::debug!(
+                        target: "core::sidecars",
+                        path = %path,
+                        code = %error.code.as_str(),
+                        "writing lyrics sidecar failed"
+                    );
+                }
             }
         }
-        if let Some(artwork) = &artwork {
-            let album_level = album_art == Some(artwork.id);
-            if album_level && !written_album_dirs.insert(dir.as_str().to_string()) {
-                continue;
-            }
-            if let Err(error) = persist_cover(
-                services,
-                vfs.as_ref(),
-                &dir,
-                &path,
-                artwork,
-                album_level,
-                &names,
-            )
-            .await
-            {
-                tracing::debug!(
-                    target: "core::sidecars",
-                    path = %path,
-                    code = %error.code.as_str(),
-                    "writing cover sidecar failed"
-                );
+        if need_cover {
+            if let Some(artwork) = &artwork {
+                let album_level = album_art == Some(artwork.id);
+                if album_level && !written_album_dirs.insert(dir.as_str().to_string()) {
+                    continue;
+                }
+                if let Err(error) = persist_cover(
+                    services,
+                    vfs.as_ref(),
+                    &dir,
+                    &path,
+                    artwork,
+                    album_level,
+                    &names,
+                )
+                .await
+                {
+                    tracing::debug!(
+                        target: "core::sidecars",
+                        path = %path,
+                        code = %error.code.as_str(),
+                        "writing cover sidecar failed"
+                    );
+                }
             }
         }
     }
