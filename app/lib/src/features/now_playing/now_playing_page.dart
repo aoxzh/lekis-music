@@ -831,8 +831,10 @@ class _NowPlayingTitle extends ConsumerWidget {
     final artistNames = track?.artists.where((a) => a.isNotEmpty).join(' / ');
     final album = track?.albumTitle;
     final albumId = track?.albumId;
+    final quality = track?.qualityBadge;
     final hasArtist = artistNames != null && artistNames.isNotEmpty;
     final hasAlbum = album != null && album.isNotEmpty;
+    final hasQuality = quality != null && quality.isNotEmpty;
     final subtitleStyle = theme.textTheme.bodyLarge?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
@@ -901,6 +903,20 @@ class _NowPlayingTitle extends ConsumerWidget {
                                 .push(AlbumDetailPage.route(albumId.toInt())),
                           ),
                   ),
+                if (hasQuality) ...[
+                  Text(' · ', style: subtitleStyle),
+                  Flexible(
+                    child: Text(
+                      quality,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: subtitleStyle?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

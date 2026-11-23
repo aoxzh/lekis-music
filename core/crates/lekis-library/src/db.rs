@@ -82,10 +82,13 @@ impl Library {
     pub fn open(path: &Path) -> Result<Self> {
         let mut writer = Connection::open(path).db()?;
         configure(&writer)?;
-        migrations::run(&mut writer)?;
-        // Refresh planner statistics only when SQLite decides it is worth it;
-        // do it after migrations so new indexes are visible immediately.
-        writer.execute_batch("PRAGMA optimize;").db()?;
+        let migrated = migrations::run(&mut writer)?;
+        if migrated {
+            // Refresh planner statistics only after this launch actually changed
+            // the schema. Running ANALYZE on every open added startup work even
+            // when the database was already up to date.
+            writer.execute_batch("PRAGMA optimize;").db()?;
+        }
 
         let readers = (0..READER_COUNT)
             .map(|_| {

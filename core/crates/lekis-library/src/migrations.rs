@@ -30,7 +30,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (13, include_str!("../migrations/0013_perf_indexes.sql")),
 ];
 
-pub(crate) fn run(conn: &mut Connection) -> Result<()> {
+pub(crate) fn run(conn: &mut Connection) -> Result<bool> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS schema_migrations (
            version    INTEGER PRIMARY KEY,
@@ -47,6 +47,7 @@ pub(crate) fn run(conn: &mut Connection) -> Result<()> {
         )
         .db()?;
 
+    let mut applied = false;
     for (version, sql) in MIGRATIONS.iter().filter(|(v, _)| *v > current) {
         tracing::info!(target: "library", version, "applying migration");
         let tx = conn.transaction().db()?;
@@ -57,6 +58,7 @@ pub(crate) fn run(conn: &mut Connection) -> Result<()> {
         )
         .db()?;
         tx.commit().db()?;
+        applied = true;
     }
-    Ok(())
+    Ok(applied)
 }
