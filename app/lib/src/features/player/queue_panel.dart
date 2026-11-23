@@ -7,14 +7,17 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/library/album_detail_page.dart';
+import 'package:lekis/src/features/library/artist_detail_page.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/library/library_providers.dart'
-    show PagedList;
+    show PagedList, artistIdForNameProvider;
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/layout/window_size.dart';
 import 'package:lekis/src/platform/ui_profile.dart';
+import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/nav_icon.dart' show lekisReduceMotion;
 import 'package:lekis/src/theme/tokens.dart';
@@ -143,6 +146,24 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (row.albumTitle != null && row.albumTitle!.isNotEmpty)
+                ListTile(
+                  leading: const Icon(Icons.album_outlined),
+                  title: Text(l10n.pick('查看专辑', 'View Album')),
+                  onTap: () {
+                    close();
+                    unawaited(_openAlbum(context, row, messenger));
+                  },
+                ),
+              if (row.artistLine.isNotEmpty)
+                ListTile(
+                  leading: const Icon(Icons.person_outline_rounded),
+                  title: Text(l10n.pick('查看艺人', 'View Artist')),
+                  onTap: () {
+                    close();
+                    unawaited(_openArtist(context, row, messenger));
+                  },
+                ),
               ListTile(
                 leading: Icon(
                   loved
@@ -215,6 +236,72 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
         );
       },
     );
+  }
+
+  Future<void> _openAlbum(
+    BuildContext context,
+    TrackRowDto row,
+    ScaffoldMessengerState messenger,
+  ) async {
+    final l10n = context.l10n;
+    try {
+      final track = await core.getTrack(trackId: row.id);
+      final albumId = track.albumId;
+      if (albumId == null) {
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(l10n.pick('这首歌没有关联专辑', 'This track has no album')),
+            ),
+          );
+        return;
+      }
+      if (!context.mounted) return;
+      await Navigator.of(context).push(AlbumDetailPage.route(albumId.toInt()));
+    } catch (e) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(l10n.pick('打开专辑失败：$e', 'Failed to open album: $e')),
+          ),
+        );
+    }
+  }
+
+  Future<void> _openArtist(
+    BuildContext context,
+    TrackRowDto row,
+    ScaffoldMessengerState messenger,
+  ) async {
+    final l10n = context.l10n;
+    try {
+      final name = row.artistLine.split(' / ').first.trim();
+      final id = await ref.read(artistIdForNameProvider(name).future);
+      if (id == null) {
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                l10n.pick('资料库里没有这位艺人', 'Artist not found in library'),
+              ),
+            ),
+          );
+        return;
+      }
+      if (!context.mounted) return;
+      await Navigator.of(context).push(ArtistDetailPage.route(id));
+    } catch (e) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(l10n.pick('打开艺人失败：$e', 'Failed to open artist: $e')),
+          ),
+        );
+    }
   }
 
   void _remove(int index) {
