@@ -35,16 +35,30 @@ class ArtistDetailPage extends StatelessWidget {
 }
 
 /// Artist header, albums shelf and songs. Embeddable as a secondary pane.
-class ArtistDetailView extends ConsumerWidget {
+class ArtistDetailView extends ConsumerStatefulWidget {
   const ArtistDetailView({super.key, required this.artistId});
 
   final int artistId;
 
-  /// Songs shown before "show all" would be needed.
+  /// Songs shown before the list expands.
   static const int _songPreview = 50;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ArtistDetailView> createState() => _ArtistDetailViewState();
+}
+
+class _ArtistDetailViewState extends ConsumerState<ArtistDetailView> {
+  bool _showAllSongs = false;
+
+  @override
+  void didUpdateWidget(ArtistDetailView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.artistId != widget.artistId) _showAllSongs = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final artistId = widget.artistId;
     final artist = ref.watch(artistProvider(artistId));
     final albumsAsync = ref.watch(artistAlbumsProvider(artistId));
     final tracksAsync = ref.watch(artistTracksProvider(artistId));
@@ -66,8 +80,9 @@ class ArtistDetailView extends ConsumerWidget {
         onRetry: () => ref.invalidate(artistProvider(artistId)),
       ),
       data: (artist) {
-        final shown = tracks.length > _songPreview
-            ? tracks.sublist(0, _songPreview)
+        final canExpand = tracks.length > ArtistDetailView._songPreview;
+        final shown = canExpand && !_showAllSongs
+            ? tracks.sublist(0, ArtistDetailView._songPreview)
             : tracks;
         return CustomScrollView(
           key: PageStorageKey('artist-$artistId'),
@@ -117,9 +132,28 @@ class ArtistDetailView extends ConsumerWidget {
                   LekisSpacing.sm,
                 ),
                 sliver: SliverToBoxAdapter(
-                  child: Text(
-                    context.l10n.pick('歌曲', 'Songs'),
-                    style: theme.textTheme.titleLarge,
+                  child: Row(
+                    children: [
+                      Text(
+                        context.l10n.pick('歌曲', 'Songs'),
+                        style: theme.textTheme.titleLarge,
+                      ),
+                      const Spacer(),
+                      if (canExpand)
+                        TextButton(
+                          key: const ValueKey('artist-songs-toggle'),
+                          onPressed: () =>
+                              setState(() => _showAllSongs = !_showAllSongs),
+                          child: Text(
+                            _showAllSongs
+                                ? context.l10n.pick('收起', 'Show less')
+                                : context.l10n.pick(
+                                    '显示全部 ${tracks.length} 首',
+                                    'Show all ${tracks.length} songs',
+                                  ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),
@@ -136,6 +170,22 @@ class ArtistDetailView extends ConsumerWidget {
                 ),
               ),
             ),
+            if (canExpand && !_showAllSongs)
+              SliverToBoxAdapter(
+                child: Center(
+                  child: TextButton.icon(
+                    key: const ValueKey('artist-songs-show-all'),
+                    onPressed: () => setState(() => _showAllSongs = true),
+                    icon: const Icon(Icons.expand_more_rounded),
+                    label: Text(
+                      context.l10n.pick(
+                        '显示全部 ${tracks.length} 首',
+                        'Show all ${tracks.length} songs',
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             SliverPadding(
               padding: EdgeInsets.only(bottom: scrollEndPadding(context)),
             ),
