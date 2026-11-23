@@ -19,10 +19,12 @@ icon.webp 是 1024×1024、白底上的深蓝渐变圆角方块，中间是月�
 - Windows .ico：48px 及以上是圆角方块 + ICO_FILL；16/24/32 用更紧的
   ICO_SMALL_FILL 和更小的圆角，任务栏上才认得出是兔子。
 - app/app_icon.png：1024 主图，和旧式图标同一套参数。
+- macOS AppIcon：同款圆角月兔图标，四周保留透明留白，与 Dock 图标大小一致。
 
-用法：python tools/make-icons.py
+用法：python tools/make-icons.py [--platform all|android|windows|macos]
 """
 
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -59,6 +61,8 @@ DENSITIES = {
 LEGACY_DP = 48
 WINDOWS_ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
 WINDOWS_SMALL = {16, 24, 32}
+MACOS_SIZES = [16, 32, 64, 128, 256, 512, 1024]
+MACOS_CANVAS_FILL = 0.80
 
 
 class Source:
@@ -229,11 +233,7 @@ def _write(path: Path, data) -> None:
         print(path.relative_to(ROOT))
 
 
-def main() -> None:
-    src = Source(SRC)
-    x0, y0, x1, y1 = src.bbox
-    print(f"subject bbox {src.bbox} ({x1 - x0}x{y1 - y0})")
-
+def generate_android(src: Source) -> None:
     # ---- Android 自适应图标 ----
     mono = monochrome_layer(src)
     for folder, density in DENSITIES.items():
@@ -247,9 +247,8 @@ def main() -> None:
     for name in ("ic_launcher", "ic_launcher_round"):
         _write(RES / "mipmap-anydpi-v26" / f"{name}.xml", ADAPTIVE_XML)
 
-    # ---- 主图 ----
-    _write(APP / "app_icon.png", rounded(src.composite(1024, LEGACY_FILL), CORNER_RATIO))
 
+def generate_windows(src: Source) -> None:
     # ---- Windows .ico：每个尺寸单独合成 ----
     frames = []
     for size in WINDOWS_ICO_SIZES:
@@ -267,6 +266,33 @@ def main() -> None:
         append_images=frames[:-1],
     )
     print(f"{ico.relative_to(ROOT)} {WINDOWS_ICO_SIZES}")
+
+
+def generate_macos(src: Source) -> None:
+    # 用同一张高分辨率主图缩放，保留 macOS Dock 所需的透明留白。
+    canvas = Image.new("RGBA", (1024, 1024), (0, 0, 0, 0))
+    side = round(1024 * MACOS_CANVAS_FILL)
+    icon = rounded(src.composite(side, LEGACY_FILL), CORNER_RATIO)
+    offset = (1024 - side) // 2
+    canvas.alpha_composite(icon, (offset, offset))
+    iconset = APP / "macos/Runner/Assets.xcassets/AppIcon.appiconset"
+    for size in MACOS_SIZES:
+        _write(iconset / f"app_icon_{size}.png", canvas.resize((size, size), Image.LANCZOS))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--platform", choices=("all", "android", "windows", "macos"), default="all")
+    platform = parser.parse_args().platform
+    src = Source(SRC)
+    x0, y0, x1, y1 = src.bbox
+    print(f"subject bbox {src.bbox} ({x1 - x0}x{y1 - y0})")
+    generators = {"android": generate_android, "windows": generate_windows, "macos": generate_macos}
+    for name, generate in generators.items():
+        if platform in ("all", name):
+            generate(src)
+    if platform == "all":
+        _write(APP / "app_icon.png", rounded(src.composite(1024, LEGACY_FILL), CORNER_RATIO))
 
 
 if __name__ == "__main__":
