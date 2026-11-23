@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/library/album_detail_page.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/album_card.dart';
@@ -76,6 +77,7 @@ class ArtistDetailView extends ConsumerWidget {
               sliver: SliverToBoxAdapter(
                 child: _ArtistHeader(
                   name: artist.name,
+                  trackIds: [for (final track in tracks) track.id],
                   onPlay: tracks.isEmpty
                       ? null
                       : () => actions.playRows(tracks),
@@ -223,11 +225,13 @@ class _ArtistSkeleton extends StatelessWidget {
 class _ArtistHeader extends StatelessWidget {
   const _ArtistHeader({
     required this.name,
+    required this.trackIds,
     required this.onPlay,
     required this.onShuffle,
   });
 
   final String name;
+  final List<int> trackIds;
   final VoidCallback? onPlay;
   final VoidCallback? onShuffle;
 
@@ -257,9 +261,18 @@ class _ArtistHeader extends StatelessWidget {
             ),
           ),
         );
-        final buttons = PlayShuffleButtons(
-          onPlay: onPlay,
-          onShuffle: onShuffle,
+        final buttons = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            PlayShuffleButtons(onPlay: onPlay, onShuffle: onShuffle),
+            if (trackIds.isNotEmpty) ...[
+              const SizedBox(width: LekisSpacing.sm),
+              BatchDownloadButton(
+                trackIds: trackIds,
+                tooltip: context.l10n.pick('下载全部歌曲', 'Download All Songs'),
+              ),
+            ],
+          ],
         );
         if (!row) {
           return Column(

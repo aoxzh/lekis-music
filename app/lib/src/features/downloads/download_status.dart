@@ -245,11 +245,7 @@ class TrackDownloadButton extends ConsumerWidget {
 
 /// 专辑 / 多选下载按钮：全部完成时显示"已下载"，否则点击下载缺失的。
 class BatchDownloadButton extends ConsumerWidget {
-  const BatchDownloadButton({
-    super.key,
-    required this.trackIds,
-    this.tooltip,
-  });
+  const BatchDownloadButton({super.key, required this.trackIds, this.tooltip});
 
   final List<int> trackIds;
   final String? tooltip;
@@ -258,9 +254,12 @@ class BatchDownloadButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final downloads = ref.watch(downloadsProvider).value;
-    final allReady =
-        trackIds.isNotEmpty &&
-        trackIds.every((id) => downloads?.entryFor(id)?.isReady ?? false);
+    final ready = <int>{
+      if (downloads != null)
+        for (final entry in downloads.entries)
+          if (entry.isReady) entry.trackId,
+    };
+    final allReady = trackIds.isNotEmpty && trackIds.every(ready.contains);
     return IconButton(
       tooltip: allReady
           ? l10n.pick('已全部下载', 'All Downloaded')
