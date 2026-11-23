@@ -12,6 +12,7 @@ import 'package:lekis/src/features/library/library_providers.dart'
     show artistIdForNameProvider;
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
+import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/settings/widgets/settings_widgets.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/platform/reveal_file.dart';
@@ -622,29 +623,58 @@ class _DownloadsBodyState extends ConsumerState<_DownloadsBody> {
                 LekisSpacing.xl,
                 LekisSpacing.md,
               ),
-              child: Wrap(
-                spacing: LekisSpacing.sm,
-                runSpacing: LekisSpacing.xs,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  chip(l10n.pick('全部', 'All'), _DownloadFilter.all, matchCount),
-                  if (active.isNotEmpty)
-                    chip(
-                      l10n.pick('队列', 'Queue'),
-                      _DownloadFilter.active,
-                      active.length,
+                  Expanded(
+                    child: Wrap(
+                      spacing: LekisSpacing.sm,
+                      runSpacing: LekisSpacing.xs,
+                      children: [
+                        chip(
+                          l10n.pick('全部', 'All'),
+                          _DownloadFilter.all,
+                          matchCount,
+                        ),
+                        if (active.isNotEmpty)
+                          chip(
+                            l10n.pick('队列', 'Queue'),
+                            _DownloadFilter.active,
+                            active.length,
+                          ),
+                        if (failed.isNotEmpty)
+                          chip(
+                            l10n.pick('失败', 'Failed'),
+                            _DownloadFilter.failed,
+                            failed.length,
+                          ),
+                        if (ready.isNotEmpty)
+                          chip(
+                            l10n.pick('已下载', 'Downloaded'),
+                            _DownloadFilter.ready,
+                            ready.length,
+                          ),
+                      ],
                     ),
-                  if (failed.isNotEmpty)
-                    chip(
-                      l10n.pick('失败', 'Failed'),
-                      _DownloadFilter.failed,
-                      failed.length,
+                  ),
+                  if (showReady && ready.isNotEmpty) ...[
+                    IconButton(
+                      tooltip: l10n.pick('播放当前筛选', 'Play filtered'),
+                      onPressed: () =>
+                          ref.read(playerActionsProvider).playTracks([
+                            for (final entry in ready) entry.trackId,
+                          ]),
+                      icon: const Icon(Icons.play_arrow_rounded),
                     ),
-                  if (ready.isNotEmpty)
-                    chip(
-                      l10n.pick('已下载', 'Downloaded'),
-                      _DownloadFilter.ready,
-                      ready.length,
+                    IconButton(
+                      tooltip: l10n.pick('随机播放当前筛选', 'Shuffle filtered'),
+                      onPressed: () =>
+                          ref.read(playerActionsProvider).playTracks([
+                            for (final entry in ready) entry.trackId,
+                          ], shuffle: true),
+                      icon: const Icon(Icons.shuffle_rounded),
                     ),
+                  ],
                 ],
               ),
             ),
