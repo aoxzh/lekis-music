@@ -250,6 +250,42 @@ class DownloadsPage extends ConsumerWidget {
     return SettingsScaffold(
       title: l10n.pick('下载', 'Downloads'),
       actions: [
+        PopupMenuButton<DownloadSortMode>(
+          tooltip: l10n.pick('排序', 'Sort'),
+          icon: const Icon(Icons.sort_rounded),
+          onSelected: (value) =>
+              ref.read(downloadSortProvider.notifier).set(value),
+          itemBuilder: (_) => [
+            PopupMenuItem(
+              value: DownloadSortMode.default_,
+              child: ListTile(
+                leading: const Icon(Icons.format_list_numbered_rounded),
+                title: Text(l10n.pick('默认顺序', 'Default Order')),
+              ),
+            ),
+            PopupMenuItem(
+              value: DownloadSortMode.title,
+              child: ListTile(
+                leading: const Icon(Icons.sort_by_alpha_rounded),
+                title: Text(l10n.pick('按标题', 'By Title')),
+              ),
+            ),
+            PopupMenuItem(
+              value: DownloadSortMode.newest,
+              child: ListTile(
+                leading: const Icon(Icons.schedule_rounded),
+                title: Text(l10n.pick('最新添加', 'Newest First')),
+              ),
+            ),
+            PopupMenuItem(
+              value: DownloadSortMode.largest,
+              child: ListTile(
+                leading: const Icon(Icons.sd_storage_rounded),
+                title: Text(l10n.pick('文件最大', 'Largest First')),
+              ),
+            ),
+          ],
+        ),
         PopupMenuButton<String>(
           tooltip: l10n.pick('批量下载', 'Batch Download'),
           onSelected: (value) {
@@ -417,9 +453,31 @@ class _DownloadsBodyState extends ConsumerState<_DownloadsBody> {
         query.isEmpty ||
         entry.title.toLowerCase().contains(query) ||
         entry.subtitle.toLowerCase().contains(query);
-    final active = state.active.where(matches).toList(growable: false);
-    final failed = state.failed.where(matches).toList(growable: false);
-    final ready = state.ready.where(matches).toList(growable: false);
+    final sortMode = ref.watch(downloadSortProvider);
+    List<DownloadEntry> sorted(List<DownloadEntry> entries) {
+      final list = [...entries];
+      switch (sortMode) {
+        case DownloadSortMode.default_:
+          break;
+        case DownloadSortMode.title:
+          list.sort(
+            (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+          );
+        case DownloadSortMode.newest:
+          list.sort(
+            (a, b) => b.download.createdAt.toInt().compareTo(
+              a.download.createdAt.toInt(),
+            ),
+          );
+        case DownloadSortMode.largest:
+          list.sort((a, b) => b.totalBytes.compareTo(a.totalBytes));
+      }
+      return list;
+    }
+
+    final active = sorted(state.active.where(matches).toList(growable: false));
+    final failed = sorted(state.failed.where(matches).toList(growable: false));
+    final ready = sorted(state.ready.where(matches).toList(growable: false));
     final matchCount = active.length + failed.length + ready.length;
 
     final showAll = _filter == _DownloadFilter.all;

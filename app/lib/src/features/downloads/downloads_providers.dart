@@ -221,6 +221,21 @@ final downloadsProvider =
       DownloadsController.new,
     );
 
+enum DownloadSortMode { default_, title, newest, largest }
+
+class DownloadSortController extends Notifier<DownloadSortMode> {
+  @override
+  DownloadSortMode build() => DownloadSortMode.default_;
+
+  void set(DownloadSortMode mode) => state = mode;
+}
+
+/// Sort order for the Downloads page. Default keeps the core's ordering.
+final downloadSortProvider =
+    NotifierProvider<DownloadSortController, DownloadSortMode>(
+      DownloadSortController.new,
+    );
+
 /// 某首歌的下载状态（列表行 / 正在播放用）。只随状态变化重建。
 final downloadStateProvider = Provider.autoDispose
     .family<OfflineStateDto?, int>((ref, id) {
