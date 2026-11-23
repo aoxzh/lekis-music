@@ -28,6 +28,9 @@ reqwest.workspace = true
 ring.workspace = true
 base64.workspace = true
 hex.workspace = true
+bytes.workspace = true
+# 把补全到的封面转成 JPEG 侧车文件，写回音源目录。
+image.workspace = true
 futures-util.workspace = true
 # 把旧版本塞在地址 userinfo 里的密码迁回凭据库（SRC-15）。
 url.workspace = true
@@ -40,9 +43,7 @@ async-trait.workspace = true
 
 [dev-dependencies]
 # 测试里造 PNG 封面（缩略图按需生成、接受封面候选）。
-image.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
-bytes.workspace = true
 axum.workspace = true
 
 [lints]

@@ -5,11 +5,16 @@ import 'package:lekis/src/features/library/library_actions.dart'
     show describeCoreError;
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
+import 'package:lekis/src/rust/api/error.dart' show CoreError, ErrorKind;
 import 'package:lekis/src/shell/routes.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'enrich_actions.dart' show EnrichActionStrings, EnrichScope, enrichScopeSettingKey;
+
+/// 每处理这么多首停一下，给各音源自己的 RateLimiter / 429 退避留点余量。
+const int _enrichBurst = 50;
+const Duration _enrichCooldown = Duration(seconds: 2);
 
 /// 待补全目标（曲目 ID + 可选展示标题）。
 @immutable
@@ -124,8 +129,21 @@ class EnrichProgressNotifier extends Notifier<EnrichTaskProgress?> {
         key: enrichScopeSettingKey,
         value: scope.storageValue,
       );
-      for (final target in targets) {
+      for (var index = 0; index < targets.length; index++) {
+        final target = targets[index];
         if (_cancelRequested) break;
+        if (index > 0 && index % _enrichBurst == 0) {
+          if (ref.mounted) {
+            state = state?.copyWith(
+              currentTitle: L10n.tr(
+                '暂停 2 秒，避免音源限流…',
+                'Pausing 2s to respect source rate limits…',
+              ),
+            );
+          }
+          await Future<void>.delayed(_enrichCooldown);
+          if (_cancelRequested) break;
+        }
         if (ref.mounted) {
           state = state?.copyWith(
             completed: completed,
@@ -139,8 +157,11 @@ class EnrichProgressNotifier extends Notifier<EnrichTaskProgress?> {
           autoApplied += report.autoApplied;
           queued += report.queued;
         } catch (e) {
-          // 单首失败记录最近错误但不中断整批任务。
+          // 单首失败记录最近错误但不中断整批任务；被源头限流时多等一会儿。
           errorMessage = describeCoreError(e);
+          if (e is CoreError && e.kind == ErrorKind.rateLimited) {
+            await Future<void>.delayed(const Duration(seconds: 10));
+          }
         }
         completed += 1;
         if (ref.mounted) {

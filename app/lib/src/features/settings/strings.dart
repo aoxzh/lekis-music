@@ -238,6 +238,12 @@ abstract final class SettingsStrings {
     '查找重复歌曲、缺失标签 / 封面 / 歌词和不可读文件',
     'Find duplicates, missing tags / artwork / lyrics, and unreadable files',
   );
+  static String get writeEnrichSidecars =>
+      L10n.tr('补全结果写入音源目录', 'Save Enrichment to Source Folders');
+  static String get writeEnrichSidecarsHint => L10n.tr(
+    '封面写成 cover.jpg / 同名图片，歌词写成同名 .lrc；只读共享和媒体服务器会跳过',
+    'Write covers as cover.jpg / track images and lyrics as matching .lrc files; read-only shares and media servers are skipped',
+  );
   static String pendingCount(int n) => L10n.tr('$n 条待确认', '$n pending');
   static String get downloads => L10n.tr('下载', 'Downloads');
   static String get downloadsHint =>

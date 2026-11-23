@@ -24,7 +24,7 @@ const HEAD_WINDOW_RETRY: u64 = 12 * 1024 * 1024;
 const TAIL_WINDOW_RETRY: u64 = 12 * 1024 * 1024;
 
 /// 常见侧车封面文件名（Android 的 /sdcard 区分大小写，所以大小写都列）。
-const SIDECAR_NAMES: &[&str] = &[
+pub(crate) const SIDECAR_NAMES: &[&str] = &[
     "cover.jpg",
     "cover.jpeg",
     "cover.png",
@@ -45,6 +45,9 @@ const SIDECAR_NAMES: &[&str] = &[
     "AlbumArt.jpg",
     "artwork.jpg",
 ];
+
+/// 单曲专用封面：`<歌曲名>.jpg`，用于同一目录里每首歌封面不同的情况。
+pub(crate) const TRACK_COVER_EXTS: &[&str] = &["jpg", "jpeg", "png", "JPG", "JPEG", "PNG"];
 
 /// 给一个源补全缺失的封面。返回成功补上的数量。
 pub(crate) async fn ingest_missing(
@@ -131,8 +134,11 @@ pub(crate) async fn ingest_missing(
     Ok(ingested)
 }
 
-/// 先找侧车封面，再读内嵌封面。
+/// 先找单曲专用封面，再找目录侧车封面，最后读内嵌封面。
 async fn load_cover(vfs: &dyn Vfs, path: &VfsPath) -> Option<(Vec<u8>, &'static str)> {
+    if let Some(bytes) = read_track_sidecar(vfs, path).await {
+        return Some((bytes, "sidecar"));
+    }
     if let Some(dir) = path.parent() {
         if let Some(bytes) = read_sidecar(vfs, &dir).await {
             return Some((bytes, "sidecar"));
@@ -147,6 +153,31 @@ async fn load_cover(vfs: &dyn Vfs, path: &VfsPath) -> Option<(Vec<u8>, &'static 
     read_embedded(vfs, path)
         .await
         .map(|bytes| (bytes, "embedded"))
+}
+
+/// `<歌曲名>.jpg` 这类单曲封面；同一目录里每首歌可以有不同封面。
+async fn read_track_sidecar(vfs: &dyn Vfs, path: &VfsPath) -> Option<Vec<u8>> {
+    let stem = path.as_str().rsplit_once('.').map(|(stem, _)| stem)?;
+    for ext in TRACK_COVER_EXTS {
+        let Some(candidate) = VfsPath::parse(&format!("{stem}.{ext}")) else {
+            continue;
+        };
+        let Ok(meta) = vfs.stat(&candidate).await else {
+            continue;
+        };
+        if !matches!(meta.kind, EntryKind::File) || meta.size == 0 || meta.size > MAX_SIDECAR_BYTES
+        {
+            continue;
+        }
+        match vfs.read_range(&candidate, 0..meta.size).await {
+            Ok(bytes) if !bytes.is_empty() => return Some(bytes.to_vec()),
+            Ok(_) => {}
+            Err(e) => {
+                tracing::debug!(target: "core", path = %candidate, error = %e, "track cover read failed");
+            }
+        }
+    }
+    None
 }
 
 async fn read_sidecar(vfs: &dyn Vfs, dir: &VfsPath) -> Option<Vec<u8>> {

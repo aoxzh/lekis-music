@@ -37,7 +37,7 @@ pub(crate) async fn find_and_store(
     Ok(None)
 }
 
-async fn vfs_for(services: &Arc<Services>, source_id: SourceId) -> Option<Arc<dyn Vfs>> {
+pub(crate) async fn vfs_for(services: &Arc<Services>, source_id: SourceId) -> Option<Arc<dyn Vfs>> {
     if let Some(vfs) = services.vfs_get(source_id) {
         return Some(vfs);
     }

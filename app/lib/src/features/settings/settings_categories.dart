@@ -260,6 +260,9 @@ class _OrganizeSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pending = ref.watch(enrichPendingCountProvider);
+    final writeSidecars = ref.watch(
+      settingProvider(SettingKeys.writeEnrichSidecars),
+    );
     return SettingsSection(
       title: SettingsStrings.organize,
       children: [
@@ -269,6 +272,24 @@ class _OrganizeSection extends ConsumerWidget {
           subtitle: Text(SettingsStrings.libraryHealthHint),
           chevron: true,
           onTap: () => Navigator.of(context).push(LibraryHealthPage.route()),
+        ),
+        SettingsSwitchTile(
+          icon: Icons.save_alt_rounded,
+          title: SettingsStrings.writeEnrichSidecars,
+          subtitle: SettingsStrings.writeEnrichSidecarsHint,
+          value: writeSidecars.value != 'false',
+          onChanged: writeSidecars.isLoading
+              ? null
+              : (v) => settingsGuard(
+                  context,
+                  () => ref
+                      .read(
+                        settingProvider(
+                          SettingKeys.writeEnrichSidecars,
+                        ).notifier,
+                      )
+                      .set(v ? 'true' : 'false'),
+                ),
         ),
         SettingsTile(
           icon: Icons.auto_fix_high_outlined,

@@ -42,6 +42,7 @@ mod remote_scan;
 mod resolver;
 pub mod scrobble;
 pub mod selection;
+mod sidecars;
 mod source_browse;
 mod sync_engine;
 
@@ -2233,6 +2234,13 @@ impl LekisCore {
         self.services.events.emit(CoreEvent::LibraryChanged {
             scope: LibraryScope::Catalog,
         });
+        let s3 = self.services.clone();
+        if let Err(error) = self
+            .run(async move { sidecars::persist_for_track(&s3, id).await })
+            .await
+        {
+            tracing::debug!(target: "lekis_core::enrich", code = %error.code.as_str(), "persisting sidecars failed");
+        }
         Ok(report)
     }
 
@@ -2254,6 +2262,13 @@ impl LekisCore {
                             code = %e.code.as_str(),
                             "补全单曲失败，继续下一首"
                         ),
+                    }
+                    if let Err(e) = sidecars::persist_for_track(&s, id).await {
+                        tracing::debug!(
+                            target: "lekis_core::enrich",
+                            code = %e.code.as_str(),
+                            "persisting sidecars failed"
+                        );
                     }
                 }
                 Ok(total)
@@ -2312,6 +2327,13 @@ impl LekisCore {
                     return Err(e);
                 }
             }
+            if let Err(error) = sidecars::persist_for_candidate(&s, &row).await {
+                tracing::debug!(
+                    target: "lekis_core::enrich",
+                    code = %error.code.as_str(),
+                    "persisting accepted candidate sidecars failed"
+                );
+            }
             let pending = s.library.pending_candidate_count().await? as u32;
             s.events.emit(CoreEvent::EnrichQueueChanged { pending });
             s.events.emit(CoreEvent::LibraryChanged {
@@ -2348,6 +2370,13 @@ impl LekisCore {
                 for row in &pending {
                     if s.enrich.apply_candidate(&s.library, row).await.is_ok() {
                         s.library.accept_candidate(row.id).await?;
+                        if let Err(error) = sidecars::persist_for_candidate(&s, row).await {
+                            tracing::debug!(
+                                target: "lekis_core::enrich",
+                                code = %error.code.as_str(),
+                                "persisting accepted candidate sidecars failed"
+                            );
+                        }
                         applied += 1;
                     }
                 }
