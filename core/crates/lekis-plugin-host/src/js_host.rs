@@ -683,8 +683,14 @@ impl HostBridge {
             .stderr
             .take()
             .ok_or_else(|| HostError::unavailable("stderr unavailable"))?;
-        let out_reader = std::thread::spawn(move || Self::read_capped(stdout, LIMIT));
-        let err_reader = std::thread::spawn(move || Self::read_capped(stderr, LIMIT));
+        // 超限由读取线程置标志：一旦某个管道超过 8 MiB 就**立刻**停读并关掉管口，
+        // 子进程随后会因为写不出去而退出（或被下面的轮询杀掉）。不能等它自然结束
+        // 再判断——那要等一个无限输出的程序跑满 45 秒。
+        let overflow = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let out_flag = overflow.clone();
+        let err_flag = overflow.clone();
+        let out_reader = std::thread::spawn(move || Self::read_capped(stdout, LIMIT, &out_flag));
+        let err_reader = std::thread::spawn(move || Self::read_capped(stderr, LIMIT, &err_flag));
 
         let started = std::time::Instant::now();
         let status = loop {
@@ -697,22 +703,27 @@ impl HostBridge {
                     return Err(HostError::unavailable(error.to_string()));
                 }
             }
+            if overflow.load(std::sync::atomic::Ordering::Relaxed) {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(HostError::unavailable("外部程序输出超过 8 MiB"));
+            }
             if started.elapsed() >= TIMEOUT {
                 let _ = child.kill();
                 let _ = child.wait();
                 return Err(HostError::unavailable("外部程序运行超时（45 秒）"));
             }
-            std::thread::sleep(Duration::from_millis(10));
+            std::thread::sleep(Duration::from_millis(5));
         };
 
-        // 进程已经退出，读取线程读到 EOF 后自然结束。
-        let (out, out_overflow) = out_reader
+        // 进程已经退出；读取线程读到 EOF 后自然结束。
+        let out = out_reader
             .join()
             .map_err(|_| HostError::unavailable("读取 stdout 的线程崩溃"))??;
-        let (err, err_overflow) = err_reader
+        let err = err_reader
             .join()
             .map_err(|_| HostError::unavailable("读取 stderr 的线程崩溃"))??;
-        if out_overflow || err_overflow {
+        if overflow.load(std::sync::atomic::Ordering::Relaxed) {
             return Err(HostError::unavailable("外部程序输出超过 8 MiB"));
         }
 
@@ -724,28 +735,30 @@ impl HostBridge {
         .to_string())
     }
 
-    /// 读一个管道，最多保留 `limit` 字节，返回是否超限。超限后继续读空（防止子进程写满管道）。
+    /// 读一个管道，最多保留 `limit` 字节。
+    ///
+    /// 超过上限时**立刻**返回（`Drop` 掉 `reader` 会关掉管口，写端拿到 EPIPE），
+    /// 并把 `overflow` 置为 `true` 交给主循环去杀进程。
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     fn read_capped(
         mut reader: impl std::io::Read,
         limit: u64,
-    ) -> std::result::Result<(Vec<u8>, bool), HostError> {
+        overflow: &std::sync::atomic::AtomicBool,
+    ) -> std::result::Result<Vec<u8>, HostError> {
         let mut kept = Vec::new();
         let mut chunk = [0u8; 8192];
-        let mut overflow = false;
         loop {
             let read = reader
                 .read(&mut chunk)
                 .map_err(|e| HostError::unavailable(e.to_string()))?;
             if read == 0 {
-                return Ok((kept, overflow));
+                return Ok(kept);
             }
             let room = (limit as usize).saturating_sub(kept.len());
-            if room > 0 {
-                kept.extend_from_slice(&chunk[..read.min(room)]);
-            }
+            kept.extend_from_slice(&chunk[..read.min(room)]);
             if kept.len() as u64 >= limit {
-                overflow = true;
+                overflow.store(true, std::sync::atomic::Ordering::Relaxed);
+                return Ok(kept);
             }
         }
     }
@@ -1090,6 +1103,28 @@ mod tests {
                 .code,
             "setup"
         );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn zz_probe_oversized_output_windows() {
+        let mut manifest = manifest("[]", None);
+        manifest.permissions.process = vec!["powershell".into()];
+        let permissions = Permissions::new(&manifest.permissions, &["powershell".into()]);
+        let bridge = HostBridge::new(&manifest, permissions, Arc::new(MockTransport::new("{}")));
+        let start = std::time::Instant::now();
+        let result = bridge.spawn_json(
+            "powershell",
+            r#"["-NoProfile","-Command","[Console]::Out.Write('x' * 9000000)"]"#,
+        );
+        eprintln!(
+            "PROBE elapsed={:?} ok={} len={:?}",
+            start.elapsed(),
+            result.is_ok(),
+            result.as_ref().map(|s| s.len()).ok()
+        );
+        let error = result.expect_err("9 MB 输出必须报超限");
+        assert!(error.message.contains("8 MiB"), "message={}", error.message);
     }
 
     #[test]
