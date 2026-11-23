@@ -9,7 +9,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/downloads/downloads_providers.dart';
+import 'package:lekis/src/features/library/album_detail_page.dart';
+import 'package:lekis/src/features/library/artist_detail_page.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
+import 'package:lekis/src/features/library/library_providers.dart'
+    show artistIdForNameProvider;
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/now_playing/lyrics_editor_sheet.dart';
 import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
@@ -35,6 +39,8 @@ enum _MoreAction {
   rate,
   download,
   addToPlaylist,
+  viewAlbum,
+  viewArtist,
   playOnDevice,
   editLyrics,
   sources,
@@ -153,6 +159,45 @@ class _MoreButton extends ConsumerWidget {
         ..showSnackBar(
           SnackBar(
             content: Text(context.l10n.pick('复制失败：$e', 'Copy failed: $e')),
+          ),
+        );
+    }
+  }
+
+  Future<void> _openAlbum(BuildContext context) async {
+    final albumId = track.albumId;
+    if (albumId == null) return;
+    await Navigator.of(context).push(AlbumDetailPage.route(albumId.toInt()));
+  }
+
+  Future<void> _openArtist(BuildContext context, WidgetRef ref) async {
+    final name = track.artists.isEmpty ? '' : track.artists.first.trim();
+    if (name.isEmpty) return;
+    try {
+      final id = await ref.read(artistIdForNameProvider(name).future);
+      if (!context.mounted) return;
+      if (id == null) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                context.l10n.pick('资料库里没有这位艺人', 'Artist not found in library'),
+              ),
+            ),
+          );
+        return;
+      }
+      await Navigator.of(context).push(ArtistDetailPage.route(id));
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick('打开艺人失败：$e', 'Failed to open artist: $e'),
+            ),
           ),
         );
     }
@@ -282,6 +327,10 @@ class _MoreButton extends ConsumerWidget {
               trackId: track.id,
               trackTitle: track.title,
             );
+          case _MoreAction.viewAlbum:
+            unawaited(_openAlbum(context));
+          case _MoreAction.viewArtist:
+            unawaited(_openArtist(context, ref));
           case _MoreAction.playOnDevice:
             showPlayOnDeviceSheet(context, ref);
           case _MoreAction.editLyrics:
@@ -333,6 +382,22 @@ class _MoreButton extends ConsumerWidget {
             context.l10n.pick('添加到歌单', 'Add to Playlist'),
           ),
         ),
+        if (track.albumId != null)
+          PopupMenuItem(
+            value: _MoreAction.viewAlbum,
+            child: item(
+              Icons.album_outlined,
+              context.l10n.pick('查看专辑', 'View Album'),
+            ),
+          ),
+        if (track.artists.isNotEmpty)
+          PopupMenuItem(
+            value: _MoreAction.viewArtist,
+            child: item(
+              Icons.person_outline_rounded,
+              context.l10n.pick('查看艺人', 'View Artist'),
+            ),
+          ),
         PopupMenuItem(
           value: _MoreAction.playOnDevice,
           child: item(Icons.cast_rounded, ConnectStrings.playHere),
