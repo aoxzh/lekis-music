@@ -146,6 +146,8 @@ abstract final class PlaylistStrings {
       L10n.tr('（曲目暂时不可用）', '(Track unavailable)');
   static String get moveUp => L10n.tr('上移', 'Move Up');
   static String get moveDown => L10n.tr('下移', 'Move Down');
+  static String get moveToTop => L10n.tr('移到顶部', 'Move to Top');
+  static String get moveToBottom => L10n.tr('移到底部', 'Move to Bottom');
   static String get entryActions => L10n.tr('条目操作', 'Entry actions');
   static String get removeFromPlaylist =>
       L10n.tr('从歌单移除', 'Remove from Playlist');

@@ -172,6 +172,41 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
     super.dispose();
   }
 
+  Future<void> _moveToTop(PlaylistEntryDto entry) async {
+    if (widget.busy) return;
+    try {
+      final first = await core.playlistItems(
+        playlistId: widget.playlist.id,
+        offset: 0,
+        limit: 1,
+      );
+      if (first.isEmpty) return;
+      await core.movePlaylistItem(
+        playlistId: widget.playlist.id,
+        positionKey: entry.positionKey,
+        beforeKey: first.first.positionKey,
+      );
+      ref.invalidate(playlistEntriesProvider(widget.playlist.id));
+      ref.invalidate(playlistsProvider);
+    } catch (e) {
+      if (mounted) showPlaylistError(context, e);
+    }
+  }
+
+  Future<void> _moveToBottom(PlaylistEntryDto entry) async {
+    if (widget.busy) return;
+    try {
+      await core.movePlaylistItem(
+        playlistId: widget.playlist.id,
+        positionKey: entry.positionKey,
+      );
+      ref.invalidate(playlistEntriesProvider(widget.playlist.id));
+      ref.invalidate(playlistsProvider);
+    } catch (e) {
+      if (mounted) showPlaylistError(context, e);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final playlist = widget.playlist;
@@ -317,6 +352,8 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
               busy: widget.busy || query.isNotEmpty,
               onMove: widget.onMove,
               onRemove: widget.onRemove,
+              onMoveToTop: _moveToTop,
+              onMoveToBottom: _moveToBottom,
               onPlayIndex: query.isEmpty
                   ? null
                   : (i) => ref.read(playerActionsProvider).playRows([
@@ -658,6 +695,8 @@ class _PlaylistEntryList extends StatefulWidget {
     required this.busy,
     required this.onMove,
     required this.onRemove,
+    required this.onMoveToTop,
+    required this.onMoveToBottom,
     this.onPlayIndex,
   });
 
@@ -671,6 +710,8 @@ class _PlaylistEntryList extends StatefulWidget {
   )
   onMove;
   final Future<void> Function(PlaylistEntryDto entry) onRemove;
+  final Future<void> Function(PlaylistEntryDto entry) onMoveToTop;
+  final Future<void> Function(PlaylistEntryDto entry) onMoveToBottom;
   final void Function(int index)? onPlayIndex;
 
   @override
@@ -755,6 +796,8 @@ class _PlaylistEntryListState extends State<_PlaylistEntryList>
               index: i,
               canMoveUp: !busy && i > 0,
               canMoveDown: !busy && i < rows.length - 1,
+              canMoveToTop: !busy && i > 0,
+              canMoveToBottom: !busy && i < rows.length - 1,
               onPlay: rows[i].track == null
                   ? null
                   : widget.onPlayIndex != null
@@ -766,6 +809,8 @@ class _PlaylistEntryListState extends State<_PlaylistEntryList>
                     ),
               onMoveUp: () => widget.onMove(rows, i, true),
               onMoveDown: () => widget.onMove(rows, i, false),
+              onMoveToTop: () => widget.onMoveToTop(rows[i]),
+              onMoveToBottom: () => widget.onMoveToBottom(rows[i]),
               onRemove: () => _remove(key, rows[i]),
             ),
           ),
@@ -781,9 +826,13 @@ class _PlaylistEntryTile extends StatelessWidget {
     required this.index,
     required this.canMoveUp,
     required this.canMoveDown,
+    required this.canMoveToTop,
+    required this.canMoveToBottom,
     required this.onPlay,
     required this.onMoveUp,
     required this.onMoveDown,
+    required this.onMoveToTop,
+    required this.onMoveToBottom,
     required this.onRemove,
   });
 
@@ -791,9 +840,13 @@ class _PlaylistEntryTile extends StatelessWidget {
   final int index;
   final bool canMoveUp;
   final bool canMoveDown;
+  final bool canMoveToTop;
+  final bool canMoveToBottom;
   final VoidCallback? onPlay;
   final VoidCallback onMoveUp;
   final VoidCallback onMoveDown;
+  final VoidCallback onMoveToTop;
+  final VoidCallback onMoveToBottom;
   final VoidCallback onRemove;
 
   @override
@@ -903,6 +956,10 @@ class _PlaylistEntryTile extends StatelessWidget {
                         onMoveUp();
                       case 'down':
                         onMoveDown();
+                      case 'top':
+                        onMoveToTop();
+                      case 'bottom':
+                        onMoveToBottom();
                       case 'remove':
                         onRemove();
                     }
@@ -917,6 +974,16 @@ class _PlaylistEntryTile extends StatelessWidget {
                       value: 'down',
                       enabled: canMoveDown,
                       child: Text(PlaylistStrings.moveDown),
+                    ),
+                    PopupMenuItem(
+                      value: 'top',
+                      enabled: canMoveToTop,
+                      child: Text(PlaylistStrings.moveToTop),
+                    ),
+                    PopupMenuItem(
+                      value: 'bottom',
+                      enabled: canMoveToBottom,
+                      child: Text(PlaylistStrings.moveToBottom),
                     ),
                     PopupMenuItem(
                       value: 'remove',
