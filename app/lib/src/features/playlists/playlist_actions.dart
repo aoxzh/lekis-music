@@ -520,14 +520,17 @@ Future<void> sortPlaylistFlow(
   }
 }
 
-Future<void> _copyPlaylistLines(
+Future<void> _copyLines(
   BuildContext context,
-  List<String> lines,
-) async {
+  List<String> lines, {
+  required String emptyMessage,
+  required String Function(int count) copiedMessage,
+  required String Function(Object error) failedMessage,
+}) async {
   if (lines.isEmpty) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(PlaylistStrings.nothingToCopy)));
+      ..showSnackBar(SnackBar(content: Text(emptyMessage)));
     return;
   }
   try {
@@ -535,16 +538,12 @@ Future<void> _copyPlaylistLines(
     if (!context.mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(PlaylistStrings.copiedPlaylist(lines.length))),
-      );
+      ..showSnackBar(SnackBar(content: Text(copiedMessage(lines.length))));
   } catch (e) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(PlaylistStrings.copyPlaylistFailed('$e'))),
-      );
+      ..showSnackBar(SnackBar(content: Text(failedMessage(e))));
   }
 }
 
@@ -552,22 +551,51 @@ Future<void> copyPlaylistAsText(
   BuildContext context,
   List<PlaylistEntryDto> rows,
 ) {
-  return _copyPlaylistLines(context, [
-    for (var i = 0; i < rows.length; i++)
-      '${i + 1}. ${rows[i].track?.title ?? PlaylistStrings.trackUnavailable}'
-          '${(rows[i].track?.artistLine ?? '').isEmpty ? '' : ' — ${rows[i].track!.artistLine}'}',
-  ]);
+  return _copyLines(
+    context,
+    [
+      for (var i = 0; i < rows.length; i++)
+        '${i + 1}. ${rows[i].track?.title ?? PlaylistStrings.trackUnavailable}'
+            '${(rows[i].track?.artistLine ?? '').isEmpty ? '' : ' — ${rows[i].track!.artistLine}'}',
+    ],
+    emptyMessage: PlaylistStrings.nothingToCopy,
+    copiedMessage: PlaylistStrings.copiedPlaylist,
+    failedMessage: (e) => PlaylistStrings.copyPlaylistFailed('$e'),
+  );
 }
 
 Future<void> copyPlaylistTracksAsText(
   BuildContext context,
   List<TrackRowDto> tracks,
 ) {
-  return _copyPlaylistLines(context, [
-    for (var i = 0; i < tracks.length; i++)
-      '${i + 1}. ${tracks[i].title}'
-          '${tracks[i].artistLine.isEmpty ? '' : ' — ${tracks[i].artistLine}'}',
-  ]);
+  return _copyLines(
+    context,
+    [
+      for (var i = 0; i < tracks.length; i++)
+        '${i + 1}. ${tracks[i].title}'
+            '${tracks[i].artistLine.isEmpty ? '' : ' — ${tracks[i].artistLine}'}',
+    ],
+    emptyMessage: PlaylistStrings.nothingToCopy,
+    copiedMessage: PlaylistStrings.copiedPlaylist,
+    failedMessage: (e) => PlaylistStrings.copyPlaylistFailed('$e'),
+  );
+}
+
+Future<void> copyTrackListAsText(
+  BuildContext context,
+  List<TrackRowDto> tracks,
+) {
+  return _copyLines(
+    context,
+    [
+      for (var i = 0; i < tracks.length; i++)
+        '${i + 1}. ${tracks[i].title}'
+            '${tracks[i].artistLine.isEmpty ? '' : ' — ${tracks[i].artistLine}'}',
+    ],
+    emptyMessage: PlaylistStrings.noTracksToCopy,
+    copiedMessage: PlaylistStrings.copiedTrackList,
+    failedMessage: (e) => PlaylistStrings.copyTracksFailed('$e'),
+  );
 }
 
 /// 长按 / 菜单里用的小标签样式。

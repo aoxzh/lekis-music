@@ -10,6 +10,7 @@ import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_actions.dart';
+import 'package:lekis/src/features/playlists/playlist_actions.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/l10n/duration_text.dart';
 import 'package:lekis/src/rust/api/dto.dart';
@@ -136,6 +137,9 @@ class AlbumDetailView extends ConsumerWidget {
                   onShuffle: rows.isEmpty
                       ? null
                       : () => actions.playRows(rows, shuffle: true),
+                  onCopy: rows.isEmpty
+                      ? null
+                      : () => copyTrackListAsText(context, rows),
                 ),
               ),
             ),
@@ -188,6 +192,7 @@ class _AlbumHeader extends ConsumerWidget {
     required this.downloadableTrackIds,
     required this.onPlay,
     required this.onShuffle,
+    this.onCopy,
   });
 
   final AlbumDto album;
@@ -197,6 +202,7 @@ class _AlbumHeader extends ConsumerWidget {
   final List<int> downloadableTrackIds;
   final VoidCallback? onPlay;
   final VoidCallback? onShuffle;
+  final VoidCallback? onCopy;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -293,6 +299,12 @@ class _AlbumHeader extends ConsumerWidget {
                     BatchDownloadButton(
                       trackIds: downloadableTrackIds,
                       tooltip: context.l10n.pick('下载整张专辑', 'Download Album'),
+                    ),
+                  if (onCopy != null)
+                    IconButton(
+                      tooltip: context.l10n.pick('复制曲目列表', 'Copy Track List'),
+                      onPressed: onCopy,
+                      icon: const Icon(Icons.content_copy_rounded),
                     ),
                 ],
               ),

@@ -56,6 +56,12 @@ abstract final class PlaylistStrings {
       L10n.tr('歌单里没有可复制的曲目', 'No tracks to copy');
   static String copyPlaylistFailed(String e) =>
       L10n.tr('复制歌单失败：$e', 'Failed to copy playlist: $e');
+  static String get copyTrackList => L10n.tr('复制曲目列表', 'Copy Track List');
+  static String copiedTrackList(int n) =>
+      L10n.tr('已复制曲目列表（$n 首）', 'Copied $n tracks');
+  static String get noTracksToCopy => L10n.tr('没有可复制的曲目', 'No tracks to copy');
+  static String copyTracksFailed(String e) =>
+      L10n.tr('复制失败：$e', 'Failed to copy: $e');
   static String get sortPlaylist => L10n.tr('排序歌单', 'Sort Playlist');
   static String get sortByTitle => L10n.tr('按标题', 'By Title');
   static String get sortByArtist => L10n.tr('按艺人', 'By Artist');

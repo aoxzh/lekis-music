@@ -9,6 +9,7 @@ import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/shelf.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/playlists/playlist_actions.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/l10n/duration_text.dart';
 import 'package:lekis/src/rust/api/dto.dart';
@@ -109,6 +110,9 @@ class _ArtistDetailViewState extends ConsumerState<ArtistDetailView> {
                   onShuffle: tracks.isEmpty
                       ? null
                       : () => actions.playRows(tracks, shuffle: true),
+                  onCopy: tracks.isEmpty
+                      ? null
+                      : () => copyTrackListAsText(context, tracks),
                 ),
               ),
             ),
@@ -289,6 +293,7 @@ class _ArtistHeader extends StatelessWidget {
     required this.trackIds,
     required this.onPlay,
     required this.onShuffle,
+    this.onCopy,
   });
 
   final String name;
@@ -296,6 +301,7 @@ class _ArtistHeader extends StatelessWidget {
   final List<int> trackIds;
   final VoidCallback? onPlay;
   final VoidCallback? onShuffle;
+  final VoidCallback? onCopy;
 
   /// Avatar side in the side-by-side layout.
   static const double _compactAvatar = LekisSizes.gridArtworkMin * 0.75;
@@ -343,6 +349,14 @@ class _ArtistHeader extends StatelessWidget {
               BatchDownloadButton(
                 trackIds: trackIds,
                 tooltip: context.l10n.pick('下载全部歌曲', 'Download All Songs'),
+              ),
+            ],
+            if (onCopy != null) ...[
+              const SizedBox(width: LekisSpacing.sm),
+              IconButton(
+                tooltip: context.l10n.pick('复制曲目列表', 'Copy Track List'),
+                onPressed: onCopy,
+                icon: const Icon(Icons.content_copy_rounded),
               ),
             ],
           ],
