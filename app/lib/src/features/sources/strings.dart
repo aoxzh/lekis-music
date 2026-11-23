@@ -61,6 +61,17 @@ abstract final class SourcesStrings {
   static String get phaseWritingSharedIndex =>
       L10n.tr('正在写入共享索引', 'Writing shared index');
   static String get rescan => L10n.tr('重新扫描', 'Rescan');
+  static String get scanAll => L10n.tr('扫描全部音源', 'Scan All Sources');
+  static String get noEnabledSources =>
+      L10n.tr('没有已启用的音源', 'No enabled sources');
+  static String scanAllStarted(int count) =>
+      L10n.tr('开始扫描 $count 个音源', 'Scanning $count sources');
+  static String scanAllDone(int count, int failed) => failed == 0
+      ? L10n.tr('已开始扫描 $count 个音源', 'Scanning $count sources')
+      : L10n.tr(
+          '已开始扫描 $count 个音源，$failed 个启动失败',
+          'Scanning $count sources, $failed failed to start',
+        );
   static String get syncNow => L10n.tr('立即同步', 'Sync Now');
   static String syncDone(int pushed, int pulled, int applied) => L10n.tr(
     '同步完成：推送 $pushed，拉取 $pulled，应用 $applied',

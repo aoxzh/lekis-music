@@ -74,6 +74,31 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
     if (s is _Source) rescanWithFeedback(context, ref, s.id);
   }
 
+  Future<void> _scanAll() async {
+    final sources = ref.read(sourcesProvider).value ?? const [];
+    final enabled = sources
+        .where((source) => source.enabled && source.id != null)
+        .toList(growable: false);
+    if (enabled.isEmpty) {
+      showFeatureSnack(context, SourcesStrings.noEnabledSources);
+      return;
+    }
+    showFeatureSnack(context, SourcesStrings.scanAllStarted(enabled.length));
+    var failed = 0;
+    for (final source in enabled) {
+      try {
+        await ref.read(sourceActionsProvider).rescan(source.id!);
+      } catch (_) {
+        failed++;
+      }
+    }
+    if (!mounted) return;
+    showFeatureSnack(
+      context,
+      SourcesStrings.scanAllDone(enabled.length, failed),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final compact = context.isCompactWidth;
@@ -117,6 +142,7 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
       bindings: {
         const SingleActivator(LogicalKeyboardKey.keyN, control: true): _add,
         const SingleActivator(LogicalKeyboardKey.f5): _rescanSelected,
+        const SingleActivator(LogicalKeyboardKey.f5, shift: true): _scanAll,
       },
       child: FocusScope(
         autofocus: true,
@@ -126,7 +152,10 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _Header(onAdd: compact ? null : _add),
+                _Header(
+                  onAdd: compact ? null : _add,
+                  onScanAll: hasSources ? _scanAll : null,
+                ),
                 Expanded(child: body),
               ],
             ),
@@ -159,15 +188,19 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
 /// Page title (+ "add" on wider windows), laid out like the library header
 /// so switching tabs does not shift the title.
 class _Header extends StatelessWidget {
-  const _Header({required this.onAdd});
+  const _Header({required this.onAdd, this.onScanAll});
 
   /// `null` → no button (phones use the floating action button).
   final VoidCallback? onAdd;
+
+  /// `null` → no sources yet, or the action is unavailable.
+  final VoidCallback? onScanAll;
 
   @override
   Widget build(BuildContext context) {
     final gutter = pageGutterOf(context);
     final add = onAdd;
+    final scanAll = onScanAll;
     return Padding(
       padding: EdgeInsets.fromLTRB(
         gutter,
@@ -189,6 +222,16 @@ class _Header extends StatelessWidget {
                 ),
               ),
             ),
+            if (scanAll != null)
+              IconButton(
+                tooltip: SourcesStrings.scanAll,
+                constraints: const BoxConstraints(
+                  minWidth: LekisSizes.touchTargetMin,
+                  minHeight: LekisSizes.touchTargetMin,
+                ),
+                onPressed: scanAll,
+                icon: const Icon(Icons.sync_rounded),
+              ),
             if (add != null)
               FilledButton.tonalIcon(
                 style: FilledButton.styleFrom(
