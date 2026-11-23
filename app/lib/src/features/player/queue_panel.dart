@@ -8,6 +8,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/downloads/download_status.dart';
+import 'package:lekis/src/features/downloads/downloads_providers.dart';
 import 'package:lekis/src/features/library/album_detail_page.dart';
 import 'package:lekis/src/features/library/artist_detail_page.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
@@ -137,6 +139,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
   ) async {
     final length = ref.read(playbackProvider).queueLength;
     final loved = ref.read(lovedOverridesProvider)[row.id] ?? row.loved;
+    final downloadState = ref.read(downloadStateProvider(row.id));
     final messenger = ScaffoldMessenger.of(context);
     await showModalBottomSheet<void>(
       context: context,
@@ -211,6 +214,28 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
                   );
                 },
               ),
+              if (!row.isLocal || downloadState != null)
+                ListTile(
+                  leading: Icon(switch (downloadState) {
+                    null => Icons.download_for_offline_outlined,
+                    OfflineStateDto.ready => Icons.delete_outline_rounded,
+                    OfflineStateDto.failed => Icons.refresh_rounded,
+                    OfflineStateDto.downloading => Icons.close_rounded,
+                    OfflineStateDto.queued => Icons.download_rounded,
+                  }),
+                  title: Text(downloadMenuLabel(downloadState)),
+                  onTap: () {
+                    close();
+                    unawaited(
+                      runDownloadMenuAction(
+                        context,
+                        ref,
+                        row.id,
+                        downloadState,
+                      ),
+                    );
+                  },
+                ),
               ListTile(
                 leading: const Icon(Icons.keyboard_arrow_up_rounded),
                 title: Text(l10n.pick('上移', 'Move up')),
