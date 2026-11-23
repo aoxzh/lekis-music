@@ -3,6 +3,7 @@
 ## 新增
 
 - **补全结果写入音源目录**：补全或接受候选后，封面写成专辑目录的 `cover.jpg`（单曲用 `<歌曲名>.jpg`），歌词写成与音频同名的 `.lrc`（TTML / 纯文本同理）。重新添加资料库或扫描时直接读取侧车文件，不用再补一遍。仅处理可写的文件系统音源（本地 / SMB / WebDAV / SFTP / NFS）；只读共享和媒体服务器自动跳过。设置 → 整理资料库 新增开关，默认开启。
+- **官网吉祥物**：官网首页、下载、FAQ 和「为什么叫 Lekis」用上了新的月兔角色插画；站内使用裁剪压缩版，原始素材留在 `website/kit`。
 
 ## 修复
 
@@ -34,6 +35,7 @@ Lekis Music 0.2.5 preview release, fixing "Fetch Missing Covers / Lyrics" stoppi
 **Added**
 
 - **Enrichment is saved into source folders**: covers become `cover.jpg` in the album folder (or `<track>.jpg` for a single track), and lyrics become a matching `.lrc` (TTML / plain text likewise). Re-adding or rescanning the library picks them up, so nothing has to be fetched again. Only writable filesystem sources (local / SMB / WebDAV / SFTP / NFS) are touched; read-only shares and media servers are skipped. A new toggle under Settings → Library Tools is on by default.
+- **Website mascot art**: the home, download, FAQ and "Why Lekis" sections now use the new rabbit character illustrations; the site serves cropped, compressed derivatives and keeps the originals in `website/kit`.
 
 **Fixes**
 

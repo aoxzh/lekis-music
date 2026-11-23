@@ -135,8 +135,79 @@
 
     /* Hero */
     .hero {
-      padding: 76px 0 48px;
+      padding: 64px 0 48px;
       text-align: center;
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+      gap: 48px;
+      align-items: center;
+      text-align: left;
+    }
+    .hero-copy .pill { margin-bottom: 22px; }
+    .hero-copy h1 {
+      margin: 0 0 18px;
+      max-width: 720px;
+    }
+    .hero-copy p.lead {
+      margin: 0 0 30px;
+      max-width: 640px;
+    }
+    .hero-copy .cta-row {
+      justify-content: flex-start;
+      margin-bottom: 0;
+    }
+    .hero-art {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 360px;
+    }
+    .hero-art::before {
+      content: "";
+      position: absolute;
+      inset: 10% 6%;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(124, 108, 246, 0.42), transparent 70%);
+      filter: blur(28px);
+      z-index: 0;
+    }
+    .hero-mascot {
+      position: relative;
+      z-index: 1;
+      width: min(100%, 420px);
+      border-radius: 34px;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      transform: rotate(1.5deg);
+    }
+    .hero-sticker {
+      position: absolute;
+      z-index: 2;
+      right: 2%;
+      bottom: 0;
+      width: 112px;
+      border-radius: 26px;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+      transform: rotate(-6deg);
+    }
+    .sec-mascot {
+      width: 88px;
+      height: 88px;
+      border-radius: 22px;
+      object-fit: cover;
+      margin-bottom: 14px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
+    }
+    .card-footer-mascot {
+      display: block;
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      object-fit: cover;
+      margin: 16px 0 0 auto;
+      opacity: 0.92;
     }
     .pill {
       display: inline-flex;
@@ -346,7 +417,13 @@
       gap: 22px;
       flex-wrap: wrap;
     }
-    .origin-box img { width: 68px; height: 68px; border-radius: 18px; }
+    .origin-box img {
+      width: 112px;
+      height: 112px;
+      border-radius: 26px;
+      object-fit: cover;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.42);
+    }
     .origin-box h3 { margin-bottom: 6px; }
     .origin-box p { color: var(--muted); max-width: 780px; }
 
@@ -380,9 +457,42 @@
     [data-lang="zh"] .en { display: none; }
     [data-lang="en"] .zh { display: none; }
 
+    @media (max-width: 900px) {
+      .hero-grid {
+        grid-template-columns: 1fr;
+        gap: 30px;
+        text-align: center;
+      }
+      .hero-copy h1,
+      .hero-copy p.lead {
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .hero-copy .cta-row { justify-content: center; }
+      .hero-art {
+        order: -1;
+        min-height: 0;
+      }
+      .hero-mascot { width: min(68%, 300px); }
+      .hero-sticker {
+        width: 84px;
+        right: 9%;
+        bottom: -12px;
+      }
+    }
+
     @media (max-width: 680px) {
       .nav-links a.hide-sm { display: none; }
       .hero { padding-top: 48px; }
+      .sec-mascot {
+        width: 72px;
+        height: 72px;
+        border-radius: 18px;
+      }
+      .origin-box img {
+        width: 84px;
+        height: 84px;
+      }
     }
   </style>
 </head>
@@ -408,8 +518,9 @@
 
   <main>
     <section class="hero">
-      <div class="container">
-        <div class="pill">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <div class="pill">
           <span>✦</span>
           <span class="en">Open-Source MPL-2.0 · Rust Core + Flutter UI · Zero Telemetry</span>
           <span class="zh">MPL-2.0 开源免费 · Rust 音频核心 + Flutter 界面 · 零遥测无广告</span>
@@ -436,7 +547,14 @@
             <span class="zh">关注作者 X (@aoxzh)</span>
           </a>
         </div>
+        </div>
+        <div class="hero-art">
+          <img class="hero-mascot" src="assets/kit/standing.jpg" alt="Lekis rabbit mascot wearing headphones" fetchpriority="high" />
+          <img class="hero-sticker" src="assets/kit/jumping.jpg" alt="" loading="lazy" />
+        </div>
+      </div>
 
+      <div class="container">
         <div class="showcase-wrap">
           <div class="shot-tabs" id="shotTabs">
             <button class="shot-tab active" data-src="screenshots/desktop-now-playing-vinyl.png"><span class="en">Desktop Vinyl + Lyrics</span><span class="zh">桌面黑胶 + 歌词</span></button>
@@ -470,6 +588,7 @@
             <div class="card-icon">⚡</div>
             <h3><span class="en">Audiophile Rust Core</span><span class="zh">发烧级 Rust 音频引擎</span></h3>
             <p><span class="en">100,000+ tracks cold start in ~0.3s at 120 fps. Sample-accurate gapless playback, Windows WASAPI bit-perfect exclusive mode, ReplayGain, 10-band EQ with headphone presets, and Last.fm / ListenBrainz scrobbling.</span><span class="zh">10 万首大曲库 ~0.3 秒冷启动、120 fps 流畅滚动；样本级无缝播放、Windows WASAPI 独占逐位一致输出、ReplayGain、10 段均衡器与耳机预设。</span></p>
+            <img class="card-footer-mascot" src="assets/kit/running.jpg" alt="" loading="lazy" />
           </div>
           <div class="card">
             <div class="card-icon">🎵</div>
@@ -498,6 +617,7 @@
     <section id="download">
       <div class="container">
         <div class="sec-head">
+          <img class="sec-mascot" src="assets/kit/thumbs-up.jpg" alt="" loading="lazy" />
           <h2><span class="en">Download Lekis Music</span><span class="zh">下载月兔音乐</span></h2>
           <p><span class="en">Latest: <strong>v0.2.5</strong> (Alpha preview, 2026-11-23). Built by GitHub Actions with SHA-256 checksums.</span><span class="zh">最新版本：<strong>v0.2.5</strong>（Alpha 预览版，2026-11-23），由 GitHub Actions 自动构建并附带 SHA-256 校验和。</span></p>
         </div>
@@ -532,7 +652,7 @@
     <section>
       <div class="container">
         <div class="origin-box">
-          <img src="assets/mark.png" alt="Lekis Rabbit Mascot" />
+          <img src="assets/kit/sitting.jpg" alt="Lekis rabbit mascot relaxing in a moonlit chair" loading="lazy" />
           <div>
             <h3><span class="en">Why "Lekis" (月兔音乐)?</span><span class="zh">为什么叫「月兔音乐 / Lekis」？</span></h3>
             <p>
@@ -547,6 +667,7 @@
     <section id="faq">
       <div class="container">
         <div class="sec-head">
+          <img class="sec-mascot" src="assets/kit/thinking.jpg" alt="" loading="lazy" />
           <h2><span class="en">Frequently Asked Questions</span><span class="zh">常见问题</span></h2>
         </div>
         <div class="faq">
