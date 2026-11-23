@@ -7,23 +7,36 @@ import 'package:lekis/src/features/desktop_lyrics/desktop_lyrics_settings_sectio
 import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/rust/api/desktop_lyrics.dart' as bridge;
+import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
 class _FakeDesktopLyricsGateway implements DesktopLyricsGateway {
-  _FakeDesktopLyricsGateway({this.supported = true});
+  _FakeDesktopLyricsGateway({
+    this.supported = true,
+    this.menuBarSupported = false,
+  });
 
   final bool supported;
+  final bool menuBarSupported;
   final Map<String, String> settings = {};
   final StreamController<bridge.DesktopLyricsEventDto> controller =
       StreamController<bridge.DesktopLyricsEventDto>.broadcast();
   bool visible = false;
+  bool menuBarVisible = false;
   bool locked = false;
   bridge.DesktopLyricsStyleDto? lastStyle;
   String? lastPlacements;
 
   @override
   bool isSupported() => supported;
+
+  @override
+  bool isMenuBarSupported() => menuBarSupported;
+
+  @override
+  bool setMenuBarVisible(bool visible) =>
+      menuBarVisible = menuBarSupported && visible;
 
   @override
   bool show() {
@@ -63,6 +76,23 @@ class _FakeDesktopLyricsGateway implements DesktopLyricsGateway {
   Future<void> dispose() => controller.close();
 }
 
+class _SlowDesktopLyricsGateway extends _FakeDesktopLyricsGateway {
+  _SlowDesktopLyricsGateway() : super(menuBarSupported: true);
+  final reads = <String, Completer<String?>>{};
+  @override
+  Future<String?> getSetting(String key) =>
+      (reads[key] = Completer<String?>()).future;
+  void finishReads({bool savedMenuBar = false}) {
+    for (final entry in reads.entries) {
+      entry.value.complete(
+        entry.key == DesktopLyricsSettingKeys.menuBarVisible && savedMenuBar
+            ? 'true'
+            : null,
+      );
+    }
+  }
+}
+
 class _FakeActions extends PlayerActions {
   _FakeActions(super.ref);
 
@@ -81,6 +111,168 @@ class _FakeActions extends PlayerActions {
 }
 
 void main() {
+  test('settings action waits for pending restore and keeps native state consistent', () async {
+    final gw = _SlowDesktopLyricsGateway();
+    final container = ProviderContainer(
+      overrides: [desktopLyricsGatewayProvider.overrideWithValue(gw)],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await gw.dispose();
+    });
+    final ctrl = container.read(desktopLyricsProvider.notifier);
+    final boot = ctrl.bootstrap();
+    final action = ctrl.setMenuBarVisible(true);
+    expect(gw.menuBarVisible, isFalse);
+    gw.finishReads();
+    await Future.wait([boot, action]);
+    expect(container.read(desktopLyricsProvider).menuBarVisible, isTrue);
+    expect(gw.menuBarVisible, isTrue);
+    expect(gw.settings[DesktopLyricsSettingKeys.menuBarVisible], 'true');
+  });
+
+  test(
+    'native close during restore wins over saved menu bar visibility',
+    () async {
+      final gw = _SlowDesktopLyricsGateway();
+      final container = ProviderContainer(
+        overrides: [desktopLyricsGatewayProvider.overrideWithValue(gw)],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await gw.dispose();
+      });
+      final boot = container.read(desktopLyricsProvider.notifier).bootstrap();
+      gw.controller.add(const bridge.DesktopLyricsEventDto.menuBarClosed());
+      await Future<void>.delayed(Duration.zero);
+      gw.finishReads(savedMenuBar: true);
+      await boot;
+      expect(container.read(desktopLyricsProvider).menuBarVisible, isFalse);
+      expect(gw.menuBarVisible, isFalse);
+    },
+  );
+
+  test(
+    'new track id never receives retained metadata from the previous track',
+    () {
+      final oldTrack = TrackDto(
+        id: 1,
+        uid: 'old',
+        title: 'Previous song',
+        artists: ['Previous artist'],
+        durationMs: BigInt.zero,
+        genres: [],
+        loved: false,
+        playCount: 0,
+        isLocal: false,
+      );
+      final doc = buildDesktopLyricsDoc(
+        trackId: 2,
+        track: oldTrack,
+        lyrics: null,
+      );
+      expect(doc.trackId, 2);
+      expect(doc.title, isEmpty);
+      expect(doc.artist, isEmpty);
+      final current = buildDesktopLyricsDoc(
+        trackId: 1,
+        track: oldTrack,
+        lyrics: null,
+      );
+      expect(current.title, 'Previous song');
+    },
+  );
+
+  test(
+    'menu bar restores independently and native menu changes persist',
+    () async {
+      final gw = _FakeDesktopLyricsGateway(menuBarSupported: true)
+        ..settings[DesktopLyricsSettingKeys.menuBarVisible] = 'true';
+      final container = ProviderContainer(
+        overrides: [desktopLyricsGatewayProvider.overrideWithValue(gw)],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await gw.dispose();
+      });
+      final ctrl = container.read(desktopLyricsProvider.notifier);
+      await ctrl.bootstrap();
+      expect(container.read(desktopLyricsProvider).menuBarVisible, isTrue);
+      expect(gw.menuBarVisible, isTrue);
+      expect(gw.visible, isFalse);
+      expect(gw.lastStyle?.fontSize, 26);
+      await ctrl.setVisible(true);
+      await ctrl.setVisible(false);
+      expect(gw.menuBarVisible, isTrue);
+      gw.controller.add(
+        const bridge.DesktopLyricsEventDto.visibilityChanged(visible: true),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(desktopLyricsProvider).visible, isTrue);
+      expect(gw.settings[DesktopLyricsSettingKeys.visible], 'true');
+      gw.controller.add(const bridge.DesktopLyricsEventDto.menuBarClosed());
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(desktopLyricsProvider).menuBarVisible, isFalse);
+      expect(container.read(desktopLyricsProvider).visible, isTrue);
+      expect(gw.settings[DesktopLyricsSettingKeys.menuBarVisible], 'false');
+    },
+  );
+
+  test('menu bar toggle stays off on unsupported platforms', () async {
+    final gw = _FakeDesktopLyricsGateway();
+    final container = ProviderContainer(
+      overrides: [desktopLyricsGatewayProvider.overrideWithValue(gw)],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await gw.dispose();
+    });
+    await container
+        .read(desktopLyricsProvider.notifier)
+        .setMenuBarVisible(true);
+    expect(gw.menuBarVisible, isFalse);
+    expect(container.read(desktopLyricsProvider).menuBarVisible, isFalse);
+    expect(
+      gw.settings.containsKey(DesktopLyricsSettingKeys.menuBarVisible),
+      isFalse,
+    );
+  });
+
+  testWidgets('macOS settings expose separate menu bar and desktop switches', (
+    tester,
+  ) async {
+    final gw = _FakeDesktopLyricsGateway(menuBarSupported: true);
+    addTearDown(gw.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [desktopLyricsGatewayProvider.overrideWithValue(gw)],
+        child: MaterialApp(
+          theme: lekisDarkTheme(),
+          home: const Scaffold(
+            body: SingleChildScrollView(child: DesktopLyricsSettingsSection()),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('desktop-lyrics.menu-bar-visible')),
+    );
+    await tester.pumpAndSettle();
+    expect(gw.menuBarVisible, isTrue);
+    expect(gw.visible, isFalse);
+    expect(gw.settings[DesktopLyricsSettingKeys.menuBarVisible], 'true');
+    final opacity = find.byKey(const ValueKey('desktop-lyrics.opacity'));
+    await tester.ensureVisible(opacity);
+    await tester.drag(opacity, const Offset(-150, 0));
+    await tester.pumpAndSettle();
+    expect(gw.lastStyle?.opacity, lessThan(1));
+    expect(
+      double.tryParse(gw.settings[DesktopLyricsSettingKeys.opacity] ?? ''),
+      lessThan(1),
+    );
+  });
+
   test('bootstrap restores saved visibility, lock, style and placements '
       'and reacts to native window events', () async {
     final gw = _FakeDesktopLyricsGateway()

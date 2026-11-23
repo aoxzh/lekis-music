@@ -22,6 +22,15 @@ class DesktopLyricsSettingsSection extends ConsumerWidget {
     return SettingsSection(
       title: DesktopLyricsStrings.title,
       children: [
+        if (ref.watch(menuBarLyricsSupportedProvider))
+          SettingsSwitchTile(
+            key: const ValueKey('desktop-lyrics.menu-bar-visible'),
+            icon: Icons.short_text_rounded,
+            title: DesktopLyricsStrings.menuBarShow,
+            subtitle: DesktopLyricsStrings.menuBarHint,
+            value: state.menuBarVisible,
+            onChanged: ctrl.setMenuBarVisible,
+          ),
         SettingsSwitchTile(
           key: const ValueKey('desktop-lyrics.visible'),
           icon: Icons.subtitles_outlined,

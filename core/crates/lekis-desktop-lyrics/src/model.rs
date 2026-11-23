@@ -111,6 +111,10 @@ pub enum Control {
 pub enum Event {
     /// 用户点了悬浮窗上的关闭按钮（窗口已隐藏）。
     Closed,
+    /// 用户通过原生菜单改变桌面窗口显示状态。
+    VisibilityChanged(bool),
+    /// 用户从菜单栏关闭菜单栏歌词。
+    MenuBarClosed,
     /// 用户在悬浮窗上锁定 / 解锁。
     LockChanged(bool),
     /// 工具栏上的播放控制。
