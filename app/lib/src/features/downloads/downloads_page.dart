@@ -85,6 +85,36 @@ class DownloadsPage extends ConsumerWidget {
     await startDownloads(context, ref, ids);
   }
 
+  Future<void> _retryFailed(BuildContext context, WidgetRef ref) async {
+    final l10n = context.l10n;
+    final count = ref.read(downloadsProvider).value?.failed.length ?? 0;
+    if (count == 0) return;
+    try {
+      final retried = await ref.read(downloadsProvider.notifier).retryFailed();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.pick('已重新加入 $retried 个下载', 'Re-queued $retried downloads'),
+            ),
+          ),
+        );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n.pick('重试下载失败：$e', 'Failed to retry downloads: $e'),
+            ),
+          ),
+        );
+    }
+  }
+
   Future<void> _clearCompleted(BuildContext context, WidgetRef ref) async {
     final l10n = context.l10n;
     final count = ref.read(downloadsProvider).value?.ready.length ?? 0;
@@ -224,6 +254,8 @@ class DownloadsPage extends ConsumerWidget {
                 _downloadMostPlayed(context, ref);
               case 'clear-completed':
                 _clearCompleted(context, ref);
+              case 'retry-failed':
+                _retryFailed(context, ref);
               case 'clear-failed':
                 _clearFailed(context, ref);
             }
@@ -251,6 +283,14 @@ class DownloadsPage extends ConsumerWidget {
                   title: Text(
                     l10n.pick('清理已完成的下载', 'Clear Completed Downloads'),
                   ),
+                ),
+              ),
+            if (hasFailed)
+              PopupMenuItem(
+                value: 'retry-failed',
+                child: ListTile(
+                  leading: const Icon(Icons.refresh_rounded),
+                  title: Text(l10n.pick('重试全部失败下载', 'Retry All Failed')),
                 ),
               ),
             if (hasFailed)
