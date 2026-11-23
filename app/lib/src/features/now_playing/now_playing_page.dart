@@ -24,6 +24,7 @@ import 'package:lekis/src/features/player/queue_panel.dart';
 import 'package:lekis/src/features/player/queue_view.dart';
 import 'package:lekis/src/features/player/sleep_timer.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
+import 'package:lekis/src/features/settings/equalizer_page.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/layout/adaptive_two_pane.dart';
 import 'package:lekis/src/layout/fold.dart';
@@ -638,6 +639,7 @@ class NowPlayingActions extends ConsumerWidget {
   static const Key lyricsKey = ValueKey('now-playing.actions.lyrics');
   static const Key wallKey = ValueKey('now-playing.actions.wall');
   static const Key queueKey = ValueKey('now-playing.actions.queue');
+  static const Key equalizerKey = ValueKey('now-playing.actions.equalizer');
 
   void _toggle(WidgetRef ref, NowPlayingPane pane) {
     final current = ref.read(nowPlayingPaneProvider);
@@ -727,6 +729,16 @@ class NowPlayingActions extends ConsumerWidget {
               : null,
         ),
         // Pick another Lekis device to play on / control.
+        action(
+          key: equalizerKey,
+          tooltip: l10n.pick('均衡器', 'Equalizer'),
+          selected: false,
+          icon: Icons.graphic_eq_rounded,
+          selectedIcon: Icons.graphic_eq_rounded,
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const EqualizerPage()),
+          ),
+        ),
         const SleepTimerButton(key: ValueKey('now-playing.sleep-timer')),
         const ConnectDeviceButton(alwaysShow: true),
       ],
