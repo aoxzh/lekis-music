@@ -12,6 +12,7 @@ import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/now_playing/lyrics_editor_sheet.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
+import 'package:lekis/src/features/now_playing/track_sources_sheet.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
@@ -34,6 +35,7 @@ enum _MoreAction {
   addToPlaylist,
   playOnDevice,
   editLyrics,
+  sources,
   lyricsEarlier,
   lyricsLater,
   lyricsReset,
@@ -208,6 +210,12 @@ class _MoreButton extends ConsumerWidget {
             showPlayOnDeviceSheet(context, ref);
           case _MoreAction.editLyrics:
             showLyricsEditor(context, ref, track.id);
+          case _MoreAction.sources:
+            showTrackSourcesSheet(
+              context,
+              trackId: track.id,
+              title: track.title,
+            );
           case _MoreAction.lyricsEarlier:
             unawaited(_adjustLyrics(context, ref, (offset) => offset + 500));
           case _MoreAction.lyricsLater:
@@ -256,6 +264,13 @@ class _MoreButton extends ConsumerWidget {
           child: item(
             Icons.edit_note_rounded,
             context.l10n.pick('编辑歌词', 'Edit Lyrics'),
+          ),
+        ),
+        PopupMenuItem(
+          value: _MoreAction.sources,
+          child: item(
+            Icons.storage_rounded,
+            context.l10n.pick('查看来源', 'View Sources'),
           ),
         ),
         const PopupMenuDivider(),
