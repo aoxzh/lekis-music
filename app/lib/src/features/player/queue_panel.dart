@@ -132,6 +132,95 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
     }
   }
 
+  void _jumpToIndex(int index) {
+    if (!_scroll.hasClients) return;
+    final target = math.max(
+      0.0,
+      index * QueuePanel.rowExtent - QueuePanel.rowExtent * 2,
+    );
+    final clamped = target
+        .clamp(0.0, _scroll.position.maxScrollExtent)
+        .toDouble();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _scroll.jumpTo(clamped);
+    } else {
+      _scroll.animateTo(
+        clamped,
+        duration: LekisMotion.normal,
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  Future<void> _findInQueue(BuildContext context) async {
+    final length = ref.read(playbackProvider).queueLength;
+    if (length == 0) return;
+    final l10n = context.l10n;
+    final controller = TextEditingController();
+    final query = await showDialog<String>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(l10n.pick('在队列中查找', 'Find in Queue')),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: l10n.pick('歌名或艺人', 'Title or artist'),
+          ),
+          onSubmitted: (value) => Navigator.of(dialog).pop(value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(),
+            child: Text(l10n.pick('取消', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialog).pop(controller.text.trim()),
+            child: Text(l10n.pick('查找', 'Find')),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (query == null || query.isEmpty || !context.mounted) return;
+    final needle = query.toLowerCase();
+    var offset = 0;
+    const pageSize = 200;
+    while (offset < length) {
+      final rows = await core.queueItems(offset: offset, limit: pageSize);
+      if (rows.isEmpty) break;
+      for (var i = 0; i < rows.length; i++) {
+        final row = rows[i];
+        if (row.title.toLowerCase().contains(needle) ||
+            row.artistLine.toLowerCase().contains(needle)) {
+          if (!mounted || !context.mounted) return;
+          _jumpToIndex(offset + i);
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(
+                  l10n.pick('已定位到「${row.title}」', 'Jumped to "${row.title}"'),
+                ),
+              ),
+            );
+          return;
+        }
+      }
+      offset += rows.length;
+    }
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.pick('队列里没有找到「$query」', 'No queue match for "$query"'),
+          ),
+        ),
+      );
+  }
+
   Future<void> _showRowMenu(
     BuildContext context,
     TrackRowDto row,
@@ -626,6 +715,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
                     ? null
                     : () => _saveQueueAsPlaylist(context),
                 onClear: queueLength == 0 ? null : () => _confirmClear(context),
+                onFind: queueLength == 0 ? null : () => _findInQueue(context),
                 onJumpToCurrent: currentIndex == null
                     ? null
                     : () => _jumpToCurrent(currentIndex),
@@ -744,7 +834,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
   }
 }
 
-enum _QueueHeaderAction { copy, saveAsPlaylist, clear }
+enum _QueueHeaderAction { find, copy, saveAsPlaylist, clear }
 
 class _QueueHeader extends StatelessWidget {
   const _QueueHeader({
@@ -752,6 +842,7 @@ class _QueueHeader extends StatelessWidget {
     this.onCopy,
     this.onSaveAsPlaylist,
     this.onClear,
+    this.onFind,
     this.onJumpToCurrent,
     this.onClose,
   });
@@ -760,6 +851,7 @@ class _QueueHeader extends StatelessWidget {
   final VoidCallback? onCopy;
   final VoidCallback? onSaveAsPlaylist;
   final VoidCallback? onClear;
+  final VoidCallback? onFind;
   final VoidCallback? onJumpToCurrent;
   final VoidCallback? onClose;
 
@@ -788,13 +880,18 @@ class _QueueHeader extends StatelessWidget {
             const SizedBox(width: LekisSpacing.sm),
             _CountBadge(count: length),
             const Spacer(),
-            if (onCopy != null || onSaveAsPlaylist != null || onClear != null)
+            if (onFind != null ||
+                onCopy != null ||
+                onSaveAsPlaylist != null ||
+                onClear != null)
               PopupMenuButton<_QueueHeaderAction>(
                 key: const ValueKey('queue-panel.more'),
                 tooltip: context.l10n.pick('队列操作', 'Queue actions'),
                 icon: const Icon(Icons.more_horiz_rounded, size: 20),
                 onSelected: (action) {
                   switch (action) {
+                    case _QueueHeaderAction.find:
+                      onFind?.call();
                     case _QueueHeaderAction.copy:
                       onCopy?.call();
                     case _QueueHeaderAction.saveAsPlaylist:
@@ -804,6 +901,18 @@ class _QueueHeader extends StatelessWidget {
                   }
                 },
                 itemBuilder: (_) => [
+                  if (onFind != null)
+                    PopupMenuItem(
+                      value: _QueueHeaderAction.find,
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.search_rounded),
+                        title: Text(
+                          context.l10n.pick('在队列中查找', 'Find in Queue'),
+                        ),
+                      ),
+                    ),
                   if (onCopy != null)
                     PopupMenuItem(
                       value: _QueueHeaderAction.copy,
