@@ -25,6 +25,8 @@ import 'package:lekis/src/features/player/queue_view.dart';
 import 'package:lekis/src/features/player/sleep_timer.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
 import 'package:lekis/src/features/settings/equalizer_page.dart';
+import 'package:lekis/src/features/settings/settings_providers.dart'
+    show playbackOutputProvider;
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/layout/adaptive_two_pane.dart';
 import 'package:lekis/src/layout/fold.dart';
@@ -848,6 +850,8 @@ class _NowPlayingTitle extends ConsumerWidget {
     final hasArtist = artistNames != null && artistNames.isNotEmpty;
     final hasAlbum = album != null && album.isNotEmpty;
     final hasQuality = quality != null && quality.isNotEmpty;
+    final exclusive =
+        ref.watch(playbackOutputProvider).mode == OutputModeDto.exclusive;
     final subtitleStyle = theme.textTheme.bodyLarge?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
@@ -934,6 +938,20 @@ class _NowPlayingTitle extends ConsumerWidget {
                         trackId: track.id.toInt(),
                         title: track.title,
                       ),
+                    ),
+                  ),
+                ],
+                if (exclusive) ...[
+                  Text(' · ', style: subtitleStyle),
+                  Tooltip(
+                    message: context.l10n.pick(
+                      '独占模式：绕过系统混音',
+                      'Exclusive mode: bypasses the system mixer',
+                    ),
+                    child: Icon(
+                      Icons.high_quality_rounded,
+                      size: 18,
+                      color: theme.colorScheme.primary,
                     ),
                   ),
                 ],
