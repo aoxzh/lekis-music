@@ -12,6 +12,7 @@ import 'package:lekis/src/features/downloads/downloads_providers.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/now_playing/lyrics_editor_sheet.dart';
+import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/features/now_playing/track_sources_sheet.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
@@ -38,6 +39,7 @@ enum _MoreAction {
   editLyrics,
   sources,
   copyInfo,
+  copyLyrics,
   lyricsEarlier,
   lyricsLater,
   lyricsReset,
@@ -156,6 +158,49 @@ class _MoreButton extends ConsumerWidget {
     }
   }
 
+  Future<void> _copyLyrics(BuildContext context) async {
+    try {
+      final dto = await core.lyrics(trackId: track.id);
+      final text = dto == null
+          ? ''
+          : ParsedLyrics.parse(dto).lines
+                .map((line) => line.text)
+                .where((line) => line.trim().isNotEmpty)
+                .join('\n');
+      if (text.trim().isEmpty) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                context.l10n.pick('这首歌还没有歌词', 'No lyrics for this track'),
+              ),
+            ),
+          );
+        return;
+      }
+      await Clipboard.setData(ClipboardData(text: text));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text(context.l10n.pick('已复制歌词', 'Lyrics copied'))),
+        );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick('复制歌词失败：$e', 'Failed to copy lyrics: $e'),
+            ),
+          ),
+        );
+    }
+  }
+
   Future<void> _adjustLyrics(
     BuildContext context,
     WidgetRef ref,
@@ -249,6 +294,8 @@ class _MoreButton extends ConsumerWidget {
             );
           case _MoreAction.copyInfo:
             unawaited(_copyInfo(context));
+          case _MoreAction.copyLyrics:
+            unawaited(_copyLyrics(context));
           case _MoreAction.lyricsEarlier:
             unawaited(_adjustLyrics(context, ref, (offset) => offset + 500));
           case _MoreAction.lyricsLater:
@@ -311,6 +358,13 @@ class _MoreButton extends ConsumerWidget {
           child: item(
             Icons.copy_all_rounded,
             context.l10n.pick('复制曲目信息', 'Copy Track Info'),
+          ),
+        ),
+        PopupMenuItem(
+          value: _MoreAction.copyLyrics,
+          child: item(
+            Icons.content_copy_rounded,
+            context.l10n.pick('复制歌词', 'Copy Lyrics'),
           ),
         ),
         const PopupMenuDivider(),
