@@ -76,7 +76,27 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: core
-      - run: cargo test --manifest-path core/Cargo.toml --workspace --no-fail-fast
+      # TEMP(debug): 把失败用例名打成 annotation，方便在 API/网页上直接看到。
+      # 定位完就删掉这一段，恢复成直接 `cargo test`。
+      - name: cargo test
+        shell: bash
+        run: |
+          set +e
+          cargo test --manifest-path core/Cargo.toml --workspace --no-fail-fast 2>&1 | tee core-test.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            grep -E '^(test .* FAILED|failures:)' core-test.log | head -40 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            # 再抓 "---- <name> stdout ----" 段的首行 panic 信息
+            grep -E '^---- .* stdout ----' core-test.log | head -20 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            grep -E "panicked at|assertion .* failed|Error:" core-test.log | head -20 | while IFS= read -r line; do
+              echo "::error::  $line"
+            done
+          fi
+          exit "$status"
 
   docs:
     name: rustdoc
