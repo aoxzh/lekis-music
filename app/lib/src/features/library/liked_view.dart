@@ -10,6 +10,7 @@ import 'package:lekis/src/features/library/album_detail_page.dart'
 import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/paged_track_list.dart';
+import 'package:lekis/src/features/playlists/playlist_actions.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
@@ -35,6 +36,78 @@ class LikedSongsView extends ConsumerWidget {
           content: Text(context.l10n.pick('播放失败：$e', 'Playback failed: $e')),
         ),
       );
+    }
+  }
+
+  Future<void> _saveAllAsPlaylist(
+    BuildContext context,
+    WidgetRef ref,
+    int total,
+  ) async {
+    if (total == 0) return;
+    final progress = ValueNotifier<int>(0);
+    final navigator = Navigator.of(context, rootNavigator: true);
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: Text(context.l10n.pick('正在收集喜欢的歌曲', 'Collecting Liked Songs')),
+          content: ValueListenableBuilder<int>(
+            valueListenable: progress,
+            builder: (_, done, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LinearProgressIndicator(
+                  value: total <= 0 ? 0 : (done / total).clamp(0.0, 1.0),
+                ),
+                const SizedBox(height: LekisSpacing.md),
+                Text('$done / $total'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final rows = <TrackRowDto>[];
+    try {
+      var offset = 0;
+      while (offset < total) {
+        final page = await core.lovedTracks(
+          offset: offset,
+          limit: math.min(500, total - offset),
+        );
+        if (page.isEmpty) break;
+        rows.addAll(page);
+        offset += page.length;
+        progress.value = math.min(offset, total);
+        if (page.length < 500) break;
+      }
+      if (navigator.mounted && navigator.canPop()) navigator.pop();
+      progress.dispose();
+      if (!context.mounted) return;
+      final stamp = DateTime.now()
+          .toString()
+          .substring(0, 16)
+          .replaceAll('T', ' ');
+      await saveTracksAsPlaylistFlow(
+        context,
+        ref,
+        rows,
+        suggestedName: '${context.l10n.pick('喜欢的歌曲', 'Liked Songs')} $stamp',
+      );
+    } catch (e) {
+      if (navigator.mounted && navigator.canPop()) navigator.pop();
+      progress.dispose();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(context.l10n.pick('保存失败：$e', 'Save failed: $e')),
+          ),
+        );
     }
   }
 
@@ -201,6 +274,13 @@ class LikedSongsView extends ConsumerWidget {
                 ? null
                 : () => _playAll(context, shuffle: true),
             trailing: [
+              IconButton(
+                tooltip: context.l10n.pick('保存为歌单', 'Save as Playlist'),
+                onPressed: count == null || count == 0
+                    ? null
+                    : () => _saveAllAsPlaylist(context, ref, count),
+                icon: const Icon(Icons.playlist_add_rounded),
+              ),
               IconButton(
                 tooltip: context.l10n.pick('下载全部', 'Download All'),
                 onPressed: count == null || count == 0
