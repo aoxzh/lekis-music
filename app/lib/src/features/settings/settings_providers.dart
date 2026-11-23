@@ -30,6 +30,7 @@ abstract final class SettingKeys {
   /// 注音歌词：`off`（默认）/ `plain` / `tone` / `tone_num`。
   /// 在汉字上方标拼音（UIX-11），经典视图生效。
   static const lyricsRuby = 'ui.lyrics_ruby';
+  static const lyricsFontScale = 'ui.lyrics_font_scale';
 
   /// 补全结果写入音源目录：`false` 关闭；缺省开启。
   static const writeEnrichSidecars = 'enrich.write_sidecars';

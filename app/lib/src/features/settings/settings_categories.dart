@@ -760,6 +760,13 @@ class _LyricsSection extends ConsumerWidget {
     final lyricsStyle = ref.watch(lyricsStyleProvider);
     final sparks = ref.watch(lyricsSparksProvider);
     final ruby = ref.watch(lyricsRubyProvider);
+    final fontScale = ref.watch(settingProvider(SettingKeys.lyricsFontScale));
+    final scale =
+        fontScale.value == '0.85' ||
+            fontScale.value == '1.15' ||
+            fontScale.value == '1.3'
+        ? fontScale.value!
+        : '1';
     void setStyle(LyricsStyle next) => settingsGuard(
       context,
       () => ref
@@ -797,6 +804,25 @@ class _LyricsSection extends ConsumerWidget {
               onChanged: setStyle,
             ),
           ),
+        SettingsDropdownTile<String>(
+          key: const ValueKey('settings-lyrics-font-size'),
+          icon: Icons.format_size_rounded,
+          title: SettingsStrings.lyricsFontSize,
+          subtitle: SettingsStrings.lyricsFontSizeHint,
+          value: scale,
+          choices: [
+            SettingsChoice('0.85', SettingsStrings.lyricsFontSmall),
+            SettingsChoice('1', SettingsStrings.lyricsFontNormal),
+            SettingsChoice('1.15', SettingsStrings.lyricsFontLarge),
+            SettingsChoice('1.3', SettingsStrings.lyricsFontXLarge),
+          ],
+          onChanged: (value) => settingsGuard(
+            context,
+            () => ref
+                .read(settingProvider(SettingKeys.lyricsFontScale).notifier)
+                .set(value),
+          ),
+        ),
         // 火花只对逐字舞台有意义，经典视图下不显示这个开关。
         if (lyricsStyle.isStage)
           SettingsSwitchTile(

@@ -7,6 +7,7 @@ import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
 import 'package:lekis/src/features/now_playing/lyrics_stage.dart';
 import 'package:lekis/src/features/now_playing/lyrics_stage_settings.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
+import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
@@ -84,9 +85,13 @@ class LyricsView extends ConsumerWidget {
         final base = LekisText.lyricsActive.copyWith(
           color: theme.colorScheme.onSurface,
         );
-        final style = compact
-            ? base.copyWith(fontSize: (base.fontSize ?? 30) * 0.8)
-            : base;
+        final scaleValue = double.tryParse(
+          ref.watch(settingProvider(SettingKeys.lyricsFontScale)).value ?? '',
+        );
+        final scale = (scaleValue ?? 1.0).clamp(0.7, 1.6);
+        final style = base.copyWith(
+          fontSize: (base.fontSize ?? 30) * (compact ? 0.8 : 1.0) * scale,
+        );
         if (!parsed.synced) {
           return _PlainLyrics(
             key: const ValueKey('plain'),

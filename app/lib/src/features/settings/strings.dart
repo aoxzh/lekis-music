@@ -209,6 +209,15 @@ abstract final class SettingsStrings {
     '在汉字上方标出拼音，本地计算、不联网；经典歌词视图生效',
     'Show pinyin above each character, computed on device. Classic lyrics view.',
   );
+  static String get lyricsFontSize => L10n.tr('歌词字号', 'Lyrics text size');
+  static String get lyricsFontSizeHint => L10n.tr(
+    '调整正在播放歌词的字号，舞台和经典视图都会生效',
+    'Adjust the lyric size in both the classic and stage views',
+  );
+  static String get lyricsFontSmall => L10n.tr('小', 'Small');
+  static String get lyricsFontNormal => L10n.tr('标准', 'Normal');
+  static String get lyricsFontLarge => L10n.tr('大', 'Large');
+  static String get lyricsFontXLarge => L10n.tr('特大', 'Extra large');
   static String get rubyOff => L10n.tr('关闭', 'Off');
   static String get rubyPlain => L10n.tr('拼音', 'Pinyin');
   static String get rubyTone => L10n.tr('带声调', 'With Tones');
