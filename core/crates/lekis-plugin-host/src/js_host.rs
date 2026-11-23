@@ -649,73 +649,104 @@ impl HostBridge {
             if args.len() > 128 || args.iter().map(String::len).sum::<usize>() > 65_536 {
                 return Err(HostError::setup("spawn 参数过多"));
             }
-            let runtime = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
+            Self::run_program_blocking(program, &args)
+        }
+    }
+
+    /// 跑一个外部程序并捕获输出（同步，与运行时无关）。
+    ///
+    /// 这里**不能**新建 Tokio 运行时再 `block_on`：调用方（QuickJS 的同步 FFI）本来就在
+    /// 异步上下文里，嵌套会 panic「Cannot start a runtime from within a runtime」。
+    /// 所以用纯 `std::process`：两个读取线程负责排空 stdout/stderr（只保留前 8 MiB，
+    /// 但仍然读干净，避免子进程写满管道死锁），主线程用 `try_wait` 轮询 45 秒超时。
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    fn run_program_blocking(
+        program: &str,
+        args: &[String],
+    ) -> std::result::Result<String, HostError> {
+        const LIMIT: u64 = 8 * 1024 * 1024;
+        const TIMEOUT: Duration = Duration::from_secs(45);
+
+        let mut child = std::process::Command::new(program)
+            .args(args)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| HostError::setup(format!("无法启动 {program}，请安装并加入 PATH：{e}")))?;
+
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| HostError::unavailable("stdout unavailable"))?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| HostError::unavailable("stderr unavailable"))?;
+        let out_reader = std::thread::spawn(move || Self::read_capped(stdout, LIMIT));
+        let err_reader = std::thread::spawn(move || Self::read_capped(stderr, LIMIT));
+
+        let started = std::time::Instant::now();
+        let status = loop {
+            match child.try_wait() {
+                Ok(Some(status)) => break status,
+                Ok(None) => {}
+                Err(error) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(HostError::unavailable(error.to_string()));
+                }
+            }
+            if started.elapsed() >= TIMEOUT {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(HostError::unavailable("外部程序运行超时（45 秒）"));
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        };
+
+        // 进程已经退出，读取线程读到 EOF 后自然结束。
+        let (out, out_overflow) = out_reader
+            .join()
+            .map_err(|_| HostError::unavailable("读取 stdout 的线程崩溃"))??;
+        let (err, err_overflow) = err_reader
+            .join()
+            .map_err(|_| HostError::unavailable("读取 stderr 的线程崩溃"))??;
+        if out_overflow || err_overflow {
+            return Err(HostError::unavailable("外部程序输出超过 8 MiB"));
+        }
+
+        Ok(serde_json::json!({
+            "code": status.code().unwrap_or(-1),
+            "stdout": String::from_utf8_lossy(&out),
+            "stderr": String::from_utf8_lossy(&err),
+        })
+        .to_string())
+    }
+
+    /// 读一个管道，最多保留 `limit` 字节，返回是否超限。超限后继续读空（防止子进程写满管道）。
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    fn read_capped(
+        mut reader: impl std::io::Read,
+        limit: u64,
+    ) -> std::result::Result<(Vec<u8>, bool), HostError> {
+        let mut kept = Vec::new();
+        let mut chunk = [0u8; 8192];
+        let mut overflow = false;
+        loop {
+            let read = reader
+                .read(&mut chunk)
                 .map_err(|e| HostError::unavailable(e.to_string()))?;
-            runtime.block_on(async {
-                use tokio::io::AsyncReadExt;
-                const LIMIT: u64 = 8 * 1024 * 1024;
-                let mut child = tokio::process::Command::new(program)
-                    .args(args)
-                    .stdin(std::process::Stdio::null())
-                    .stdout(std::process::Stdio::piped())
-                    .stderr(std::process::Stdio::piped())
-                    .kill_on_drop(true)
-                    .spawn()
-                    .map_err(|e| {
-                        HostError::setup(format!("无法启动 {program}，请安装并加入 PATH：{e}"))
-                    })?;
-                let mut stdout = child
-                    .stdout
-                    .take()
-                    .ok_or_else(|| HostError::unavailable("stdout unavailable"))?
-                    .take(LIMIT + 1);
-                let mut stderr = child
-                    .stderr
-                    .take()
-                    .ok_or_else(|| HostError::unavailable("stderr unavailable"))?
-                    .take(LIMIT + 1);
-                let mut out = Vec::new();
-                let mut err = Vec::new();
-                let result = tokio::time::timeout(Duration::from_secs(45), async {
-                    tokio::try_join!(
-                        async {
-                            let count = stdout.read_to_end(&mut out).await?;
-                            if count as u64 > LIMIT {
-                                return Err(std::io::Error::other("外部程序输出超过 8 MiB"));
-                            }
-                            Ok(())
-                        },
-                        async {
-                            let count = stderr.read_to_end(&mut err).await?;
-                            if count as u64 > LIMIT {
-                                return Err(std::io::Error::other("外部程序输出超过 8 MiB"));
-                            }
-                            Ok(())
-                        },
-                        child.wait()
-                    )
-                })
-                .await;
-                let (_, _, status) = match result {
-                    Ok(Ok(result)) => result,
-                    Ok(Err(error)) => {
-                        let _ = child.kill().await;
-                        return Err(HostError::unavailable(error.to_string()));
-                    }
-                    Err(_) => {
-                        let _ = child.kill().await;
-                        return Err(HostError::unavailable("外部程序运行超时（45 秒）"));
-                    }
-                };
-                Ok(serde_json::json!({
-                    "code": status.code().unwrap_or(-1),
-                    "stdout": String::from_utf8_lossy(&out),
-                    "stderr": String::from_utf8_lossy(&err),
-                })
-                .to_string())
-            })
+            if read == 0 {
+                return Ok((kept, overflow));
+            }
+            let room = (limit as usize).saturating_sub(kept.len());
+            if room > 0 {
+                kept.extend_from_slice(&chunk[..read.min(room)]);
+            }
+            if kept.len() as u64 >= limit {
+                overflow = true;
+            }
         }
     }
 

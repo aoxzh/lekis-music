@@ -1407,15 +1407,27 @@ mod tests {
     }
 
     fn write_source_plugin(root: &Path, source: &str) -> PathBuf {
+        write_source_plugin_process(root, source, "printf")
+    }
+
+    /// 同 [`write_source_plugin`]，但声明要启动的外部程序由调用方指定
+    /// （Windows 上没有 `printf`，测试要用 `cmd`）。
+    fn write_source_plugin_process(root: &Path, source: &str, process: &str) -> PathBuf {
         let directory = root.join("source");
         fs::create_dir_all(&directory).unwrap();
-        fs::write(directory.join("plugin.json"), r#"{
+        fs::write(
+            directory.join("plugin.json"),
+            format!(
+                r#"{{
             "id":"dev.lekis.test.source", "name":"Source", "version":"1.0.0",
             "apiVersion":"1.0", "minAppVersion":"0.1.0", "runtime":"js", "entry":"index.js",
-            "kinds":["source"], "permissions":{"network":["media.example.com"], "process":["printf"],
-                "requestHeaders":{"media.example.com":{}}},
-            "settings":[{"key":"prefix","label":"Prefix","type":"string","default":"default"}]
-        }"#).unwrap();
+            "kinds":["source"], "permissions":{{"network":["media.example.com"], "process":["{process}"],
+                "requestHeaders":{{"media.example.com":{{}}}}}},
+            "settings":[{{"key":"prefix","label":"Prefix","type":"string","default":"default"}}]
+        }}"#
+            ),
+        )
+        .unwrap();
         fs::write(directory.join("index.js"), source).unwrap();
         directory
     }
@@ -2038,18 +2050,29 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(all(unix, not(any(target_os = "android", target_os = "ios"))))]
+    // 三个平台都跑：之前加了 `cfg(unix)`，Windows 上一直跳过，结果宿主里
+    // 「嵌套 Tokio 运行时」的 panic 没人发现（见 js_host.rs 的 run_program_blocking）。
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     #[tokio::test]
     async fn process_requires_grant_and_revocation_takes_effect() -> Result<()> {
         let root = test_root("process-grant");
-        let source = write_source_plugin(
+        // Windows 没有 printf；用 cmd /C echo 打同一段文本（多一个换行，下面 trim 掉）。
+        let (program, args) = if cfg!(windows) {
+            ("cmd", r#"["/C","echo","https://media.example.com/audio"]"#)
+        } else {
+            ("printf", r#"["https://media.example.com/audio"]"#)
+        };
+        let source = write_source_plugin_process(
             &root,
-            r#"
-            export async function stream() {
-                const result = await host.spawn('printf', ['https://media.example.com/audio']);
-                return {url:result.stdout};
-            }
-        "#,
+            &format!(
+                r#"
+            export async function stream() {{
+                const result = await host.spawn({program:?}, {args});
+                return {{url:result.stdout.trim()}};
+            }}
+        "#
+            ),
+            program,
         );
         let (library, manager) = open_manager(&root);
         manager.install(&source).await?;
@@ -2061,16 +2084,16 @@ mod tests {
                 .code,
             ErrorCode::InvalidArgument
         );
-        let key = "plugin.process.dev.lekis.test.source.printf";
-        library.set_setting(key, "true").await?;
+        let key = format!("plugin.process.dev.lekis.test.source.{program}");
+        library.set_setting(&key, "true").await?;
         assert_eq!(
             manager.stream("dev.lekis.test.source", "x").await?.url,
             "https://media.example.com/audio"
         );
-        library.set_setting(key, "false").await?;
+        library.set_setting(&key, "false").await?;
         assert!(manager.stream("dev.lekis.test.source", "x").await.is_err());
         manager.remove("dev.lekis.test.source").await?;
-        assert_eq!(library.get_setting(key).await?, None);
+        assert_eq!(library.get_setting(&key).await?, None);
         let _ = fs::remove_dir_all(root);
         Ok(())
     }
