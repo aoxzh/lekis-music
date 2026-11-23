@@ -423,16 +423,23 @@ class _Results extends ConsumerWidget {
     final showArtists =
         filter == _SearchFilter.all || filter == _SearchFilter.artists;
 
-    Widget sectionTitle(String t) => Padding(
+    Widget sectionTitle(String t, {List<Widget> actions = const []}) => Padding(
       padding: EdgeInsets.fromLTRB(
         gutter,
         LekisSpacing.xl,
         gutter,
         LekisSpacing.sm,
       ),
-      child: Semantics(
-        header: true,
-        child: Text(t, style: theme.textTheme.titleLarge),
+      child: Row(
+        children: [
+          Expanded(
+            child: Semantics(
+              header: true,
+              child: Text(t, style: theme.textTheme.titleLarge),
+            ),
+          ),
+          ...actions,
+        ],
       ),
     );
 
@@ -479,7 +486,26 @@ class _Results extends ConsumerWidget {
             ),
           ),
         if (showTracks && tracks.isNotEmpty)
-          SliverToBoxAdapter(child: sectionTitle(l10n.segSongs)),
+          SliverToBoxAdapter(
+            child: sectionTitle(
+              l10n.segSongs,
+              actions: [
+                IconButton(
+                  tooltip: l10n.pick('播放全部', 'Play all'),
+                  onPressed: () =>
+                      ref.read(playerActionsProvider).playRows(tracks),
+                  icon: const Icon(Icons.play_arrow_rounded),
+                ),
+                IconButton(
+                  tooltip: l10n.pick('随机播放', 'Shuffle all'),
+                  onPressed: () => ref
+                      .read(playerActionsProvider)
+                      .playRows(tracks, shuffle: true),
+                  icon: const Icon(Icons.shuffle_rounded),
+                ),
+              ],
+            ),
+          ),
         SliverPadding(
           padding: EdgeInsets.symmetric(horizontal: gutter - LekisSpacing.sm),
           sliver: SliverFixedExtentList.builder(
