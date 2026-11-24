@@ -14,6 +14,8 @@ import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_actions.dart';
+import 'package:lekis/src/features/player/bilibili_video_action.dart';
+import 'package:lekis/src/features/player/bilibili_video_ref.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
@@ -36,6 +38,7 @@ String _compactQualityLabel(String label) {
 }
 
 enum _TrackMenuAction {
+  video,
   playNext,
   addToQueue,
   addToPlaylist,
@@ -58,6 +61,7 @@ class TrackTile extends ConsumerWidget {
     this.showArtwork = true,
     this.selected = false,
     this.onlinePlugin = false,
+    this.pluginId,
   });
 
   /// Height of every row – use as `ListView.itemExtent`. 56 dp: the 48 dp
@@ -80,6 +84,7 @@ class TrackTile extends ConsumerWidget {
 
   /// Explicit source context, since NAS/server tracks are also non-local.
   final bool onlinePlugin;
+  final String? pluginId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -146,6 +151,8 @@ class TrackTile extends ConsumerWidget {
 
     void onMenu(_TrackMenuAction action) {
       switch (action) {
+        case _TrackMenuAction.video:
+          watchBilibiliTrack(context, trackId: track.id);
         case _TrackMenuAction.playNext:
           queueTracks(context, [track.id], where: QueuePlacement.next);
         case _TrackMenuAction.addToQueue:
@@ -184,6 +191,16 @@ class TrackTile extends ConsumerWidget {
     }
 
     List<PopupMenuEntry<_TrackMenuAction>> menuItems() => [
+      if (supportsBilibiliVideo && pluginId == BilibiliVideoRef.pluginId)
+        PopupMenuItem(
+          value: _TrackMenuAction.video,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.ondemand_video_rounded),
+            title: Text(watchVideoLabel(context)),
+          ),
+        ),
       PopupMenuItem(
         value: _TrackMenuAction.playNext,
         child: ListTile(

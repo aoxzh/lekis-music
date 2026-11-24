@@ -155,6 +155,7 @@ class _PluginBrowsePageState extends ConsumerState<PluginBrowsePage> {
                       TrackTile(
                         track: tracks[i],
                         onlinePlugin: true,
+                        pluginId: widget.pluginId,
                         onTap: () => ref
                             .read(playerActionsProvider)
                             .playRows(tracks, start: i),

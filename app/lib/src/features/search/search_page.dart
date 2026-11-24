@@ -289,7 +289,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       } else {
         body = _Results(
           results: data,
-          onlinePlugin: source != null,
+          pluginId: source,
           filter: _filter,
           onFilter: (value) => setState(() => _filter = value),
         );
@@ -439,13 +439,13 @@ class _Results extends ConsumerWidget {
     required this.results,
     required this.filter,
     required this.onFilter,
-    this.onlinePlugin = false,
+    this.pluginId,
   });
 
   final SearchResultsDto results;
   final _SearchFilter filter;
   final ValueChanged<_SearchFilter> onFilter;
-  final bool onlinePlugin;
+  final String? pluginId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -457,7 +457,7 @@ class _Results extends ConsumerWidget {
     final l10n = context.l10n;
     final limit = ref.watch(searchLimitProvider);
     final canMore =
-        !onlinePlugin &&
+        pluginId == null &&
         (tracks.length >= limit ||
             albums.length >= limit ||
             artists.length >= limit);
@@ -629,7 +629,8 @@ class _Results extends ConsumerWidget {
             itemCount: showTracks ? tracks.length : 0,
             itemBuilder: (context, i) => TrackTile(
               track: tracks[i],
-              onlinePlugin: onlinePlugin,
+              onlinePlugin: pluginId != null,
+              pluginId: pluginId,
               onTap: () =>
                   ref.read(playerActionsProvider).playRows(tracks, start: i),
             ),

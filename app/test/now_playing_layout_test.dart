@@ -9,6 +9,7 @@
 // * an open lyrics pane without lyrics shows its centred empty state;
 // * covers without artwork tint the page from the placeholder colours.
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lekis/src/bridge/core_events.dart';
@@ -40,9 +41,9 @@ class _FakePosition extends PositionController {
   int build() => 0;
 }
 
-final _track = TrackDto(
+TrackDto _track(String uid) => TrackDto(
   id: 7,
-  uid: 'track-7',
+  uid: uid,
   title: 'Lekis Stage Preview',
   artists: const ['月兔'],
   albumId: 3,
@@ -57,13 +58,14 @@ final _track = TrackDto(
 ProviderContainer _container({
   NowPlayingPane pane = NowPlayingPane.cover,
   LyricsDto? lyrics,
+  String uid = 'track-7',
 }) {
   final container = ProviderContainer(
     overrides: [
       coreEventSourceProvider.overrideWithValue(const Stream.empty()),
       playbackProvider.overrideWith(_FakePlayback.new),
       positionProvider.overrideWith(_FakePosition.new),
-      currentTrackProvider.overrideWith((ref) async => _track),
+      currentTrackProvider.overrideWith((ref) async => _track(uid)),
       currentArtworkProvider.overrideWith((ref) async => null),
       downloadStateProvider.overrideWith((ref, id) => null),
       downloadProgressProvider.overrideWith((ref, id) => null),
@@ -98,6 +100,34 @@ Future<void> _pump(WidgetTester tester, ProviderContainer container) async {
 }
 
 void main() {
+  testWidgets('Bilibili track opens its official video from Now Playing', (
+    tester,
+  ) async {
+    const channel = MethodChannel('dev.lekis/bilibili_video');
+    final calls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      call,
+    ) async {
+      calls.add(call);
+      return null;
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+    final container = _container(uid: 'plugin:dev.mygo.bilibili:BV1GJ411x7h7');
+    addTearDown(container.dispose);
+    await _pump(tester, container);
+    await tester.tap(find.byKey(const ValueKey('now-playing.more')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.ondemand_video_rounded));
+    await tester.pumpAndSettle();
+    expect(calls.single.method, 'open');
+    expect(calls.single.arguments, {'bvid': 'BV1GJ411x7h7', 'page': 1});
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
   testWidgets('cover | controls: single toggles, compact actions, subtitle', (
     tester,
   ) async {
@@ -271,7 +301,7 @@ void main() {
     final palette = container.read(nowPlayingPaletteProvider(Brightness.dark));
     expect(palette, isNotNull);
     final (start, _) = placeholderGradientColors(
-      _track.id.hashCode,
+      container.read(currentTrackProvider).requireValue!.id.hashCode,
       Brightness.dark,
     );
     expect(palette!.primary, start.toARGB32() & 0xFFFFFF);
