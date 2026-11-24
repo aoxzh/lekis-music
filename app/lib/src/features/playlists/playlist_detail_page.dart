@@ -556,6 +556,9 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
     );
 
     if (!_selecting) return content;
+    final allVisibleSelected =
+        visible.isNotEmpty &&
+        visible.every((entry) => selectedKeys.contains(entry.positionKey));
     return Stack(
       children: [
         Positioned.fill(child: content),
@@ -567,6 +570,19 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
             top: false,
             child: _SelectionBar(
               count: selectedKeys.length,
+              visibleCount: visible.length,
+              allVisibleSelected: allVisibleSelected,
+              onToggleVisible: visible.isEmpty
+                  ? null
+                  : () => setState(() {
+                      for (final entry in visible) {
+                        if (allVisibleSelected) {
+                          _selectedKeys.remove(entry.positionKey);
+                        } else {
+                          _selectedKeys[entry.positionKey] = entry.trackUid;
+                        }
+                      }
+                    }),
               onCancel: _clearSelection,
               onRemove: selectedKeys.isEmpty
                   ? null
@@ -942,11 +958,17 @@ class _PlaylistHeader extends ConsumerWidget {
 class _SelectionBar extends StatelessWidget {
   const _SelectionBar({
     required this.count,
+    required this.visibleCount,
+    required this.allVisibleSelected,
+    required this.onToggleVisible,
     required this.onCancel,
     required this.onRemove,
   });
 
   final int count;
+  final int visibleCount;
+  final bool allVisibleSelected;
+  final VoidCallback? onToggleVisible;
   final VoidCallback onCancel;
   final VoidCallback? onRemove;
 
@@ -972,6 +994,23 @@ class _SelectionBar extends StatelessWidget {
             Text(
               context.l10n.pick('已选 $count 首', '$count selected'),
               style: theme.textTheme.bodyMedium,
+            ),
+            IconButton(
+              tooltip: allVisibleSelected
+                  ? context.l10n.pick(
+                      '取消选择当前 $visibleCount 项',
+                      'Deselect $visibleCount listed entries',
+                    )
+                  : context.l10n.pick(
+                      '全选当前 $visibleCount 项',
+                      'Select all $visibleCount listed entries',
+                    ),
+              icon: Icon(
+                allVisibleSelected
+                    ? Icons.deselect_rounded
+                    : Icons.select_all_rounded,
+              ),
+              onPressed: onToggleVisible,
             ),
             TextButton(
               onPressed: onCancel,
