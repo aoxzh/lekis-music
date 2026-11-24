@@ -549,6 +549,22 @@ class PlayerActions {
     } catch (e) {
       final message = e is CoreError ? '${e.kind.name}: ${e.detail}' : '$e';
       debugPrint('player playContext failed: $message');
+      try {
+        _ref
+            .read(playbackErrorProvider.notifier)
+            .report(
+              PlaybackFailure(
+                e is CoreError ? e.detail : message,
+                retry: () => playContext(
+                  context,
+                  startIndex: startIndex,
+                  shuffle: shuffle,
+                ),
+              ),
+            );
+      } catch (_) {
+        // The provider can be gone while the app is shutting down.
+      }
       return false;
     }
   }

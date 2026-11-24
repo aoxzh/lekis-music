@@ -10,6 +10,7 @@ import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/rust/api/error.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:lekis/src/widgets/adaptive_panel.dart';
+import 'package:lekis/src/widgets/progress_dialog.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/features/playlists/playlist_strings.dart';
 
@@ -158,7 +159,7 @@ Future<void> saveTracksAsPlaylistFlow(
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
+      builder: (_) => nonDismissibleProgressDialog(
         title: Text(PlaylistStrings.savingPlaylist),
         content: ValueListenableBuilder<int>(
           valueListenable: progress,
@@ -205,8 +206,8 @@ Future<void> saveTracksAsPlaylistFlow(
           );
       }
     } else {
-      ref.invalidate(playlistsProvider);
       if (context.mounted) {
+        ref.invalidate(playlistsProvider);
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(
@@ -236,8 +237,8 @@ Future<bool> deletePlaylistFlow(
   try {
     await core.deletePlaylist(playlistId: playlist.id);
     // 事件会刷新 provider；这里主动失效一次，保证详情页立刻感知。
-    ref.invalidate(playlistsProvider);
     if (context.mounted) {
+      ref.invalidate(playlistsProvider);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
@@ -266,7 +267,7 @@ Future<String?> renamePlaylistFlow(
   if (name == null) return null;
   try {
     await core.renamePlaylist(playlistId: playlist.id, name: name);
-    ref.invalidate(playlistsProvider);
+    if (context.mounted) ref.invalidate(playlistsProvider);
     return name;
   } catch (e) {
     if (context.mounted) showPlaylistError(context, e);
@@ -374,7 +375,7 @@ Future<void> mergePlaylistFlow(
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
+      builder: (_) => nonDismissibleProgressDialog(
         title: Text(PlaylistStrings.mergingPlaylist),
         content: ValueListenableBuilder<int>(
           valueListenable: progress,
@@ -423,9 +424,9 @@ Future<void> mergePlaylistFlow(
       offset += page.length;
       if (page.length < pageSize) break;
     }
-    ref.invalidate(playlistEntriesProvider(target.id));
-    ref.invalidate(playlistsProvider);
     if (context.mounted) {
+      ref.invalidate(playlistEntriesProvider(target.id));
+      ref.invalidate(playlistsProvider);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
@@ -482,8 +483,8 @@ Future<void> duplicatePlaylistFlow(
         }
         rethrow;
       }
-      ref.invalidate(playlistsProvider);
       if (context.mounted) {
+        ref.invalidate(playlistsProvider);
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(
@@ -508,7 +509,7 @@ Future<void> duplicatePlaylistFlow(
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
+      builder: (_) => nonDismissibleProgressDialog(
         title: Text(PlaylistStrings.duplicating),
         content: ValueListenableBuilder<int>(
           valueListenable: progress,
@@ -545,8 +546,8 @@ Future<void> duplicatePlaylistFlow(
       }
       offset += rows.length;
     }
-    ref.invalidate(playlistsProvider);
     if (context.mounted) {
+      ref.invalidate(playlistsProvider);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
@@ -748,7 +749,7 @@ Future<void> sortPlaylistFlow(
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
+      builder: (_) => nonDismissibleProgressDialog(
         title: Text(PlaylistStrings.sortingPlaylist),
         content: ValueListenableBuilder<int>(
           valueListenable: progress,
@@ -780,9 +781,9 @@ Future<void> sortPlaylistFlow(
       }
       progress.value++;
     }
-    ref.invalidate(playlistEntriesProvider(playlist.id));
-    ref.invalidate(playlistsProvider);
     if (context.mounted) {
+      ref.invalidate(playlistEntriesProvider(playlist.id));
+      ref.invalidate(playlistsProvider);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
@@ -923,7 +924,7 @@ Future<void> removePlaylistDuplicatesFlow(
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
+      builder: (_) => nonDismissibleProgressDialog(
         title: Text(PlaylistStrings.removingDuplicates),
         content: ValueListenableBuilder<int>(
           valueListenable: progress,
@@ -957,9 +958,9 @@ Future<void> removePlaylistDuplicatesFlow(
       }
       progress.value++;
     }
-    ref.invalidate(playlistEntriesProvider(playlist.id));
-    ref.invalidate(playlistsProvider);
     if (context.mounted) {
+      ref.invalidate(playlistEntriesProvider(playlist.id));
+      ref.invalidate(playlistsProvider);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
@@ -1017,7 +1018,7 @@ Future<void> removeMissingPlaylistEntriesFlow(
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
+      builder: (_) => nonDismissibleProgressDialog(
         title: Text(PlaylistStrings.removingMissing),
         content: ValueListenableBuilder<int>(
           valueListenable: progress,
@@ -1051,9 +1052,9 @@ Future<void> removeMissingPlaylistEntriesFlow(
       }
       progress.value++;
     }
-    ref.invalidate(playlistEntriesProvider(playlist.id));
-    ref.invalidate(playlistsProvider);
     if (context.mounted) {
+      ref.invalidate(playlistEntriesProvider(playlist.id));
+      ref.invalidate(playlistsProvider);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(

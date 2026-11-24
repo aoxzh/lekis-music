@@ -1,7 +1,6 @@
 // "喜欢的歌曲" 视图：直接读核心的 loved_tracks，不建虚拟歌单。
 
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/downloads_providers.dart';
@@ -15,6 +14,7 @@ import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/progress_dialog.dart';
 import 'package:material_ui/material_ui.dart';
 
 class LikedSongsView extends ConsumerWidget {
@@ -51,7 +51,7 @@ class LikedSongsView extends ConsumerWidget {
       showDialog<void>(
         context: context,
         barrierDismissible: false,
-        builder: (_) => AlertDialog(
+        builder: (_) => nonDismissibleProgressDialog(
           title: Text(context.l10n.pick('正在收集喜欢的歌曲', 'Collecting Liked Songs')),
           content: ValueListenableBuilder<int>(
             valueListenable: progress,
@@ -73,15 +73,12 @@ class LikedSongsView extends ConsumerWidget {
     final rows = <TrackRowDto>[];
     try {
       var offset = 0;
-      while (offset < total) {
-        final page = await core.lovedTracks(
-          offset: offset,
-          limit: math.min(500, total - offset),
-        );
+      while (true) {
+        final page = await core.lovedTracks(offset: offset, limit: 500);
         if (page.isEmpty) break;
         rows.addAll(page);
         offset += page.length;
-        progress.value = math.min(offset, total);
+        progress.value = offset;
         if (page.length < 500) break;
       }
       if (navigator.mounted && navigator.canPop()) navigator.pop();
@@ -146,7 +143,7 @@ class LikedSongsView extends ConsumerWidget {
       showDialog<void>(
         context: context,
         barrierDismissible: false,
-        builder: (_) => AlertDialog(
+        builder: (_) => nonDismissibleProgressDialog(
           title: Text(context.l10n.pick('正在准备下载', 'Preparing Downloads')),
           content: ValueListenableBuilder<int>(
             valueListenable: progress,
@@ -168,17 +165,14 @@ class LikedSongsView extends ConsumerWidget {
     final ids = <int>[];
     try {
       var offset = 0;
-      while (offset < total) {
-        final page = await core.lovedTracks(
-          offset: offset,
-          limit: math.min(500, total - offset),
-        );
+      while (true) {
+        final page = await core.lovedTracks(offset: offset, limit: 500);
         if (page.isEmpty) break;
         for (final track in page) {
           if (!track.isLocal) ids.add(track.id);
         }
         offset += page.length;
-        progress.value = math.min(offset, total);
+        progress.value = offset;
         if (page.length < 500) break;
       }
       final accepted = ids.isEmpty

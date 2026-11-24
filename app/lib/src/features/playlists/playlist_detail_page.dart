@@ -182,8 +182,8 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
 
   void _toggleSelected(String positionKey) {
     setState(() {
-      _selecting = true;
       if (!_selectedKeys.add(positionKey)) _selectedKeys.remove(positionKey);
+      _selecting = _selectedKeys.isNotEmpty;
     });
   }
 
@@ -198,12 +198,28 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
   Future<void> _removeSelected(
     PlaylistDto playlist,
     List<PlaylistEntryDto> rows,
+    Set<String> selectedKeys,
   ) async {
     final entries = [
       for (final entry in rows)
-        if (_selectedKeys.contains(entry.positionKey)) entry,
+        if (selectedKeys.contains(entry.positionKey)) entry,
     ];
-    if (entries.isEmpty) return;
+    if (entries.isEmpty) {
+      // Position keys can change under the selection (sort, merge, a move from
+      // another surface); never leave the bar pointing at rows that are gone.
+      if (mounted) {
+        setState(() {
+          _selecting = false;
+          _selectedKeys.clear();
+        });
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(content: Text(PlaylistStrings.selectionExpired)),
+          );
+      }
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialog) => AlertDialog(
@@ -229,21 +245,26 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
       showDialog<void>(
         context: context,
         barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          title: Text(PlaylistStrings.removingSelected),
-          content: ValueListenableBuilder<int>(
-            valueListenable: progress,
-            builder: (_, done, _) => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LinearProgressIndicator(
-                  value: entries.isEmpty
-                      ? 0
-                      : (done / entries.length).clamp(0.0, 1.0),
-                ),
-                const SizedBox(height: LekisSpacing.md),
-                Text('$done / ${entries.length}'),
-              ],
+        builder: (_) => PopScope(
+          // Without this the system back button dismisses the dialog and the
+          // final pop() below would pop the playlist page instead.
+          canPop: false,
+          child: AlertDialog(
+            title: Text(PlaylistStrings.removingSelected),
+            content: ValueListenableBuilder<int>(
+              valueListenable: progress,
+              builder: (_, done, _) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  LinearProgressIndicator(
+                    value: entries.isEmpty
+                        ? 0
+                        : (done / entries.length).clamp(0.0, 1.0),
+                  ),
+                  const SizedBox(height: LekisSpacing.md),
+                  Text('$done / ${entries.length}'),
+                ],
+              ),
             ),
           ),
         ),
@@ -265,7 +286,7 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
         }
         progress.value++;
       }
-      _refresh();
+      if (mounted) _refresh();
       if (mounted) {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
@@ -303,6 +324,7 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
         positionKey: entry.positionKey,
         beforeKey: first.first.positionKey,
       );
+      if (!mounted) return;
       ref.invalidate(playlistEntriesProvider(widget.playlist.id));
       ref.invalidate(playlistsProvider);
     } catch (e) {
@@ -317,6 +339,7 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
         playlistId: widget.playlist.id,
         positionKey: entry.positionKey,
       );
+      if (!mounted) return;
       ref.invalidate(playlistEntriesProvider(widget.playlist.id));
       ref.invalidate(playlistsProvider);
     } catch (e) {
@@ -353,6 +376,14 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
                           false)))
                 entry,
           ];
+    // Position keys are rewritten whenever a row moves, so a selection made
+    // before a sort/merge/move may point at keys that no longer exist. Only
+    // show and act on keys that are still in the current list.
+    final rowKeys = {for (final entry in rows) entry.positionKey};
+    final selectedKeys = {
+      for (final key in _selectedKeys)
+        if (rowKeys.contains(key)) key,
+    };
 
     final content = CustomScrollView(
       key: PageStorageKey('playlist-${playlist.id}'),
@@ -493,9 +524,9 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
             sliver: _PlaylistEntryList(
               playlist: playlist,
               rows: visible,
-              busy: widget.busy || query.isNotEmpty,
+              busy: widget.busy || query.isNotEmpty || _selecting,
               selecting: _selecting,
-              selectedKeys: _selectedKeys,
+              selectedKeys: selectedKeys,
               onToggleSelect: _toggleSelected,
               onMove: widget.onMove,
               onRemove: widget.onRemove,
@@ -529,11 +560,11 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
           child: SafeArea(
             top: false,
             child: _SelectionBar(
-              count: _selectedKeys.length,
+              count: selectedKeys.length,
               onCancel: _clearSelection,
-              onRemove: _selectedKeys.isEmpty
+              onRemove: selectedKeys.isEmpty
                   ? null
-                  : () => _removeSelected(playlist, rows),
+                  : () => _removeSelected(playlist, rows, selectedKeys),
             ),
           ),
         ),

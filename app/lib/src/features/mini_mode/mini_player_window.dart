@@ -180,8 +180,13 @@ class MiniPlayerView extends ConsumerWidget {
     // separate slider.
     void onPointerSignal(PointerSignalEvent event) {
       if (event is! PointerScrollEvent) return;
+      final dy = event.scrollDelta.dy;
+      // Trackpads send horizontal pans as scroll events too; only vertical
+      // scrolling should change the volume, otherwise a sideways swipe jumps
+      // it up by one step.
+      if (dy == 0) return;
       final current = ref.read(playbackProvider).volume;
-      final delta = event.scrollDelta.dy > 0 ? -0.04 : 0.04;
+      final delta = dy > 0 ? -0.04 : 0.04;
       ref
           .read(playerActionsProvider)
           .setVolume((current + delta).clamp(0.0, 1.0));

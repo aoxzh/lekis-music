@@ -10,6 +10,7 @@ import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:lekis/src/widgets/adaptive_panel.dart';
+import 'package:lekis/src/widgets/progress_dialog.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/features/playlists/playlist_strings.dart';
 
@@ -59,10 +60,18 @@ Future<bool> showAddTracksToPlaylistSheet(
   required List<int> trackIds,
 }) async {
   if (trackIds.isEmpty) return false;
+  // The same track can appear several times (playback history, playlists
+  // with repeats); add each track once.
+  final uniqueIds = <int>[];
+  final seenIds = <int>{};
+  for (final id in trackIds) {
+    if (seenIds.add(id)) uniqueIds.add(id);
+  }
+  final total = uniqueIds.length;
   final playlist = await showLekisSheet<PlaylistDto>(
     context,
     heightFactor: 0.72,
-    builder: (_) => _AddTracksPlaylistPicker(count: trackIds.length),
+    builder: (_) => _AddTracksPlaylistPicker(count: total),
   );
   if (playlist == null || !context.mounted) return false;
 
@@ -72,7 +81,7 @@ Future<bool> showAddTracksToPlaylistSheet(
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
+      builder: (_) => nonDismissibleProgressDialog(
         title: Text(PlaylistStrings.addingTracks),
         content: ValueListenableBuilder<int>(
           valueListenable: progress,
@@ -80,12 +89,10 @@ Future<bool> showAddTracksToPlaylistSheet(
             mainAxisSize: MainAxisSize.min,
             children: [
               LinearProgressIndicator(
-                value: trackIds.isEmpty
-                    ? 0
-                    : (done / trackIds.length).clamp(0.0, 1.0),
+                value: total == 0 ? 0 : (done / total).clamp(0.0, 1.0),
               ),
               const SizedBox(height: LekisSpacing.md),
-              Text('$done / ${trackIds.length}'),
+              Text('$done / $total'),
             ],
           ),
         ),
@@ -94,20 +101,50 @@ Future<bool> showAddTracksToPlaylistSheet(
   );
 
   var added = 0;
+  var already = 0;
   var failed = 0;
   try {
-    for (final id in trackIds) {
+    // Read the playlist's uids once instead of scanning it per track; if the
+    // read fails, keep going without the duplicate check.
+    final existing = <String>{};
+    try {
+      var offset = 0;
+      while (true) {
+        final rows = await core.playlistItems(
+          playlistId: playlist.id,
+          offset: offset,
+          limit: 500,
+        );
+        if (rows.isEmpty) break;
+        existing.addAll([for (final row in rows) row.trackUid]);
+        offset += rows.length;
+        if (rows.length < 500) break;
+      }
+    } catch (_) {
+      existing.clear();
+    }
+
+    for (final id in uniqueIds) {
       try {
         final track = await core.getTrack(trackId: id);
-        await core.addToPlaylist(playlistId: playlist.id, trackUid: track.uid);
-        added++;
+        if (!existing.add(track.uid)) {
+          already++;
+        } else {
+          await core.addToPlaylist(
+            playlistId: playlist.id,
+            trackUid: track.uid,
+          );
+          added++;
+        }
       } catch (_) {
         failed++;
       }
       progress.value++;
     }
-    ref.invalidate(playlistsProvider);
-    ref.invalidate(playlistEntriesProvider(playlist.id));
+    if (context.mounted) {
+      ref.invalidate(playlistsProvider);
+      ref.invalidate(playlistEntriesProvider(playlist.id));
+    }
     if (navigator.mounted && navigator.canPop()) navigator.pop();
     if (context.mounted) {
       ScaffoldMessenger.of(context)
@@ -115,12 +152,17 @@ Future<bool> showAddTracksToPlaylistSheet(
         ..showSnackBar(
           SnackBar(
             content: Text(
-              PlaylistStrings.addedTracksTo(added, failed, playlist.name),
+              PlaylistStrings.addedTracksTo(
+                added,
+                already,
+                failed,
+                playlist.name,
+              ),
             ),
           ),
         );
     }
-    return added > 0;
+    return added > 0 || already > 0;
   } catch (e) {
     if (navigator.mounted && navigator.canPop()) navigator.pop();
     if (context.mounted) {

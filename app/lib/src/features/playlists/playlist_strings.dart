@@ -130,6 +130,10 @@ abstract final class PlaylistStrings {
     '将从歌单移除 $count 个条目，曲目文件不受影响。',
     'This removes $count entries from the playlist; your music files are not affected.',
   );
+  static String get selectionExpired => L10n.tr(
+    '选中的条目已经变化，请重新选择',
+    'The selection changed; please select the tracks again',
+  );
   static String get removingSelected =>
       L10n.tr('正在移除选中曲目', 'Removing Selected Tracks');
   static String removedSelected(int removed, int failed) => failed == 0
@@ -185,12 +189,24 @@ abstract final class PlaylistStrings {
   static String get createAndAdd => L10n.tr('创建并添加', 'Create & Add');
   static String get addToPlaylist => L10n.tr('添加到歌单', 'Add to Playlist');
   static String get addingTracks => L10n.tr('正在添加到歌单', 'Adding to Playlist');
-  static String addedTracksTo(int added, int failed, String name) => failed == 0
-      ? L10n.tr('已添加 $added 首到「$name」', 'Added $added tracks to "$name"')
-      : L10n.tr(
-          '已添加 $added 首到「$name」，$failed 首失败',
-          'Added $added tracks to "$name"; $failed failed',
-        );
+  static String addedTracksTo(
+    int added,
+    int already,
+    int failed,
+    String name,
+  ) {
+    final zh = StringBuffer('已添加 $added 首到「$name」');
+    final en = StringBuffer('Added $added tracks to "$name"');
+    if (already > 0) {
+      zh.write('，$already 首已在歌单里');
+      en.write('; $already already in the playlist');
+    }
+    if (failed > 0) {
+      zh.write('，$failed 首失败');
+      en.write('; $failed failed');
+    }
+    return L10n.tr(zh.toString(), en.toString());
+  }
   static String get newShort => L10n.tr('新建', 'New');
   static String get noPlaylistsCreate =>
       L10n.tr('还没有歌单，先新建一个吧', 'No playlists yet — create one first');
