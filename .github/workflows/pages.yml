@@ -14,8 +14,6 @@ permissions:
   contents: read
   pages: write
   id-token: write
-  # 下面的等待步骤要查询本次 run 的 artifacts，需要 Actions 读权限。
-  actions: read
 
 concurrency:
   group: pages
@@ -25,7 +23,7 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deploy-try-1.outputs.page_url || steps.deploy-try-2.outputs.page_url || steps.deploy-try-3.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,28 +46,29 @@ jobs:
         with:
           path: _site
 
-      # deploy-pages 在 artifact 刚上传完时偶尔会查到 0 个（Actions artifacts API
+      # deploy-pages 偶发在 artifact 刚上传完时查到 0 个（Actions artifacts 服务
       # 最终一致，见 actions/deploy-pages#451），随后直接失败并触发失败邮件。
-      # 先轮询到 github-pages 可见再部署，避开这个竞态。
-      - name: Wait for the Pages artifact to become visible
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ github.run_id }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          for attempt in $(seq 1 20); do
-            count=$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts" \
-              --jq '[.artifacts[] | select(.name == "github-pages" and (.expired | not))] | length')
-            if [ "$count" -ge 1 ]; then
-              echo "github-pages artifact visible (attempt $attempt)"
-              exit 0
-            fi
-            echo "github-pages artifact not visible yet (attempt $attempt), retrying in 3s"
-            sleep 3
-          done
-          echo "::error::github-pages artifact never became visible"
-          exit 1
+      # 此时还没有创建 deployment，重试是安全的；等几秒再查基本都能命中。
+      - name: Deploy to GitHub Pages (attempt 1)
+        id: deploy-try-1
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
 
-      - id: deployment
+      - name: Wait before retrying the Pages deployment
+        if: steps.deploy-try-1.outcome == 'failure'
+        run: sleep 15
+
+      - name: Deploy to GitHub Pages (attempt 2)
+        id: deploy-try-2
+        if: steps.deploy-try-1.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Wait before the last Pages deployment attempt
+        if: steps.deploy-try-1.outcome == 'failure' && steps.deploy-try-2.outcome == 'failure'
+        run: sleep 30
+
+      - name: Deploy to GitHub Pages (attempt 3)
+        id: deploy-try-3
+        if: steps.deploy-try-1.outcome == 'failure' && steps.deploy-try-2.outcome == 'failure'
         uses: actions/deploy-pages@v4
