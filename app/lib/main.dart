@@ -9,6 +9,7 @@ import 'package:lekis/src/app.dart';
 import 'package:lekis/src/bridge/core_init.dart';
 import 'package:lekis/src/features/now_playing/now_playing_style.dart';
 import 'package:lekis/src/features/player/playback_session.dart';
+import 'package:lekis/src/features/plugins/official_plugins.dart';
 import 'package:lekis/src/features/settings/app_updater_provider.dart';
 import 'package:lekis/src/features/settings/desktop_tray_settings.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart';
@@ -36,6 +37,7 @@ Future<void> main() async {
   try {
     await RustLib.init();
     await initLekisCore();
+    await ensureOfficialPlugins();
   } catch (error, stack) {
     FlutterError.reportError(
       FlutterErrorDetails(

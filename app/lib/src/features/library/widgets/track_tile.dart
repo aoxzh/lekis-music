@@ -15,8 +15,7 @@ import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_actions.dart';
-import 'package:lekis/src/features/player/bilibili_video_action.dart';
-import 'package:lekis/src/features/player/bilibili_video_ref.dart';
+import 'package:lekis/src/features/player/video_action.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
@@ -40,6 +39,7 @@ String _compactQualityLabel(String label) {
 
 enum _TrackMenuAction {
   video,
+  videoExternal,
   playNext,
   addToQueue,
   addToPlaylist,
@@ -104,6 +104,10 @@ class TrackTile extends ConsumerWidget {
           albumTitle != track.title.trim())
         albumTitle,
     ].where((s) => s.isNotEmpty).join(' · ');
+    final showVideo =
+        supportsVideo &&
+        pluginSupportsVideo(ref, pluginId) &&
+        videoEnabled(ref);
 
     Widget leading;
     if (leadingNumber != null) {
@@ -160,7 +164,14 @@ class TrackTile extends ConsumerWidget {
         case _TrackMenuAction.exportMusic:
           showMusicExport(context, trackId: track.id);
         case _TrackMenuAction.video:
-          watchBilibiliTrack(context, trackId: track.id);
+          watchTrackVideo(context, trackId: track.id, pluginId: pluginId);
+        case _TrackMenuAction.videoExternal:
+          watchTrackVideo(
+            context,
+            trackId: track.id,
+            pluginId: pluginId,
+            external: true,
+          );
         case _TrackMenuAction.playNext:
           queueTracks(context, [track.id], where: QueuePlacement.next);
         case _TrackMenuAction.addToQueue:
@@ -199,7 +210,7 @@ class TrackTile extends ConsumerWidget {
     }
 
     List<PopupMenuEntry<_TrackMenuAction>> menuItems() => [
-      if (supportsBilibiliVideo && pluginId == BilibiliVideoRef.pluginId)
+      if (showVideo)
         PopupMenuItem(
           value: _TrackMenuAction.video,
           child: ListTile(
@@ -207,6 +218,16 @@ class TrackTile extends ConsumerWidget {
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.ondemand_video_rounded),
             title: Text(watchVideoLabel(context)),
+          ),
+        ),
+      if (showVideo)
+        PopupMenuItem(
+          value: _TrackMenuAction.videoExternal,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.open_in_new_rounded),
+            title: Text(openVideoInBrowserLabel(context)),
           ),
         ),
       PopupMenuItem(

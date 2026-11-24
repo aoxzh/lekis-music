@@ -18,6 +18,7 @@
 //! | [`http`] | 各在线功能共用的 HTTP 基础件（UA、超时、状态码映射）|
 //! | [`scrobble`] | DIS-07 的第三方听歌记录上报（Last.fm / ListenBrainz / Libre.fm）|
 //! | [`ruby`] | UIX-11 的注音歌词：中文歌词逐字标拼音（离线、静态拼音表）|
+//! | [`ruby_ja`] | UIX-11 的日语注音：振假名 / 罗马音（离线、静态汉字读音表）|
 //! | `md5` | Last.fm 签名要用的 MD5（RFC 1321），仅供 [`scrobble`] 内部使用 |
 
 pub mod apple_music;
@@ -29,6 +30,8 @@ pub mod providers;
 pub mod providers_extra;
 /// 注音歌词（UIX-11）：给中文歌词逐字标拼音，渲染成 ruby。
 pub mod ruby;
+/// 日语注音（UIX-11）：给日语歌词标振假名或罗马音。
+pub mod ruby_ja;
 pub mod scoring;
 pub mod scrobble;
 pub mod spotify;
@@ -36,6 +39,7 @@ pub mod throttle;
 
 mod md5;
 mod qq_lyrics;
+mod ruby_ja_data;
 
 use async_trait::async_trait;
 use lekis_types::{LyricsFormat, Result};

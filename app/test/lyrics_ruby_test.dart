@@ -50,14 +50,33 @@ void main() {
     test('缺失 / 未知值退回关闭', () {
       expect(LyricsRubyMode.fromStorage(null), LyricsRubyMode.off);
       expect(LyricsRubyMode.fromStorage(''), LyricsRubyMode.off);
-      expect(LyricsRubyMode.fromStorage('kana'), LyricsRubyMode.off);
+      expect(LyricsRubyMode.fromStorage('unknown'), LyricsRubyMode.off);
     });
 
     test('只有 off 是关闭', () {
       expect(LyricsRubyMode.off.enabled, isFalse);
-      for (final mode in LyricsRubyMode.values.where((m) => m != LyricsRubyMode.off)) {
+      for (final mode in LyricsRubyMode.values.where(
+        (m) => m != LyricsRubyMode.off,
+      )) {
         expect(mode.enabled, isTrue);
       }
+    });
+
+    test('区分拼音和日语注音', () {
+      for (final mode in [
+        LyricsRubyMode.plain,
+        LyricsRubyMode.tone,
+        LyricsRubyMode.toneNum,
+      ]) {
+        expect(mode.pinyin, isTrue);
+        expect(mode.japanese, isFalse);
+      }
+      for (final mode in [LyricsRubyMode.kana, LyricsRubyMode.romaji]) {
+        expect(mode.pinyin, isFalse);
+        expect(mode.japanese, isTrue);
+      }
+      expect(LyricsRubyMode.off.pinyin, isFalse);
+      expect(LyricsRubyMode.off.japanese, isFalse);
     });
 
     test('映射到核心的拼音写法', () {
@@ -65,6 +84,24 @@ void main() {
       expect(LyricsRubyMode.plain.rustStyle, rust.PinyinStyleDto.plain);
       expect(LyricsRubyMode.tone.rustStyle, rust.PinyinStyleDto.tone);
       expect(LyricsRubyMode.toneNum.rustStyle, rust.PinyinStyleDto.toneNum);
+    });
+
+    test('映射到核心的日语写法', () {
+      expect(LyricsRubyMode.kana.japaneseStyle, rust.JapaneseRubyStyleDto.kana);
+      expect(
+        LyricsRubyMode.romaji.japaneseStyle,
+        rust.JapaneseRubyStyleDto.romaji,
+      );
+    });
+  });
+
+  group('语言判断', () {
+    test('假名行是日语，汉字行是中文', () {
+      expect(containsKana('君の名は'), isTrue);
+      expect(containsKana('カタカナ'), isTrue);
+      expect(containsKana('ｶﾀｶﾅ'), isTrue);
+      expect(containsKana('晴天'), isFalse);
+      expect(containsKana('Hello'), isFalse);
     });
   });
 
@@ -89,21 +126,20 @@ void main() {
   group('偏移 → 字框', () {
     TextPainter layout(String text, double size) {
       return TextPainter(
-        text: TextSpan(text: text, style: TextStyle(fontSize: size)),
+        text: TextSpan(
+          text: text,
+          style: TextStyle(fontSize: size),
+        ),
         textDirection: TextDirection.ltr,
       )..layout(maxWidth: 400);
     }
 
     test('每个汉字一个框，横向递增且同高', () {
       final base = layout('晴天', 24);
-      final anchors = rubyAnchorRects(
-        base,
-        const [
-          rust.RubySpanDto(start: 0, end: 1, ruby: 'qing'),
-          rust.RubySpanDto(start: 1, end: 2, ruby: 'tian'),
-        ],
-        '晴天',
-      );
+      final anchors = rubyAnchorRects(base, const [
+        rust.RubySpanDto(start: 0, end: 1, ruby: 'qing'),
+        rust.RubySpanDto(start: 1, end: 2, ruby: 'tian'),
+      ], '晴天');
       base.dispose();
       expect(anchors.length, 2);
       expect(anchors[0].ruby, 'qing');
@@ -120,19 +156,18 @@ void main() {
       final pushed = rubyAnchorRects(base, spans, '晴天', topInset: 12);
       base.dispose();
       expect(pushed.single.box.top, closeTo(plain.single.box.top + 12, 0.01));
-      expect(pushed.single.box.center.dx, closeTo(plain.single.box.center.dx, 0.01));
+      expect(
+        pushed.single.box.center.dx,
+        closeTo(plain.single.box.center.dx, 0.01),
+      );
     });
 
     test('越界或空区间被丢弃', () {
       final base = layout('晴天', 24);
-      final anchors = rubyAnchorRects(
-        base,
-        const [
-          rust.RubySpanDto(start: 0, end: 0, ruby: 'x'),
-          rust.RubySpanDto(start: 0, end: 99, ruby: 'x'),
-        ],
-        '晴天',
-      );
+      final anchors = rubyAnchorRects(base, const [
+        rust.RubySpanDto(start: 0, end: 0, ruby: 'x'),
+        rust.RubySpanDto(start: 0, end: 99, ruby: 'x'),
+      ], '晴天');
       base.dispose();
       expect(anchors, isEmpty);
     });

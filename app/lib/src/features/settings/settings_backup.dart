@@ -19,6 +19,7 @@ import 'widgets/settings_widgets.dart';
 
 const _backupKeys = [
   SettingKeys.gapless,
+  SettingKeys.video,
   SettingKeys.replayGain,
   SettingKeys.outputDevice,
   SettingKeys.outputMode,

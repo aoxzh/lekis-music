@@ -1,5 +1,0 @@
-<resources>
-    <string name="bilibili_close">Close video</string>
-    <string name="bilibili_load_error">Couldn’t load the Bilibili player.</string>
-    <string name="bilibili_retry">Retry</string>
-</resources>

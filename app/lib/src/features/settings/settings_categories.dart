@@ -145,6 +145,7 @@ enum SettingsCategory {
     SettingsCategory.playback => [
       SettingsStrings.outputDevice,
       SettingsStrings.gapless,
+      SettingsStrings.video,
       SettingsStrings.normalize,
       SettingsStrings.sleepTimer,
       EqualizerStrings.title,
@@ -344,6 +345,7 @@ class _PlaybackSection extends ConsumerWidget {
     final output = ref.watch(playbackOutputProvider);
     final notifier = ref.read(playbackOutputProvider.notifier);
     final gapless = ref.watch(settingProvider(SettingKeys.gapless));
+    final video = ref.watch(settingProvider(SettingKeys.video));
     final replayGain = ref.watch(settingProvider(SettingKeys.replayGain));
     final rgMode = ReplayGainMode.fromStorage(replayGain.value);
     final colors = context.lekisColors;
@@ -434,6 +436,21 @@ class _PlaybackSection extends ConsumerWidget {
                   context,
                   () => ref
                       .read(settingProvider(SettingKeys.gapless).notifier)
+                      .set(v ? 'true' : 'false'),
+                ),
+        ),
+        SettingsSwitchTile(
+          key: const ValueKey('video.enabled'),
+          icon: Icons.ondemand_video_rounded,
+          title: SettingsStrings.video,
+          subtitle: SettingsStrings.videoHint,
+          value: video.value != 'false',
+          onChanged: video.isLoading
+              ? null
+              : (v) => settingsGuard(
+                  context,
+                  () => ref
+                      .read(settingProvider(SettingKeys.video).notifier)
                       .set(v ? 'true' : 'false'),
                 ),
         ),

@@ -12,6 +12,9 @@ abstract final class SettingKeys {
   // TODO(core-gapless): 核心目前总是无缝播放、并不读取这个键；先存下用户的选择。
   static const gapless = 'playback.gapless';
 
+  /// `true` / `false`，默认开启。控制曲目菜单里的“观看视频”入口。
+  static const video = 'video.enabled';
+
   /// `track`（默认）/ `album` / `off`，核心的 resolver 会读取。
   static const replayGain = 'playback.replaygain';
 

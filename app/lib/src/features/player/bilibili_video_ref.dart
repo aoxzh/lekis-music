@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'video_target.dart';
+
 final class BilibiliVideoRef {
   const BilibiliVideoRef._(this.bvid, this.cid);
 
@@ -15,13 +17,11 @@ final class BilibiliVideoRef {
   final String? cid;
 
   static BilibiliVideoRef? fromTrackUid(String uid) {
-    const prefix = 'plugin:$pluginId:';
-    if (!uid.startsWith(prefix)) return null;
-    final encoded = uid.substring(prefix.length);
-    if (encoded.contains('|')) return null;
+    final track = PluginTrackRef.fromUid(uid);
+    if (track == null || track.pluginId != pluginId) return null;
     return tryParse(
-      sourcePluginId: pluginId,
-      externalId: encoded.replaceFirst('%7C', '|'),
+      sourcePluginId: track.pluginId,
+      externalId: track.externalId,
     );
   }
 
@@ -44,6 +44,14 @@ final class BilibiliVideoRef {
     final page = pagesByCid[cid];
     return page != null && page > 0 ? page : null;
   }
+
+  /// The official player page for this video and part.
+  VideoTarget targetForPage(int page) => VideoTarget(
+    url: Uri.https('player.bilibili.com', '/player.html', {
+      'bvid': bvid,
+      'p': '$page',
+    }).toString(),
+  );
 
   Future<int> playbackPage({
     HttpClient Function()? createClient,

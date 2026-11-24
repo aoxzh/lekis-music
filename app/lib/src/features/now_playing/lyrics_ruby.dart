@@ -1,4 +1,4 @@
-// 注音歌词（UIX-11）：把汉字上方的拼音画出来。
+// 注音歌词（UIX-11）：把汉字上方的拼音 / 振假名 / 罗马音画出来。
 //
 // 为什么不用 `WidgetSpan`：拼音要标在**每个汉字**上方，而 Flex 里的
 // WidgetSpan 会让 Text 失去换行、行高和逐字高亮的排版能力（经典歌词的
@@ -19,12 +19,14 @@ import '../../rust/api/ruby.dart' as rust;
 import '../settings/settings_providers.dart';
 import '../settings/strings.dart';
 
-/// 注音模式。`off` 之外三种对应拼音的三种写法。
+/// 注音模式。前三种是中文拼音的写法，后两种是日语歌词的振假名 / 罗马音。
 enum LyricsRubyMode {
   off('off'),
   plain('plain'),
   tone('tone'),
-  toneNum('tone_num');
+  toneNum('tone_num'),
+  kana('kana'),
+  romaji('romaji');
 
   const LyricsRubyMode(this.storageValue);
 
@@ -38,18 +40,44 @@ enum LyricsRubyMode {
 
   bool get enabled => this != LyricsRubyMode.off;
 
+  /// 日语振假名 / 罗马音。只作用于带假名的歌词行。
+  bool get japanese =>
+      this == LyricsRubyMode.kana || this == LyricsRubyMode.romaji;
+
+  /// 中文拼音。日语行会被跳过，避免给日文汉字标中文读音。
+  bool get pinyin => enabled && !japanese;
+
   rust.PinyinStyleDto get rustStyle => switch (this) {
-    LyricsRubyMode.off || LyricsRubyMode.plain => rust.PinyinStyleDto.plain,
     LyricsRubyMode.tone => rust.PinyinStyleDto.tone,
     LyricsRubyMode.toneNum => rust.PinyinStyleDto.toneNum,
+    _ => rust.PinyinStyleDto.plain,
   };
+
+  rust.JapaneseRubyStyleDto get japaneseStyle => this == LyricsRubyMode.romaji
+      ? rust.JapaneseRubyStyleDto.romaji
+      : rust.JapaneseRubyStyleDto.kana;
 
   String get label => switch (this) {
     LyricsRubyMode.off => SettingsStrings.rubyOff,
     LyricsRubyMode.plain => SettingsStrings.rubyPlain,
     LyricsRubyMode.tone => SettingsStrings.rubyTone,
     LyricsRubyMode.toneNum => SettingsStrings.rubyToneNum,
+    LyricsRubyMode.kana => SettingsStrings.rubyKana,
+    LyricsRubyMode.romaji => SettingsStrings.rubyRomaji,
   };
+}
+
+/// 是否含假名（平假名 / 片假名 / 半角片假名）。用来区分中文和日语歌词行。
+bool containsKana(String text) {
+  for (final rune in text.runes) {
+    if ((rune >= 0x3041 && rune <= 0x309F) ||
+        (rune >= 0x30A0 && rune <= 0x30FF) ||
+        (rune >= 0x31F0 && rune <= 0x31FF) ||
+        (rune >= 0xFF66 && rune <= 0xFF9F)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /// 当前注音设置；核心还没返回时按关闭处理。
@@ -70,21 +98,26 @@ final lyricsRubyProvider = Provider<LyricsRubyMode>((ref) {
 final Map<(LyricsRubyMode, String), List<rust.RubySpanDto>> _rubyCache = {};
 const int _rubyCacheLimit = 1200;
 
-/// 取一行歌词的注音区间；关闭注音、没有汉字、或者核心还不能用时返回空列表。
+/// 取一行歌词的注音区间；关闭注音、语言不匹配、或者核心还不能用时返回空列表。
 ///
+/// 中文拼音只作用于不带假名的行，日语注音只作用于带假名的行：一个全局
+/// 开关同时服务两种语言，靠这一条把「日文汉字被标成中文拼音」的误伤挡掉。
 /// 核心不可用（首帧、测试环境、桥接没初始化）时直接降级成「不注音」，
 /// 不让一行歌词的装饰把整个播放页搞崩。
 List<rust.RubySpanDto> rubySpansFor(String text, LyricsRubyMode mode) {
   if (!mode.enabled || text.isEmpty) return const [];
+  if (mode.japanese != containsKana(text)) return const [];
   final key = (mode, text);
   final cached = _rubyCache[key];
   if (cached != null) return cached;
   List<rust.RubySpanDto> spans;
   try {
-    spans = rust
-        .lyricRubyLines(lines: [text], style: mode.rustStyle)
-        .first
-        .spans;
+    spans = mode.japanese
+        ? rust
+              .lyricRubyJaLines(lines: [text], style: mode.japaneseStyle)
+              .first
+              .spans
+        : rust.lyricRubyLines(lines: [text], style: mode.rustStyle).first.spans;
   } catch (_) {
     // 桥接还没就绪：当作没有注音，下一帧会重试。
     return const [];
@@ -104,8 +137,8 @@ void debugClearRubyCache() => _rubyCache.clear();
 
 /// 注音占用的上方高度（相对正文字号）。
 ///
-/// 拼音音节最多 6 个字母（`zhuang`），用 0.42× 字号、行高 1.15 画，
-/// 0.52 倍字号的高度足够且不显得空。
+/// 拼音音节最多 6 个字母（`zhuang`），日语振假名 / 罗马音也按 0.42× 字号、
+/// 行高 1.15 画，0.52 倍字号的高度足够且不显得空。
 double rubyInsetFor(TextStyle base) => (base.fontSize ?? 16) * 0.52;
 
 /// 注音字号。
@@ -150,7 +183,10 @@ class RubyOverlay extends ConsumerWidget {
             text: text,
             spans: spans,
             baseStyle: baseStyle,
-            rubyStyle: rubyStyleFor(baseStyle, fg.withValues(alpha: fg.a * opacity * 0.78)),
+            rubyStyle: rubyStyleFor(
+              baseStyle,
+              fg.withValues(alpha: fg.a * opacity * 0.78),
+            ),
             topInset: topInset,
             textScaler: MediaQuery.textScalerOf(context),
             locale: Localizations.maybeLocaleOf(context),
@@ -184,12 +220,7 @@ class RubyLyricText extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (!ref.watch(lyricsRubyProvider).enabled) {
-      return Text(
-        text,
-        style: style,
-        maxLines: maxLines,
-        textAlign: textAlign,
-      );
+      return Text(text, style: style, maxLines: maxLines, textAlign: textAlign);
     }
     final inset = rubyInsetFor(style);
     return Stack(
@@ -303,7 +334,10 @@ class _RubyPainter extends CustomPainter {
       )..layout();
       label.paint(
         canvas,
-        Offset(rect.box.center.dx - label.width / 2, rect.box.top - label.height),
+        Offset(
+          rect.box.center.dx - label.width / 2,
+          rect.box.top - label.height,
+        ),
       );
       label.dispose();
     }

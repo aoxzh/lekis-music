@@ -61,7 +61,7 @@ pub use lekis_plugin_host::{
 pub use lekis_vfs::ShareInfo;
 pub use platform::{CredentialStore, MemoryCredentialStore, PlatformServices};
 pub use plugins::{
-    PluginBrowsePage, PluginFolder, PluginInfo, PluginPermissions, PluginSettingView,
+    PluginBrowsePage, PluginFolder, PluginInfo, PluginPermissions, PluginSettingView, VideoTarget,
 };
 pub use podcast::{
     DirectoryPodcast, OpmlImportReport, PodcastRefreshReport, PODCAST_DIRECTORY_MAX,
@@ -1287,6 +1287,41 @@ impl LekisCore {
                 });
             }
             Ok(results)
+        })
+        .await
+    }
+
+    /// 打开某首源曲目的官方视频页；插件只返回页面地址，不返回视频流。
+    pub async fn plugin_video(
+        &self,
+        plugin_id: String,
+        external_id: String,
+    ) -> Result<VideoTarget> {
+        let s = self.services.clone();
+        self.run(async move { s.plugins.video(&plugin_id, &external_id).await })
+            .await
+    }
+
+    /// 让可选的视频提供方插件把其他音源的曲目映射到官方视频页。
+    pub async fn plugin_resolve_video(
+        &self,
+        resolver_id: String,
+        source_plugin_id: String,
+        external_id: String,
+        title: Option<String>,
+        artists: Vec<String>,
+    ) -> Result<VideoTarget> {
+        let s = self.services.clone();
+        self.run(async move {
+            s.plugins
+                .resolve_video(
+                    &resolver_id,
+                    &source_plugin_id,
+                    &external_id,
+                    title.as_deref(),
+                    &artists,
+                )
+                .await
         })
         .await
     }

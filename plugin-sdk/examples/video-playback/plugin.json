@@ -1,0 +1,21 @@
+{
+  "id": "dev.lekis.video-playback",
+  "name": "视频播放",
+  "version": "0.1.0",
+  "apiVersion": "1.2",
+  "minAppVersion": "0.5.3",
+  "runtime": "js",
+  "entry": "index.js",
+  "kinds": ["video"],
+  "permissions": {
+    "network": [
+      "api.bilibili.com",
+      "player.bilibili.com",
+      "www.youtube.com",
+      "youtube.com",
+      "youtu.be"
+    ]
+  },
+  "author": "Lekis",
+  "homepage": "https://lekis.fm"
+}

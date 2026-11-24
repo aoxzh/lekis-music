@@ -50,15 +50,15 @@ class MainActivity : AudioServiceActivity() {
                 }
             }
         }
-        videoChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "dev.lekis/bilibili_video").apply {
+        videoChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "dev.lekis/video").apply {
             setMethodCallHandler { call, result ->
                 if (call.method != "open") {
                     result.notImplemented()
                     return@setMethodCallHandler
                 }
-                val video = BilibiliVideo.fromArguments(call.arguments)
-                if (video == null) {
-                    result.error("invalid_args", "Expected bvid and positive page", null)
+                val page = VideoPage.fromArguments(call.arguments)
+                if (page == null) {
+                    result.error("invalid_args", "Expected an HTTPS page URL", null)
                     return@setMethodCallHandler
                 }
                 pendingVideo?.error("replaced", "Player replaced", null)
@@ -72,9 +72,9 @@ class MainActivity : AudioServiceActivity() {
                     }
                 }
                 try {
-                    startActivity(Intent(this@MainActivity, BilibiliVideoActivity::class.java)
+                    startActivity(Intent(this@MainActivity, VideoPageActivity::class.java)
                         .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                        .putExtra("bvid", video.bvid).putExtra("page", video.page).putExtra("reply", reply))
+                        .putExtra("url", page.url).putExtra("title", page.title).putExtra("reply", reply))
                 } catch (error: RuntimeException) {
                     pendingVideo = null
                     result.error("open_failed", error.localizedMessage, null)

@@ -4,7 +4,7 @@ import WebKit
 
 class MainFlutterWindow: NSWindow {
   private var videoChannel: FlutterMethodChannel?
-  private let videoPlayer = BilibiliVideoPlayer()
+  private let videoPlayer = VideoPlayerWindow()
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -15,7 +15,7 @@ class MainFlutterWindow: NSWindow {
     RegisterGeneratedPlugins(registry: flutterViewController)
 
     let channel = FlutterMethodChannel(
-      name: "dev.lekis/bilibili_video",
+      name: "dev.lekis/video",
       binaryMessenger: flutterViewController.engine.binaryMessenger)
     channel.setMethodCallHandler { [weak self] call, result in
       guard call.method == "open" else {
@@ -42,7 +42,7 @@ class MainFlutterWindow: NSWindow {
   }
 }
 
-private final class BilibiliVideoPlayer: NSObject, NSWindowDelegate, WKNavigationDelegate {
+private final class VideoPlayerWindow: NSObject, NSWindowDelegate, WKNavigationDelegate {
   private var window: NSWindow?
   private var webView: WKWebView?
   private var target: URL?
@@ -50,27 +50,23 @@ private final class BilibiliVideoPlayer: NSObject, NSWindowDelegate, WKNavigatio
   private var deadline: Timer?
 
   private static func playerURL(_ arguments: Any?) -> URL? {
-    guard let args = arguments as? [String: Any], args.count == 2,
-          let bvid = args["bvid"] as? String, bvid.utf8.count == 12,
-          bvid.range(of: "^BV[0-9A-Za-z]{10}$", options: .regularExpression) != nil,
-          let number = args["page"] as? NSNumber,
-          CFGetTypeID(number) != CFBooleanGetTypeID(),
-          !CFNumberIsFloatType(number), let page = number as? Int, page > 0
+    guard let args = arguments as? [String: Any],
+          let raw = args["url"] as? String
     else { return nil }
-    var url = URLComponents()
-    url.scheme = "https"
-    url.host = "player.bilibili.com"
-    url.path = "/player.html"
-    url.queryItems = [
-      URLQueryItem(name: "bvid", value: bvid),
-      URLQueryItem(name: "p", value: String(page)),
-    ]
-    return url.url
+    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.utf8.count <= 4096,
+          let components = URLComponents(string: trimmed),
+          components.scheme == "https",
+          let host = components.host, !host.isEmpty,
+          components.user == nil, components.password == nil,
+          let url = components.url
+    else { return nil }
+    return url
   }
 
   func open(arguments: Any?, result: @escaping FlutterResult) {
     guard let url = Self.playerURL(arguments) else {
-      result(FlutterError(code: "invalid_args", message: "Expected bvid and positive page", details: nil))
+      result(FlutterError(code: "invalid_args", message: "Expected an HTTPS page URL", details: nil))
       return
     }
     clearPlayer(reason: "replaced")
@@ -87,13 +83,14 @@ private final class BilibiliVideoPlayer: NSObject, NSWindowDelegate, WKNavigatio
         contentRect: NSRect(x: 0, y: 0, width: 854, height: 480),
         styleMask: [.titled, .closable, .miniaturizable, .resizable],
         backing: .buffered, defer: false)
-      playerWindow.title = "哔哩哔哩 · Lekis"
+      playerWindow.title = (arguments as? [String: Any])?["title"] as? String ?? "Lekis · 视频"
       playerWindow.isReleasedWhenClosed = false
       playerWindow.collectionBehavior.insert(.fullScreenPrimary)
       playerWindow.delegate = self
       playerWindow.center()
       window = playerWindow
     }
+    playerWindow.title = (arguments as? [String: Any])?["title"] as? String ?? "Lekis · 视频"
     target = url
     pending = result
     webView = view

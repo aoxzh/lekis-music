@@ -19,6 +19,8 @@ tokio.workspace = true
 tracing.workspace = true
 # ENR-05 的中英文名互查：把中文标题/艺人转成拼音再和拉丁字母一侧比较。
 pinyin.workspace = true
+# UIX-11 的日语注音：把平假名 / 片假名读音转成 Hepburn 罗马音。
+wana_kana.workspace = true
 # ENR-01/12：封面下载后要解码、按档位缩放、编码 WebP、提主色。
 image.workspace = true
 # 封面去重用的内容哈希。

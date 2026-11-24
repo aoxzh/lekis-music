@@ -24,6 +24,7 @@ import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/features/now_playing/now_playing_tint.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
+import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
 import 'package:lekis/src/theme/theme.dart';
@@ -43,6 +44,14 @@ class _FakePlayback extends PlaybackController {
 class _FakePosition extends PositionController {
   @override
   int build() => 0;
+}
+
+/// Video is off by default; this test enables it without touching the core.
+class _Settings extends SettingNotifier {
+  _Settings(super.key);
+
+  @override
+  Future<String?> build() async => key == SettingKeys.video ? 'true' : null;
 }
 
 TrackDto _track({
@@ -90,6 +99,7 @@ ProviderContainer _container({
       artistAlbumsProvider.overrideWith((ref, id) async => []),
       artistTracksProvider.overrideWith((ref, id) async => []),
       currentArtworkProvider.overrideWith((ref) async => null),
+      settingProvider.overrideWith2((key) => _Settings(key)),
       downloadStateProvider.overrideWith((ref, id) => null),
       downloadProgressProvider.overrideWith((ref, id) => null),
       lyricsProvider.overrideWith(
@@ -215,7 +225,7 @@ void main() {
   testWidgets('Bilibili track opens its official video from Now Playing', (
     tester,
   ) async {
-    const channel = MethodChannel('dev.lekis/bilibili_video');
+    const channel = MethodChannel('dev.lekis/video');
     final calls = <MethodCall>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
       call,
@@ -239,7 +249,9 @@ void main() {
     await tester.tap(find.byIcon(Icons.ondemand_video_rounded));
     await tester.pumpAndSettle();
     expect(calls.single.method, 'open');
-    expect(calls.single.arguments, {'bvid': 'BV1GJ411x7h7', 'page': 1});
+    expect(calls.single.arguments, {
+      'url': 'https://player.bilibili.com/player.html?bvid=BV1GJ411x7h7&p=1',
+    });
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets('cover | controls: single toggles, compact actions, subtitle', (

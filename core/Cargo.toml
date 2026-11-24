@@ -87,6 +87,8 @@ ringbuf = "0.4"
 # ---- 其他 ----
 lofty = "0.25"
 pinyin = "0.11"
+# 日语注音：假名 → 罗马音（Hepburn）。MIT，纯 Rust，只用到转换表。
+wana_kana = { version = "5", default-features = false }
 # 繁简转换：纯 Rust 的 OpenCC 实现（Apache-2.0）。zhconv 是 GPL，不能用。
 ferrous-opencc = "0.4"
 notify = "8"

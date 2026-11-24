@@ -426,6 +426,28 @@ pub async fn search_plugin(
     Ok(core().search_plugin(plugin_id, query, limit).await?.into())
 }
 
+/// Open a source plugin's official video page for one track.
+pub async fn plugin_video(
+    plugin_id: String,
+    external_id: String,
+) -> Result<VideoTargetDto, CoreError> {
+    Ok(core().plugin_video(plugin_id, external_id).await?.into())
+}
+
+/// Ask an optional video-provider plugin to resolve another source's track.
+pub async fn plugin_resolve_video(
+    resolver_id: String,
+    source_plugin_id: String,
+    external_id: String,
+    title: Option<String>,
+    artists: Vec<String>,
+) -> Result<VideoTargetDto, CoreError> {
+    Ok(core()
+        .plugin_resolve_video(resolver_id, source_plugin_id, external_id, title, artists)
+        .await?
+        .into())
+}
+
 /// Browse an enabled source plugin's public pages and collections.
 pub async fn browse_plugin(
     plugin_id: String,

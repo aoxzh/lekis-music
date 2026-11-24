@@ -59,6 +59,8 @@ interface capabilities {
   search: func(params-json: string) -> result<string, plugin-error>;
   browse: func(params-json: string) -> result<string, plugin-error>;
   %stream: func(params-json: string) -> result<string, plugin-error>;
+  /// 官方视频页地址（MV / 投稿 / Live）。
+  video: func(params-json: string) -> result<string, plugin-error>;
   lyrics: func(params-json: string) -> result<option<string>, plugin-error>;
   artwork: func(params-json: string) -> result<option<string>, plugin-error>;
   playlist: func(params-json: string) -> result<string, plugin-error>;

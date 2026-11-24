@@ -87,7 +87,11 @@ List<SettingsSearchItem> searchSettings(WidgetRef ref, String query) {
     if (style.stage != null)
       lyric('lyrics.sparks', SettingsStrings.lyricsSparks, '火花 sparks'),
     if (!style.isStage)
-      lyric('lyrics.ruby', SettingsStrings.lyricsRuby, '注音歌词 拼音 ruby pinyin'),
+      lyric(
+        'lyrics.ruby',
+        SettingsStrings.lyricsRuby,
+        '注音歌词 拼音 ruby pinyin 日文假名 振假名 kana furigana 罗马音 romaji',
+      ),
     if (ref.watch(desktopLyricsSupportedProvider)) ...[
       overlay(
         'desktop-lyrics.visible',

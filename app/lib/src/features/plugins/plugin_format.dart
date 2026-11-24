@@ -15,6 +15,7 @@ String pluginKindLabel(String kind) => switch (kind) {
   'theme' => L10n.tr('主题', 'Theme'),
   'lyrics_style' => L10n.tr('歌词样式', 'Lyrics Style'),
   'visualizer' => L10n.tr('可视化', 'Visualizer'),
+  'video' => L10n.tr('视频播放', 'Video'),
   _ => kind.isEmpty ? PluginStrings.invalidManifest : kind,
 };
 

@@ -57,6 +57,16 @@ pub struct PluginPermissions {
     pub native_android: bool,
 }
 
+/// 插件返回的官方视频页。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VideoTarget {
+    /// 官方页面地址，必须是 HTTPS 且落在插件声明的网络权限内。
+    pub url: String,
+    /// 页面标题（可选）。
+    pub title: Option<String>,
+}
+
 /// 一个设置项的当前值和展示信息。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -476,6 +486,66 @@ impl PluginManager {
         let page: TrackPage = serde_json::from_value(result)
             .map_err(|e| LekisError::invalid(format!("插件搜索结果无效：{e}")))?;
         Ok(page.items.into_iter().take(limit as usize).collect())
+    }
+
+    /// 打开某首源曲目的官方视频页。插件只返回页面地址，宿主不解析视频流。
+    pub async fn video(&self, plugin_id: &str, external_id: &str) -> Result<VideoTarget> {
+        if external_id.trim().is_empty() {
+            return Err(LekisError::invalid("视频曲目 ID 为空"));
+        }
+        let (_, manifest) = self.find_installed(plugin_id)?;
+        let manifest = manifest.ok_or_else(|| LekisError::invalid("插件清单无效"))?;
+        if !manifest
+            .kinds
+            .contains(&lekis_plugin_host::PluginKind::Video)
+        {
+            return Err(LekisError::unsupported("插件不提供视频"));
+        }
+        let result = self
+            .call(
+                plugin_id,
+                Capability::Video,
+                serde_json::json!({"id": external_id}),
+            )
+            .await?;
+        parse_video_target(result, &manifest)
+    }
+
+    /// Ask an optional video-provider plugin to map another source's track to
+    /// an official page. Used as a compatibility bridge for sources that do not
+    /// export `video` themselves.
+    pub async fn resolve_video(
+        &self,
+        resolver_id: &str,
+        source_plugin_id: &str,
+        external_id: &str,
+        title: Option<&str>,
+        artists: &[String],
+    ) -> Result<VideoTarget> {
+        if external_id.trim().is_empty() {
+            return Err(LekisError::invalid("视频曲目 ID 为空"));
+        }
+        let (_, manifest) = self.find_installed(resolver_id)?;
+        let manifest = manifest.ok_or_else(|| LekisError::invalid("插件清单无效"))?;
+        if !manifest
+            .kinds
+            .contains(&lekis_plugin_host::PluginKind::Video)
+        {
+            return Err(LekisError::unsupported("插件不是视频提供方"));
+        }
+        let result = self
+            .call(
+                resolver_id,
+                Capability::Video,
+                serde_json::json!({
+                    "sourcePluginId": source_plugin_id,
+                    "externalId": external_id,
+                    "title": title,
+                    "artists": artists,
+                }),
+            )
+            .await?;
+        parse_video_target(result, &manifest)
     }
 
     pub(crate) async fn alternate_candidates(
@@ -1128,6 +1198,43 @@ impl PluginManager {
     }
 }
 
+/// Trim and validate a plugin video result.
+fn parse_video_target(result: Value, manifest: &PluginManifest) -> Result<VideoTarget> {
+    let mut target: VideoTarget = serde_json::from_value(result)
+        .map_err(|e| LekisError::invalid(format!("插件视频结果无效：{e}")))?;
+    target.url = target.url.trim().to_string();
+    if let Some(title) = &mut target.title {
+        *title = title.trim().to_string();
+        if title.is_empty() {
+            target.title = None;
+        }
+    }
+    validate_video_target(manifest, &target)?;
+    Ok(target)
+}
+
+/// 官方视频页只接受 HTTPS、无凭据、且在插件网络权限内的地址。
+fn validate_video_target(manifest: &PluginManifest, target: &VideoTarget) -> Result<()> {
+    if target.url.is_empty() || target.url.len() > 4096 {
+        return Err(LekisError::invalid("插件视频地址长度无效"));
+    }
+    let url = url::Url::parse(&target.url)
+        .map_err(|e| LekisError::invalid(format!("插件视频地址无效：{e}")))?;
+    if url.scheme() != "https" || !url.username().is_empty() || url.password().is_some() {
+        return Err(LekisError::unsupported(
+            "插件视频地址必须是 HTTPS 且不能包含凭据",
+        ));
+    }
+    if url.host_str().is_none() {
+        return Err(LekisError::invalid("插件视频地址缺少主机名"));
+    }
+    let permissions = Permissions::new(&manifest.permissions, &[]);
+    if !permissions.allows_url(url.as_str()) {
+        return Err(LekisError::unsupported("视频地址超出插件声明的网络权限"));
+    }
+    Ok(())
+}
+
 fn rows_to_map(rows: Vec<(String, String)>) -> BTreeMap<String, String> {
     rows.into_iter().collect()
 }
@@ -1466,6 +1573,100 @@ mod tests {
         .unwrap();
         fs::write(directory.join("index.js"), source).unwrap();
         directory
+    }
+
+    #[tokio::test]
+    async fn video_pages_require_the_video_kind_and_a_permitted_https_url() -> Result<()> {
+        let root = test_root("video-page");
+        let directory = root.join("video");
+        fs::create_dir_all(&directory)?;
+        fs::write(
+            directory.join("plugin.json"),
+            r#"{
+                "id":"dev.lekis.test.video", "name":"Video", "version":"1.0.0",
+                "apiVersion":"1.2", "minAppVersion":"0.1.0", "runtime":"js", "entry":"index.js",
+                "kinds":["source","video"],
+                "permissions":{"network":["player.example.com"]}
+            }"#,
+        )?;
+        fs::write(
+            directory.join("index.js"),
+            r#"export function video(p) {
+                if (p.id === "good") return { url: "https://player.example.com/watch?id=good", title: " MV " };
+                if (p.id === "http") return { url: "http://player.example.com/watch" };
+                if (p.id === "other") return { url: "https://evil.example.net/watch" };
+                if (p.id === "credentials") return { url: "https://user:pass@player.example.com/watch" };
+                return { url: "not a url" };
+            }"#,
+        )?;
+        let (_, manager) = open_manager(&root);
+        manager.install(&directory).await?;
+        let lyrics = root.join("lyrics");
+        write_plugin(&lyrics, "dev.lekis.test.lyrics");
+        manager.install(&lyrics).await?;
+
+        let target = manager.video("dev.lekis.test.video", "good").await.unwrap();
+        assert_eq!(target.url, "https://player.example.com/watch?id=good");
+        assert_eq!(target.title.as_deref(), Some("MV"));
+        for (id, code) in [
+            ("http", ErrorCode::Unsupported),
+            ("other", ErrorCode::Unsupported),
+            ("credentials", ErrorCode::Unsupported),
+            ("bad", ErrorCode::InvalidArgument),
+        ] {
+            assert_eq!(
+                manager
+                    .video("dev.lekis.test.video", id)
+                    .await
+                    .unwrap_err()
+                    .code,
+                code,
+                "{id}"
+            );
+        }
+        assert_eq!(
+            manager
+                .video("dev.lekis.test.lyrics", "good")
+                .await
+                .unwrap_err()
+                .code,
+            ErrorCode::Unsupported
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn video_playback_example_maps_bilibili_and_youtube() -> Result<()> {
+        let root = test_root("video-playback-example");
+        let example = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../plugin-sdk/examples/video-playback");
+        let (_, manager) = open_manager(&root);
+        manager.install(&example).await?;
+
+        let bilibili = manager
+            .resolve_video(
+                "dev.lekis.video-playback",
+                "dev.mygo.bilibili",
+                "BV1GJ411x7h7",
+                None,
+                &[],
+            )
+            .await?;
+        assert_eq!(
+            bilibili.url,
+            "https://player.bilibili.com/player.html?bvid=BV1GJ411x7h7&p=1"
+        );
+        let youtube = manager
+            .resolve_video(
+                "dev.lekis.video-playback",
+                "com.example.youtube-music",
+                "abc123",
+                None,
+                &[],
+            )
+            .await?;
+        assert_eq!(youtube.url, "https://www.youtube.com/watch?v=abc123");
+        Ok(())
     }
 
     #[tokio::test]

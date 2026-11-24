@@ -46,7 +46,10 @@ final searchResultsProvider = FutureProvider.autoDispose<SearchResultsDto?>((
   final query = ref.watch(searchQueryProvider).trim();
   final source = ref.watch(searchSourceProvider);
   final limit = ref.watch(searchLimitProvider);
-  ref.invalidateOnCatalogChange();
+  // A plugin search imports its rows into the library, which emits a catalog
+  // change. Reacting to that here would invalidate this very request and run
+  // the search again, forever. Only library searches need catalog refreshes.
+  if (source == null) ref.invalidateOnCatalogChange();
   ref.cacheFor(const Duration(seconds: 30));
   if (query.isEmpty) return null;
 

@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`
 
 /// 给整首歌的歌词逐行注音。
 ///
@@ -24,6 +24,26 @@ List<RubyLineDto> lyricRubyLines({
 /// UI 侧用它先跳过纯英文 / 纯假名歌词行，避免为整首歌都请求一次注音。
 bool lyricHasHan({required String text}) =>
     RustLib.instance.api.crateApiRubyLyricHasHan(text: text);
+
+/// 给整首日语歌词逐行注音（振假名或罗马音）。
+///
+/// 没有假名的行返回空 `spans`；偏移同样按 UTF-16 计。
+List<RubyLineDto> lyricRubyJaLines({
+  required List<String> lines,
+  required JapaneseRubyStyleDto style,
+}) => RustLib.instance.api.crateApiRubyLyricRubyJaLines(
+  lines: lines,
+  style: style,
+);
+
+/// 日语注音写法。
+enum JapaneseRubyStyleDto {
+  /// 汉字上方标平假名（振假名）。
+  kana,
+
+  /// 汉字和假名上方标罗马音。
+  romaji,
+}
 
 /// 拼音写法。
 enum PinyinStyleDto {

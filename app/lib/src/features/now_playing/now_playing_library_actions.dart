@@ -19,8 +19,8 @@ import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/features/now_playing/track_sources_sheet.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
-import 'package:lekis/src/features/player/bilibili_video_action.dart';
-import 'package:lekis/src/features/player/bilibili_video_ref.dart';
+import 'package:lekis/src/features/player/video_action.dart';
+import 'package:lekis/src/features/player/video_target.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
@@ -39,6 +39,7 @@ const BoxConstraints _touchTarget = BoxConstraints(
 enum _MoreAction {
   alternateSource,
   video,
+  videoExternal,
   rate,
   download,
   addToPlaylist,
@@ -325,9 +326,10 @@ class _MoreButton extends ConsumerWidget {
     final colors = context.lekisColors;
     final downloadState = ref.watch(downloadStateProvider(track.id));
     final artists = nowPlayingArtistNames(track);
-    final video = supportsBilibiliVideo
-        ? BilibiliVideoRef.fromTrackUid(track.uid)
-        : null;
+    final video =
+        supportsVideo &&
+        pluginSupportsVideo(ref, PluginTrackRef.fromUid(track.uid)?.pluginId) &&
+        videoEnabled(ref);
     final rating = ratingOf(ref, track.id, track.rating?.toInt()) ?? 0;
     Widget item(IconData icon, String label) => ListTile(
       dense: true,
@@ -348,7 +350,24 @@ class _MoreButton extends ConsumerWidget {
             showAlternateSourceSheet(context, track);
           case _MoreAction.video:
             unawaited(
-              watchBilibiliTrack(context, trackId: track.id, video: video),
+              watchTrackVideo(
+                context,
+                trackId: track.id,
+                uid: track.uid,
+                title: track.title,
+                artists: track.artists,
+              ),
+            );
+          case _MoreAction.videoExternal:
+            unawaited(
+              watchTrackVideo(
+                context,
+                trackId: track.id,
+                uid: track.uid,
+                title: track.title,
+                artists: track.artists,
+                external: true,
+              ),
             );
           case _MoreAction.rate:
             showTrackRatingSheet(
@@ -391,10 +410,18 @@ class _MoreButton extends ConsumerWidget {
         }
       },
       itemBuilder: (_) => [
-        if (video != null)
+        if (video)
           PopupMenuItem(
             value: _MoreAction.video,
             child: item(Icons.ondemand_video_rounded, watchVideoLabel(context)),
+          ),
+        if (video)
+          PopupMenuItem(
+            value: _MoreAction.videoExternal,
+            child: item(
+              Icons.open_in_new_rounded,
+              openVideoInBrowserLabel(context),
+            ),
           ),
         if (!track.isLocal && track.id > 0)
           PopupMenuItem(

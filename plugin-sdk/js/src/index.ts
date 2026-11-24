@@ -112,6 +112,16 @@ export interface StreamResult {
   mimeType?: string;
 }
 
+/** 官方视频页。只返回页面地址，宿主不会解析视频流。 */
+export interface VideoParams {
+  id: string;
+}
+export interface VideoResult {
+  /** 必须是 HTTPS，且域名在 permissions.network 里声明过。 */
+  url: string;
+  title?: string;
+}
+
 export interface LyricsParams {
   track: TrackHint;
 }
@@ -154,6 +164,8 @@ export interface PluginModule {
   search?(params: SearchParams): Promise<SearchResult>;
   browse?(params: BrowseParams): Promise<BrowseResult>;
   stream?(params: StreamParams): Promise<StreamResult>;
+  /** 打开该曲目对应的官方视频页（MV / 投稿 / Live）。 */
+  video?(params: VideoParams): Promise<VideoResult>;
   lyrics?(params: LyricsParams): Promise<LyricsResult | null>;
   artwork?(params: ArtworkParams): Promise<ArtworkResult | null>;
   playlist?(params: PlaylistParams): Promise<PluginPlaylist>;

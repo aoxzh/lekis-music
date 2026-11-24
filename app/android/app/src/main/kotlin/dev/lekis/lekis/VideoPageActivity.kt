@@ -22,15 +22,15 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.core.content.IntentCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.core.content.IntentCompat
 import java.io.ByteArrayInputStream
 
-class BilibiliVideoActivity : ComponentActivity() {
-    private lateinit var video: BilibiliVideo
+class VideoPageActivity : ComponentActivity() {
+    private lateinit var page: VideoPage
     private lateinit var root: FrameLayout
     private lateinit var panel: LinearLayout
     private lateinit var content: FrameLayout
@@ -44,13 +44,19 @@ class BilibiliVideoActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         reply = IntentCompat.getParcelableExtra(intent, "reply", ResultReceiver::class.java)
-        val requested = BilibiliVideo.parse(intent.getStringExtra("bvid"), intent.getLongExtra("page", 0L))
+        val requested = VideoPage.fromArguments(
+            mapOf(
+                "url" to intent.getStringExtra("url"),
+                "title" to intent.getStringExtra("title"),
+            ),
+        )
         if (requested == null) {
             completeOpen("invalid_args")
             finish()
             return
         }
-        video = requested
+        page = requested
+        page.title?.let { title = it }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
         panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -60,7 +66,7 @@ class BilibiliVideoActivity : ComponentActivity() {
             insets
         }
         panel.addView(Button(this).apply {
-            setText(R.string.bilibili_close)
+            setText(R.string.video_close)
             setOnClickListener { finish() }
         }, LinearLayout.LayoutParams(-2, -2))
         content = FrameLayout(this)
@@ -98,15 +104,15 @@ class BilibiliVideoActivity : ComponentActivity() {
         }
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
-                !request.isForMainFrame || !video.allowsNavigation(request.url.toString())
+                !request.isForMainFrame || !page.allowsNavigation(request.url.toString())
 
             override fun onPageFinished(view: WebView, url: String) {
-                if (view === player && !isFinishing && video.allowsNavigation(url)) completeOpen()
+                if (view === player && !isFinishing && page.allowsNavigation(url)) completeOpen()
             }
 
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                 if (request.isForMainFrame &&
-                    (request.method != "GET" || !video.allowsNavigation(request.url.toString()))) {
+                    (request.method != "GET" || !page.allowsNavigation(request.url.toString()))) {
                     return WebResourceResponse("text/plain", "UTF-8", 403, "Forbidden", emptyMap(),
                         ByteArrayInputStream(byteArrayOf()))
                 }
@@ -146,7 +152,7 @@ class BilibiliVideoActivity : ComponentActivity() {
         }
         content.addView(web)
         handler.postDelayed(timeout, 30_000)
-        web.loadUrl(video.url)
+        web.loadUrl(page.url)
     }
 
     private fun leaveFullscreen() {
@@ -188,9 +194,9 @@ class BilibiliVideoActivity : ComponentActivity() {
         val message = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            addView(TextView(context).apply { setText(R.string.bilibili_load_error) })
+            addView(TextView(context).apply { setText(R.string.video_load_error) })
             addView(Button(context).apply {
-                setText(R.string.bilibili_retry)
+                setText(R.string.video_retry)
                 setOnClickListener { loadPlayer() }
             })
         }

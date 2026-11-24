@@ -2853,6 +2853,24 @@ impl From<lekis_core::PluginInfo> for PluginInfoDto {
     }
 }
 
+/// 插件返回的官方视频页。
+#[derive(Debug, Clone)]
+pub struct VideoTargetDto {
+    /// 官方页面地址（HTTPS）。
+    pub url: String,
+    /// 页面标题。
+    pub title: Option<String>,
+}
+
+impl From<lekis_core::VideoTarget> for VideoTargetDto {
+    fn from(v: lekis_core::VideoTarget) -> Self {
+        Self {
+            url: v.url,
+            title: v.title,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -3226,7 +3226,7 @@ as String,
 
 class PlayContextDto_SourceLibrary extends PlayContextDto {
   const PlayContextDto_SourceLibrary({required this.scope, required this.sort}): super._();
-
+  
 
  final  TrackSourceScopeDto scope;
  final  TrackSortDto sort;
@@ -3293,7 +3293,7 @@ as TrackSortDto,
 @override
 @pragma('vm:prefer-inline')
 $TrackSourceScopeDtoCopyWith<$Res> get scope {
-
+  
   return $TrackSourceScopeDtoCopyWith<$Res>(_self.scope, (value) {
     return _then(_self.copyWith(scope: value));
   });
@@ -4000,7 +4000,7 @@ return plugin(_that.pluginId);case _:
 
 class TrackSourceScopeDto_Local extends TrackSourceScopeDto {
   const TrackSourceScopeDto_Local(): super._();
-
+  
 
 
 
@@ -4032,7 +4032,7 @@ String toString() {
 
 class TrackSourceScopeDto_Nas extends TrackSourceScopeDto {
   const TrackSourceScopeDto_Nas(): super._();
-
+  
 
 
 
@@ -4064,7 +4064,7 @@ String toString() {
 
 class TrackSourceScopeDto_Plugin extends TrackSourceScopeDto {
   const TrackSourceScopeDto_Plugin({required this.pluginId}): super._();
-
+  
 
  final  String pluginId;
 

@@ -53,7 +53,7 @@ pub const MAX_STACK_SIZE: usize = 1024 * 1024;
 const MODULE_NAME: &str = "plugin.js";
 
 /// 全部能力，按声明顺序排列（`capabilities()` 返回时按这个顺序，便于测试和展示稳定）。
-const ALL_CAPABILITIES: [Capability; 10] = [
+const ALL_CAPABILITIES: [Capability; 11] = [
     Capability::Search,
     Capability::Browse,
     Capability::Stream,
@@ -64,6 +64,7 @@ const ALL_CAPABILITIES: [Capability; 10] = [
     Capability::Artist,
     Capability::Scrobble,
     Capability::ImportPlaylist,
+    Capability::Video,
 ];
 
 /// 插件抛出的结构化错误（PLG-07）。界面据此引导用户。
@@ -123,6 +124,7 @@ fn capability_name(capability: Capability) -> &'static str {
         Capability::Artist => "artist",
         Capability::Scrobble => "scrobble",
         Capability::ImportPlaylist => "importPlaylist",
+        Capability::Video => "video",
     }
 }
 

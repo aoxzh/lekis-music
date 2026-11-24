@@ -26,6 +26,8 @@ pub enum PluginKind {
     LyricsStyle,
     /// 可视化。
     Visualizer,
+    /// 官方视频页（音源插件的可选能力）。
+    Video,
 }
 
 impl PluginKind {
@@ -41,6 +43,7 @@ impl PluginKind {
             Self::Theme => "theme",
             Self::LyricsStyle => "lyrics_style",
             Self::Visualizer => "visualizer",
+            Self::Video => "video",
         }
     }
 }
@@ -69,6 +72,8 @@ pub enum Capability {
     Scrobble,
     /// 导入歌单。
     ImportPlaylist,
+    /// 官方视频页。
+    Video,
 }
 
 /// 运行时类型。

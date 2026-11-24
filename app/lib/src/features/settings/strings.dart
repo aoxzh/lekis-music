@@ -124,6 +124,11 @@ abstract final class SettingsStrings {
     'Volume, ReplayGain, EQ and crossfade are bypassed; gapless is unavailable.',
   );
   static String get gapless => L10n.tr('无缝播放', 'Gapless Playback');
+  static String get video => L10n.tr('视频播放', 'Video Playback');
+  static String get videoHint => L10n.tr(
+    '在曲目菜单显示“观看视频”；官方「视频播放」插件默认开启，关闭后隐藏整个入口',
+    'Show “Watch video” in track menus. The official Video Playback plugin is on by default; turn it off to hide the entry.',
+  );
   static String get gaplessHint => L10n.tr(
     '去掉曲目之间的静音间隙，现场专辑和古典乐更连贯',
     'Remove silence between consecutive tracks for live and classical albums',
@@ -209,8 +214,8 @@ abstract final class SettingsStrings {
   );
   static String get lyricsRuby => L10n.tr('注音歌词', 'Ruby Lyrics');
   static String get lyricsRubyHint => L10n.tr(
-    '在汉字上方标出拼音，本地计算、不联网；经典歌词视图生效',
-    'Show pinyin above each character, computed on device. Classic lyrics view.',
+    '中文歌词在汉字上方标拼音；日文歌词可标假名或罗马音。本地计算、不联网；经典歌词视图生效',
+    'Show pinyin above Chinese characters, or kana / romaji above Japanese lines. Computed on device. Classic lyrics view.',
   );
   static String get lyricsFontSize => L10n.tr('歌词字号', 'Lyrics text size');
   static String get lyricsFontSizeHint => L10n.tr(
@@ -249,6 +254,8 @@ abstract final class SettingsStrings {
   static String get rubyPlain => L10n.tr('拼音', 'Pinyin');
   static String get rubyTone => L10n.tr('带声调', 'With Tones');
   static String get rubyToneNum => L10n.tr('声调数字', 'Tone Numbers');
+  static String get rubyKana => L10n.tr('日文假名', 'Japanese Kana');
+  static String get rubyRomaji => L10n.tr('日文罗马音', 'Japanese Romaji');
 
   static String get system => L10n.tr('系统', 'System');
   static String get desktopTrayEnabled => L10n.tr('显示托盘图标', 'Show Tray Icon');

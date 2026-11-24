@@ -248,6 +248,30 @@ Future<SearchResultsDto> searchPlugin({
   limit: limit,
 );
 
+/// Open a source plugin's official video page for one track.
+Future<VideoTargetDto> pluginVideo({
+  required String pluginId,
+  required String externalId,
+}) => RustLib.instance.api.crateApiCorePluginVideo(
+  pluginId: pluginId,
+  externalId: externalId,
+);
+
+/// Ask an optional video-provider plugin to resolve another source's track.
+Future<VideoTargetDto> pluginResolveVideo({
+  required String resolverId,
+  required String sourcePluginId,
+  required String externalId,
+  String? title,
+  required List<String> artists,
+}) => RustLib.instance.api.crateApiCorePluginResolveVideo(
+  resolverId: resolverId,
+  sourcePluginId: sourcePluginId,
+  externalId: externalId,
+  title: title,
+  artists: artists,
+);
+
 /// Browse an enabled source plugin's public pages and collections.
 Future<PluginBrowsePageDto> browsePlugin({
   required String pluginId,

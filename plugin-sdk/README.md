@@ -8,6 +8,7 @@
 | [`js/`](js/) | `@lekis/plugin-sdk`：TypeScript 类型定义 | 1.2 |
 | [`wit/lekis-plugin.wit`](wit/lekis-plugin.wit) | WASM 插件接口 | 1.x 草案 |
 | [`examples/lrclib-lyrics/`](examples/lrclib-lyrics/) | 最小示例：LRCLIB 歌词 | 可读 |
+| [`examples/video-playback/`](examples/video-playback/) | 可选视频页兼容层：B 站 / YouTube | 可读 |
 
 宿主现状：JS 运行时（`lekis-plugin-host`，rquickjs）和 App 内本地插件管理（文件夹 / zip 安装、启用、权限、设置、删除）已经可用；WASM 运行时、GitHub topic 索引、脚手架 CLI 还没做（1.0 / 1.x）。
 
@@ -41,6 +42,20 @@ my-plugin/
 JS 音源插件声明 `kinds: ["source"]`，导出 `search({query,type,cursor?,limit?})` 和 `stream({id,quality})`。App 搜索页会列出已启用的音源插件，目前只查询 `type: "track"` 的第一页。Rust 门面提供 `search_plugin(plugin_id, query, limit)`，桥接层同名；返回普通 `SearchResults`，能直接使用现有队列、收藏、歌单与播放详情。
 
 搜索结果以 `SourceKind::Plugin` 和插件原始歌曲 ID 追加到资料库。新搜索不会删除旧搜索的歌曲引用。播放解析器在每次播放时调用 `stream`，校验 `permissions.network`、请求头域名权限和 `expiresAt`，再交给原生 HTTP Range / 解码链路；临时地址不写入数据库。搜索和浏览曲目可附带 `artworkUrl`；MyGO 的 `imageUrl`（含专辑封面回退）会适配为该字段。宿主按插件网络权限保存地址，界面通过既有 `artwork(trackId)` 按需下载、解码并生成 128/256/512/1024 WebP 缓存，关联普通 `artwork_id`；界面只读取本地 `artworkPath`。每个重定向都检查原插件权限，不转发音频凭据；下载最多 8 MiB，图片最大 8192×8192、解码分配最多 64 MiB。封面下载最多四个并发，同曲目请求去重，失败只显示占位图并退避 30 秒，不阻断搜索或播放。重新搜索会为旧导入曲目补封面元资料，播放也可后台按原始 ID 精确回填；不会覆盖用户已指定的封面。MyGO 兼容音源可从搜索页或插件详情进入公开内容浏览，支持目录导航。通用浏览接口支持游标分页，MyGO 的公开 browse 协议本身不声明游标。原生 Lekis browse 可通过桥接接口调用。
+
+### 官方视频页（API 1.2）
+
+音源插件可以在 `kinds` 里额外声明 `"video"`，并导出 `video({id})`，返回当前曲目对应的官方页面：
+
+```ts
+export async function video({ id }: VideoParams): Promise<VideoResult> {
+  return { url: `https://player.example.com/embed/${id}`, title: "MV" };
+}
+```
+
+`url` 必须是 HTTPS，主机名必须出现在 `permissions.network` 里。宿主只打开这个页面（macOS / Android / Windows / Linux 都优先内嵌受限 WebView，运行时不完整时退回系统浏览器），不会解析、下载或转存视频流。App 附带官方“视频播放”插件并默认开启，插件本身有启用开关；用户也可以在设置里关闭整个视频入口。详细边界见 [ADR-0011](../docs/adr/0011-video-playback.md)。
+
+独立视频插件（`kinds: ["video"]`、不包含 `source`）作为兼容层时，同一个 `video` 能力收到的参数是 `{sourcePluginId, externalId, title?, artists?}`，返回同样的 `{url, title?}`。App 先问音源插件，再问已启用的独立视频插件，最后才用内置 B 站兜底。参考实现见 [`examples/video-playback/`](examples/video-playback/)。
 
 插件执行时读取 App 已保存的设置，包括密码项（密码仍不在详情接口回显）。同一插件的运行时缓存会随代码、设置、进程授权变动而重建；`host.storage` 按插件配额持久化到 `plugin-data/<id>/storage.json`，跨 App 重启和运行时重建保留；每次调用（包括执行后报错）都会保存。Unix 目录/文件权限为 0700/0600。该 JSON 不是系统钥匙串，请勿把它理解为加密凭据库。插件调用串行；调用者取消后，实际执行和持久化仍会完成，卸载等待该任务结束。网页登录等尚未落地的宿主 API 仍会明确返回不支持。
 

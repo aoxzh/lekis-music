@@ -7,6 +7,7 @@
 
 use flutter_rust_bridge::frb;
 use lekis_enrich::ruby::{self, PinyinStyle};
+use lekis_enrich::ruby_ja::{self, JapaneseRubyStyle};
 
 /// 拼音写法。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,4 +72,43 @@ pub fn lyric_ruby_lines(lines: Vec<String>, style: PinyinStyleDto) -> Vec<RubyLi
 #[frb(sync)]
 pub fn lyric_has_han(text: String) -> bool {
     ruby::contains_han(&text)
+}
+
+/// 日语注音写法。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JapaneseRubyStyleDto {
+    /// 汉字上方标平假名（振假名）。
+    Kana,
+    /// 汉字和假名上方标罗马音。
+    Romaji,
+}
+
+impl From<JapaneseRubyStyleDto> for JapaneseRubyStyle {
+    fn from(value: JapaneseRubyStyleDto) -> Self {
+        match value {
+            JapaneseRubyStyleDto::Kana => Self::Kana,
+            JapaneseRubyStyleDto::Romaji => Self::Romaji,
+        }
+    }
+}
+
+/// 给整首日语歌词逐行注音（振假名或罗马音）。
+///
+/// 没有假名的行返回空 `spans`；偏移同样按 UTF-16 计。
+#[frb(sync)]
+pub fn lyric_ruby_ja_lines(lines: Vec<String>, style: JapaneseRubyStyleDto) -> Vec<RubyLineDto> {
+    let style = JapaneseRubyStyle::from(style);
+    ruby_ja::annotate_lines(&lines, style)
+        .into_iter()
+        .map(|spans| RubyLineDto {
+            spans: spans
+                .into_iter()
+                .map(|s| RubySpanDto {
+                    start: u32::try_from(s.start).unwrap_or(u32::MAX),
+                    end: u32::try_from(s.end).unwrap_or(u32::MAX),
+                    ruby: s.ruby,
+                })
+                .collect(),
+        })
+        .collect()
 }

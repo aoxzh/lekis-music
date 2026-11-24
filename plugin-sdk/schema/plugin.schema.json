@@ -40,7 +40,7 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": {
-        "enum": ["source", "lyrics", "artwork", "metadata", "scrobbler", "playlist_importer", "theme", "lyrics_style", "visualizer"]
+        "enum": ["source", "lyrics", "artwork", "metadata", "scrobbler", "playlist_importer", "theme", "lyrics_style", "visualizer", "video"]
       }
     },
     "playback": {

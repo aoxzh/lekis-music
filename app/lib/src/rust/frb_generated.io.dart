@@ -305,6 +305,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 dco_decode_i_64(dynamic raw);
 
   @protected
+  JapaneseRubyStyleDto dco_decode_japanese_ruby_style_dto(dynamic raw);
+
+  @protected
   LetterOffsetDto dco_decode_letter_offset_dto(dynamic raw);
 
   @protected
@@ -860,6 +863,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UsbBitPerfectStatusDto dco_decode_usb_bit_perfect_status_dto(dynamic raw);
 
   @protected
+  VideoTargetDto dco_decode_video_target_dto(dynamic raw);
+
+  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
   @protected
@@ -1212,6 +1218,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+
+  @protected
+  JapaneseRubyStyleDto sse_decode_japanese_ruby_style_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   LetterOffsetDto sse_decode_letter_offset_dto(SseDeserializer deserializer);
@@ -1919,6 +1930,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  VideoTargetDto sse_decode_video_target_dto(SseDeserializer deserializer);
+
+  @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
     SseSerializer serializer,
@@ -2358,6 +2372,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_japanese_ruby_style_dto(
+    JapaneseRubyStyleDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_letter_offset_dto(
@@ -3265,6 +3285,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_usb_bit_perfect_status_dto(
     UsbBitPerfectStatusDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_video_target_dto(
+    VideoTargetDto self,
     SseSerializer serializer,
   );
 }
