@@ -183,6 +183,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TrackSortDto dco_decode_box_autoadd_track_sort_dto(dynamic raw);
 
   @protected
+  TrackSourceScopeDto dco_decode_box_autoadd_track_source_scope_dto(
+    dynamic raw,
+  );
+
+  @protected
   TrackTagOverridesDto dco_decode_box_autoadd_track_tag_overrides_dto(
     dynamic raw,
   );
@@ -480,6 +485,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<RuleGroupDto> dco_decode_list_rule_group_dto(dynamic raw);
 
   @protected
+  List<ScopedArtistCreditDto> dco_decode_list_scoped_artist_credit_dto(
+    dynamic raw,
+  );
+
+  @protected
+  List<ScopedTrackMetadataDto> dco_decode_list_scoped_track_metadata_dto(
+    dynamic raw,
+  );
+
+  @protected
   List<ShareDto> dco_decode_list_share_dto(dynamic raw);
 
   @protected
@@ -751,6 +766,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ScanPhaseDto dco_decode_scan_phase_dto(dynamic raw);
 
   @protected
+  ScopedArtistCreditDto dco_decode_scoped_artist_credit_dto(dynamic raw);
+
+  @protected
+  ScopedTrackMetadataDto dco_decode_scoped_track_metadata_dto(dynamic raw);
+
+  @protected
   ScrobbleSettingsDto dco_decode_scrobble_settings_dto(dynamic raw);
 
   @protected
@@ -812,6 +833,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TrackSourceInfoDto dco_decode_track_source_info_dto(dynamic raw);
+
+  @protected
+  TrackSourceScopeDto dco_decode_track_source_scope_dto(dynamic raw);
 
   @protected
   TrackTagOverridesDto dco_decode_track_tag_overrides_dto(dynamic raw);
@@ -1030,6 +1054,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TrackSortDto sse_decode_box_autoadd_track_sort_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  TrackSourceScopeDto sse_decode_box_autoadd_track_source_scope_dto(
     SseDeserializer deserializer,
   );
 
@@ -1427,6 +1456,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<ScopedArtistCreditDto> sse_decode_list_scoped_artist_credit_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ScopedTrackMetadataDto> sse_decode_list_scoped_track_metadata_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<ShareDto> sse_decode_list_share_dto(SseDeserializer deserializer);
 
   @protected
@@ -1762,6 +1801,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ScanPhaseDto sse_decode_scan_phase_dto(SseDeserializer deserializer);
 
   @protected
+  ScopedArtistCreditDto sse_decode_scoped_artist_credit_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ScopedTrackMetadataDto sse_decode_scoped_track_metadata_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ScrobbleSettingsDto sse_decode_scrobble_settings_dto(
     SseDeserializer deserializer,
   );
@@ -1833,6 +1882,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TrackSourceInfoDto sse_decode_track_source_info_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  TrackSourceScopeDto sse_decode_track_source_scope_dto(
     SseDeserializer deserializer,
   );
 
@@ -2109,6 +2163,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_track_sort_dto(
     TrackSortDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_track_source_scope_dto(
+    TrackSourceScopeDto self,
     SseSerializer serializer,
   );
 
@@ -2617,6 +2677,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_scoped_artist_credit_dto(
+    List<ScopedArtistCreditDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_scoped_track_metadata_dto(
+    List<ScopedTrackMetadataDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_share_dto(List<ShareDto> self, SseSerializer serializer);
 
   @protected
@@ -3049,6 +3121,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_scan_phase_dto(ScanPhaseDto self, SseSerializer serializer);
 
   @protected
+  void sse_encode_scoped_artist_credit_dto(
+    ScopedArtistCreditDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_scoped_track_metadata_dto(
+    ScopedTrackMetadataDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_scrobble_settings_dto(
     ScrobbleSettingsDto self,
     SseSerializer serializer,
@@ -3144,6 +3228,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_track_source_info_dto(
     TrackSourceInfoDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_track_source_scope_dto(
+    TrackSourceScopeDto self,
     SseSerializer serializer,
   );
 

@@ -4,8 +4,8 @@
 // 并压暗，下方各带一条渐隐的镜像倒影。拖动 / 滚轮 / 方向键切换，甩动后吸附
 // 到最近的一张；点侧边封面把它移到中间，点中间那张打开专辑页。
 //
-// 数据来自分页的 `albumsListProvider`：只构建当前附近的几张封面，滑到新的
-// 一页时才向核心取下一页，不会把整个资料库读进内存。
+// 全库入口按需翻页；传入来源时与该来源的专辑分类共用数据和详情页。
+// 两种入口都只绘制当前封面及其邻近的几张。
 
 import 'dart:math' as math;
 
@@ -15,7 +15,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/album_detail_page.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
+import 'package:lekis/src/features/library/scoped_library_view.dart';
 import 'package:lekis/src/features/library/widgets/album_card.dart';
+import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
@@ -78,14 +80,16 @@ abstract final class _CoverFlowMetrics {
 
 /// 封面流页面。
 class CoverFlowPage extends ConsumerStatefulWidget {
-  const CoverFlowPage({super.key});
+  const CoverFlowPage({super.key, this.scope});
+
+  final LibraryScope? scope;
 
   /// 这一页封面的 Hero 域，同一张专辑在别处出现时标签不会撞。
   static const Object heroScope = 'cover-flow';
 
-  static Route<void> route() => MaterialPageRoute<void>(
+  static Route<void> route({LibraryScope? scope}) => MaterialPageRoute<void>(
     settings: const RouteSettings(name: '/library/cover-flow'),
-    builder: (_) => const CoverFlowPage(),
+    builder: (_) => CoverFlowPage(scope: scope),
   );
 
   @override
@@ -108,6 +112,15 @@ class _CoverFlowPageState extends ConsumerState<CoverFlowPage>
 
   /// 上一次布局的一个槽宽；拖动 / 甩动的换算在 build 之外跑，需要它。
   double _extent = 1;
+
+  @override
+  void didUpdateWidget(CoverFlowPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.scope != widget.scope) {
+      _snap.stop();
+      _position = 0;
+    }
+  }
 
   @override
   void dispose() {
@@ -192,18 +205,20 @@ class _CoverFlowPageState extends ConsumerState<CoverFlowPage>
   }
 
   void _open(AlbumDto album) {
+    final scope = widget.scope;
     Navigator.of(context).push(
-      AlbumDetailPage.route(
-        album.id.toInt(),
-        heroTag: AlbumHeroTag(album.id.toInt(), CoverFlowPage.heroScope),
-        initialAlbum: album,
-      ),
+      scope != null
+          ? ScopedLibraryAlbumPage.route(scope: scope, album: album)
+          : AlbumDetailPage.route(
+              album.id.toInt(),
+              heroTag: AlbumHeroTag(album.id.toInt(), CoverFlowPage.heroScope),
+              initialAlbum: album,
+            ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final list = ref.watch(albumsListProvider(TrackSortDto.title));
     return Scaffold(
       appBar: AppBar(title: Text(context.l10n.pick('封面流', 'Cover Flow'))),
       body: SafeArea(
@@ -212,46 +227,69 @@ class _CoverFlowPageState extends ConsumerState<CoverFlowPage>
         // below the strip has to clear it (it used to sit underneath).
         top: false,
         bottom: false,
-        child: ListenableBuilder(
-          listenable: list,
-          builder: (context, _) {
-            if (list.error != null) {
-              return LoadErrorView(error: list.error!, onRetry: list.retry);
-            }
-            if (list.isInitialLoading) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (list.isEmpty) return const LibraryEmptyState();
-            final count = list.itemCount;
-            final base = math.min(
-              math.max(_position.round(), 0),
-              math.max(0, count - 1),
-            );
-            return Focus(
-              focusNode: _focus,
-              autofocus: true,
-              onKeyEvent: (_, event) => _onKey(event, count),
-              child: Listener(
-                onPointerSignal: (event) => _onPointerSignal(event, count),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: LayoutBuilder(
-                        builder: (context, constraints) => _strip(
-                          list: list,
-                          count: count,
-                          base: base,
-                          constraints: constraints,
-                        ),
-                      ),
-                    ),
-                    _Info(album: list.itemAt(base), index: base, count: count),
-                  ],
+        child: _body(),
+      ),
+    );
+  }
+
+  Widget _body() {
+    final scope = widget.scope;
+    final list = scope == null
+        ? ref.watch(albumsListProvider(TrackSortDto.title))
+        : ref.watch(
+            scopedAlbumsListProvider((scope, ref.watch(albumSortProvider))),
+          );
+    return ListenableBuilder(
+      listenable: list,
+      builder: (context, _) {
+        if (list.error != null) {
+          return LoadErrorView(error: list.error!, onRetry: list.retry);
+        }
+        if (list.isInitialLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (list.isEmpty) {
+          if (scope == null) return const LibraryEmptyState();
+          return LibraryEmptyState(
+            title: context.l10n.pick('这个音源还没有专辑', 'No albums in this source'),
+            message: context.l10n.pick(
+              '可以返回曲库切换音源。',
+              'Return to the library to choose another source.',
+            ),
+          );
+        }
+        return _carousel(list);
+      },
+    );
+  }
+
+  Widget _carousel(PagedList<AlbumDto> list) {
+    final count = list.itemCount;
+    final base = math.min(
+      math.max(_position.round(), 0),
+      math.max(0, count - 1),
+    );
+    return Focus(
+      focusNode: _focus,
+      autofocus: true,
+      onKeyEvent: (_, event) => _onKey(event, count),
+      child: Listener(
+        onPointerSignal: (event) => _onPointerSignal(event, count),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) => _strip(
+                  list: list,
+                  count: count,
+                  base: base,
+                  constraints: constraints,
                 ),
               ),
-            );
-          },
+            ),
+            _Info(album: list.itemAt(base), index: base, count: count),
+          ],
         ),
       ),
     );
@@ -272,12 +310,13 @@ class _CoverFlowPageState extends ConsumerState<CoverFlowPage>
     final extent = side * (1 + _CoverFlowMetrics.slotGap);
     _extent = extent;
 
+    final position = _position.clamp(0.0, _lastPosition(count));
     final first = math.max(0, base - _CoverFlowMetrics.window);
     final last = math.min(count - 1, base + _CoverFlowMetrics.window);
     // 远的先画，居中的最后画，永远压在最上面。
     final slots = <(double, Widget)>[];
     for (var i = first; i <= last; i++) {
-      final offset = i - _position;
+      final offset = i - position;
       slots.add((
         offset.abs(),
         _slot(
@@ -299,7 +338,9 @@ class _CoverFlowPageState extends ConsumerState<CoverFlowPage>
       explicitChildNodes: true,
       label: context.l10n.pick('封面流', 'Cover Flow'),
       customSemanticsActions: {
-        CustomSemanticsAction(label: context.l10n.pick('上一张', 'Previous')): () =>
+        CustomSemanticsAction(
+          label: context.l10n.pick('上一张', 'Previous'),
+        ): () =>
             _centre(base - 1, count),
         CustomSemanticsAction(label: context.l10n.pick('下一张', 'Next')): () =>
             _centre(base + 1, count),
@@ -340,7 +381,6 @@ class _CoverFlowPageState extends ConsumerState<CoverFlowPage>
       1.0,
     );
     final centred = index == base;
-    final shown = album;
     return Positioned(
       left: centreX + offset * extent - side / 2,
       top: 0,
@@ -360,14 +400,15 @@ class _CoverFlowPageState extends ConsumerState<CoverFlowPage>
                 child: _Cover(
                   key: ValueKey('cover-flow.cover-$index'),
                   album: album,
+                  scoped: widget.scope != null,
                   side: side,
                   centred: centred,
                   dim: dim,
                   onTap: () {
                     if (!centred) {
                       _centre(index, count);
-                    } else if (shown != null) {
-                      _open(shown);
+                    } else if (album != null) {
+                      _open(album);
                     }
                   },
                 ),
@@ -403,6 +444,7 @@ class _Cover extends StatelessWidget {
   const _Cover({
     super.key,
     required this.album,
+    required this.scoped,
     required this.side,
     required this.centred,
     required this.dim,
@@ -410,6 +452,7 @@ class _Cover extends StatelessWidget {
   });
 
   final AlbumDto? album;
+  final bool scoped;
   final double side;
 
   /// 是否居中（语义上的 selected，也是唯一参与封面飞行的）。
@@ -439,14 +482,24 @@ class _Cover extends StatelessWidget {
             )
           : SizedBox.square(
               dimension: side,
-              child: AlbumArtHero(
-                album: album,
-                // 倒影是复制品，不能和封面同名。
-                tag: hero && centred
-                    ? AlbumHeroTag(album.id.toInt(), CoverFlowPage.heroScope)
-                    : null,
-                radius: radius,
-              ),
+              child: scoped
+                  ? ArtworkImage(
+                      hash: album.artworkHash,
+                      radius: radius,
+                      placeholderIcon: Icons.album_rounded,
+                      placeholderSeed: album.id,
+                      placeholderLabel: album.title,
+                    )
+                  : AlbumArtHero(
+                      album: album,
+                      tag: hero && centred
+                          ? AlbumHeroTag(
+                              album.id.toInt(),
+                              CoverFlowPage.heroScope,
+                            )
+                          : null,
+                      radius: radius,
+                    ),
             );
       if (dim <= 0) return art;
       return SizedBox.square(

@@ -9,19 +9,29 @@ Future<List<api.MusicExportItemDto>> exportToDestination({
   required Uri destination,
   int? trackId,
   int? albumId,
+  List<int>? albumTrackIds,
   required String nameTemplate,
   required bool includeArtwork,
   required bool includeLyrics,
 }) async {
-  Future<List<api.MusicExportItemDto>> render(String directory) =>
-      api.exportMusic(
-        trackId: trackId,
-        albumId: albumId,
-        directory: directory,
-        nameTemplate: nameTemplate,
-        includeArtwork: includeArtwork,
-        includeLyrics: includeLyrics,
-      );
+  Future<List<api.MusicExportItemDto>> render(String directory) async {
+    Future<List<api.MusicExportItemDto>> write(int? track, int? album) =>
+        api.exportMusic(
+          trackId: track,
+          albumId: album,
+          directory: directory,
+          nameTemplate: nameTemplate,
+          includeArtwork: includeArtwork,
+          includeLyrics: includeLyrics,
+        );
+    if (albumTrackIds == null) return write(trackId, albumId);
+    final rows = <api.MusicExportItemDto>[];
+    for (final id in albumTrackIds) {
+      rows.addAll(await write(id, null));
+    }
+    return rows;
+  }
+
   if (destination.scheme != 'content') {
     return render(destination.toFilePath());
   }

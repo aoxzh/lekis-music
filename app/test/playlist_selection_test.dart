@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_rust_bridge/flutter_rust_bridge.dart' show Int64List;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/playlists/playlist_detail_page.dart';
 import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
@@ -8,6 +10,63 @@ import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
 void main() {
+  test('scoped playlist keeps order and duplicate matching entries', () async {
+    const playlist = PlaylistDto(
+      id: 8,
+      uid: 'mixed',
+      name: 'Mixed',
+      kind: PlaylistKindDto.static_,
+      trackCount: 4,
+      createdAt: 0,
+      updatedAt: 0,
+    );
+    final rows = [
+      for (final id in [3, 2, 1, 3])
+        TrackRowDto(
+          id: id,
+          title: '$id',
+          artistLine: '',
+          durationMs: BigInt.zero,
+          loved: false,
+          isLocal: true,
+        ),
+    ];
+    final container = ProviderContainer.test(
+      overrides: [
+        playlistProvider(8).overrideWith((ref) async => playlist),
+        playlistEntriesProvider(8).overrideWith(
+          (ref) async => [
+            for (final (index, row) in rows.indexed)
+              PlaylistEntryDto(
+                trackUid: '${row.id}',
+                positionKey: '$index',
+                addedAt: 0,
+                track: row,
+              ),
+          ],
+        ),
+        playlistSourceFilterProvider.overrideWithValue(({
+          required scope,
+          required trackIds,
+        }) async {
+          expect(trackIds.map((id) => id.toInt()), [3, 2, 1, 3]);
+          return Int64List.fromList(
+            scope == const TrackSourceScopeDto.local() ? [1, 3] : [2],
+          );
+        }),
+      ],
+    );
+    for (final (scope, ids) in [
+      (const LibraryScope.local(), [3, 1, 3]),
+      (const LibraryScope.nas(), [2]),
+    ]) {
+      final list = await container.read(
+        scopedPlaylistTracksProvider((scope: scope, playlistId: 8)).future,
+      );
+      expect(list.map((row) => row.id), ids);
+    }
+  });
+
   testWidgets(
     'selecting filtered entries preserves selections outside the filter',
     (tester) async {

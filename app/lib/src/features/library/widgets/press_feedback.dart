@@ -50,7 +50,7 @@ class _PressFeedbackState extends State<PressFeedback> {
   void _release() {
     _armed = false;
     _pointer = null;
-    if (_pressed) setState(() => _pressed = false);
+    if (mounted && _pressed) setState(() => _pressed = false);
   }
 
   @override

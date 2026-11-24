@@ -4,7 +4,7 @@ use crate::db::DbResultExt;
 use crate::Library;
 use lekis_types::{
     now_ms, ArtworkId, LekisError, ReplayGain, Result, Track, TrackId, TrackOverlay, TrackQuery,
-    TrackRow, TrackSort, TrackTagOverrides, TrackUid,
+    TrackRow, TrackSort, TrackSourceScope, TrackTagOverrides, TrackUid,
 };
 use rusqlite::{params, OptionalExtension, Row};
 
@@ -32,6 +32,8 @@ pub struct TrackFile {
 pub enum TrackContext {
     /// 全部曲目，按某个维度排序（和 `list_track_rows` 一致）。
     Library(TrackSort),
+    /// A source-filtered song list in its current display order.
+    SourceLibrary(TrackSourceScope, TrackSort),
     /// 一张专辑（碟号 + 曲号）。
     Album(lekis_types::AlbumId),
     /// 一位艺人参与的曲目。
@@ -127,34 +129,67 @@ pub(crate) fn merged_display_values(
     (title, artist_line, album_title)
 }
 
+pub(crate) fn split_tag_genres(genre: &str) -> Vec<String> {
+    genre
+        .split(';')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+fn track_order(sort: TrackSort) -> &'static str {
+    match sort {
+        TrackSort::Title => "t.title_sort_key, t.id",
+        TrackSort::Artist => "t.artist_line, a.title, t.disc_no, t.track_no, t.id",
+        TrackSort::Album => "a.title, t.disc_no, t.track_no, t.id",
+        TrackSort::RecentlyAdded => "t.created_at DESC, t.id DESC",
+        TrackSort::MostPlayed => "COALESCE(u.play_count, 0) DESC, t.id",
+    }
+}
+
 impl Library {
     /// 分页列出曲目（列表页用）。
     pub async fn list_track_rows(&self, q: TrackQuery) -> Result<Vec<TrackRow>> {
+        self.query_track_rows(q, None).await
+    }
+
+    /// List one row per track having a matching source copy.
+    pub async fn list_tracks_by_source(
+        &self,
+        scope: TrackSourceScope,
+        q: TrackQuery,
+    ) -> Result<Vec<TrackRow>> {
+        self.query_track_rows(q, Some(scope)).await
+    }
+
+    async fn query_track_rows(
+        &self,
+        q: TrackQuery,
+        scope: Option<TrackSourceScope>,
+    ) -> Result<Vec<TrackRow>> {
         if q.limit == 0 || q.limit > TrackQuery::MAX_LIMIT {
             return Err(LekisError::invalid(format!(
                 "limit must be 1..={}",
                 TrackQuery::MAX_LIMIT
             )));
         }
-        let order = match q.sort {
-            TrackSort::Title => "t.title_sort_key, t.id",
-            TrackSort::Artist => "t.artist_line, a.title, t.disc_no, t.track_no",
-            TrackSort::Album => "a.title, t.disc_no, t.track_no",
-            TrackSort::RecentlyAdded => "t.created_at DESC, t.id DESC",
-            TrackSort::MostPlayed => "COALESCE(u.play_count, 0) DESC, t.id",
-        };
+        let order = track_order(q.sort);
         let sql = format!(
             "SELECT {TRACK_ROW_COLUMNS}
              FROM catalog_track t
              LEFT JOIN album a ON a.id = t.album_id
              LEFT JOIN user_state u ON u.track_uid = t.uid
              ORDER BY {order}
-             LIMIT ?1 OFFSET ?2"
+             LIMIT ? OFFSET ?"
         );
+        let (sql, mut args) = crate::catalog::scoped_query(scope, &sql);
+        args.push(q.limit.into());
+        args.push(q.offset.into());
         self.read(move |c| {
-            let mut stmt = c.prepare_cached(&crate::catalog::query(&sql)).db()?;
+            let mut stmt = c.prepare_cached(&sql).db()?;
             let rows = stmt
-                .query_map(params![q.limit, q.offset], map_track_row)
+                .query_map(rusqlite::params_from_iter(args), map_track_row)
                 .db()?;
             rows.collect::<rusqlite::Result<Vec<_>>>().db()
         })
@@ -337,12 +372,7 @@ impl Library {
                     track.disc_no = Some(disc_no);
                 }
                 if let Some(genre) = tags.genre {
-                    track.genres = genre
-                        .split(';')
-                        .map(str::trim)
-                        .filter(|s| !s.is_empty())
-                        .map(str::to_owned)
-                        .collect();
+                    track.genres = split_tag_genres(&genre);
                 }
                 if let Some(mbid) = tags.musicbrainz_track_id {
                     track.mbid_recording = Some(mbid);
@@ -523,6 +553,27 @@ impl Library {
         let mut offset = 0u32;
         loop {
             let page: Vec<Option<TrackId>> = match &context {
+                TrackContext::SourceLibrary(scope, sort) => {
+                    let select = format!(
+                        "SELECT t.id FROM catalog_track t
+                        LEFT JOIN album a ON a.id = t.album_id
+                        LEFT JOIN user_state u ON u.track_uid = t.uid
+                        ORDER BY {} LIMIT {CAP}",
+                        track_order(*sort)
+                    );
+                    let (sql, args) = crate::catalog::scoped_query(Some(scope.clone()), &select);
+                    return self
+                        .read(move |connection| {
+                            let mut statement = connection.prepare_cached(&sql).db()?;
+                            let rows = statement
+                                .query_map(rusqlite::params_from_iter(args), |row| {
+                                    Ok(Some(TrackId(row.get(0)?)))
+                                })
+                                .db()?;
+                            rows.collect::<rusqlite::Result<Vec<_>>>().db()
+                        })
+                        .await;
+                }
                 TrackContext::Library(sort) => self
                     .list_track_rows(TrackQuery {
                         sort: *sort,

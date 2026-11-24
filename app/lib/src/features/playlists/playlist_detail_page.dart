@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/library/artwork_actions.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
+import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
@@ -28,26 +29,30 @@ import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/features/playlists/playlist_strings.dart';
 
 class PlaylistDetailPage extends StatelessWidget {
-  const PlaylistDetailPage({super.key, required this.playlistId});
+  const PlaylistDetailPage({super.key, required this.playlistId, this.scope});
 
   final int playlistId;
+  final LibraryScope? scope;
 
-  static Route<void> route(int playlistId) => MaterialPageRoute<void>(
-    settings: RouteSettings(name: '/playlist/$playlistId'),
-    builder: (_) => PlaylistDetailPage(playlistId: playlistId),
-  );
+  static Route<void> route(int playlistId, {LibraryScope? scope}) =>
+      MaterialPageRoute<void>(
+        settings: RouteSettings(name: '/playlist/$playlistId'),
+        builder: (_) =>
+            PlaylistDetailPage(playlistId: playlistId, scope: scope),
+      );
 
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(),
-    body: PlaylistDetailView(playlistId: playlistId),
+    body: PlaylistDetailView(playlistId: playlistId, scope: scope),
   );
 }
 
 class PlaylistDetailView extends ConsumerStatefulWidget {
-  const PlaylistDetailView({super.key, required this.playlistId});
+  const PlaylistDetailView({super.key, required this.playlistId, this.scope});
 
   final int playlistId;
+  final LibraryScope? scope;
 
   @override
   ConsumerState<PlaylistDetailView> createState() => _PlaylistDetailViewState();
@@ -127,6 +132,73 @@ class _PlaylistDetailViewState extends ConsumerState<PlaylistDetailView> {
     if (playlist == null) {
       return const LekisDelayedSkeleton(
         child: SkeletonTrackListView(top: LekisSpacing.lg),
+      );
+    }
+    final scope = widget.scope;
+    if (scope != null) {
+      final provider = scopedPlaylistTracksProvider((
+        scope: scope,
+        playlistId: playlist.id,
+      ));
+      final active = ref.watch(librarySourceProvider);
+      final tracks = active == scope
+          ? ref.watch(provider)
+          : const AsyncData(<TrackRowDto>[]);
+      return tracks.when(
+        error: (error, _) => Center(
+          child: Text(
+            PlaylistStrings.entriesLoadFailed(describeCoreError(error)),
+          ),
+        ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        data: (rows) {
+          final actions = ref.read(playerActionsProvider);
+          final gutter = pageGutterOf(context);
+          return ListView.builder(
+            padding: EdgeInsets.fromLTRB(
+              gutter,
+              LekisSpacing.md,
+              gutter,
+              scrollEndPadding(context),
+            ),
+            itemCount: rows.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _PlaylistHeader(
+                      playlist: playlist,
+                      subtitle: PlaylistStrings.detailSubtitle(rows.length),
+                      queueTrackIds: [for (final row in rows) row.id],
+                      onPlay: rows.isEmpty
+                          ? null
+                          : () => actions.playRows(rows),
+                      onShuffle: rows.isEmpty
+                          ? null
+                          : () => actions.playRows(rows, shuffle: true),
+                    ),
+                    TextButton.icon(
+                      icon: const Icon(Icons.edit_outlined),
+                      label: Text(
+                        context.l10n.pick('编辑完整歌单', 'Edit full playlist'),
+                      ),
+                      onPressed: () =>
+                          Navigator.of(context)
+                              .push(PlaylistDetailPage.route(playlist.id)),
+                    ),
+                  ],
+                );
+              }
+              return TrackTile(
+                track: rows[index - 1],
+                onlinePlugin: scope.kind == LibraryScopeKind.plugin,
+                pluginId: scope.pluginId,
+                onTap: () => actions.playRows(rows, start: index - 1),
+              );
+            },
+          );
+        },
       );
     }
     return playlist.kind == PlaylistKindDto.smart

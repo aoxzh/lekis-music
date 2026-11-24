@@ -33,6 +33,8 @@ import 'package:material_ui/material_ui.dart';
 /// one group has hits, so simple searches keep the full list.
 enum _SearchFilter { all, tracks, albums, artists }
 
+const _searchPaneWidth = 880.0;
+
 /// Search across songs, albums and artists (debounced).
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key, this.pluginId});
@@ -152,6 +154,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.pluginId != widget.pluginId) {
       _text.text = widget.pluginId == null ? ref.read(searchQueryProvider) : '';
+      _filter = _SearchFilter.all;
+      if (widget.pluginId == null) unawaited(_loadRecent());
     }
   }
 
@@ -167,8 +171,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   void _set(String v) {
     _filter = _SearchFilter.all;
-    ref.read(searchLimitProvider.notifier).reset();
     if (widget.pluginId == null) {
+      ref.read(searchLimitProvider.notifier).reset();
       ref.read(searchQueryProvider.notifier).set(v);
     } else {
       setState(() {});
@@ -177,7 +181,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   void _submit(String v) {
     _set(v);
-    _remember(v);
+    if (widget.pluginId == null) _remember(v);
+  }
+
+  void _clearQuery() {
+    _text.clear();
+    _set('');
+    _searchFocus.requestFocus();
   }
 
   @override
@@ -201,29 +211,59 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         )
         .toList();
 
-    final field = Padding(
-      padding: EdgeInsets.fromLTRB(
-        gutter,
-        LekisSpacing.lg,
-        gutter,
-        LekisSpacing.sm,
-      ),
+    final theme = Theme.of(context);
+    final colors = context.lekisColors;
+    final field = Focus(
+      canRequestFocus: false,
+      onKeyEvent: (_, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.escape &&
+            _text.text.isNotEmpty &&
+            _text.value.composing.isCollapsed) {
+          _clearQuery();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
       child: SearchBar(
         controller: _text,
         focusNode: _searchFocus,
         autoFocus: _isDesktop,
+        constraints: const BoxConstraints(minHeight: 48),
+        elevation: const WidgetStatePropertyAll(0),
+        backgroundColor: WidgetStatePropertyAll(colors.surfaceElevated),
+        padding: const WidgetStatePropertyAll(
+          EdgeInsetsDirectional.only(start: 14, end: 4),
+        ),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(LekisRadius.md),
+          ),
+        ),
+        side: WidgetStateProperty.resolveWith(
+          (states) => BorderSide(
+            color: states.contains(WidgetState.focused)
+                ? theme.colorScheme.primary
+                : colors.outline,
+          ),
+        ),
+        textStyle: WidgetStatePropertyAll(theme.textTheme.bodyLarge),
+        hintStyle: WidgetStatePropertyAll(
+          theme.textTheme.bodyLarge?.copyWith(color: colors.onSurfaceVariant),
+        ),
         hintText: source == null
             ? l10n.pick('歌曲、专辑、艺人', 'Songs, albums, artists')
             : l10n.pick('搜索歌曲', 'Search songs'),
-        leading: const Icon(Icons.search_rounded),
+        leading: Icon(
+          Icons.search_rounded,
+          size: 21,
+          color: colors.onSurfaceVariant,
+        ),
         trailing: [
           if (query.isNotEmpty)
             IconButton(
               tooltip: l10n.pick('清除', 'Clear'),
-              onPressed: () {
-                _text.clear();
-                _set('');
-              },
+              onPressed: _clearQuery,
               icon: const Icon(Icons.close_rounded),
             ),
         ],
@@ -236,25 +276,30 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     Widget body;
     var loading = false;
     if (query.trim().isEmpty) {
-      body = _Hint(
-        text: source == null
-            ? l10n.pick('搜索你的资料库', 'Search Your Library')
-            : l10n.pick('搜索在线音乐', 'Search online music'),
-        message: source == null
-            ? l10n.pick(
-                '输入歌名、专辑、艺人，或直接输入拼音。',
-                'Type a song, album, or artist name.',
-              )
-            : l10n.pick('输入歌名、艺人或歌曲链接。', 'Enter a song, artist, or song URL.'),
-        action: fixedSource == null && _recent.isNotEmpty
-            ? _RecentSearches(
-                queries: _recent,
-                onPick: _pickRecent,
-                onRemove: _forgetRecent,
-                onClear: _clearRecent,
-              )
-            : null,
-      );
+      body = fixedSource == null && _recent.isNotEmpty
+          ? _RecentSearches(
+              queries: _recent,
+              onPick: _pickRecent,
+              onRemove: _forgetRecent,
+              onClear: _clearRecent,
+            )
+          : _Hint(
+              icon: source == null
+                  ? Icons.library_music_outlined
+                  : Icons.travel_explore_rounded,
+              text: source == null
+                  ? l10n.pick('搜索你的资料库', 'Search Your Library')
+                  : l10n.pick('搜索在线音乐', 'Search online music'),
+              message: source == null
+                  ? l10n.pick(
+                      '中文名称也支持拼音搜索。',
+                      'You can also search Chinese names using pinyin.',
+                    )
+                  : l10n.pick(
+                      '输入歌名、艺人或歌曲链接。',
+                      'Enter a song, artist, or song URL.',
+                    ),
+            );
     } else {
       final data = results.value;
       // Riverpod retains previous data while refreshing and after a failure.
@@ -277,6 +322,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           data.albums.isEmpty &&
           data.artists.isEmpty) {
         body = _Hint(
+          icon: Icons.search_off_rounded,
           text: l10n.pick(
             '没有找到“${query.trim()}”',
             'No results for "${query.trim()}"',
@@ -302,102 +348,31 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            field,
-            if (fixedSource == null)
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  key: const ValueKey('spotify-catalog-entry'),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const SpotifyCatalogPage(),
-                    ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(gutter, 16, gutter, 0),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: _searchPaneWidth),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      field,
+                      const SizedBox(height: 4),
+                      _SearchTools(
+                        source: source,
+                        fixed: fixedSource != null,
+                        sources: sources,
+                        onSelect: (value) => ref
+                            .read(searchSourceProvider.notifier)
+                            .set(value.isEmpty ? null : value),
+                      ),
+                      const Divider(height: 1),
+                    ],
                   ),
-                  icon: const Icon(Icons.album_outlined),
-                  label: Text(l10n.pick('在线专辑目录', 'Online album catalogue')),
                 ),
               ),
-            if (sources.isNotEmpty || source != null)
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: gutter),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final choices = [
-                      SettingsChoice('', l10n.pick('资料库', 'Library')),
-                      if (source != null &&
-                          !sources.any((plugin) => plugin.id == source))
-                        SettingsChoice(
-                          source,
-                          l10n.pick('音源不可用', 'Source unavailable'),
-                        ),
-                      for (final plugin in sources)
-                        SettingsChoice(plugin.id, plugin.name),
-                    ];
-                    void select(String value) => ref
-                        .read(searchSourceProvider.notifier)
-                        .set(value.isEmpty ? null : value);
-                    final width = constraints.maxWidth.clamp(0.0, 280.0);
-                    final selectedPlugin = sources
-                        .where((plugin) => plugin.id == source)
-                        .firstOrNull;
-                    return Wrap(
-                      spacing: LekisSpacing.md,
-                      runSpacing: LekisSpacing.xs,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        if (fixedSource == null)
-                          Semantics(
-                            label: l10n.pick('搜索音源', 'Search source'),
-                            child: UiProfile.current.desktopSettings
-                                ? SettingsComboBox<String>(
-                                    value: source ?? '',
-                                    choices: choices,
-                                    minWidth: width.clamp(0.0, 128.0),
-                                    maxWidth: width,
-                                    onChanged: select,
-                                  )
-                                : SizedBox(
-                                    width: width,
-                                    child: DropdownButton<String>(
-                                      value: source ?? '',
-                                      isExpanded: true,
-                                      underline: const SizedBox.shrink(),
-                                      borderRadius: BorderRadius.circular(
-                                        LekisRadius.md,
-                                      ),
-                                      items: [
-                                        for (final choice in choices)
-                                          DropdownMenuItem(
-                                            value: choice.value,
-                                            child: Text(
-                                              choice.label,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                      ],
-                                      onChanged: (value) {
-                                        if (value != null) select(value);
-                                      },
-                                    ),
-                                  ),
-                          ),
-                        if (selectedPlugin?.compatibility == 'mygo')
-                          TextButton.icon(
-                            icon: const Icon(Icons.folder_outlined),
-                            label: Text(l10n.pick('浏览音源', 'Browse source')),
-                            onPressed: () => Navigator.of(context).push(
-                              PluginBrowsePage.route(
-                                selectedPlugin!.id,
-                                selectedPlugin.name,
-                              ),
-                            ),
-                          ),
-                      ],
-                    );
-                  },
-                ),
-              ),
+            ),
             Expanded(
               child: LekisLoadingSwitcher(
                 // Do not retain the previous request's interactive content
@@ -429,6 +404,134 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SearchTools extends StatelessWidget {
+  const _SearchTools({
+    required this.source,
+    required this.fixed,
+    required this.sources,
+    required this.onSelect,
+  });
+  final String? source;
+  final bool fixed;
+  final List<PluginInfoDto> sources;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final selected = sources.where((plugin) => plugin.id == source).firstOrNull;
+    final choices = [
+      SettingsChoice('', l10n.pick('资料库', 'Library')),
+      if (source != null && selected == null)
+        SettingsChoice(source!, l10n.pick('音源不可用', 'Source unavailable')),
+      for (final plugin in sources) SettingsChoice(plugin.id, plugin.name),
+    ];
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: LayoutBuilder(
+        builder: (context, bounds) {
+          final maxWidth = bounds.maxWidth.clamp(0.0, 208.0);
+          final scope = l10n.pick('搜索范围', 'Search in');
+          final selectable = !fixed && choices.length > 1;
+          return Wrap(
+            spacing: 16,
+            runSpacing: 2,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                children: [
+                  Text(
+                    scope,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: context.lekisColors.onSurfaceVariant,
+                    ),
+                  ),
+                  if (selectable)
+                    Semantics(
+                      label: scope,
+                      child: UiProfile.current.desktopSettings
+                          ? SettingsComboBox<String>(
+                              value: source ?? '',
+                              choices: choices,
+                              minWidth: maxWidth.clamp(0, 100),
+                              maxWidth: maxWidth,
+                              onChanged: onSelect,
+                            )
+                          : SizedBox(
+                              width: maxWidth.clamp(
+                                0,
+                                source == null ? 104 : 154,
+                              ),
+                              child: DropdownButton<String>(
+                                value: source ?? '',
+                                isExpanded: true,
+                                underline: const SizedBox.shrink(),
+                                borderRadius: BorderRadius.circular(
+                                  LekisRadius.md,
+                                ),
+                                style: theme.textTheme.bodyMedium,
+                                items: [
+                                  for (final choice in choices)
+                                    DropdownMenuItem(
+                                      value: choice.value,
+                                      child: Text(
+                                        choice.label,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                ],
+                                onChanged: (value) {
+                                  if (value != null) onSelect(value);
+                                },
+                              ),
+                            ),
+                    )
+                  else
+                    Text(
+                      source == null
+                          ? choices.first.label
+                          : selected?.name ??
+                                l10n.pick('音源不可用', 'Source unavailable'),
+                      style: theme.textTheme.titleSmall,
+                    ),
+                ],
+              ),
+              if (!fixed)
+                TextButton.icon(
+                  key: const ValueKey('spotify-catalog-entry'),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const SpotifyCatalogPage(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.album_outlined, size: 18),
+                  label: Text(
+                    l10n.pick('在线专辑目录', 'Online album catalogue'),
+                    style: theme.textTheme.labelLarge,
+                  ),
+                ),
+              if (selected != null && selected.compatibility == 'mygo')
+                TextButton.icon(
+                  icon: const Icon(Icons.folder_outlined, size: 18),
+                  label: Text(
+                    l10n.pick('浏览音源', 'Browse source'),
+                    style: theme.textTheme.labelLarge,
+                  ),
+                  onPressed: () => Navigator.of(context)
+                      .push(PluginBrowsePage.route(selected.id, selected.name)),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -702,14 +805,61 @@ class _Results extends ConsumerWidget {
 }
 
 class _Hint extends StatelessWidget {
-  const _Hint({required this.text, this.message = '', this.action});
+  const _Hint({required this.icon, required this.text, required this.message});
+  final IconData icon;
   final String text;
   final String message;
-  final Widget? action;
 
   @override
-  Widget build(BuildContext context) =>
-      LekisEmptyState(title: text, message: message, action: action);
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListView(
+      padding: EdgeInsets.symmetric(
+        horizontal: pageGutterOf(context),
+        vertical: 28,
+      ),
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: context.lekisColors.surfaceVariant,
+                borderRadius: BorderRadius.circular(LekisRadius.md),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Icon(
+                  icon,
+                  size: 24,
+                  color: context.lekisColors.onSurfaceVariant,
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Semantics(
+                    header: true,
+                    child: Text(text, style: theme.textTheme.titleLarge),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    message,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: context.lekisColors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 }
 
 class _RecentSearches extends StatelessWidget {
@@ -729,38 +879,66 @@ class _RecentSearches extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = context.l10n;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return ListView(
+      padding: EdgeInsets.fromLTRB(
+        pageGutterOf(context),
+        16,
+        pageGutterOf(context),
+        scrollEndPadding(context),
+      ),
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              l10n.pick('最近搜索', 'Recent searches'),
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: _searchPaneWidth),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Semantics(
+                        header: true,
+                        child: Text(
+                          l10n.pick('最近搜索', 'Recent searches'),
+                          style: theme.textTheme.titleMedium,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: onClear,
+                      child: Text(
+                        l10n.pick('清空', 'Clear all'),
+                        style: theme.textTheme.labelLarge,
+                      ),
+                    ),
+                  ],
+                ),
+                for (final query in queries)
+                  ListTile(
+                    key: ValueKey(query),
+                    contentPadding: const EdgeInsetsDirectional.only(start: 8),
+                    minTileHeight: 48,
+                    leading: Icon(
+                      Icons.history_rounded,
+                      size: 18,
+                      color: context.lekisColors.onSurfaceVariant,
+                    ),
+                    title: Text(
+                      query,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyLarge,
+                    ),
+                    onTap: () => onPick(query),
+                    trailing: IconButton(
+                      tooltip: l10n.pick('移除“$query”', 'Remove "$query"'),
+                      onPressed: () => onRemove(query),
+                      icon: const Icon(Icons.close_rounded, size: 16),
+                    ),
+                  ),
+              ],
             ),
-            TextButton(
-              onPressed: onClear,
-              child: Text(l10n.pick('清除', 'Clear')),
-            ),
-          ],
-        ),
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: LekisSpacing.sm,
-          runSpacing: LekisSpacing.xs,
-          children: [
-            for (final query in queries)
-              InputChip(
-                avatar: const Icon(Icons.history_rounded, size: 18),
-                label: Text(query),
-                onPressed: () => onPick(query),
-                onDeleted: () => onRemove(query),
-                deleteButtonTooltipMessage: l10n.pick('删除', 'Remove'),
-              ),
-          ],
+          ),
         ),
       ],
     );

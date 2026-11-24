@@ -1103,6 +1103,56 @@ impl LekisCore {
             .await
     }
 
+    /// Page through the library IDs carried by one group of sources.
+    pub async fn list_tracks_by_source(
+        &self,
+        scope: TrackSourceScope,
+        query: TrackQuery,
+    ) -> Result<Vec<TrackRow>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.list_tracks_by_source(scope, query).await })
+            .await
+    }
+
+    /// List albums using only tracks belonging to the selected source.
+    pub async fn list_albums_by_source(
+        &self,
+        scope: TrackSourceScope,
+        sort: TrackSort,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<Album>> {
+        let s = self.services.clone();
+        self.run(async move {
+            s.library
+                .list_albums_by_source(scope, sort, offset, limit)
+                .await
+        })
+        .await
+    }
+
+    /// Fetch category metadata for the matching input tracks in one batch.
+    pub async fn track_metadata_by_source(
+        &self,
+        scope: TrackSourceScope,
+        ids: Vec<TrackId>,
+    ) -> Result<Vec<ScopedTrackMetadata>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.track_metadata_by_source(scope, ids).await })
+            .await
+    }
+
+    /// Keep matching input IDs in their original order.
+    pub async fn filter_track_ids_by_source(
+        &self,
+        scope: TrackSourceScope,
+        ids: Vec<TrackId>,
+    ) -> Result<Vec<TrackId>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.filter_track_ids_by_source(scope, ids).await })
+            .await
+    }
+
     /// 曲目详情。
     ///
     /// 负数的合成 `TrackId` 表示网络电台（SRC-11），返回一个时长 0 的虚拟曲目，
@@ -1396,6 +1446,23 @@ impl LekisCore {
         let s = self.services.clone();
         self.run(async move { s.library.album_tracks(id, offset, limit).await })
             .await
+    }
+
+    /// Page through one album in disc order within the selected library source.
+    pub async fn album_tracks_by_source(
+        &self,
+        scope: TrackSourceScope,
+        id: AlbumId,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<TrackRow>> {
+        let s = self.services.clone();
+        self.run(async move {
+            s.library
+                .album_tracks_by_source(scope, id, offset, limit)
+                .await
+        })
+        .await
     }
 
     /// 专辑的艺人署名。

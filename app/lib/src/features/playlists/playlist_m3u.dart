@@ -10,6 +10,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
+import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/playlists/playlist_actions.dart';
 import 'package:lekis/src/features/playlists/playlist_detail_page.dart';
 import 'package:lekis/src/features/playlists/playlist_providers.dart';
@@ -229,7 +230,9 @@ Future<void> exportPlaylistM3uFlow(
       bytes: Uint8List.fromList(utf8.encode(text)),
       mimeType: isM3u ? 'audio/x-mpegurl' : 'application/xspf+xml',
     );
-    if (saved != null && context.mounted) _snack(context, PlaylistStrings.saved(fileName));
+    if (saved != null && context.mounted) {
+      _snack(context, PlaylistStrings.saved(fileName));
+    }
   } catch (e) {
     if (context.mounted) _snack(context, PlaylistStrings.saveFailed(e));
   }
@@ -397,7 +400,9 @@ class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.playlist_add_check_rounded),
-          label: Text(_busy ? PlaylistStrings.importing : PlaylistStrings.import),
+          label: Text(
+            _busy ? PlaylistStrings.importing : PlaylistStrings.import,
+          ),
         ),
       ],
     );
@@ -428,7 +433,10 @@ Future<bool?> showM3uImportReportDialog(
                   Text(outcome.summary),
                   const SizedBox(height: LekisSpacing.xs),
                   Text(
-                    PlaylistStrings.importCounts(outcome.matched, outcome.unmatched),
+                    PlaylistStrings.importCounts(
+                      outcome.matched,
+                      outcome.unmatched,
+                    ),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colors.onSurfaceVariant,
                     ),
@@ -479,7 +487,11 @@ Future<bool?> showM3uImportReportDialog(
 }
 
 /// 导入流程：选择/粘贴 → 导入 → 显示匹配报告 → 可选打开新歌单。
-Future<void> importPlaylistM3uFlow(BuildContext context, WidgetRef ref) async {
+Future<void> importPlaylistM3uFlow(
+  BuildContext context,
+  WidgetRef ref, {
+  LibraryScope? scope,
+}) async {
   final outcome = await showDialog<PlaylistImportOutcome>(
     context: context,
     builder: (_) => const PlaylistM3uImportDialog(),
@@ -490,7 +502,7 @@ Future<void> importPlaylistM3uFlow(BuildContext context, WidgetRef ref) async {
   final open = await showM3uImportReportDialog(context, outcome);
   if (open == true && context.mounted) {
     await Navigator.of(context)
-        .push(PlaylistDetailPage.route(outcome.playlistId));
+        .push(PlaylistDetailPage.route(outcome.playlistId, scope: scope));
   }
 }
 

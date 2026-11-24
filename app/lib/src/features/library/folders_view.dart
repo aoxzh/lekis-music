@@ -10,6 +10,7 @@ import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/paged_track_list.dart';
 import 'package:lekis/src/features/library/widgets/press_feedback.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/sources/sources_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/layout/adaptive_two_pane.dart';
 import 'package:lekis/src/layout/fold.dart';
@@ -19,7 +20,9 @@ import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
 class FoldersView extends ConsumerWidget {
-  const FoldersView({super.key});
+  const FoldersView({super.key, this.scope = const LibraryScope.local()});
+
+  final LibraryScope scope;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -28,7 +31,10 @@ class FoldersView extends ConsumerWidget {
 
     if (!twoPane) {
       if (selected == null) {
-        return FolderRootsList(onOpen: (root) => _openRoot(ref, root));
+        return FolderRootsList(
+          scope: scope,
+          onOpen: (root) => _openRoot(ref, root),
+        );
       }
       return _SingleFolderView(
         key: ValueKey('${selected.sourceId}:${selected.path}'),
@@ -38,7 +44,7 @@ class FoldersView extends ConsumerWidget {
 
     return AdaptiveTwoPane(
       primaryFraction: 0.36,
-      primary: _NavigationPane(location: selected),
+      primary: _NavigationPane(location: selected, scope: scope),
       secondary: selected == null
           ? const _PickPrompt()
           : _FolderTracksView(
@@ -61,21 +67,48 @@ class FoldersView extends ConsumerWidget {
   }
 }
 
+final scopedFolderRootsProvider = FutureProvider.autoDispose
+    .family<List<core.FolderRootDto>, LibraryScope>((ref, scope) async {
+      final roots = ref.watch(folderRootsProvider.future);
+      final sources = ref.watch(sourcesProvider.future);
+      final (rows, configs) = await (roots, sources).wait;
+      final sourceIds = {
+        for (final source in configs)
+          if (switch (scope.kind) {
+            LibraryScopeKind.local => source.kind == SourceKindDto.local,
+            LibraryScopeKind.nas =>
+              source.kind != SourceKindDto.local &&
+                  source.kind != SourceKindDto.radio &&
+                  source.kind != SourceKindDto.plugin,
+            LibraryScopeKind.plugin =>
+              source.kind == SourceKindDto.plugin &&
+                  source.rootPath == scope.pluginId,
+          })
+            source.id,
+      };
+      return rows.where((root) => sourceIds.contains(root.sourceId)).toList();
+    });
+
 /// 第一层：有曲目的音源。
 class FolderRootsList extends ConsumerWidget {
-  const FolderRootsList({super.key, required this.onOpen});
+  const FolderRootsList({super.key, required this.scope, required this.onOpen});
 
+  final LibraryScope scope;
   final ValueChanged<core.FolderRootDto> onOpen;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final roots = ref.watch(folderRootsProvider);
+    final provider = scopedFolderRootsProvider(scope);
+    final roots = ref.watch(provider);
     final gutter = pageGutterOf(context);
     return roots.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => LoadErrorView(
         error: e,
-        onRetry: () => ref.invalidate(folderRootsProvider),
+        onRetry: () {
+          ref.invalidate(folderRootsProvider);
+          ref.invalidate(sourcesProvider);
+        },
       ),
       data: (roots) {
         if (roots.isEmpty) {
@@ -113,15 +146,17 @@ class FolderRootsList extends ConsumerWidget {
 
 /// 宽窗口左栏：根目录列表，或当前目录的子文件夹。
 class _NavigationPane extends ConsumerWidget {
-  const _NavigationPane({required this.location});
+  const _NavigationPane({required this.location, required this.scope});
 
   final FolderLocation? location;
+  final LibraryScope scope;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final location = this.location;
     if (location == null) {
       return FolderRootsList(
+        scope: scope,
         onOpen: (root) {
           ref
               .read(selectedFolderProvider.notifier)

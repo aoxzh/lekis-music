@@ -10,24 +10,29 @@ Future<void> showMusicExport(
   BuildContext context, {
   int? trackId,
   int? albumId,
+  List<int>? albumTrackIds,
 }) => showDialog<void>(
   context: context,
   barrierDismissible: false,
-  builder: (_) => _ExportDialog(trackId: trackId, albumId: albumId),
+  builder: (_) => _ExportDialog(
+    trackId: trackId,
+    albumId: albumId,
+    albumTrackIds: albumTrackIds,
+  ),
 );
 
 class _ExportDialog extends StatefulWidget {
-  const _ExportDialog({this.trackId, this.albumId});
+  const _ExportDialog({this.trackId, this.albumId, this.albumTrackIds});
   final int? trackId;
   final int? albumId;
+  final List<int>? albumTrackIds;
+  bool get isAlbum => albumId != null || albumTrackIds != null;
   @override
   State<_ExportDialog> createState() => _ExportDialogState();
 }
 
 class _ExportDialogState extends State<_ExportDialog> {
-  late String template = widget.albumId == null
-      ? '{title}'
-      : '{disc}-{track} {title}';
+  late String template = widget.isAlbum ? '{disc}-{track} {title}' : '{title}';
   Uri? directory;
   String? error;
   bool artwork = true;
@@ -59,6 +64,7 @@ class _ExportDialogState extends State<_ExportDialog> {
       final rows = await exportToDestination(
         trackId: widget.trackId,
         albumId: widget.albumId,
+        albumTrackIds: widget.albumTrackIds,
         destination: directory!,
         nameTemplate: template,
         includeArtwork: artwork,
@@ -81,9 +87,9 @@ class _ExportDialogState extends State<_ExportDialog> {
       canPop: !busy,
       child: AlertDialog(
         title: Text(
-          widget.albumId == null
-              ? pick('导出音乐文件', 'Export music file')
-              : pick('导出整张专辑', 'Export album'),
+          widget.isAlbum
+              ? pick('导出整张专辑', 'Export album')
+              : pick('导出音乐文件', 'Export music file'),
         ),
         content: SizedBox(
           width: 440,

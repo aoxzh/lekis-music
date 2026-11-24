@@ -2,6 +2,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
+import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/playlists/playlist_actions.dart';
 import 'package:lekis/src/features/playlists/playlist_cover.dart';
@@ -16,11 +17,14 @@ import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/features/playlists/playlist_strings.dart';
+
 import '../../l10n/app_l10n.dart';
 import '../plugins/online_collections_page.dart';
 
 class PlaylistsView extends ConsumerWidget {
-  const PlaylistsView({super.key});
+  const PlaylistsView({super.key, this.scope});
+
+  final LibraryScope? scope;
 
   Future<void> _create(
     BuildContext context,
@@ -47,7 +51,7 @@ class PlaylistsView extends ConsumerWidget {
             .push(SmartPlaylistEditorPage.route(id, name: name));
       } else {
         if (!context.mounted) return;
-        Navigator.of(context).push(PlaylistDetailPage.route(id));
+        Navigator.of(context).push(PlaylistDetailPage.route(id, scope: scope));
       }
     } catch (e) {
       if (context.mounted) showPlaylistError(context, e);
@@ -55,7 +59,7 @@ class PlaylistsView extends ConsumerWidget {
   }
 
   Future<void> _import(BuildContext context, WidgetRef ref) async {
-    await importPlaylistM3uFlow(context, ref);
+    await importPlaylistM3uFlow(context, ref, scope: scope);
   }
 
   @override
@@ -92,10 +96,15 @@ class PlaylistsView extends ConsumerWidget {
                 children: [
                   OutlinedButton.icon(
                     onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(builder: (_) => const OnlineCollectionsPage()),
+                      MaterialPageRoute<void>(
+                        builder: (_) =>
+                            OnlineCollectionsPage(pluginId: scope?.pluginId),
+                      ),
                     ),
                     icon: const Icon(Icons.public_rounded),
-                    label: Text(context.l10n.pick('在线歌单与榜单', 'Online collections')),
+                    label: Text(
+                      context.l10n.pick('在线歌单与榜单', 'Online collections'),
+                    ),
                   ),
                   OutlinedButton.icon(
                     onPressed: () => _create(context, ref, smart: false),
@@ -135,7 +144,10 @@ class PlaylistsView extends ConsumerWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(PlaylistStrings.listLoadFailed, style: theme.textTheme.titleMedium),
+                    Text(
+                      PlaylistStrings.listLoadFailed,
+                      style: theme.textTheme.titleMedium,
+                    ),
                     const SizedBox(height: LekisSpacing.xs),
                     Text(
                       describeCoreError(e),
@@ -170,9 +182,9 @@ class PlaylistsView extends ConsumerWidget {
                     final playlist = items[i];
                     return _PlaylistTile(
                       playlist: playlist,
-                      onOpen: () =>
-                          Navigator.of(context)
-                              .push(PlaylistDetailPage.route(playlist.id)),
+                      onOpen: () => Navigator.of(context).push(
+                        PlaylistDetailPage.route(playlist.id, scope: scope),
+                      ),
                       onRename: () =>
                           renamePlaylistFlow(context, ref, playlist),
                       onDelete: () async {
@@ -274,19 +286,13 @@ class _PlaylistTile extends StatelessWidget {
           },
           itemBuilder: (_) => [
             PopupMenuItem(value: 'open', child: Text(PlaylistStrings.open)),
-            PopupMenuItem(
-              value: 'rename',
-              child: Text(PlaylistStrings.rename),
-            ),
+            PopupMenuItem(value: 'rename', child: Text(PlaylistStrings.rename)),
             if (onEditRules != null)
               PopupMenuItem(
                 value: 'rules',
                 child: Text(PlaylistStrings.editRules),
               ),
-            PopupMenuItem(
-              value: 'delete',
-              child: Text(PlaylistStrings.delete),
-            ),
+            PopupMenuItem(value: 'delete', child: Text(PlaylistStrings.delete)),
           ],
         ),
       ),

@@ -170,6 +170,50 @@ Future<List<TrackRowDto>> listTracks({
   limit: limit,
 );
 
+/// List persisted tracks with a copy in the selected source scope. Page limit is 1–500.
+Future<List<TrackRowDto>> listTracksBySource({
+  required TrackSourceScopeDto scope,
+  required TrackSortDto sort,
+  required int offset,
+  required int limit,
+}) => RustLib.instance.api.crateApiCoreListTracksBySource(
+  scope: scope,
+  sort: sort,
+  offset: offset,
+  limit: limit,
+);
+
+/// Albums with at least one track in the source; counts and ranking use that same scope.
+Future<List<AlbumDto>> listAlbumsBySource({
+  required TrackSourceScopeDto scope,
+  required TrackSortDto sort,
+  required int offset,
+  required int limit,
+}) => RustLib.instance.api.crateApiCoreListAlbumsBySource(
+  scope: scope,
+  sort: sort,
+  offset: offset,
+  limit: limit,
+);
+
+/// Return metadata for unique matching IDs in input order.
+Future<List<ScopedTrackMetadataDto>> trackMetadataBySource({
+  required TrackSourceScopeDto scope,
+  required Int64List trackIds,
+}) => RustLib.instance.api.crateApiCoreTrackMetadataBySource(
+  scope: scope,
+  trackIds: trackIds,
+);
+
+/// Keep matching IDs, preserving playlist order and duplicate entries.
+Future<Int64List> filterTrackIdsBySource({
+  required TrackSourceScopeDto scope,
+  required Int64List trackIds,
+}) => RustLib.instance.api.crateApiCoreFilterTrackIdsBySource(
+  scope: scope,
+  trackIds: trackIds,
+);
+
 /// 曲目详情（含收藏 / 评分 / 播放次数）。
 Future<TrackDto> getTrack({required PlatformInt64 trackId}) =>
     RustLib.instance.api.crateApiCoreGetTrack(trackId: trackId);
@@ -269,6 +313,19 @@ Future<List<TrackRowDto>> albumTracks({
   required int offset,
   required int limit,
 }) => RustLib.instance.api.crateApiCoreAlbumTracks(
+  albumId: albumId,
+  offset: offset,
+  limit: limit,
+);
+
+/// Page through an album's tracks in the selected source, in disc and track order.
+Future<List<TrackRowDto>> albumTracksBySource({
+  required TrackSourceScopeDto scope,
+  required PlatformInt64 albumId,
+  required int offset,
+  required int limit,
+}) => RustLib.instance.api.crateApiCoreAlbumTracksBySource(
+  scope: scope,
   albumId: albumId,
   offset: offset,
   limit: limit,

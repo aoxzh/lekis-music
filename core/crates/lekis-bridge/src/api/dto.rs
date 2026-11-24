@@ -407,12 +407,19 @@ pub enum PlayContextDto {
     Loved,
     /// 一个文件夹的直属曲目（和 `folder_tracks` 一致）。
     Folder { source_id: i64, path: String },
+    SourceLibrary {
+        scope: TrackSourceScopeDto,
+        sort: TrackSortDto,
+    },
 }
 
 impl From<PlayContextDto> for lekis_core::TrackContext {
     fn from(c: PlayContextDto) -> Self {
         match c {
             PlayContextDto::Library { sort } => Self::Library(sort.into()),
+            PlayContextDto::SourceLibrary { scope, sort } => {
+                Self::SourceLibrary(scope.into(), sort.into())
+            }
             PlayContextDto::Album { album_id } => Self::Album(t::AlbumId(album_id)),
             PlayContextDto::Artist { artist_id } => Self::Artist(t::ArtistId(artist_id)),
             PlayContextDto::Genre { name } => Self::Genre(name),
@@ -436,6 +443,60 @@ pub enum TrackSortDto {
 }
 
 mirror_enum!(TrackSortDto <=> TrackSort { Title, Artist, Album, RecentlyAdded, MostPlayed });
+
+/// Which source copies qualify a track for this list.
+#[derive(Debug, Clone)]
+pub enum TrackSourceScopeDto {
+    Local,
+    Nas,
+    Plugin { plugin_id: String },
+}
+
+impl From<TrackSourceScopeDto> for t::TrackSourceScope {
+    fn from(scope: TrackSourceScopeDto) -> Self {
+        match scope {
+            TrackSourceScopeDto::Local => Self::Local,
+            TrackSourceScopeDto::Nas => Self::Nas,
+            TrackSourceScopeDto::Plugin { plugin_id } => Self::Plugin(plugin_id),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ScopedArtistCreditDto {
+    pub artist_id: Option<i64>,
+    pub name: String,
+    pub role: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ScopedTrackMetadataDto {
+    pub track_id: i64,
+    pub album_id: Option<i64>,
+    pub album_artist: Option<String>,
+    pub artists: Vec<ScopedArtistCreditDto>,
+    pub genres: Vec<String>,
+}
+
+impl From<t::ScopedTrackMetadata> for ScopedTrackMetadataDto {
+    fn from(row: t::ScopedTrackMetadata) -> Self {
+        Self {
+            track_id: row.track_id.0,
+            album_id: row.album_id.map(|id| id.0),
+            album_artist: row.album_artist,
+            artists: row
+                .artists
+                .into_iter()
+                .map(|credit| ScopedArtistCreditDto {
+                    artist_id: credit.artist_id.map(|id| id.0),
+                    name: credit.name,
+                    role: credit.role.as_str().to_owned(),
+                })
+                .collect(),
+            genres: row.genres,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct TrackRowDto {

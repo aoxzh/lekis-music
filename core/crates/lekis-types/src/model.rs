@@ -749,6 +749,32 @@ pub enum TrackSort {
     MostPlayed,
 }
 
+/// Source copies to include in a paginated track listing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TrackSourceScope {
+    /// Files in local folders.
+    Local,
+    /// Network file shares and media servers.
+    Nas,
+    /// Tracks imported by the plugin with this manifest ID.
+    Plugin(String),
+}
+
+/// Category metadata for a persisted track in a source scope.
+#[derive(Debug, PartialEq)]
+pub struct ScopedTrackMetadata {
+    /// Library track ID.
+    pub track_id: TrackId,
+    /// Shared album identity, also for compilations.
+    pub album_id: Option<AlbumId>,
+    /// Credited album artists as displayed on the album.
+    pub album_artist: Option<String>,
+    /// Ordered individual credits from the catalog.
+    pub artists: Vec<ArtistCredit>,
+    /// Display genres including user overrides.
+    pub genres: Vec<String>,
+}
+
 /// 分页查询曲目。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TrackQuery {

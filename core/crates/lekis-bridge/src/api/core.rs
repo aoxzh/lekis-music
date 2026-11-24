@@ -306,6 +306,73 @@ pub async fn list_tracks(
         .collect())
 }
 
+/// List persisted tracks with a copy in the selected source scope. Page limit is 1–500.
+pub async fn list_tracks_by_source(
+    scope: TrackSourceScopeDto,
+    sort: TrackSortDto,
+    offset: u32,
+    limit: u32,
+) -> Result<Vec<TrackRowDto>, CoreError> {
+    let query = lekis_types::TrackQuery {
+        sort: sort.into(),
+        offset,
+        limit,
+    };
+    Ok(core()
+        .list_tracks_by_source(scope.into(), query)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// Albums with at least one track in the source; counts and ranking use that same scope.
+pub async fn list_albums_by_source(
+    scope: TrackSourceScopeDto,
+    sort: TrackSortDto,
+    offset: u32,
+    limit: u32,
+) -> Result<Vec<AlbumDto>, CoreError> {
+    Ok(core()
+        .list_albums_by_source(scope.into(), sort.into(), offset, limit)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// Return metadata for unique matching IDs in input order.
+pub async fn track_metadata_by_source(
+    scope: TrackSourceScopeDto,
+    track_ids: Vec<i64>,
+) -> Result<Vec<ScopedTrackMetadataDto>, CoreError> {
+    Ok(core()
+        .track_metadata_by_source(
+            scope.into(),
+            track_ids.into_iter().map(lekis_types::TrackId).collect(),
+        )
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// Keep matching IDs, preserving playlist order and duplicate entries.
+pub async fn filter_track_ids_by_source(
+    scope: TrackSourceScopeDto,
+    track_ids: Vec<i64>,
+) -> Result<Vec<i64>, CoreError> {
+    Ok(core()
+        .filter_track_ids_by_source(
+            scope.into(),
+            track_ids.into_iter().map(lekis_types::TrackId).collect(),
+        )
+        .await?
+        .into_iter()
+        .map(|id| id.0)
+        .collect())
+}
+
 /// 曲目详情（含收藏 / 评分 / 播放次数）。
 pub async fn get_track(track_id: i64) -> Result<TrackDto, CoreError> {
     Ok(core()
@@ -446,6 +513,21 @@ pub async fn album_tracks(
 ) -> Result<Vec<TrackRowDto>, CoreError> {
     Ok(core()
         .album_tracks(lekis_types::AlbumId(album_id), offset, limit)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// Page through an album's tracks in the selected source, in disc and track order.
+pub async fn album_tracks_by_source(
+    scope: TrackSourceScopeDto,
+    album_id: i64,
+    offset: u32,
+    limit: u32,
+) -> Result<Vec<TrackRowDto>, CoreError> {
+    Ok(core()
+        .album_tracks_by_source(scope.into(), lekis_types::AlbumId(album_id), offset, limit)
         .await?
         .into_iter()
         .map(Into::into)

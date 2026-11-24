@@ -8,7 +8,9 @@ import 'plugin_browse_page.dart';
 import 'plugins_providers.dart';
 
 class OnlineCollectionsPage extends ConsumerWidget {
-  const OnlineCollectionsPage({super.key});
+  const OnlineCollectionsPage({super.key, this.pluginId});
+
+  final String? pluginId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -18,11 +20,15 @@ class OnlineCollectionsPage extends ConsumerWidget {
     final sources = (plugins.value ?? [])
         .where(
           (plugin) =>
+              (pluginId == null || plugin.id == pluginId) &&
               plugin.enabled &&
               plugin.error == null &&
               plugin.kinds.contains('source'),
         )
         .toList();
+    final subscriptions = (saved.value ?? <OnlineCollection>[]).where(
+      (item) => pluginId == null || item.plugin == pluginId,
+    );
     return Scaffold(
       appBar: AppBar(title: Text(l10n.pick('在线歌单与榜单', 'Online collections'))),
       body: ListView(
@@ -31,7 +37,7 @@ class OnlineCollectionsPage extends ConsumerWidget {
           ListTile(title: Text(l10n.pick('我的订阅', 'Subscriptions'))),
           if (saved.isLoading) const LinearProgressIndicator(),
           if (saved.hasError) Text(describeCoreError(saved.error!)),
-          if (saved.hasValue && saved.value!.isEmpty)
+          if (saved.hasValue && subscriptions.isEmpty)
             ListTile(
               subtitle: Text(
                 l10n.pick(
@@ -40,7 +46,7 @@ class OnlineCollectionsPage extends ConsumerWidget {
                 ),
               ),
             ),
-          for (final item in saved.value ?? <OnlineCollection>[])
+          for (final item in subscriptions)
             ListTile(
               leading: const Icon(Icons.bookmark_outlined),
               title: Text(item.title),

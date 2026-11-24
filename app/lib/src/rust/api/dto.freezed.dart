@@ -2627,7 +2627,7 @@ extension PlayContextDtoPatterns on PlayContextDto {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( PlayContextDto_Library value)?  library_,TResult Function( PlayContextDto_Album value)?  album,TResult Function( PlayContextDto_Artist value)?  artist,TResult Function( PlayContextDto_Genre value)?  genre,TResult Function( PlayContextDto_Playlist value)?  playlist,TResult Function( PlayContextDto_Loved value)?  loved,TResult Function( PlayContextDto_Folder value)?  folder,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( PlayContextDto_Library value)?  library_,TResult Function( PlayContextDto_Album value)?  album,TResult Function( PlayContextDto_Artist value)?  artist,TResult Function( PlayContextDto_Genre value)?  genre,TResult Function( PlayContextDto_Playlist value)?  playlist,TResult Function( PlayContextDto_Loved value)?  loved,TResult Function( PlayContextDto_Folder value)?  folder,TResult Function( PlayContextDto_SourceLibrary value)?  sourceLibrary,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case PlayContextDto_Library() when library_ != null:
@@ -2637,7 +2637,8 @@ return artist(_that);case PlayContextDto_Genre() when genre != null:
 return genre(_that);case PlayContextDto_Playlist() when playlist != null:
 return playlist(_that);case PlayContextDto_Loved() when loved != null:
 return loved(_that);case PlayContextDto_Folder() when folder != null:
-return folder(_that);case _:
+return folder(_that);case PlayContextDto_SourceLibrary() when sourceLibrary != null:
+return sourceLibrary(_that);case _:
   return orElse();
 
 }
@@ -2655,7 +2656,7 @@ return folder(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( PlayContextDto_Library value)  library_,required TResult Function( PlayContextDto_Album value)  album,required TResult Function( PlayContextDto_Artist value)  artist,required TResult Function( PlayContextDto_Genre value)  genre,required TResult Function( PlayContextDto_Playlist value)  playlist,required TResult Function( PlayContextDto_Loved value)  loved,required TResult Function( PlayContextDto_Folder value)  folder,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( PlayContextDto_Library value)  library_,required TResult Function( PlayContextDto_Album value)  album,required TResult Function( PlayContextDto_Artist value)  artist,required TResult Function( PlayContextDto_Genre value)  genre,required TResult Function( PlayContextDto_Playlist value)  playlist,required TResult Function( PlayContextDto_Loved value)  loved,required TResult Function( PlayContextDto_Folder value)  folder,required TResult Function( PlayContextDto_SourceLibrary value)  sourceLibrary,}){
 final _that = this;
 switch (_that) {
 case PlayContextDto_Library():
@@ -2665,7 +2666,8 @@ return artist(_that);case PlayContextDto_Genre():
 return genre(_that);case PlayContextDto_Playlist():
 return playlist(_that);case PlayContextDto_Loved():
 return loved(_that);case PlayContextDto_Folder():
-return folder(_that);}
+return folder(_that);case PlayContextDto_SourceLibrary():
+return sourceLibrary(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -2679,7 +2681,7 @@ return folder(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( PlayContextDto_Library value)?  library_,TResult? Function( PlayContextDto_Album value)?  album,TResult? Function( PlayContextDto_Artist value)?  artist,TResult? Function( PlayContextDto_Genre value)?  genre,TResult? Function( PlayContextDto_Playlist value)?  playlist,TResult? Function( PlayContextDto_Loved value)?  loved,TResult? Function( PlayContextDto_Folder value)?  folder,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( PlayContextDto_Library value)?  library_,TResult? Function( PlayContextDto_Album value)?  album,TResult? Function( PlayContextDto_Artist value)?  artist,TResult? Function( PlayContextDto_Genre value)?  genre,TResult? Function( PlayContextDto_Playlist value)?  playlist,TResult? Function( PlayContextDto_Loved value)?  loved,TResult? Function( PlayContextDto_Folder value)?  folder,TResult? Function( PlayContextDto_SourceLibrary value)?  sourceLibrary,}){
 final _that = this;
 switch (_that) {
 case PlayContextDto_Library() when library_ != null:
@@ -2689,7 +2691,8 @@ return artist(_that);case PlayContextDto_Genre() when genre != null:
 return genre(_that);case PlayContextDto_Playlist() when playlist != null:
 return playlist(_that);case PlayContextDto_Loved() when loved != null:
 return loved(_that);case PlayContextDto_Folder() when folder != null:
-return folder(_that);case _:
+return folder(_that);case PlayContextDto_SourceLibrary() when sourceLibrary != null:
+return sourceLibrary(_that);case _:
   return null;
 
 }
@@ -2706,7 +2709,7 @@ return folder(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( TrackSortDto sort)?  library_,TResult Function( PlatformInt64 albumId)?  album,TResult Function( PlatformInt64 artistId)?  artist,TResult Function( String name)?  genre,TResult Function( PlatformInt64 playlistId)?  playlist,TResult Function()?  loved,TResult Function( PlatformInt64 sourceId,  String path)?  folder,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( TrackSortDto sort)?  library_,TResult Function( PlatformInt64 albumId)?  album,TResult Function( PlatformInt64 artistId)?  artist,TResult Function( String name)?  genre,TResult Function( PlatformInt64 playlistId)?  playlist,TResult Function()?  loved,TResult Function( PlatformInt64 sourceId,  String path)?  folder,TResult Function( TrackSourceScopeDto scope,  TrackSortDto sort)?  sourceLibrary,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case PlayContextDto_Library() when library_ != null:
 return library_(_that.sort);case PlayContextDto_Album() when album != null:
@@ -2715,7 +2718,8 @@ return artist(_that.artistId);case PlayContextDto_Genre() when genre != null:
 return genre(_that.name);case PlayContextDto_Playlist() when playlist != null:
 return playlist(_that.playlistId);case PlayContextDto_Loved() when loved != null:
 return loved();case PlayContextDto_Folder() when folder != null:
-return folder(_that.sourceId,_that.path);case _:
+return folder(_that.sourceId,_that.path);case PlayContextDto_SourceLibrary() when sourceLibrary != null:
+return sourceLibrary(_that.scope,_that.sort);case _:
   return orElse();
 
 }
@@ -2733,7 +2737,7 @@ return folder(_that.sourceId,_that.path);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( TrackSortDto sort)  library_,required TResult Function( PlatformInt64 albumId)  album,required TResult Function( PlatformInt64 artistId)  artist,required TResult Function( String name)  genre,required TResult Function( PlatformInt64 playlistId)  playlist,required TResult Function()  loved,required TResult Function( PlatformInt64 sourceId,  String path)  folder,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( TrackSortDto sort)  library_,required TResult Function( PlatformInt64 albumId)  album,required TResult Function( PlatformInt64 artistId)  artist,required TResult Function( String name)  genre,required TResult Function( PlatformInt64 playlistId)  playlist,required TResult Function()  loved,required TResult Function( PlatformInt64 sourceId,  String path)  folder,required TResult Function( TrackSourceScopeDto scope,  TrackSortDto sort)  sourceLibrary,}) {final _that = this;
 switch (_that) {
 case PlayContextDto_Library():
 return library_(_that.sort);case PlayContextDto_Album():
@@ -2742,7 +2746,8 @@ return artist(_that.artistId);case PlayContextDto_Genre():
 return genre(_that.name);case PlayContextDto_Playlist():
 return playlist(_that.playlistId);case PlayContextDto_Loved():
 return loved();case PlayContextDto_Folder():
-return folder(_that.sourceId,_that.path);}
+return folder(_that.sourceId,_that.path);case PlayContextDto_SourceLibrary():
+return sourceLibrary(_that.scope,_that.sort);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -2756,7 +2761,7 @@ return folder(_that.sourceId,_that.path);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( TrackSortDto sort)?  library_,TResult? Function( PlatformInt64 albumId)?  album,TResult? Function( PlatformInt64 artistId)?  artist,TResult? Function( String name)?  genre,TResult? Function( PlatformInt64 playlistId)?  playlist,TResult? Function()?  loved,TResult? Function( PlatformInt64 sourceId,  String path)?  folder,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( TrackSortDto sort)?  library_,TResult? Function( PlatformInt64 albumId)?  album,TResult? Function( PlatformInt64 artistId)?  artist,TResult? Function( String name)?  genre,TResult? Function( PlatformInt64 playlistId)?  playlist,TResult? Function()?  loved,TResult? Function( PlatformInt64 sourceId,  String path)?  folder,TResult? Function( TrackSourceScopeDto scope,  TrackSortDto sort)?  sourceLibrary,}) {final _that = this;
 switch (_that) {
 case PlayContextDto_Library() when library_ != null:
 return library_(_that.sort);case PlayContextDto_Album() when album != null:
@@ -2765,7 +2770,8 @@ return artist(_that.artistId);case PlayContextDto_Genre() when genre != null:
 return genre(_that.name);case PlayContextDto_Playlist() when playlist != null:
 return playlist(_that.playlistId);case PlayContextDto_Loved() when loved != null:
 return loved();case PlayContextDto_Folder() when folder != null:
-return folder(_that.sourceId,_that.path);case _:
+return folder(_that.sourceId,_that.path);case PlayContextDto_SourceLibrary() when sourceLibrary != null:
+return sourceLibrary(_that.scope,_that.sort);case _:
   return null;
 
 }
@@ -3213,6 +3219,85 @@ as String,
 }
 
 
+}
+
+/// @nodoc
+
+
+class PlayContextDto_SourceLibrary extends PlayContextDto {
+  const PlayContextDto_SourceLibrary({required this.scope, required this.sort}): super._();
+
+
+ final  TrackSourceScopeDto scope;
+ final  TrackSortDto sort;
+
+/// Create a copy of PlayContextDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PlayContextDto_SourceLibraryCopyWith<PlayContextDto_SourceLibrary> get copyWith => _$PlayContextDto_SourceLibraryCopyWithImpl<PlayContextDto_SourceLibrary>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is PlayContextDto_SourceLibrary&&(identical(other.scope, scope) || other.scope == scope)&&(identical(other.sort, sort) || other.sort == sort));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,scope,sort);
+}
+
+@override
+String toString() {
+    return 'PlayContextDto.sourceLibrary(scope: $scope, sort: $sort)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PlayContextDto_SourceLibraryCopyWith<$Res> implements $PlayContextDtoCopyWith<$Res> {
+  factory $PlayContextDto_SourceLibraryCopyWith(PlayContextDto_SourceLibrary value, $Res Function(PlayContextDto_SourceLibrary) _then) = _$PlayContextDto_SourceLibraryCopyWithImpl;
+@useResult
+$Res call({
+ TrackSourceScopeDto scope, TrackSortDto sort
+});
+
+
+$TrackSourceScopeDtoCopyWith<$Res> get scope;
+
+}
+/// @nodoc
+class _$PlayContextDto_SourceLibraryCopyWithImpl<$Res>
+    implements $PlayContextDto_SourceLibraryCopyWith<$Res> {
+  _$PlayContextDto_SourceLibraryCopyWithImpl(this._self, this._then);
+
+  final PlayContextDto_SourceLibrary _self;
+  final $Res Function(PlayContextDto_SourceLibrary) _then;
+
+/// Create a copy of PlayContextDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? scope = null,Object? sort = null,}) {
+  return _then(PlayContextDto_SourceLibrary(
+scope: null == scope ? _self.scope : scope // ignore: cast_nullable_to_non_nullable
+as TrackSourceScopeDto,sort: null == sort ? _self.sort : sort // ignore: cast_nullable_to_non_nullable
+as TrackSortDto,
+  ));
+}
+
+/// Create a copy of PlayContextDto
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$TrackSourceScopeDtoCopyWith<$Res> get scope {
+
+  return $TrackSourceScopeDtoCopyWith<$Res>(_self.scope, (value) {
+    return _then(_self.copyWith(scope: value));
+  });
+}
 }
 
 /// @nodoc
@@ -3737,6 +3822,304 @@ class _$RuleValueDto_CodecCopyWithImpl<$Res>
 @pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
   return _then(RuleValueDto_Codec(
 null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$TrackSourceScopeDto {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is TrackSourceScopeDto);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'TrackSourceScopeDto()';
+}
+
+
+}
+
+/// @nodoc
+class $TrackSourceScopeDtoCopyWith<$Res>  {
+$TrackSourceScopeDtoCopyWith(TrackSourceScopeDto _, $Res Function(TrackSourceScopeDto) __);
+}
+
+
+/// Adds pattern-matching-related methods to [TrackSourceScopeDto].
+extension TrackSourceScopeDtoPatterns on TrackSourceScopeDto {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( TrackSourceScopeDto_Local value)?  local,TResult Function( TrackSourceScopeDto_Nas value)?  nas,TResult Function( TrackSourceScopeDto_Plugin value)?  plugin,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case TrackSourceScopeDto_Local() when local != null:
+return local(_that);case TrackSourceScopeDto_Nas() when nas != null:
+return nas(_that);case TrackSourceScopeDto_Plugin() when plugin != null:
+return plugin(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( TrackSourceScopeDto_Local value)  local,required TResult Function( TrackSourceScopeDto_Nas value)  nas,required TResult Function( TrackSourceScopeDto_Plugin value)  plugin,}){
+final _that = this;
+switch (_that) {
+case TrackSourceScopeDto_Local():
+return local(_that);case TrackSourceScopeDto_Nas():
+return nas(_that);case TrackSourceScopeDto_Plugin():
+return plugin(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( TrackSourceScopeDto_Local value)?  local,TResult? Function( TrackSourceScopeDto_Nas value)?  nas,TResult? Function( TrackSourceScopeDto_Plugin value)?  plugin,}){
+final _that = this;
+switch (_that) {
+case TrackSourceScopeDto_Local() when local != null:
+return local(_that);case TrackSourceScopeDto_Nas() when nas != null:
+return nas(_that);case TrackSourceScopeDto_Plugin() when plugin != null:
+return plugin(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  local,TResult Function()?  nas,TResult Function( String pluginId)?  plugin,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case TrackSourceScopeDto_Local() when local != null:
+return local();case TrackSourceScopeDto_Nas() when nas != null:
+return nas();case TrackSourceScopeDto_Plugin() when plugin != null:
+return plugin(_that.pluginId);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  local,required TResult Function()  nas,required TResult Function( String pluginId)  plugin,}) {final _that = this;
+switch (_that) {
+case TrackSourceScopeDto_Local():
+return local();case TrackSourceScopeDto_Nas():
+return nas();case TrackSourceScopeDto_Plugin():
+return plugin(_that.pluginId);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  local,TResult? Function()?  nas,TResult? Function( String pluginId)?  plugin,}) {final _that = this;
+switch (_that) {
+case TrackSourceScopeDto_Local() when local != null:
+return local();case TrackSourceScopeDto_Nas() when nas != null:
+return nas();case TrackSourceScopeDto_Plugin() when plugin != null:
+return plugin(_that.pluginId);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class TrackSourceScopeDto_Local extends TrackSourceScopeDto {
+  const TrackSourceScopeDto_Local(): super._();
+
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is TrackSourceScopeDto_Local);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'TrackSourceScopeDto.local()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class TrackSourceScopeDto_Nas extends TrackSourceScopeDto {
+  const TrackSourceScopeDto_Nas(): super._();
+
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is TrackSourceScopeDto_Nas);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'TrackSourceScopeDto.nas()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class TrackSourceScopeDto_Plugin extends TrackSourceScopeDto {
+  const TrackSourceScopeDto_Plugin({required this.pluginId}): super._();
+
+
+ final  String pluginId;
+
+/// Create a copy of TrackSourceScopeDto
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$TrackSourceScopeDto_PluginCopyWith<TrackSourceScopeDto_Plugin> get copyWith => _$TrackSourceScopeDto_PluginCopyWithImpl<TrackSourceScopeDto_Plugin>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is TrackSourceScopeDto_Plugin&&(identical(other.pluginId, pluginId) || other.pluginId == pluginId));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,pluginId);
+}
+
+@override
+String toString() {
+    return 'TrackSourceScopeDto.plugin(pluginId: $pluginId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $TrackSourceScopeDto_PluginCopyWith<$Res> implements $TrackSourceScopeDtoCopyWith<$Res> {
+  factory $TrackSourceScopeDto_PluginCopyWith(TrackSourceScopeDto_Plugin value, $Res Function(TrackSourceScopeDto_Plugin) _then) = _$TrackSourceScopeDto_PluginCopyWithImpl;
+@useResult
+$Res call({
+ String pluginId
+});
+
+
+
+
+}
+/// @nodoc
+class _$TrackSourceScopeDto_PluginCopyWithImpl<$Res>
+    implements $TrackSourceScopeDto_PluginCopyWith<$Res> {
+  _$TrackSourceScopeDto_PluginCopyWithImpl(this._self, this._then);
+
+  final TrackSourceScopeDto_Plugin _self;
+  final $Res Function(TrackSourceScopeDto_Plugin) _then;
+
+/// Create a copy of TrackSourceScopeDto
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? pluginId = null,}) {
+  return _then(TrackSourceScopeDto_Plugin(
+pluginId: null == pluginId ? _self.pluginId : pluginId // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }

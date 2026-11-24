@@ -29,6 +29,7 @@ class PagedTrackList extends ConsumerStatefulWidget {
     this.showHeaderWhenEmpty = false,
     this.indexOffsets,
     this.playContext,
+    this.pluginId,
   });
 
   final PagedList<TrackRowDto> list;
@@ -46,6 +47,7 @@ class PagedTrackList extends ConsumerStatefulWidget {
   /// 列表对应的核心播放上下文。传入后，点击任意一行会从该行在完整
   /// 上下文中的位置开播，而不是只播放已加载的几页。
   final PlayContextDto? playContext;
+  final String? pluginId;
 
   @override
   ConsumerState<PagedTrackList> createState() => _PagedTrackListState();
@@ -176,6 +178,8 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
           if (row == null) return SkeletonTrackTile(index: i);
           return TrackTile(
             track: row,
+            onlinePlugin: widget.pluginId != null,
+            pluginId: widget.pluginId,
             selected: _selected.contains(row.id),
             onTap: () => _onRowTap(i, row.id),
             onLongPress: () => _toggleSelected(row.id),
@@ -207,8 +211,8 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
         ),
       ),
     );
-    if (_selected.isEmpty && !showIndex) return content;
     final flatChrome =
+        (_selected.isNotEmpty || showIndex) &&
         ref.watch(tabBarStyleProvider).resolved == TabBarStyle.flat;
     return Stack(
       children: [

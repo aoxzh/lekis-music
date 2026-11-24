@@ -77,6 +77,13 @@ void main() {
           scale: scale,
         );
         final selector = find.byKey(const ValueKey('library-category-select'));
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey('library-source-select')),
+            matching: find.text(language == 'en' ? 'Local Library' : '本地资料库'),
+          ),
+          findsOneWidget,
+        );
         final tools = tester.getRect(
           find.byKey(const ValueKey('library-header-actions')),
         );
@@ -144,18 +151,17 @@ void main() {
         tester.widget<SegmentedButton<LibrarySegment>>(segments).selected,
         {LibrarySegment.songs},
       );
-      final sort = tester.widget<PopupMenuButton<TrackSortDto>>(
-        find.byType(PopupMenuButton<TrackSortDto>),
-      );
-      expect(sort.itemBuilder(tester.element(segments)), hasLength(5));
-      sort.onSelected!(TrackSortDto.mostPlayed);
+      await tester.tap(find.byIcon(Icons.sort_rounded));
+      await tester.pumpAndSettle();
+      expect(find.byType(PopupMenuItem<TrackSortDto>), findsNWidgets(5));
+      await tester.tap(find.text('Most Played'));
       await tester.pumpAndSettle();
       expect(container.read(songSortProvider), TrackSortDto.mostPlayed);
       expect(tester.takeException(), isNull);
     });
   }
 
-  testWidgets('large text uses the complete menu on a desktop pane', (
+  testWidgets('large text uses scrollable categories on a desktop pane', (
     tester,
   ) async {
     await _mount(tester, width: 1200, scale: 2);
