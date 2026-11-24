@@ -114,8 +114,8 @@ class L10n {
   String get unknownArtist => pick('未知艺人', 'Unknown Artist');
   String get welcomeTitle => pick('欢迎使用月兔音乐', 'Welcome to Lekis Music');
   String get welcomeMessage => pick(
-    '在「音源」里添加本地文件夹、NAS 或媒体服务器，即可开始聆听。',
-    'Add a local folder, NAS, or media server in Sources to start listening.',
+    '添加本地音乐文件夹、连接 NAS 或媒体服务器，也可以从社区插件库选择在线音源。',
+    'Add a local music folder, connect a NAS or media server, or choose an online source from the community plugin catalog.',
   );
 
   String greetingFor(DateTime now) {

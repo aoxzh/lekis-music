@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lekis/src/features/plugins/plugin_format.dart';
+import 'package:lekis/src/features/plugins/plugin_registry.dart';
 import 'package:lekis/src/features/plugins/plugins_page.dart';
 import 'package:lekis/src/features/plugins/plugins_providers.dart';
+import 'package:lekis/src/features/plugins/strings.dart';
 import 'package:lekis/src/features/settings/settings_page.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
@@ -47,9 +51,13 @@ class _FakePluginListNotifier extends PluginListNotifier {
   Future<List<PluginInfoDto>> build() async => plugins;
 }
 
-Widget _page(List<PluginInfoDto> plugins) => ProviderScope(
+Widget _page(
+  List<PluginInfoDto> plugins, {
+  Future<List<RegistryPlugin>> Function()? catalog,
+}) => ProviderScope(
   overrides: [
     pluginListProvider.overrideWith(() => _FakePluginListNotifier(plugins)),
+    if (catalog != null) pluginRegistryProvider.overrideWith((_) => catalog()),
   ],
   child: MaterialApp(theme: lekisLightTheme(), home: const PluginsPage()),
 );
@@ -120,7 +128,103 @@ void main() {
 
     expect(find.text('还没有安装插件'), findsOneWidget);
     expect(find.text('从 .zip 安装'), findsOneWidget);
+    expect(find.text(PluginStrings.providerNotice), findsOneWidget);
   });
+
+  testWidgets(
+    'catalog loads on demand, retries and confirms on a narrow screen',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(320, 640);
+      addTearDown(tester.view.reset);
+      final first = Completer<List<RegistryPlugin>>();
+      final installed = _plugin();
+      var reads = 0;
+      final package = Uri.parse('https://example.test/packages/source.zip');
+      RegistryPlugin entry(String id, String name) => RegistryPlugin(
+        id: id,
+        name: name,
+        description: '插件说明',
+        version: '1.2.3',
+        package: package,
+        sha256: 'a' * 64,
+      );
+      await tester.pumpWidget(
+        _page(
+          [installed],
+          catalog: () async {
+            reads++;
+            if (reads == 1) return first.future;
+            return [entry(installed.id, installed.name), entry('new', '新插件')];
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(reads, 0);
+      expect(find.text(PluginStrings.providerNotice), findsOneWidget);
+      await tester.tap(find.text(PluginStrings.browse));
+      await tester.pump();
+      expect(reads, 1);
+      expect(find.text(PluginStrings.catalogLoading), findsOneWidget);
+      first.completeError(const FormatException('test catalog'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining(PluginStrings.catalogFailed), findsOneWidget);
+      await tester.tap(find.text(PluginStrings.retry));
+      await tester.pumpAndSettle();
+      expect(reads, 2);
+      expect(find.text(PluginStrings.installed), findsOneWidget);
+      final install = find.widgetWithText(
+        OutlinedButton,
+        PluginStrings.downloadInstall,
+      );
+      expect(install, findsOneWidget);
+      await tester.ensureVisible(install);
+      await tester.tap(install);
+      await tester.pumpAndSettle();
+      final dialog = find.byType(AlertDialog);
+      expect(
+        find.descendant(
+          of: dialog,
+          matching: find.text(PluginStrings.providerNotice),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text(package.toString()), findsOneWidget);
+      await tester.tap(find.text(PluginStrings.cancel));
+      await tester.pumpAndSettle();
+      expect(dialog, findsNothing);
+      expect(install, findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'link import accepts HTTPS and cancellation keeps the list empty',
+    (tester) async {
+      await tester.pumpWidget(_page(const []));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('从链接安装'));
+      await tester.pumpAndSettle();
+      final submit = find.widgetWithText(FilledButton, '安装插件');
+      for (final invalid in [
+        'file:///tmp/package.zip',
+        'http://example.org/p.zip',
+      ]) {
+        await tester.enterText(find.byType(TextField), invalid);
+        await tester.pump();
+        expect(tester.widget<FilledButton>(submit).onPressed, isNull);
+      }
+      await tester.enterText(
+        find.byType(TextField),
+        'https://example.org/p.zip',
+      );
+      await tester.pump();
+      expect(tester.widget<FilledButton>(submit).onPressed, isNotNull);
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+      expect(find.text('还没有安装插件'), findsOneWidget);
+    },
+  );
 
   testWidgets('settings tile shows the installed count', (tester) async {
     await tester.pumpWidget(

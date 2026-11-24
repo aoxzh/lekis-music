@@ -8,16 +8,41 @@ abstract final class PluginStrings {
   static String get install => L10n.tr('安装插件', 'Install Plugin');
   static String get installFolder => L10n.tr('从文件夹安装', 'Install from Folder');
   static String get installZip => L10n.tr('从 .zip 安装', 'Install from .zip');
+  static String get importSource =>
+      L10n.tr('导入在线音源', 'Import an online source');
+  static String get installLink => L10n.tr('从链接安装', 'Install from link');
+  static String get browse => L10n.tr('浏览插件目录', 'Browse plugin catalog');
+  static String get catalogTitle => L10n.tr('可安装插件', 'Plugin catalog');
+  static String get catalogLoading =>
+      L10n.tr('正在读取插件目录…', 'Loading plugin catalog…');
+  static String get catalogFailed =>
+      L10n.tr('无法读取插件目录', 'Could not load the plugin catalog');
+  static String get catalogEmpty => L10n.tr('目录中暂无插件', 'The catalog is empty');
+  static String get downloadInstall => L10n.tr('下载并安装', 'Download and install');
+  static String get checksumMismatch => L10n.tr(
+    '插件包的 SHA-256 与目录不符，已停止安装。',
+    'The package SHA-256 does not match the catalog. Installation stopped.',
+  );
+  static String get providerNotice => L10n.tr(
+    '插件由第三方独立开发和维护。插件提供的内容与服务由相应提供方负责；月兔音乐与这些提供方无隶属关系。',
+    'Third parties independently develop and maintain plugins. Each provider is responsible for the content and services its plugins offer. Lekis Music is unaffiliated with these providers.',
+  );
+  static String get sourceHint => L10n.tr(
+    '安装音源插件后，可在「搜索」中选择对应音源。也可以使用插件作者提供的 ZIP 安装包或 HTTPS 下载链接。',
+    'After installing a source plugin, select it in Search. You can also install a ZIP or use an HTTPS link from the plugin author.',
+  );
   static String get installHint => L10n.tr(
     '插件包根目录需要有 plugin.json，也可以放在唯一的顶层文件夹里。',
     'The package must contain plugin.json at its root or inside a single top-level folder.',
   );
   static String get installCancel => L10n.tr('取消', 'Cancel');
   static String get installed => L10n.tr('插件已安装', 'Plugin installed');
-  static String get installFailed => L10n.tr('安装插件失败', 'Failed to install plugin');
+  static String get installFailed =>
+      L10n.tr('安装插件失败', 'Failed to install plugin');
   static String get installInvalid =>
       L10n.tr('插件包无效，或这个插件已经安装', 'Invalid plugin package or already installed');
-  static String get installNoPath => L10n.tr('没有拿到文件路径', 'No file path selected');
+  static String get installNoPath =>
+      L10n.tr('没有拿到文件路径', 'No file path selected');
   static String get installFolderUnsupported => L10n.tr(
     'Android 上无法直接读取系统文件夹，请把插件文件夹压缩成 .zip 再安装。',
     'On Android, zip the plugin folder and install from .zip.',
@@ -43,7 +68,8 @@ abstract final class PluginStrings {
   static String get cancel => L10n.tr('取消', 'Cancel');
   static String get confirmRemove => L10n.tr('移除', 'Remove');
   static String get removed => L10n.tr('插件已移除', 'Plugin removed');
-  static String get removeFailed => L10n.tr('移除插件失败', 'Failed to remove plugin');
+  static String get removeFailed =>
+      L10n.tr('移除插件失败', 'Failed to remove plugin');
   static String get actionFailed => L10n.tr('操作失败', 'Action failed');
 
   static String get manifestError => L10n.tr('清单错误', 'Manifest Error');
@@ -71,7 +97,8 @@ abstract final class PluginStrings {
   static String get settingsLoadFailed =>
       L10n.tr('读取插件设置失败', 'Failed to load plugin settings');
   static String get saveSettings => L10n.tr('保存设置', 'Save Settings');
-  static String get settingsSaved => L10n.tr('插件设置已保存', 'Plugin settings saved');
+  static String get settingsSaved =>
+      L10n.tr('插件设置已保存', 'Plugin settings saved');
   static String get settingsFailed =>
       L10n.tr('保存插件设置失败', 'Failed to save plugin settings');
   static String get secretKept =>

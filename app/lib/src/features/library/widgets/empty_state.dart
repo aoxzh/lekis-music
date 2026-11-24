@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:lekis/src/features/plugins/plugins_page.dart';
+import 'package:lekis/src/features/plugins/strings.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/error.dart';
 import 'package:lekis/src/shell/app_shell.dart';
@@ -94,11 +96,7 @@ class _Moonrise extends StatelessWidget {
 }
 
 class LibraryEmptyState extends StatelessWidget {
-  const LibraryEmptyState({
-    super.key,
-    this.title,
-    this.message,
-  });
+  const LibraryEmptyState({super.key, this.title, this.message});
 
   final String? title;
   final String? message;
@@ -115,10 +113,24 @@ class LibraryEmptyState extends StatelessWidget {
             '在“音源”里添加本地文件夹、NAS 共享或媒体服务器，Lekis 会自动建立索引。',
             'Add a local folder, NAS share, or media server in Sources and Lekis will index it automatically.',
           ),
-      action: FilledButton.icon(
-        onPressed: () => AppShell.select(context, LekisDestination.sources),
-        icon: const Icon(Icons.add_rounded),
-        label: Text(l10n.pick('添加音源', 'Add Source')),
+      action: Wrap(
+        alignment: WrapAlignment.center,
+        spacing: LekisSpacing.sm,
+        runSpacing: LekisSpacing.sm,
+        children: [
+          FilledButton.icon(
+            onPressed: () => AppShell.select(context, LekisDestination.sources),
+            icon: const Icon(Icons.add_rounded),
+            label: Text(l10n.pick('添加音源', 'Add Source')),
+          ),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.extension_outlined),
+            label: Text(PluginStrings.importSource),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const PluginsPage()),
+            ),
+          ),
+        ],
       ),
     );
   }

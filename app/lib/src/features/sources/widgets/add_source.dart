@@ -5,6 +5,8 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../rust/api/dto.dart';
 import '../../../theme/tokens.dart';
+import '../../plugins/plugins_page.dart';
+import '../../plugins/strings.dart';
 import '../common.dart';
 import '../discovery_providers.dart';
 import '../local_folder_access.dart';
@@ -160,6 +162,14 @@ class SourceKindChooser extends StatelessWidget {
             const SizedBox(height: LekisSpacing.xl),
             // 本地文件夹是绝大多数人的第一步：单独放大、放在最前面。
             _FeaturedLocalOption(onTap: () => onChoose(SourceKindDto.local)),
+            ListTile(
+              leading: const Icon(Icons.extension_outlined),
+              title: Text(PluginStrings.importSource),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const PluginsPage()),
+              ),
+            ),
             const SizedBox(height: LekisSpacing.xl),
             // 打开就自动扫局域网，找到的 NAS 紧跟在本地文件夹后面，点一下就能预填。
             LanDiscoverySection(onPick: onDiscovered),
@@ -971,10 +981,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     ];
   }
 
-  Widget _savedCredentialTile({
-    String? notice,
-    String? replaceLabel,
-  }) {
+  Widget _savedCredentialTile({String? notice, String? replaceLabel}) {
     final resolvedNotice = notice ?? SourcesStrings.credentialSavedNotice;
     final resolvedReplace = replaceLabel ?? SourcesStrings.replacePassword;
     final colors = context.lekisColors;

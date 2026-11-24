@@ -16,11 +16,13 @@ import '../library/widgets/empty_state.dart';
 import '../settings/widgets/settings_widgets.dart';
 import '../sources/common.dart';
 import 'plugin_detail_sheet.dart';
+import 'plugin_download.dart';
 import 'plugin_format.dart';
+import 'plugin_registry.dart';
 import 'plugins_providers.dart';
 import 'strings.dart';
 
-enum _InstallChoice { folder, zip }
+enum _InstallChoice { folder, zip, link }
 
 enum _DirectoryAction { copy, open }
 
@@ -34,6 +36,7 @@ class PluginsPage extends ConsumerStatefulWidget {
 class _PluginsPageState extends ConsumerState<PluginsPage> {
   final Set<String> _busy = {};
   bool _installing = false;
+  bool _browsing = false;
 
   Future<void> _toggle(PluginInfoDto plugin, bool enabled) => _run(
     plugin.id,
@@ -121,6 +124,11 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
             ),
           ),
           SettingsTile(
+            icon: Icons.link_rounded,
+            title: PluginStrings.installLink,
+            onTap: () => Navigator.of(context).pop(_InstallChoice.link),
+          ),
+          SettingsTile(
             icon: Icons.folder_open_outlined,
             title: PluginStrings.installFolder,
             onTap: () => Navigator.of(context).pop(_InstallChoice.folder),
@@ -155,8 +163,98 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
         await _installFolder();
       case _InstallChoice.zip:
         await _installZip();
+      case _InstallChoice.link:
+        await _installLink();
       case null:
         break;
+    }
+  }
+
+  Future<void> _installLink() async {
+    Uri? address;
+    final uri = await showDialog<Uri>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: Text(PluginStrings.installLink),
+          content: TextField(
+            autofocus: true,
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            decoration: const InputDecoration(labelText: 'HTTPS ZIP URL'),
+            onChanged: (value) =>
+                update(() => address = pluginPackageUri(value)),
+            onSubmitted: (_) {
+              if (address != null) Navigator.pop(dialog, address);
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog),
+              child: Text(PluginStrings.cancel),
+            ),
+            FilledButton(
+              onPressed: address == null
+                  ? null
+                  : () => Navigator.pop(dialog, address),
+              child: Text(PluginStrings.install),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (uri == null || !mounted) return;
+    await _installRemote(uri);
+  }
+
+  Future<void> _confirmCatalogInstall(RegistryPlugin plugin) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        scrollable: true,
+        title: Text(PluginStrings.downloadInstall),
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('${plugin.name} · v${plugin.version}'),
+            Text(plugin.id),
+            const SizedBox(height: LekisSpacing.sm),
+            SelectableText(plugin.package.toString()),
+            const SizedBox(height: LekisSpacing.md),
+            Text(PluginStrings.providerNotice),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: Text(PluginStrings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: Text(PluginStrings.downloadInstall),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _installRemote(plugin.package, expectedSha256: plugin.sha256);
+  }
+
+  Future<void> _installRemote(Uri uri, {String? expectedSha256}) async {
+    setState(() => _installing = true);
+    try {
+      await installRemotePluginPackage(
+        uri,
+        expectedSha256: expectedSha256,
+        install: (path) async {
+          if (mounted) await _installFromPath(path);
+        },
+      );
+    } catch (error) {
+      _showInstallError(error);
+    } finally {
+      if (mounted) setState(() => _installing = false);
     }
   }
 
@@ -206,14 +304,18 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
   Future<void> _install(String path) async {
     setState(() => _installing = true);
     try {
-      final plugin = await ref.read(pluginListProvider.notifier).install(path);
-      if (mounted) {
-        showFeatureSnack(context, '${PluginStrings.installed}：${plugin.name}');
-      }
+      await _installFromPath(path);
     } catch (error) {
       _showInstallError(error);
     } finally {
       if (mounted) setState(() => _installing = false);
+    }
+  }
+
+  Future<void> _installFromPath(String path) async {
+    final plugin = await ref.read(pluginListProvider.notifier).install(path);
+    if (mounted) {
+      showFeatureSnack(context, '${PluginStrings.installed}：${plugin.name}');
     }
   }
 
@@ -222,7 +324,7 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
     final kind = coreErrorKind(error);
     final message = kind == ErrorKind.invalidArgument
         ? PluginStrings.installInvalid
-        : '${PluginStrings.installFailed}：${describeCoreError(error)}';
+        : '${PluginStrings.installFailed}：${error is FormatException ? error.message : describeCoreError(error)}';
     showFeatureSnack(context, message);
   }
 
@@ -329,44 +431,106 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
           if (_installing)
             const LinearProgressIndicator(minHeight: LekisSpacing.xxs),
           Expanded(
-            child: plugins.when(
-              skipLoadingOnReload: true,
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => LekisEmptyState(
-                title: PluginStrings.loadFailed,
-                message: describeCoreError(error),
-                action: FilledButton.tonalIcon(
-                  onPressed: () =>
-                      ref.read(pluginListProvider.notifier).reload(),
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: Text(PluginStrings.retry),
-                ),
-              ),
-              data: (list) => list.isEmpty
-                  ? LekisEmptyState(
-                      title: PluginStrings.emptyTitle,
-                      message: PluginStrings.emptyHint,
-                      action: Wrap(
-                        spacing: LekisSpacing.sm,
-                        runSpacing: LekisSpacing.sm,
-                        alignment: WrapAlignment.center,
-                        children: [
-                          FilledButton.icon(
-                            onPressed: _installing ? null : _installZip,
-                            icon: const Icon(Icons.folder_zip_outlined),
-                            label: Text(PluginStrings.installZip),
+            child: SettingsListView(
+              children: [
+                Text(PluginStrings.providerNotice),
+                const SizedBox(height: LekisSpacing.sm),
+                if (!_browsing)
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.extension_outlined),
+                      label: Text(PluginStrings.browse),
+                      onPressed: () => setState(() => _browsing = true),
+                    ),
+                  )
+                else
+                  SettingsSection(
+                    title: PluginStrings.catalogTitle,
+                    children: ref
+                        .watch(pluginRegistryProvider)
+                        .when(
+                          skipLoadingOnRefresh: false,
+                          loading: () => [
+                            ListTile(title: Text(PluginStrings.catalogLoading)),
+                            const LinearProgressIndicator(),
+                          ],
+                          error: (error, _) => [
+                            Padding(
+                              padding: const EdgeInsets.all(LekisSpacing.md),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${PluginStrings.catalogFailed} ($error)',
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        ref.invalidate(pluginRegistryProvider),
+                                    child: Text(PluginStrings.retry),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          data: (entries) => [
+                            if (entries.isEmpty)
+                              ListTile(title: Text(PluginStrings.catalogEmpty)),
+                            for (final entry in entries)
+                              _catalogRow(
+                                entry,
+                                installed:
+                                    plugins.value?.any(
+                                      (item) => item.id == entry.id,
+                                    ) ??
+                                    false,
+                                available: plugins.hasValue && !_installing,
+                              ),
+                          ],
+                        ),
+                  ),
+                plugins.when(
+                  skipLoadingOnReload: true,
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (error, _) => LekisEmptyState(
+                    title: PluginStrings.loadFailed,
+                    message: describeCoreError(error),
+                    action: FilledButton.tonalIcon(
+                      onPressed: () =>
+                          ref.read(pluginListProvider.notifier).reload(),
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: Text(PluginStrings.retry),
+                    ),
+                  ),
+                  data: (list) => list.isEmpty
+                      ? LekisEmptyState(
+                          title: PluginStrings.emptyTitle,
+                          message: PluginStrings.sourceHint,
+                          action: Wrap(
+                            spacing: LekisSpacing.sm,
+                            runSpacing: LekisSpacing.sm,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              FilledButton.icon(
+                                onPressed: _installing ? null : _installZip,
+                                icon: const Icon(Icons.folder_zip_outlined),
+                                label: Text(PluginStrings.installZip),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: _installing ? null : _installLink,
+                                icon: const Icon(Icons.link_rounded),
+                                label: Text(PluginStrings.installLink),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: _installing ? null : _installFolder,
+                                icon: const Icon(Icons.folder_open_outlined),
+                                label: Text(PluginStrings.installFolder),
+                              ),
+                            ],
                           ),
-                          OutlinedButton.icon(
-                            onPressed: _installing ? null : _installFolder,
-                            icon: const Icon(Icons.folder_open_outlined),
-                            label: Text(PluginStrings.installFolder),
-                          ),
-                        ],
-                      ),
-                    )
-                  : SettingsListView(
-                      children: [
-                        SettingsSection(
+                        )
+                      : SettingsSection(
                           title: PluginStrings.manageTitle,
                           children: [
                             for (final plugin in list)
@@ -387,10 +551,39 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
                               ),
                           ],
                         ),
-                      ],
-                    ),
+                ),
+              ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _catalogRow(
+    RegistryPlugin plugin, {
+    required bool installed,
+    required bool available,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.all(LekisSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${plugin.name} · v${plugin.version}',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          Text(plugin.description),
+          if (installed)
+            Text(PluginStrings.installed)
+          else
+            OutlinedButton(
+              onPressed: available
+                  ? () => _confirmCatalogInstall(plugin)
+                  : null,
+              child: Text(PluginStrings.downloadInstall),
+            ),
         ],
       ),
     );
