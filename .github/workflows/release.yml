@@ -51,7 +51,7 @@ jobs:
       version: ${{ steps.v.outputs.version }}
       prerelease: ${{ steps.v.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: v
         name: Read version from pubspec and check the tag
         run: |
@@ -82,7 +82,7 @@ jobs:
       LEKIS_KEY_ALIAS: ${{ secrets.LEKIS_KEY_ALIAS }}
       LEKIS_KEY_PASSWORD: ${{ secrets.LEKIS_KEY_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Require signing secrets for tag builds
         if: startsWith(github.ref, 'refs/tags/')
@@ -98,7 +98,7 @@ jobs:
           fi
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
@@ -128,7 +128,7 @@ jobs:
           workspaces: core
           key: release-android
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
 
       # --target-platform android-arm64 只编 arm64-v8a 这一套 Rust 核心。
       - name: Build release APK (arm64-v8a)
@@ -165,7 +165,7 @@ jobs:
           fi
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android
           path: dist/*.apk
@@ -178,7 +178,7 @@ jobs:
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Flutter 的 Windows 目标是 MSVC，Cargokit 也按 x86_64-pc-windows-msvc 编核心；
       # 运行器自带 Visual Studio 的 C++ 桌面负载，不需要本机那套 GNU dlltool 配置。
@@ -226,7 +226,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
 
       - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows
           path: |
@@ -241,7 +241,7 @@ jobs:
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Require an Apple Silicon runner
         run: |
@@ -298,7 +298,7 @@ jobs:
           rm -rf dist/dmg
 
       - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: macos
           path: |
@@ -313,7 +313,7 @@ jobs:
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Linux desktop & audio build dependencies
         run: |
@@ -385,7 +385,7 @@ jobs:
           rm -rf "$appdir" "$STAGE"
 
       - name: Upload Linux artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux
           path: |
@@ -403,7 +403,7 @@ jobs:
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # 被更新 tag 取代的旧发布不再上传 Release：否则一个晚上能发出上百条
       # “新版本已发布”通知，而且这些版本一落地就已经过期了。
@@ -419,7 +419,7 @@ jobs:
             echo "::notice::$GITHUB_REF_NAME is superseded by $newest; not publishing"
           fi
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         if: steps.newest.outputs.superseded != 'true'
         with:
           path: dist
@@ -442,7 +442,7 @@ jobs:
           fi
           echo "path=$notes" >> "$GITHUB_OUTPUT"
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         if: steps.newest.outputs.superseded != 'true'
         with:
           name: Lekis ${{ needs.version.outputs.version }}

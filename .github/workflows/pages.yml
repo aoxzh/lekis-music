@@ -26,7 +26,7 @@ jobs:
       url: ${{ steps.deploy-try-1.outputs.page_url || steps.deploy-try-2.outputs.page_url || steps.deploy-try-3.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Assemble site
         run: |
@@ -40,9 +40,9 @@ jobs:
           cp app/assets/brand/mark.png _site/assets/mark.png
           cp llms.txt _site/llms.txt
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
 
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
@@ -52,7 +52,7 @@ jobs:
       - name: Deploy to GitHub Pages (attempt 1)
         id: deploy-try-1
         continue-on-error: true
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
       - name: Wait before retrying the Pages deployment
         if: steps.deploy-try-1.outcome == 'failure'
@@ -62,7 +62,7 @@ jobs:
         id: deploy-try-2
         if: steps.deploy-try-1.outcome == 'failure'
         continue-on-error: true
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
       - name: Wait before the last Pages deployment attempt
         if: steps.deploy-try-1.outcome == 'failure' && steps.deploy-try-2.outcome == 'failure'
@@ -71,4 +71,4 @@ jobs:
       - name: Deploy to GitHub Pages (attempt 3)
         id: deploy-try-3
         if: steps.deploy-try-1.outcome == 'failure' && steps.deploy-try-2.outcome == 'failure'
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
