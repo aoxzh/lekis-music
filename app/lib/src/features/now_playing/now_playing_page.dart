@@ -299,9 +299,9 @@ class _NowPlayingLayoutState extends ConsumerState<_NowPlayingLayout>
       lowPower: widget.lowPower,
     );
 
-    const artwork = Padding(
-      padding: EdgeInsets.all(LekisSpacing.xl),
-      child: NowPlayingArtwork(),
+    final artwork = Padding(
+      padding: const EdgeInsets.all(LekisSpacing.xl),
+      child: NowPlayingArtwork(showDial: pane == NowPlayingPane.dial),
     );
 
     Widget mainPane({required bool compact}) {
@@ -604,16 +604,18 @@ class _Split extends StatelessWidget {
 /// No centred grabber pill: it repeated the chevron, and on Samsung
 /// foldables / tablets it sat directly under the system's multi-window
 /// handle at the top centre of the screen.
-class _TopBar extends StatelessWidget {
+class _TopBar extends ConsumerWidget {
   const _TopBar({required this.onClose});
 
   final VoidCallback onClose;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dial = ref.watch(nowPlayingPaneProvider) == NowPlayingPane.dial;
     return Padding(
       padding: const EdgeInsets.all(LekisSpacing.xs),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           IconButton(
             key: const ValueKey('now-playing.top-bar.close'),
@@ -624,6 +626,25 @@ class _TopBar extends StatelessWidget {
             ),
             onPressed: onClose,
             icon: const Icon(Icons.keyboard_arrow_down_rounded),
+          ),
+          Flexible(
+            child: TextButton.icon(
+              key: const ValueKey('now-playing.top-bar.dial'),
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.onSurface,
+              ),
+              icon: Icon(dial ? Icons.image_outlined : Icons.speed_rounded),
+              label: Text(
+                dial
+                    ? context.l10n.pick('返回封面', 'Back to artwork')
+                    : context.l10n.pick('曲目刻度', 'Track dial'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onPressed: () => ref.read(nowPlayingPaneProvider.notifier).set(
+                dial ? NowPlayingPane.cover : NowPlayingPane.dial,
+              ),
+            ),
           ),
         ],
       ),

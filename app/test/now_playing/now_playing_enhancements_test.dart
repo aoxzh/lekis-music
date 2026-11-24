@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lekis/src/bridge/core_events.dart';
@@ -10,6 +12,7 @@ import 'package:lekis/src/features/now_playing/now_playing_page.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/features/now_playing/now_playing_style.dart';
 import 'package:lekis/src/features/now_playing/now_playing_turntable.dart';
+import 'package:lekis/src/features/now_playing/track_dial.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/settings/settings_categories.dart';
 import 'package:lekis/src/features/settings/strings.dart';
@@ -19,6 +22,9 @@ import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
 class _FakePlayback extends PlaybackController {
+  void update(PlaybackStateDto playbackState, {int? duration}) =>
+      state = state.copyWith(state: playbackState, durationMs: duration);
+
   @override
   PlaybackUiState build() => const PlaybackUiState(
     state: PlaybackStateDto.paused,
@@ -30,6 +36,8 @@ class _FakePlayback extends PlaybackController {
 }
 
 class _FakePosition extends PositionController {
+  void seek(int ms) => state = ms;
+
   @override
   int build() => 68000;
 }
@@ -113,6 +121,110 @@ Future<void> _pumpDesktop(
 }
 
 void main() {
+  for (final size in [const Size(360, 740), const Size(1024, 600)]) {
+    testWidgets('select, seek and leave track dial at $size', (tester) async {
+      final container = _container(
+        pane: NowPlayingPane.cover,
+        style: NowPlayingStyle.vinyl,
+      );
+      addTearDown(container.dispose);
+      await _pumpDesktop(tester, container, size: size);
+      expect(find.byType(VinylRecordArtwork), findsOneWidget);
+      await tester.tap(find.text('曲目刻度'));
+      await tester.pumpAndSettle();
+      final dial = find.byType(TrackDial);
+      expect(dial, findsOneWidget);
+      expect(
+        find.descendant(of: dial, matching: find.text('29%')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: dial, matching: find.byIcon(Icons.pause_rounded)),
+        findsOneWidget,
+      );
+      final position =
+          container.read(positionProvider.notifier) as _FakePosition;
+      final playback =
+          container.read(playbackProvider.notifier) as _FakePlayback;
+      playback.update(PlaybackStateDto.playing);
+      position.seek(170250);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: dial, matching: find.text('75%')),
+        findsOneWidget,
+      );
+      final face = find
+          .descendant(of: dial, matching: find.byType(CustomPaint))
+          .first;
+      expect(
+        tester.renderObject(face),
+        paints
+          ..arc(sweepAngle: math.pi * 1.5)
+          ..arc(sweepAngle: math.pi * 1.5 * 0.75),
+      );
+      expect(tester.binding.hasScheduledFrame, isFalse);
+      expect(
+        find.descendant(
+          of: dial,
+          matching: find.byIcon(Icons.play_arrow_rounded),
+        ),
+        findsOneWidget,
+      );
+      position.seek(0);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: dial, matching: find.text('0%')),
+        findsOneWidget,
+      );
+      playback.update(PlaybackStateDto.buffering, duration: 0);
+      await tester.pump();
+      expect(
+        find.descendant(of: dial, matching: find.text('—')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: dial,
+          matching: find.byIcon(Icons.hourglass_empty_rounded),
+        ),
+        findsOneWidget,
+      );
+      playback.update(PlaybackStateDto.paused);
+      await tester.tap(find.text('返回封面'));
+      await tester.pumpAndSettle();
+      expect(dial, findsNothing);
+      expect(find.byType(VinylRecordArtwork), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('very small dial keeps the cover at full size', (tester) async {
+    const cover = SizedBox(key: ValueKey('tiny-cover'));
+    final container = _container();
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: Center(
+            child: SizedBox.square(
+              dimension: 80,
+              child: TrackDial(cover: cover),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(tester.getSize(find.byWidget(cover)), const Size.square(80));
+    expect(
+      find.descendant(
+        of: find.byType(TrackDial),
+        matching: find.byType(CustomPaint),
+      ),
+      findsNothing,
+    );
+  });
+
   test('detectLyricLocale & lyricTextStyleFor split ja / zh / ko / latin', () {
     expect(detectLyricLocale('鼓動は胸を焦がしてる'), const Locale('ja'));
     expect(detectLyricLocale('ターゲット〜赤い衝撃〜'), const Locale('ja'));
