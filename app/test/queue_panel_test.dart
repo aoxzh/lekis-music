@@ -7,6 +7,7 @@ import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/now_playing/now_playing_page.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_panel.dart';
+import 'package:lekis/src/features/player/queue_removals.dart';
 import 'package:lekis/src/features/player/queue_view.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
@@ -29,6 +30,11 @@ class _FakePlayback extends PlaybackController {
   _FakePlayback(this.queueIndex);
 
   final int queueIndex;
+
+  void acknowledgeRemoval() => state = state.copyWith(
+    queueLength: state.queueLength - 1,
+    queueVersion: state.queueVersion + 1,
+  );
 
   @override
   PlaybackUiState build() => PlaybackUiState(
@@ -88,6 +94,7 @@ PagedList<TrackRowDto> _queueList() => PagedList<TrackRowDto>(
       ),
       queueListProvider.overrideWith((ref) => list),
       playerActionsProvider.overrideWith((ref) => actions = _FakeActions(ref)),
+      queueRemoveCommandProvider.overrideWith((ref) => actions.removeQueueAt),
       downloadStateProvider.overrideWith((ref, trackId) => null),
       trackArtworkProvider.overrideWith((ref, trackId) async => null),
     ],
@@ -110,6 +117,83 @@ Widget _host(ProviderContainer container) => UncontrolledProviderScope(
 );
 
 void main() {
+  testWidgets('rapid panel removals preserve the unselected duplicate', (
+    tester,
+  ) async {
+    final queue = [
+      for (var index = 0; index < _queueLength; index++) _row(index),
+    ];
+    queue[4] = _row(2);
+    final expected = [...queue]
+      ..removeAt(4)
+      ..removeAt(1);
+    final playback = _FakePlayback(0);
+    var rejectNext = true;
+    final container = ProviderContainer(
+      overrides: [
+        playbackProvider.overrideWith(() => playback),
+        queueListProvider.overrideWith((ref) {
+          ref.watch(playbackProvider.select((state) => state.queueVersion));
+          final snapshot = [...queue];
+          final list = PagedList<TrackRowDto>(
+            pageSize: _queuePageSize,
+            count: () async => snapshot.length,
+            fetch: (offset, limit) async =>
+                snapshot.skip(offset).take(limit).toList(),
+          );
+          ref.onDispose(list.dispose);
+          return list;
+        }),
+        queueRemoveCommandProvider.overrideWith(
+          (ref) => (index) {
+            if (rejectNext) {
+              rejectNext = false;
+              throw StateError('queue unavailable');
+            }
+            queue.removeAt(index);
+          },
+        ),
+        trackArtworkProvider.overrideWith((ref, id) async => null),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: lekisDarkTheme(),
+          home: const Scaffold(body: QueuePanel()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Future<void> remove(int index) async {
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(ValueKey('queue-panel.row-$index')),
+          matching: find.byTooltip('从队列移除'),
+        ),
+      );
+      await tester.pump();
+    }
+
+    await remove(0);
+    expect(queue.length, _queueLength);
+    expect(container.read(queueRemovalsProvider), isEmpty);
+    expect(
+      container.read(playbackErrorProvider)?.message,
+      contains('queue unavailable'),
+    );
+    for (final index in [1, 4, 4]) {
+      await remove(index);
+    }
+    expect(queue, expected);
+    await tester.pumpWidget(const SizedBox());
+    playback.acknowledgeRemoval();
+    playback.acknowledgeRemoval();
+    expect(queue, expected);
+  });
+
   testWidgets('wide Now Playing shows the queue in a 320 dp third pane', (
     tester,
   ) async {

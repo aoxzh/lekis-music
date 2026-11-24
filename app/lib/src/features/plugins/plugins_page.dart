@@ -13,6 +13,7 @@ import '../../rust/api/dto.dart';
 import '../../rust/api/error.dart';
 import '../../theme/tokens.dart';
 import '../library/widgets/empty_state.dart';
+import '../settings/widgets/settings_reveal.dart';
 import '../settings/widgets/settings_widgets.dart';
 import '../sources/common.dart';
 import 'plugin_detail_sheet.dart';
@@ -407,22 +408,34 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
     return SettingsScaffold(
       title: PluginStrings.title,
       actions: [
-        IconButton(
-          tooltip: PluginStrings.refresh,
-          onPressed: plugins.isLoading
-              ? null
-              : () => ref.read(pluginListProvider.notifier).reload(),
-          icon: const Icon(Icons.refresh_rounded),
+        SettingsReveal.control(
+          context,
+          IconButton(
+            key: const ValueKey('plugins.refresh'),
+            tooltip: PluginStrings.refresh,
+            onPressed: plugins.isLoading
+                ? null
+                : () => ref.read(pluginListProvider.notifier).reload(),
+            icon: const Icon(Icons.refresh_rounded),
+          ),
         ),
-        IconButton(
-          tooltip: PluginStrings.pluginDir,
-          onPressed: _showDirectory,
-          icon: const Icon(Icons.folder_outlined),
+        SettingsReveal.control(
+          context,
+          IconButton(
+            key: const ValueKey('plugins.directory'),
+            tooltip: PluginStrings.pluginDir,
+            onPressed: _showDirectory,
+            icon: const Icon(Icons.folder_outlined),
+          ),
         ),
-        IconButton.filledTonal(
-          tooltip: PluginStrings.install,
-          onPressed: _installing ? null : _chooseInstall,
-          icon: const Icon(Icons.add),
+        SettingsReveal.control(
+          context,
+          IconButton.filledTonal(
+            key: const ValueKey('plugins.install'),
+            tooltip: PluginStrings.install,
+            onPressed: _installing ? null : _chooseInstall,
+            icon: const Icon(Icons.add),
+          ),
         ),
       ],
       body: Column(
@@ -438,10 +451,14 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
                 if (!_browsing)
                   Align(
                     alignment: AlignmentDirectional.centerStart,
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.extension_outlined),
-                      label: Text(PluginStrings.browse),
-                      onPressed: () => setState(() => _browsing = true),
+                    child: SettingsReveal.control(
+                      context,
+                      OutlinedButton.icon(
+                        key: const ValueKey('plugins.browse'),
+                        icon: const Icon(Icons.extension_outlined),
+                        label: Text(PluginStrings.browse),
+                        onPressed: () => setState(() => _browsing = true),
+                      ),
                     ),
                   )
                 else

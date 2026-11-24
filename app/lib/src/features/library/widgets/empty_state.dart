@@ -119,7 +119,7 @@ class LibraryEmptyState extends StatelessWidget {
         runSpacing: LekisSpacing.sm,
         children: [
           FilledButton.icon(
-            onPressed: () => AppShell.select(context, LekisDestination.sources),
+            onPressed: () => AppShell.openAddSource(context),
             icon: const Icon(Icons.add_rounded),
             label: Text(l10n.pick('添加音源', 'Add Source')),
           ),

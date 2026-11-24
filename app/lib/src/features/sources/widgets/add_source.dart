@@ -68,6 +68,7 @@ class _AddSourcePaneState extends ConsumerState<AddSourcePane> {
               key: const ValueKey('chooser'),
               onChoose: _chooseKind,
               onDiscovered: _chooseDiscovered,
+              onCancel: widget.onCancel,
             )
           : SourceForm(
               key: ValueKey(kind),
@@ -114,12 +115,14 @@ class SourceKindChooser extends StatelessWidget {
     super.key,
     required this.onChoose,
     required this.onDiscovered,
+    this.onCancel,
   });
 
   final ValueChanged<SourceKindDto> onChoose;
 
   /// 点了一条局域网发现结果：直接带着地址进入对应表单。
   final ValueChanged<DiscoveredServiceDto> onDiscovered;
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -153,9 +156,21 @@ class SourceKindChooser extends StatelessWidget {
         child: ListView(
           padding: featureScrollPadding(context),
           children: [
-            Text(
-              SourcesStrings.chooseKind,
-              style: theme.textTheme.headlineSmall,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    SourcesStrings.chooseKind,
+                    style: theme.textTheme.headlineSmall,
+                  ),
+                ),
+                if (onCancel != null)
+                  IconButton(
+                    tooltip: SourcesStrings.cancel,
+                    onPressed: onCancel,
+                    icon: const Icon(Icons.close),
+                  ),
+              ],
             ),
             const SizedBox(height: LekisSpacing.sm),
             Text(SourcesStrings.chooseKindBody, style: muted),

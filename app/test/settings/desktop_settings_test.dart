@@ -4,16 +4,22 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lekis/src/features/desktop_lyrics/desktop_lyrics_controller.dart';
 import 'package:lekis/src/features/downloads/downloads_providers.dart';
 import 'package:lekis/src/features/enrich/enrich_providers.dart';
+import 'package:lekis/src/features/now_playing/lyrics_stage_settings.dart';
+import 'package:lekis/src/features/plugins/plugins_page.dart';
+import 'package:lekis/src/features/plugins/strings.dart';
 import 'package:lekis/src/features/settings/desktop_settings_view.dart';
 import 'package:lekis/src/features/settings/settings_page.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/features/settings/strings.dart';
 import 'package:lekis/src/features/settings/tab_bar_style_picker.dart';
 import 'package:lekis/src/features/settings/theme_preference.dart';
+import 'package:lekis/src/features/settings/usb_bit_perfect_providers.dart';
 import 'package:lekis/src/features/settings/widgets/settings_widgets.dart';
 import 'package:lekis/src/features/sources/sources_providers.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/nav_bar_position.dart';
@@ -40,8 +46,14 @@ class _FakePending extends EnrichPendingCountNotifier {
 }
 
 // Built after the profile is set: the theme reads it too.
-Widget _app() => ProviderScope(
+Widget _app({
+  bool usb = false,
+  LyricsStyle style = LyricsStyle.classic,
+}) => ProviderScope(
   overrides: [
+    usbBitPerfectSupportedProvider.overrideWithValue(usb),
+    desktopLyricsSupportedProvider.overrideWithValue(false),
+    lyricsStyleProvider.overrideWithValue(style),
     sourcesProvider.overrideWith(_FakeSources.new),
     enrichPendingCountProvider.overrideWith(_FakePending.new),
     downloadsSummaryProvider.overrideWithValue((
@@ -75,6 +87,33 @@ Finder _category(String name) =>
 
 void main() {
   group('desktop profile', () {
+    testWidgets('search jumps to a specific lyric row in the detail pane', (
+      tester,
+    ) async {
+      _profile(UiProfile.desktop);
+      _size(tester, const Size(1280, 510));
+      await tester.pumpWidget(_app());
+      final field = find.byKey(DesktopSettingsView.searchKey);
+      await tester.enterText(field, 'translation');
+      await tester.pump();
+      final result = find.text(
+        '${SettingsStrings.appearance} › ${SettingsStrings.lyrics} › ${SettingsStrings.lyricsTranslation}',
+      );
+      expect(result, findsOneWidget);
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      final row = find.byKey(const ValueKey('lyrics.translation'));
+      final position = Scrollable.of(tester.element(row)).position;
+      expect(position.pixels, greaterThan(0));
+      expect(row.hitTestable(), findsOneWidget);
+      expect(find.byType(BackButton), findsNothing);
+      position.jumpTo(0);
+      await tester.pump();
+      expect(row.hitTestable(), findsNothing);
+      await tester.tap(result);
+      await tester.pumpAndSettle();
+      expect(row.hitTestable(), findsOneWidget);
+    });
     testWidgets('1280x820: category list on the left, detail on the right', (
       tester,
     ) async {
@@ -246,6 +285,81 @@ void main() {
   });
 
   group('mobile profile', () {
+    testWidgets(
+      'phone opens the exact setting and returns to its English search results',
+      (tester) async {
+        _profile(UiProfile.mobile);
+        _size(tester, const Size(412, 680));
+        await tester.pumpWidget(
+          LekisLocale(locale: const Locale('en'), child: _app()),
+        );
+        final field = find.byKey(const ValueKey('settings-mobile-search'));
+        await tester.enterText(field, '歌词字号');
+        await tester.pump();
+        final result = find.text('Appearance › Lyrics › Lyrics text size');
+        await tester.tap(result);
+        await tester.pumpAndSettle();
+        final row = find.byKey(const ValueKey('settings-lyrics-font-size'));
+        expect(row.hitTestable(), findsOneWidget);
+        expect(
+          Scrollable.of(tester.element(row)).position.pixels,
+          greaterThan(0),
+        );
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+        expect(result.hitTestable(), findsOneWidget);
+        await tester.enterText(field, 'plugins install');
+        await tester.pump();
+        await tester.tap(
+          find.text('Advanced › Plugins › ${PluginStrings.install}'),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(PluginsPage), findsOneWidget);
+        await tester.tap(find.byTooltip(PluginStrings.install));
+        await tester.pumpAndSettle();
+        expect(find.text(PluginStrings.installFolder), findsOneWidget);
+      },
+    );
+
+    testWidgets('search follows USB support and the selected lyric style', (
+      tester,
+    ) async {
+      _profile(UiProfile.mobile);
+      _size(tester, const Size(412, 680));
+      await tester.pumpWidget(_app(usb: true, style: LyricsStyle.flow));
+      final field = find.byKey(const ValueKey('settings-mobile-search'));
+      await tester.enterText(field, 'audio output');
+      await tester.pump();
+      expect(
+        find.textContaining('› ${SettingsStrings.usbBitPerfect}'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('› ${SettingsStrings.outputMode}'),
+        findsNothing,
+      );
+      await tester.tap(
+        find.textContaining('› ${SettingsStrings.usbBitPerfect}'),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('settings.usb-bit-perfect')).hitTestable(),
+        findsOneWidget,
+      );
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      await tester.enterText(field, 'lyrics');
+      await tester.pump();
+      expect(
+        find.textContaining('› ${SettingsStrings.lyricsSparks}'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('› ${SettingsStrings.lyricsRuby}'),
+        findsNothing,
+      );
+      expect(find.textContaining('› 桌面歌词'), findsNothing);
+    });
     testWidgets('phone keeps the tab bar style and segmented theme picker', (
       tester,
     ) async {

@@ -6,8 +6,6 @@ import 'dart:ui' show lerpDouble;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/album_detail_page.dart';
-import 'package:lekis/src/features/library/artist_detail_page.dart';
-import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/now_playing/cover_wall.dart';
 import 'package:lekis/src/features/now_playing/lyrics_view.dart';
@@ -641,9 +639,9 @@ class _TopBar extends ConsumerWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              onPressed: () => ref.read(nowPlayingPaneProvider.notifier).set(
-                dial ? NowPlayingPane.cover : NowPlayingPane.dial,
-              ),
+              onPressed: () => ref
+                  .read(nowPlayingPaneProvider.notifier)
+                  .set(dial ? NowPlayingPane.cover : NowPlayingPane.dial),
             ),
           ),
         ],
@@ -705,9 +703,10 @@ class NowPlayingActions extends ConsumerWidget {
     }
 
     final l10n = context.l10n;
-    return Row(
+    return Wrap(
       key: const ValueKey('now-playing.actions'),
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         action(
           key: lyricsKey,
@@ -785,9 +784,8 @@ const double _seekTrackInset = LekisSizes.touchTargetMin / 2;
 /// Title block, seek bar, transport and (desktop) volume.
 ///
 /// One alignment for the whole column, Apple Music style: the title /
-/// artist block is left-aligned on the seek track's start edge with the
-/// library actions trailing it on the same line; the seek bar spans the
-/// column and the transport sits centred under it, then (desktop) volume,
+/// artist block is left-aligned on the seek track's start edge. The seek bar
+/// spans the column and the transport sits centred under it, then (desktop) volume,
 /// then the lyrics / wall / queue row at the very bottom.
 class NowPlayingControls extends StatelessWidget {
   const NowPlayingControls({super.key});
@@ -810,14 +808,9 @@ class NowPlayingControls extends StatelessWidget {
                 end: _seekTrackInset - LekisSpacing.md,
               ),
               child: LayoutBuilder(
-                builder: (context, constraints) => Row(
-                  children: [
-                    const Expanded(child: _NowPlayingTitle()),
-                    const SizedBox(width: LekisSpacing.sm),
-                    NowPlayingLibraryActions(
-                      showRating: constraints.maxWidth >= _inlineRatingMinWidth,
-                    ),
-                  ],
+                builder: (context, constraints) => _NowPlayingTitle(
+                  compact: context.widthClass == WindowWidthClass.compact,
+                  showRating: constraints.maxWidth >= _inlineRatingMinWidth,
                 ),
               ),
             ),
@@ -837,12 +830,16 @@ class NowPlayingControls extends StatelessWidget {
               ),
             ],
             const SizedBox(height: LekisSpacing.md),
-            const Padding(
-              // Outer icons line up with the ends of the seek track.
-              padding: EdgeInsets.symmetric(
-                horizontal: _seekTrackInset - LekisSpacing.md,
+            LayoutBuilder(
+              builder: (context, constraints) => Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal:
+                      ((constraints.maxWidth - 6 * LekisSizes.touchTargetMin) /
+                              2)
+                          .clamp(0, _seekTrackInset - LekisSpacing.md),
+                ),
+                child: const NowPlayingActions(),
               ),
-              child: NowPlayingActions(),
             ),
           ],
         ),
@@ -851,24 +848,63 @@ class NowPlayingControls extends StatelessWidget {
   }
 }
 
-/// Track title over “artist · album”, both single-line with ellipsis.
-///
-/// The artist and the album are links: tapping them opens the artist / album
-/// page, the way the same line behaves in Apple Music and Spotify (the track
-/// only carries the album id and the artist names, so the artist id is
-/// resolved by name).
 class _NowPlayingTitle extends ConsumerWidget {
-  const _NowPlayingTitle();
+  const _NowPlayingTitle({required this.compact, required this.showRating});
+
+  final bool compact;
+  final bool showRating;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final track = ref.watch(currentTrackProvider).value;
+    final title = Text(
+      track?.title ?? context.l10n.notPlaying,
+      key: const ValueKey('now-playing.title'),
+      maxLines: compact ? 2 : 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.titleLarge
+          ?.copyWith(fontWeight: FontWeight.w700),
+    );
+    if (track == null) return title;
+    final subtitle = _NowPlayingSubtitle(track: track);
+    final actions = NowPlayingLibraryActions(showRating: showRating);
+    Widget withActions(Widget leading) => Row(
+      children: [
+        Expanded(child: leading),
+        const SizedBox(width: LekisSpacing.sm),
+        actions,
+      ],
+    );
+    return compact
+        ? Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [title, withActions(subtitle)],
+          )
+        : withActions(
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [title, subtitle],
+            ),
+          );
+  }
+}
+
+class _NowPlayingSubtitle extends ConsumerWidget {
+  const _NowPlayingSubtitle({required this.track});
+
+  final TrackDto track;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final track = ref.watch(currentTrackProvider).value;
-    final artistNames = track?.artists.where((a) => a.isNotEmpty).join(' / ');
-    final album = track?.albumTitle;
-    final albumId = track?.albumId;
-    final quality = track?.qualityBadge;
-    final hasArtist = artistNames != null && artistNames.isNotEmpty;
+    final artists = nowPlayingArtistNames(track);
+    final artistNames = artists.join(' / ');
+    final album = track.albumTitle;
+    final albumId = track.albumId;
+    final quality = track.qualityBadge;
+    final hasArtist = artists.isNotEmpty;
     final hasAlbum = album != null && album.isNotEmpty;
     final hasQuality = quality != null && quality.isNotEmpty;
     final exclusive =
@@ -876,137 +912,95 @@ class _NowPlayingTitle extends ConsumerWidget {
     final subtitleStyle = theme.textTheme.bodyLarge?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
-    return Column(
-      key: const ValueKey('now-playing.title'),
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          track?.title ?? context.l10n.notPlaying,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        if (track != null)
-          LayoutBuilder(
-            // The artist keeps its natural width (a name cut down to one
-            // character is useless as a link) and is capped at 45%; the album
-            // takes the rest of the line and ellipsises.
-            builder: (context, constraints) => Row(
-              key: const ValueKey('now-playing.subtitle'),
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (hasArtist)
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: constraints.maxWidth * 0.45,
-                    ),
-                    child: _SubtitleLink(
-                      label: artistNames,
-                      style: subtitleStyle,
-                      semanticsLabel: context.l10n.pick(
-                        '查看艺人 $artistNames',
-                        'View artist $artistNames',
-                      ),
-                      onTap: () => _openArtist(context, ref, artistNames),
-                    ),
-                  )
-                else
-                  Flexible(
-                    child: Text(
-                      context.l10n.unknownArtist,
-                      style: subtitleStyle,
-                    ),
-                  ),
-                if (hasArtist && hasAlbum) Text(' · ', style: subtitleStyle),
-                if (hasAlbum)
-                  Flexible(
-                    child: albumId == null
-                        ? Text(
-                            album,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: subtitleStyle,
-                          )
-                        : _SubtitleLink(
-                            label: album,
-                            style: subtitleStyle,
-                            semanticsLabel: context.l10n.pick(
-                              '查看专辑 $album',
-                              'View album $album',
-                            ),
-                            onTap: () => Navigator.of(context)
-                                .push(AlbumDetailPage.route(albumId.toInt())),
-                          ),
-                  ),
-                if (hasQuality) ...[
-                  Text(' · ', style: subtitleStyle),
-                  Flexible(
-                    child: _SubtitleLink(
-                      label: quality,
-                      style: subtitleStyle?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      semanticsLabel: context.l10n.pick(
-                        '查看曲目来源',
-                        'View track sources',
-                      ),
-                      onTap: () => showTrackSourcesSheet(
-                        context,
-                        trackId: track.id.toInt(),
-                        title: track.title,
-                      ),
-                    ),
-                  ),
-                ],
-                if (exclusive) ...[
-                  Text(' · ', style: subtitleStyle),
-                  Tooltip(
-                    message: context.l10n.pick(
-                      '独占模式：绕过系统混音',
-                      'Exclusive mode: bypasses the system mixer',
-                    ),
-                    child: Icon(
-                      Icons.high_quality_rounded,
-                      size: 18,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                ],
-              ],
+    return LayoutBuilder(
+      // The artist keeps its natural width (a name cut down to one
+      // character is useless as a link) and is capped at 45%; the album
+      // takes the rest of the line and ellipsises.
+      builder: (context, constraints) => Row(
+        key: const ValueKey('now-playing.subtitle'),
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (hasArtist)
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: hasAlbum || hasQuality || exclusive
+                    ? constraints.maxWidth * 0.45
+                    : constraints.maxWidth,
+              ),
+              child: _SubtitleLink(
+                label: artistNames,
+                style: subtitleStyle,
+                semanticsLabel: context.l10n.pick(
+                  '查看艺人 $artistNames',
+                  'View artist $artistNames',
+                ),
+                onTap: () => openNowPlayingArtist(context, ref, artists),
+              ),
+            )
+          else
+            Flexible(
+              child: Text(context.l10n.unknownArtist, style: subtitleStyle),
             ),
-          ),
-      ],
+          if (hasArtist && hasAlbum) Text(' · ', style: subtitleStyle),
+          if (hasAlbum)
+            Flexible(
+              child: albumId == null
+                  ? Text(
+                      album,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: subtitleStyle,
+                    )
+                  : _SubtitleLink(
+                      label: album,
+                      style: subtitleStyle,
+                      semanticsLabel: context.l10n.pick(
+                        '查看专辑 $album',
+                        'View album $album',
+                      ),
+                      onTap: () =>
+                          Navigator.of(context)
+                              .push(AlbumDetailPage.route(albumId.toInt())),
+                    ),
+            ),
+          if (hasQuality) ...[
+            Text(' · ', style: subtitleStyle),
+            Flexible(
+              child: _SubtitleLink(
+                label: quality,
+                style: subtitleStyle?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+                semanticsLabel: context.l10n.pick(
+                  '查看曲目来源',
+                  'View track sources',
+                ),
+                onTap: () => showTrackSourcesSheet(
+                  context,
+                  trackId: track.id.toInt(),
+                  title: track.title,
+                ),
+              ),
+            ),
+          ],
+          if (exclusive) ...[
+            Text(' · ', style: subtitleStyle),
+            Tooltip(
+              message: context.l10n.pick(
+                '独占模式：绕过系统混音',
+                'Exclusive mode: bypasses the system mixer',
+              ),
+              child: Icon(
+                Icons.high_quality_rounded,
+                size: 18,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
-  }
-
-  /// 艺人名 → 艺人 id → 艺人页；解析不到时给一句提示，而不是静默无反应。
-  Future<void> _openArtist(
-    BuildContext context,
-    WidgetRef ref,
-    String names,
-  ) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
-    final first = names.split(' / ').first.trim();
-    final id = await ref.read(artistIdForNameProvider(first).future);
-    if (!context.mounted) return;
-    if (id == null) {
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              context.l10n.pick('资料库里没有这位艺人', 'Artist not found in library'),
-            ),
-          ),
-        );
-      return;
-    }
-    await navigator.push(ArtistDetailPage.route(id));
   }
 }
 
@@ -1043,6 +1037,7 @@ class _SubtitleLinkState extends State<_SubtitleLink> {
     return Semantics(
       link: true,
       label: widget.semanticsLabel,
+      onTap: widget.onTap,
       excludeSemantics: true,
       button: true,
       child: MouseRegion(
