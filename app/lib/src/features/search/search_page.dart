@@ -8,6 +8,7 @@ import '../settings/widgets/settings_widgets.dart';
 import 'spotify_catalog_page.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/library/album_detail_page.dart';
 import 'package:lekis/src/features/library/artist_detail_page.dart';
 import 'package:lekis/src/features/library/widgets/album_card.dart';
@@ -17,6 +18,7 @@ import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/shelf.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/playlists/playlist_actions.dart';
 import 'package:lekis/src/features/search/search_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/platform/ui_profile.dart';
@@ -519,6 +521,70 @@ class _Results extends ConsumerWidget {
                       .read(playerActionsProvider)
                       .playRows(tracks, shuffle: true),
                   icon: const Icon(Icons.shuffle_rounded),
+                ),
+                PopupMenuButton<String>(
+                  tooltip: l10n.pick('更多操作', 'More Actions'),
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'save':
+                        final stamp = DateTime.now()
+                            .toString()
+                            .substring(0, 16)
+                            .replaceAll('T', ' ');
+                        unawaited(
+                          saveTracksAsPlaylistFlow(
+                            context,
+                            ref,
+                            tracks,
+                            suggestedName:
+                                '${l10n.pick('搜索结果', 'Search Results')} $stamp',
+                          ),
+                        );
+                      case 'download':
+                        final ids = [
+                          for (final track in tracks)
+                            if (!track.isLocal) track.id,
+                        ];
+                        if (ids.isEmpty) {
+                          ScaffoldMessenger.of(context)
+                            ..hideCurrentSnackBar()
+                            ..showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  l10n.pick(
+                                    '没有可下载的曲目',
+                                    'No tracks available to download',
+                                  ),
+                                ),
+                              ),
+                            );
+                          return;
+                        }
+                        unawaited(startDownloads(context, ref, ids));
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'save',
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.playlist_add_rounded),
+                        title: Text(l10n.pick('保存为歌单', 'Save as Playlist')),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'download',
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(
+                          Icons.download_for_offline_outlined,
+                        ),
+                        title: Text(l10n.pick('下载全部', 'Download All')),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
