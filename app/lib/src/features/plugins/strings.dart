@@ -24,8 +24,8 @@ abstract final class PluginStrings {
     'The package SHA-256 does not match the catalog. Installation stopped.',
   );
   static String get providerNotice => L10n.tr(
-    '插件由第三方独立开发和维护。插件提供的内容与服务由相应提供方负责；月兔音乐与这些提供方无隶属关系。',
-    'Third parties independently develop and maintain plugins. Each provider is responsible for the content and services its plugins offer. Lekis Music is unaffiliated with these providers.',
+    '插件均由社区第三方制作和维护，不是月兔音乐官方提供。月兔音乐与插件的内容权益方（如哔哩哔哩）均与插件无任何隶属、合作或背书关系；插件的内容与服务由插件作者和相应权益方负责。',
+    'Plugins are made and maintained by third-party community contributors, not by Lekis Music. Neither Lekis Music nor any content rights holder (such as Bilibili) is affiliated with, endorses, or is connected to these plugins; the plugin author and the respective rights holders are responsible for the content and services they provide.',
   );
   static String get sourceHint => L10n.tr(
     '安装音源插件后，可在「搜索」中选择对应音源。也可以使用插件作者提供的 ZIP 安装包或 HTTPS 下载链接。',
