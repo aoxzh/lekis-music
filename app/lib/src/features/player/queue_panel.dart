@@ -17,6 +17,7 @@ import 'package:lekis/src/features/library/library_providers.dart'
     show PagedList, artistIdForNameProvider;
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/player/queue_move_next.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
@@ -548,6 +549,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
     BuildContext context,
     TrackRowDto row,
     int index,
+    VoidCallback? moveToNext,
   ) async {
     final length = ref.read(playbackProvider).queueLength;
     final loved = ref.read(lovedOverridesProvider)[row.id] ?? row.loved;
@@ -565,6 +567,15 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (moveToNext != null)
+                  ListTile(
+                    leading: const Icon(Icons.queue_play_next_rounded),
+                    title: Text(moveToNextLabel(sheet)),
+                    onTap: () {
+                      close();
+                      moveToNext();
+                    },
+                  ),
                 if (row.albumTitle != null && row.albumTitle!.isNotEmpty)
                   ListTile(
                     leading: const Icon(Icons.album_outlined),
@@ -1144,6 +1155,9 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
                           return _QueueRowPlaceholder(colors: colors);
                         }
                         final removing = _removing.contains(index);
+                        final moveToNext = identical(list, latest) && !removing
+                            ? queueMoveToNext(ref, index)
+                            : null;
                         return ListMotionRow(
                           key: ValueKey('queue-panel.entry-$index-${row.id}'),
                           motion: _motion,
@@ -1167,8 +1181,12 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
                                 onPlay: () => ref
                                     .read(playerActionsProvider)
                                     .playQueueAt(index),
-                                onLongPress: () =>
-                                    _showRowMenu(context, row, index),
+                                onLongPress: () => _showRowMenu(
+                                  context,
+                                  row,
+                                  index,
+                                  moveToNext,
+                                ),
                                 onRemove: () => _remove(index),
                                 onMoveUp: index > 0
                                     ? () => ref

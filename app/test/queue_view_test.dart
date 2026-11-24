@@ -23,6 +23,9 @@ class _FakePlayback extends PlaybackController {
   final int queueIndex;
   final int queueLength;
 
+  void queueEdited() =>
+      state = state.copyWith(queueVersion: state.queueVersion + 1);
+
   @override
   PlaybackUiState build() => PlaybackUiState(
     state: PlaybackStateDto.playing,
@@ -51,6 +54,63 @@ class _FakeActions extends PlayerActions {
 }
 
 void main() {
+  testWidgets('move to next uses the selected occurrence in the preview', (
+    tester,
+  ) async {
+    final playback = _FakePlayback(5, 20);
+    late _FakeActions actions;
+    final container = ProviderContainer(
+      overrides: [
+        playbackProvider.overrideWith(() => playback),
+        queuePreviewProvider.overrideWith(
+          (ref) async => [_row(4), _row(5), _row(6), _row(5), _row(8)],
+        ),
+        playerActionsProvider.overrideWith(
+          (ref) => actions = _FakeActions(ref),
+        ),
+        trackArtworkProvider.overrideWith((ref, id) async => null),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: lekisDarkTheme(),
+          home: const Scaffold(body: QueueList()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    Future<void> openMenu(int row) async {
+      await tester.tap(find.byTooltip('队列操作').at(row));
+      await tester.pumpAndSettle();
+    }
+
+    for (final row in [1, 2]) {
+      await openMenu(row);
+      expect(find.text('移到下一首'), findsNothing);
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      await tester.pumpAndSettle();
+    }
+
+    await openMenu(3);
+    await tester.tap(find.text('移到下一首'));
+    await tester.pumpAndSettle();
+    expect(actions.moved, [(7, 6)]);
+    expect(actions.played, isEmpty);
+    expect(actions.removed, isEmpty);
+
+    await openMenu(4);
+    playback.queueEdited();
+    await tester.pump();
+    await tester.tap(find.text('移到下一首'));
+    await tester.pumpAndSettle();
+    expect(actions.moved, [(7, 6)]);
+    expect(find.text('队列已变化，请重新选择曲目'), findsOneWidget);
+  });
+
   testWidgets(
     'QueueList maps tap and remove through queuePreviewStart offset',
     (tester) async {

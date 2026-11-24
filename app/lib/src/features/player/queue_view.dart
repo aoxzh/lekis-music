@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/player/queue_move_next.dart';
 import 'package:lekis/src/features/player/queue_panel.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
@@ -201,6 +202,10 @@ class _QueueListState extends ConsumerState<QueueList>
             final row = items[i];
             final actualIndex = start + i;
             final key = _shownKeys[i];
+            final moveToNext =
+                rows.isLoading || _optimistic != null || _removing.contains(key)
+                ? null
+                : queueMoveToNext(ref, actualIndex);
             final isCurrent = playback.queueIndex != null
                 ? actualIndex == playback.queueIndex
                 : row.id == playback.trackId;
@@ -292,6 +297,12 @@ class _QueueListState extends ConsumerState<QueueList>
                             }
                           },
                           itemBuilder: (_) => [
+                            if (moveToNext != null)
+                              PopupMenuItem(
+                                value: 'next',
+                                onTap: moveToNext,
+                                child: Text(moveToNextLabel(context)),
+                              ),
                             PopupMenuItem(
                               value: 'playlist',
                               child: Text(

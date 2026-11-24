@@ -2,6 +2,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lekis/src/features/downloads/downloads_providers.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/now_playing/now_playing_page.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
@@ -49,7 +50,7 @@ class _FakeActions extends PlayerActions {
 
   final played = <int>[];
   int removed = 0;
-  int moved = 0;
+  final moved = <(int, int)>[];
 
   @override
   Future<void> playQueueAt(int index) async => played.add(index);
@@ -58,7 +59,7 @@ class _FakeActions extends PlayerActions {
   void removeQueueAt(int index) => removed++;
 
   @override
-  void moveQueueItem(int from, int to) => moved++;
+  void moveQueueItem(int from, int to) => moved.add((from, to));
 }
 
 PagedList<TrackRowDto> _queueList() => PagedList<TrackRowDto>(
@@ -84,6 +85,7 @@ PagedList<TrackRowDto> _queueList() => PagedList<TrackRowDto>(
       ),
       queueListProvider.overrideWith((ref) => list),
       playerActionsProvider.overrideWith((ref) => actions = _FakeActions(ref)),
+      downloadStateProvider.overrideWith((ref, trackId) => null),
       trackArtworkProvider.overrideWith((ref, trackId) async => null),
     ],
   );
@@ -143,7 +145,7 @@ void main() {
       find.descendant(of: currentRow, matching: find.byTooltip('上移')),
     );
     await tester.pump();
-    expect(actions.moved, 1);
+    expect(actions.moved, [(40, 39)]);
 
     await tester.tap(
       find.descendant(of: currentRow, matching: find.byTooltip('从队列移除')),
@@ -151,6 +153,31 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
     expect(actions.removed, 1);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('panel moves an earlier queue entry directly after current', (
+    tester,
+  ) async {
+    final (container, actions, list) = _container();
+    addTearDown(container.dispose);
+    addTearDown(list.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: lekisDarkTheme(),
+          home: const Scaffold(body: QueuePanel()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.longPress(find.text('曲目 39'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('移到下一首'));
+    await tester.pumpAndSettle();
+    expect(actions.moved, [(39, 40)]);
+    expect(actions.played, isEmpty);
+    expect(actions.removed, 0);
   });
 
   testWidgets('compact Now Playing keeps the queue bottom sheet', (
