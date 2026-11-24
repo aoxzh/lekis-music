@@ -70,25 +70,30 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
   Future<void> _load({bool preserveDraft = false}) async {
     LyricsDto? current;
     String? error;
-    try {
-      current = await core.lyrics(trackId: widget.trackId);
-    } catch (e) {
-      if (!mounted) return;
-      error = _lookupError(e);
+    if (!preserveDraft) {
+      try {
+        current = await core.lyrics(trackId: widget.trackId);
+      } catch (e) {
+        if (!mounted) return;
+        error = _lookupError(e);
+      }
     }
     try {
       // Fetch versions after lookup, including new candidates awaiting selection.
       final versions = await core.lyricsVersions(trackId: widget.trackId);
+      current =
+          versions.where((row) => row.isActive).firstOrNull?.lyrics ?? current;
       if (!mounted) return;
+      final active = current;
       setState(() {
         _versions = versions;
         final hasDraft =
             _content.text != _loadedContent ||
             _format != _loadedFormat ||
             _offset != _loadedOffset;
-        _loadedContent = current?.content ?? '';
-        _loadedFormat = current?.format ?? LyricsFormatDto.lrc;
-        _loadedOffset = current?.offsetMs ?? 0;
+        _loadedContent = active?.content ?? '';
+        _loadedFormat = active?.format ?? LyricsFormatDto.lrc;
+        _loadedOffset = active?.offsetMs ?? 0;
         if (!preserveDraft || !hasDraft) {
           _content.text = _loadedContent;
           _format = _loadedFormat;

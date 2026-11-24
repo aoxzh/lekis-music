@@ -289,7 +289,16 @@ impl EnrichPipeline {
         let mut queued: Vec<NewEnrichCandidate> = Vec::new();
         let existing = library.list_lyrics(track_id).await?;
         let mut selected = existing.iter().find(|row| row.is_active).map(|row| row.id);
-        for candidate in candidates.into_iter().take(MAX_PROVIDERS_PER_KIND) {
+        let mut seen = Vec::new();
+        for candidate in &candidates {
+            let identity = (&candidate.source, &candidate.payload);
+            if seen.contains(&identity) {
+                continue;
+            }
+            if seen.len() == MAX_PROVIDERS_PER_KIND {
+                break;
+            }
+            seen.push(identity);
             // Providers already combine metadata identity and their own reliability.
             let score = candidate.provider_confidence;
             let decision = decide(score);
@@ -299,7 +308,7 @@ impl EnrichPipeline {
             }
             let lyrics = Lyrics {
                 format: candidate.payload.format,
-                content: candidate.payload.content,
+                content: candidate.payload.content.clone(),
                 source: candidate.source.clone(),
                 offset_ms: 0,
                 confidence: score,
@@ -322,7 +331,7 @@ impl EnrichPipeline {
                 Decision::Review => queued.push(NewEnrichCandidate {
                     track_id: Some(track_id), album_id: None, kind: "lyrics".into(),
                     payload_json: serde_json::json!({ "format": format_to_str(lyrics.format), "content": lyrics.content }).to_string(),
-                    source: candidate.source, score,
+                    source: candidate.source.clone(), score,
                 }),
                 Decision::Discard => {}
             }

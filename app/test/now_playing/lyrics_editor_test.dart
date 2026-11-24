@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lekis/src/features/now_playing/lyrics_editor_sheet.dart';
+import 'package:lekis/src/features/now_playing/lyrics_view.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/rust/api/error.dart';
 import 'package:lekis/src/rust/frb_generated.dart';
@@ -30,14 +31,22 @@ class _Api implements RustLibApi {
   LyricsDto candidate = review;
   final activations = <int>[];
   var retries = 0;
+  var lookups = 0;
   Completer<void>? pending;
   bool failActivation = false;
   Object? retryError;
   LyricsDto? retryResult;
   LyricsDto? saved;
   @override
-  Future<LyricsDto?> crateApiCoreLyrics({required int trackId}) async =>
-      active == 10 ? embedded : candidate;
+  Future<LyricsDto?> crateApiCoreLyrics({required int trackId}) async {
+    lookups++;
+    return active == 10
+        ? embedded
+        : active == 20
+        ? candidate
+        : null;
+  }
+
   @override
   Future<List<LyricsRowDto>> crateApiCoreLyricsVersions({
     required int trackId,
@@ -197,6 +206,7 @@ void main() {
     await tester.tap(retry);
     await tester.pumpAndSettle();
     expect(api.retries, 1);
+    expect(api.lookups, 1);
     expect(content(tester), embedded.content);
     expect(find.textContaining('未找到可自动使用的歌词'), findsOneWidget);
     api.retryError = const CoreError(
@@ -210,6 +220,28 @@ void main() {
     expect(find.textContaining('private remote detail'), findsNothing);
     expect(find.byKey(const ValueKey('lyrics-editor.notice')), findsNothing);
     expect(content(tester), embedded.content);
+  });
+  testWidgets('empty playback lyrics opens review-only candidates', (
+    tester,
+  ) async {
+    api.active = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: lekisLightTheme(),
+          home: const Scaffold(body: LyricsView(trackId: 7)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('查找歌词版本'));
+    await tester.pumpAndSettle();
+    final choice = find.byKey(const ValueKey('lyrics-editor.version.20'));
+    await tester.ensureVisible(choice);
+    await tester.tap(choice);
+    await tester.pumpAndSettle();
+    expect(api.activations, [20]);
+    expect(api.retries, 0);
   });
   testWidgets('retry preserves an unsaved lyrics draft', (tester) async {
     await mount(tester);

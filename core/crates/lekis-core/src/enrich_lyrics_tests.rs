@@ -181,6 +181,7 @@ async fn lyrics_fetch_force_preserves_selection_and_candidates_are_selectable() 
     let (root, library, id) = library("force").await;
     let (pipeline, calls) = pipeline(vec![Ok(vec![
         candidate(LyricsFormat::Lrc, 0.87),
+        candidate(LyricsFormat::Lrc, 0.87),
         candidate(LyricsFormat::Plain, 0.65),
     ])]);
     assert!(pipeline.fetch_lyrics(&library, id, false).await.unwrap());

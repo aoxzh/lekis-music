@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/now_playing/lyric_typography.dart';
 import 'package:lekis/src/features/now_playing/lyrics_classic.dart';
+import 'package:lekis/src/features/now_playing/lyrics_editor_sheet.dart';
 import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
 import 'package:lekis/src/features/now_playing/lyrics_stage.dart';
 import 'package:lekis/src/features/now_playing/lyrics_stage_settings.dart';
@@ -72,7 +73,7 @@ class LyricsView extends ConsumerWidget {
           '查找歌词时出了点问题',
           'Something went wrong while fetching lyrics',
         ),
-        onRetry: () => ref.invalidate(lyricsProvider(trackId)),
+        onSearch: () => showLyricsEditor(context, ref, trackId),
       ),
       data: (parsed) {
         // Lyrics made only of blank / instrumental lines would render as an
@@ -83,9 +84,10 @@ class LyricsView extends ConsumerWidget {
             icon: Icons.lyrics_outlined,
             title: l10n.noLyrics,
             detail: l10n.pick(
-              '本地文件和在线都没有找到这首歌的歌词',
-              'No embedded, sidecar, or online lyrics found',
+              '还没有选用歌词。可以查看候选版本，或重新搜索。',
+              'No lyrics selected. Check available versions or search again.',
             ),
+            onSearch: () => showLyricsEditor(context, ref, trackId),
           );
         }
         synced = parsed.synced;
@@ -398,13 +400,13 @@ class _Message extends StatelessWidget {
     required this.icon,
     required this.title,
     this.detail,
-    this.onRetry,
+    this.onSearch,
   });
 
   final IconData icon;
   final String title;
   final String? detail;
-  final VoidCallback? onRetry;
+  final VoidCallback? onSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -417,12 +419,12 @@ class _Message extends StatelessWidget {
       ),
       title: title,
       detail: detail,
-      action: onRetry == null
+      action: onSearch == null
           ? null
           : TextButton(
               style: TextButton.styleFrom(foregroundColor: fg),
-              onPressed: onRetry,
-              child: Text(context.l10n.pick('重试', 'Retry')),
+              onPressed: onSearch,
+              child: Text(context.l10n.pick('查找歌词版本', 'Find lyrics versions')),
             ),
     );
   }

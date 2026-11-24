@@ -111,7 +111,7 @@ mod amll;
 mod lrclib_tests;
 pub use amll::AmllLyrics;
 #[path = "providers/lyrics_matching.rs"]
-mod lyrics_matching;
+pub(crate) mod lyrics_matching;
 
 /// LRCLIB 歌词（ENR-03 来源 ③）。
 ///
