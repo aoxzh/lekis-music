@@ -32,6 +32,7 @@ class AppUpdaterState {
     this.capability,
     this.errorMessage,
     this.currentVersion = kLekisAppVersion,
+    this.promptPending = false,
   });
 
   final AppUpdaterPhase phase;
@@ -41,6 +42,11 @@ class AppUpdaterState {
   final SelfUpdateCapability? capability;
   final String? errorMessage;
   final String currentVersion;
+
+  /// True when a background (silent) check found a release and the proactive
+  /// prompt has not been handled yet. Manual checks from Settings open their
+  /// own dialog, so they leave this false.
+  final bool promptPending;
 
   bool get canInAppUpdate =>
       capability?.supported == true && info?.assetName != null;
@@ -56,6 +62,7 @@ class AppUpdaterState {
     String? errorMessage,
     bool clearError = false,
     String? currentVersion,
+    bool? promptPending,
   }) => AppUpdaterState(
     phase: phase ?? this.phase,
     info: info ?? this.info,
@@ -64,6 +71,7 @@ class AppUpdaterState {
     capability: capability ?? this.capability,
     errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     currentVersion: currentVersion ?? this.currentVersion,
+    promptPending: promptPending ?? this.promptPending,
   );
 }
 
@@ -102,10 +110,7 @@ class AppUpdaterNotifier extends Notifier<AppUpdaterState> {
     }
 
     if (!silent) {
-      state = state.copyWith(
-        phase: AppUpdaterPhase.checking,
-        clearError: true,
-      );
+      state = state.copyWith(phase: AppUpdaterPhase.checking, clearError: true);
     }
 
     final result = await checkForAppUpdate();
@@ -118,6 +123,7 @@ class AppUpdaterNotifier extends Notifier<AppUpdaterState> {
             phase: AppUpdaterPhase.upToDate,
             currentVersion: currentVersion,
             clearError: true,
+            promptPending: false,
           );
         }
       case AppUpdateError(:final message):
@@ -125,6 +131,7 @@ class AppUpdaterNotifier extends Notifier<AppUpdaterState> {
           state = state.copyWith(
             phase: AppUpdaterPhase.error,
             errorMessage: message,
+            promptPending: false,
           );
         }
       case AppUpdateAvailable(:final info):
@@ -136,6 +143,7 @@ class AppUpdaterNotifier extends Notifier<AppUpdaterState> {
             info: info,
             capability: capability,
             clearError: true,
+            promptPending: false,
           );
         } else {
           state = state.copyWith(
@@ -145,10 +153,18 @@ class AppUpdaterNotifier extends Notifier<AppUpdaterState> {
             clearProgress: true,
             clearStaged: true,
             clearError: true,
+            promptPending: silent,
           );
         }
     }
     return result;
+  }
+
+  /// Marks the proactive prompt as handled (shown, ignored, or deferred for
+  /// this session) so it does not reopen on every state change.
+  void clearPromptPending() {
+    if (!state.promptPending) return;
+    state = state.copyWith(promptPending: false);
   }
 
   /// Downloads, SHA-256 verifies, and stages the pending desktop update.
@@ -237,9 +253,16 @@ class AppUpdaterNotifier extends Notifier<AppUpdaterState> {
   }
 }
 
-/// Triggers a quiet background update check on desktop platforms after startup.
+/// Triggers a quiet background update check after startup on every shipped
+/// platform; the prompt host (see `update_prompt.dart`) decides whether to
+/// interrupt the user.
 void scheduleStartupUpdateCheck(ProviderContainer container) {
-  if (!(Platform.isWindows || Platform.isMacOS || Platform.isLinux)) return;
+  if (!(Platform.isAndroid ||
+      Platform.isWindows ||
+      Platform.isMacOS ||
+      Platform.isLinux)) {
+    return;
+  }
   Future<void>.delayed(const Duration(seconds: 5), () {
     container.read(appUpdaterProvider.notifier).checkForUpdates(silent: true);
   });

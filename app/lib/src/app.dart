@@ -10,6 +10,7 @@ import 'features/mini_mode/mini_player_window.dart';
 import 'features/player/playback_session.dart';
 import 'features/player/player_providers.dart';
 import 'features/player/widgets/player_controls.dart';
+import 'features/settings/update_prompt.dart';
 import 'l10n/app_l10n.dart';
 import 'l10n/app_locale.dart';
 import 'platform/network_context.dart';
@@ -101,7 +102,9 @@ class LekisApp extends ConsumerWidget {
         );
       },
       // 空格播放/暂停、媒体键等快捷键在整个应用里生效。
-      home: const PerfProbe(child: PlayerShortcuts(child: AppShell())),
+      home: const UpdatePromptHost(
+        child: PerfProbe(child: PlayerShortcuts(child: AppShell())),
+      ),
     );
   }
 }

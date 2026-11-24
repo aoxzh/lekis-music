@@ -317,11 +317,13 @@ class SettingsSection extends StatelessWidget {
     super.key,
     required this.title,
     required this.children,
+    this.trailing,
     this.dividerIndent = settingsTextInset,
   });
 
   final String title;
   final List<Widget> children;
+  final Widget? trailing;
   final double dividerIndent;
 
   @override
@@ -330,7 +332,7 @@ class SettingsSection extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SettingsSectionHeader(title),
+        SettingsSectionHeader(title, trailing: trailing),
         SettingsGroup(dividerIndent: dividerIndent, children: children),
       ],
     ),

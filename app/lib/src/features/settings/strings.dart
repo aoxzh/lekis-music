@@ -386,6 +386,7 @@ abstract final class SettingsStrings {
   static String get downloadingUpdate =>
       L10n.tr('正在下载更新…', 'Downloading update…');
   static String get later => L10n.tr('稍后', 'Later');
+  static String get ignoreUpdate => L10n.tr('忽略此版本', 'Ignore this version');
   static String get retry => L10n.tr('重试', 'Retry');
   static String get cancel => L10n.tr('取消', 'Cancel');
   static String get viewReleasePage => L10n.tr('查看发布页', 'Release Notes');
