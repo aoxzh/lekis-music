@@ -11,7 +11,7 @@
 
 use crate::artwork_local::{SIDECAR_NAMES, TRACK_COVER_EXTS};
 use crate::enrich::tier_for;
-use crate::lyrics_local::vfs_for;
+use crate::lyrics_local::{vfs_for, LYRICS_EXTS};
 use crate::Services;
 use bytes::Bytes;
 use lekis_library::{cache_relative_path, EnrichCandidateRow};
@@ -27,8 +27,6 @@ pub(crate) const WRITE_SIDECARS_SETTING: &str = "enrich.write_sidecars";
 
 /// 旧版本补全结果迁移到侧车文件的一次性标记。
 const SIDECAR_BACKFILL_SETTING: &str = "enrich.sidecars_backfill";
-
-const LYRICS_EXTS: &[&str] = &["elrc", "ELRC", "lrc", "LRC", "ttml", "txt"];
 
 /// 把一首歌的生效封面 / 歌词写到它所有文件系统副本旁边。
 ///
@@ -358,6 +356,43 @@ fn webp_to_jpeg(bytes: &[u8]) -> Result<Vec<u8>> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn existing_vtt_blocks_automatic_lyrics_writeback() {
+        let root = std::env::temp_dir().join(format!("lekis-vtt-write-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let audio = VfsPath::parse("song.flac").unwrap();
+        let vfs = lekis_vfs::local::LocalVfs::new(&root).unwrap();
+        let lyrics = Lyrics {
+            format: LyricsFormat::Lrc,
+            content: "[00:01.00]new".into(),
+            source: "manual".into(),
+            offset_ms: 0,
+            confidence: 1.0,
+        };
+        for name in ["song.vtt", "song.VTT"] {
+            std::fs::write(root.join(name), "original").unwrap();
+            let names = HashSet::from([name.to_owned()]);
+            persist_lyrics(&vfs, &audio, &lyrics, &names, false)
+                .await
+                .unwrap();
+            assert!(!root.join("song.lrc").exists());
+            persist_lyrics(&vfs, &audio, &lyrics, &names, true)
+                .await
+                .unwrap();
+            assert_eq!(
+                std::fs::read_to_string(root.join("song.lrc")).unwrap(),
+                lyrics.content
+            );
+            assert_eq!(
+                std::fs::read_to_string(root.join(name)).unwrap(),
+                "original"
+            );
+            std::fs::remove_file(root.join("song.lrc")).unwrap();
+            std::fs::remove_file(root.join(name)).unwrap();
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn jpeg_sidecar_round_trips_a_webp_image() {
