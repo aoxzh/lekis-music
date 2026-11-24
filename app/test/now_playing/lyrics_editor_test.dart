@@ -7,6 +7,7 @@ import 'package:lekis/src/features/enrich/enrich_actions.dart';
 import 'package:lekis/src/features/enrich/widgets/candidate_card.dart';
 import 'package:lekis/src/features/now_playing/lyrics_editor_sheet.dart';
 import 'package:lekis/src/features/now_playing/lyrics_view.dart';
+import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/rust/api/error.dart';
@@ -14,6 +15,15 @@ import 'package:lekis/src/rust/api/lyric_search.dart';
 import 'package:lekis/src/rust/frb_generated.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
+
+class _FixedSetting extends SettingNotifier {
+  _FixedSetting(super.key, this.value);
+
+  final String? value;
+
+  @override
+  Future<String?> build() async => value;
+}
 
 const embedded = LyricsDto(
   format: LyricsFormatDto.lrc,
@@ -213,6 +223,11 @@ void main() {
           );
           await tester.pumpWidget(
             ProviderScope(
+              overrides: [
+                settingProvider(SettingKeys.lyricsSourceBadge).overrideWith(
+                  () => _FixedSetting(SettingKeys.lyricsSourceBadge, 'true'),
+                ),
+              ],
               child: LekisLocale(
                 locale: Locale(locale),
                 child: MaterialApp(

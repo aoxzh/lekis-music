@@ -34,6 +34,11 @@ abstract final class SettingKeys {
   static const lyricsFontScale = 'ui.lyrics_font_scale';
   static const lyricsTranslation = 'ui.lyrics_translation';
 
+  /// 播放页歌词浮层：默认都不显示（`true` 才显示）。
+  static const lyricsDialButton = 'ui.lyrics_dial_button';
+  static const lyricsSourceBadge = 'ui.lyrics_source_badge';
+  static const lyricsOffsetBar = 'ui.lyrics_offset_bar';
+
   /// 补全结果写入音源目录：`false` 关闭；缺省开启。
   static const writeEnrichSidecars = 'enrich.write_sidecars';
 

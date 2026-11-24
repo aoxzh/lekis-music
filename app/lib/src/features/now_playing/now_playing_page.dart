@@ -24,7 +24,7 @@ import 'package:lekis/src/features/player/sleep_timer.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
 import 'package:lekis/src/features/settings/equalizer_page.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart'
-    show playbackOutputProvider;
+    show playbackOutputProvider, settingProvider, SettingKeys;
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/layout/adaptive_two_pane.dart';
 import 'package:lekis/src/layout/fold.dart';
@@ -610,6 +610,9 @@ class _TopBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dial = ref.watch(nowPlayingPaneProvider) == NowPlayingPane.dial;
+    final showDial =
+        ref.watch(settingProvider(SettingKeys.lyricsDialButton)).value ==
+        'true';
     return Padding(
       padding: const EdgeInsets.all(LekisSpacing.xs),
       child: Row(
@@ -625,25 +628,26 @@ class _TopBar extends ConsumerWidget {
             onPressed: onClose,
             icon: const Icon(Icons.keyboard_arrow_down_rounded),
           ),
-          Flexible(
-            child: TextButton.icon(
-              key: const ValueKey('now-playing.top-bar.dial'),
-              style: TextButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.onSurface,
+          if (showDial)
+            Flexible(
+              child: TextButton.icon(
+                key: const ValueKey('now-playing.top-bar.dial'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.onSurface,
+                ),
+                icon: Icon(dial ? Icons.image_outlined : Icons.speed_rounded),
+                label: Text(
+                  dial
+                      ? context.l10n.pick('返回封面', 'Back to artwork')
+                      : context.l10n.pick('曲目刻度', 'Track dial'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onPressed: () => ref
+                    .read(nowPlayingPaneProvider.notifier)
+                    .set(dial ? NowPlayingPane.cover : NowPlayingPane.dial),
               ),
-              icon: Icon(dial ? Icons.image_outlined : Icons.speed_rounded),
-              label: Text(
-                dial
-                    ? context.l10n.pick('返回封面', 'Back to artwork')
-                    : context.l10n.pick('曲目刻度', 'Track dial'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              onPressed: () => ref
-                  .read(nowPlayingPaneProvider.notifier)
-                  .set(dial ? NowPlayingPane.cover : NowPlayingPane.dial),
             ),
-          ),
         ],
       ),
     );

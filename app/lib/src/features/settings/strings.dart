@@ -227,6 +227,24 @@ abstract final class SettingsStrings {
     '歌词里带翻译/罗马音时在原文下方显示；关闭后只显示原文',
     'Show translations / romanisation under the original lines when present; turn off to show only the original text',
   );
+  static String get lyricsDialButton =>
+      L10n.tr('显示曲目刻度按钮', 'Show track dial button');
+  static String get lyricsDialButtonHint => L10n.tr(
+    '在播放页右上角显示进入曲目刻度的入口，默认隐藏',
+    'Show the track dial entry in the top-right corner of Now Playing (hidden by default)',
+  );
+  static String get lyricsSourceBadge =>
+      L10n.tr('显示歌词来源', 'Show lyrics source');
+  static String get lyricsSourceBadgeHint => L10n.tr(
+    '在歌词左下角显示来源和格式，例如「在线歌词 · LRC」，默认隐藏',
+    'Show the source and format at the bottom-left of the lyrics, e.g. “Online · LRC” (hidden by default)',
+  );
+  static String get lyricsOffsetBar =>
+      L10n.tr('显示歌词偏移快捷条', 'Show lyrics offset bar');
+  static String get lyricsOffsetBarHint => L10n.tr(
+    '在歌词右下角显示提前 / 延后 / 重置按钮，默认隐藏；「更多」菜单里仍可调整',
+    'Show earlier / later / reset buttons at the bottom-right of the lyrics (hidden by default; the More menu still works)',
+  );
   static String get rubyOff => L10n.tr('关闭', 'Off');
   static String get rubyPlain => L10n.tr('拼音', 'Pinyin');
   static String get rubyTone => L10n.tr('带声调', 'With Tones');

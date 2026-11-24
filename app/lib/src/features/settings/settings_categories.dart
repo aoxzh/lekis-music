@@ -790,6 +790,11 @@ class _LyricsSection extends ConsumerWidget {
     final translation = ref.watch(
       settingProvider(SettingKeys.lyricsTranslation),
     );
+    final dialButton = ref.watch(settingProvider(SettingKeys.lyricsDialButton));
+    final sourceBadge = ref.watch(
+      settingProvider(SettingKeys.lyricsSourceBadge),
+    );
+    final offsetBar = ref.watch(settingProvider(SettingKeys.lyricsOffsetBar));
     final scale =
         fontScale.value == '0.85' ||
             fontScale.value == '1.15' ||
@@ -865,6 +870,45 @@ class _LyricsSection extends ConsumerWidget {
             context,
             () => ref
                 .read(settingProvider(SettingKeys.lyricsTranslation).notifier)
+                .set(on ? 'true' : 'false'),
+          ),
+        ),
+        SettingsSwitchTile(
+          key: const ValueKey('lyrics.dial-button'),
+          icon: Icons.speed_rounded,
+          title: SettingsStrings.lyricsDialButton,
+          subtitle: SettingsStrings.lyricsDialButtonHint,
+          value: dialButton.value == 'true',
+          onChanged: (on) => settingsGuard(
+            context,
+            () => ref
+                .read(settingProvider(SettingKeys.lyricsDialButton).notifier)
+                .set(on ? 'true' : 'false'),
+          ),
+        ),
+        SettingsSwitchTile(
+          key: const ValueKey('lyrics.source-badge'),
+          icon: Icons.info_outline_rounded,
+          title: SettingsStrings.lyricsSourceBadge,
+          subtitle: SettingsStrings.lyricsSourceBadgeHint,
+          value: sourceBadge.value == 'true',
+          onChanged: (on) => settingsGuard(
+            context,
+            () => ref
+                .read(settingProvider(SettingKeys.lyricsSourceBadge).notifier)
+                .set(on ? 'true' : 'false'),
+          ),
+        ),
+        SettingsSwitchTile(
+          key: const ValueKey('lyrics.offset-bar'),
+          icon: Icons.tune_rounded,
+          title: SettingsStrings.lyricsOffsetBar,
+          subtitle: SettingsStrings.lyricsOffsetBarHint,
+          value: offsetBar.value == 'true',
+          onChanged: (on) => settingsGuard(
+            context,
+            () => ref
+                .read(settingProvider(SettingKeys.lyricsOffsetBar).notifier)
                 .set(on ? 'true' : 'false'),
           ),
         ),

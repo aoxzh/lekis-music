@@ -57,6 +57,11 @@ class LyricsView extends ConsumerWidget {
     ref.watch(lyricsPrefetchProvider);
     final lyrics = ref.watch(lyricsProvider(trackId));
     final lyricsStyle = ref.watch(lyricsStyleProvider);
+    final showSourceBadge =
+        ref.watch(settingProvider(SettingKeys.lyricsSourceBadge)).value ==
+        'true';
+    final showOffsetBar =
+        ref.watch(settingProvider(SettingKeys.lyricsOffsetBar)).value == 'true';
     final theme = Theme.of(context);
     var synced = false;
     var offsetMs = 0;
@@ -175,7 +180,7 @@ class LyricsView extends ConsumerWidget {
               Stack(fit: StackFit.expand, children: [...previous, ?current]),
           child: body,
         ),
-        if (lyricsSource.isNotEmpty)
+        if (showSourceBadge && lyricsSource.isNotEmpty)
           Positioned(
             left: LekisSpacing.md,
             bottom: LekisSpacing.md,
@@ -184,7 +189,7 @@ class LyricsView extends ConsumerWidget {
               format: lyricsFormat,
             ),
           ),
-        if (synced)
+        if (showOffsetBar && synced)
           Positioned(
             right: LekisSpacing.md,
             bottom: LekisSpacing.md,

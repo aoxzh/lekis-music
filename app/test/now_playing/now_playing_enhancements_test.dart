@@ -15,6 +15,7 @@ import 'package:lekis/src/features/now_playing/now_playing_turntable.dart';
 import 'package:lekis/src/features/now_playing/track_dial.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/settings/settings_categories.dart';
+import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/features/settings/strings.dart';
 import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/rust/api/dto.dart';
@@ -48,6 +49,15 @@ class _FixedStyle extends NowPlayingStyleNotifier {
 
   @override
   NowPlayingStyle build() => initial;
+}
+
+class _FixedSetting extends SettingNotifier {
+  _FixedSetting(super.key, this.value);
+
+  final String? value;
+
+  @override
+  Future<String?> build() async => value;
 }
 
 final _track = TrackDto(
@@ -89,6 +99,9 @@ ProviderContainer _container({
       lyricsProvider.overrideWith(
         (ref, id) async => ParsedLyrics.parse(_bilingualLyrics),
       ),
+      settingProvider(
+        SettingKeys.lyricsDialButton,
+      ).overrideWith(() => _FixedSetting(SettingKeys.lyricsDialButton, 'true')),
     ],
   );
   container.read(nowPlayingPaneProvider.notifier).set(pane);
