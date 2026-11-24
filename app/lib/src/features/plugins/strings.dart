@@ -13,6 +13,26 @@ abstract final class PluginStrings {
   static String get installLink => L10n.tr('从链接安装', 'Install from link');
   static String get browse => L10n.tr('浏览插件目录', 'Browse plugin catalog');
   static String get catalogTitle => L10n.tr('可安装插件', 'Plugin catalog');
+  static String get defaultSource =>
+      L10n.tr('默认社区目录', 'Default community catalog');
+  static String get addSource => L10n.tr('添加插件源', 'Add plugin source');
+  static String get sourceUrlLabel =>
+      L10n.tr('插件目录 HTTPS 地址', 'Plugin catalog HTTPS URL');
+  static String get sourceUrlHint => L10n.tr(
+    'https://example.com/catalog.json',
+    'https://example.com/catalog.json',
+  );
+  static String get sourceInvalid => L10n.tr(
+    '插件源地址无效，或已经添加过了',
+    'Invalid plugin source URL, or it is already added',
+  );
+  static String get sourceAdded => L10n.tr('插件源已添加', 'Plugin source added');
+  static String get sourceRemoved => L10n.tr('插件源已移除', 'Plugin source removed');
+  static String get removeSource => L10n.tr('移除插件源', 'Remove plugin source');
+  static String get sourceLoadFailed =>
+      L10n.tr('无法读取插件源', 'Could not load plugin source');
+  static String get sourceEmpty =>
+      L10n.tr('这个插件源暂无插件', 'This plugin source has no plugins');
   static String get catalogLoading =>
       L10n.tr('正在读取插件目录…', 'Loading plugin catalog…');
   static String get catalogFailed =>

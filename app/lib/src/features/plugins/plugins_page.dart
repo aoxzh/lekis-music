@@ -20,6 +20,7 @@ import 'plugin_detail_sheet.dart';
 import 'plugin_download.dart';
 import 'plugin_format.dart';
 import 'plugin_registry.dart';
+import 'plugin_sources.dart';
 import 'plugins_providers.dart';
 import 'strings.dart';
 
@@ -402,6 +403,116 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
     }
   }
 
+  Future<void> _addSource() async {
+    final controller = TextEditingController();
+    final raw = await showDialog<String>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(PluginStrings.addSource),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.url,
+          autocorrect: false,
+          decoration: InputDecoration(
+            labelText: PluginStrings.sourceUrlLabel,
+            hintText: PluginStrings.sourceUrlHint,
+          ),
+          onSubmitted: (value) => Navigator.of(dialog).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(),
+            child: Text(PluginStrings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialog).pop(controller.text),
+            child: Text(PluginStrings.addSource),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (raw == null || !mounted) return;
+    final added = await ref.read(pluginSourcesProvider.notifier).add(raw);
+    if (!mounted) return;
+    showFeatureSnack(
+      context,
+      added ? PluginStrings.sourceAdded : PluginStrings.sourceInvalid,
+    );
+  }
+
+  Future<void> _removeSource(String url) async {
+    await ref.read(pluginSourcesProvider.notifier).remove(url);
+    if (!mounted) return;
+    showFeatureSnack(context, PluginStrings.sourceRemoved);
+  }
+
+  List<Widget> _catalogRows(
+    AsyncValue<List<RegistryPlugin>> catalog,
+    AsyncValue<List<PluginInfoDto>> installed, {
+    required VoidCallback retry,
+    String? emptyLabel,
+    String? errorLabel,
+  }) {
+    return catalog.when(
+      skipLoadingOnRefresh: false,
+      loading: () => [
+        ListTile(title: Text(PluginStrings.catalogLoading)),
+        const LinearProgressIndicator(),
+      ],
+      error: (error, _) => [
+        Padding(
+          padding: const EdgeInsets.all(LekisSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${errorLabel ?? PluginStrings.catalogFailed} ($error)'),
+              TextButton(onPressed: retry, child: Text(PluginStrings.retry)),
+            ],
+          ),
+        ),
+      ],
+      data: (entries) => [
+        if (entries.isEmpty)
+          ListTile(title: Text(emptyLabel ?? PluginStrings.catalogEmpty)),
+        for (final entry in entries)
+          _catalogRow(
+            entry,
+            installed:
+                installed.value?.any((item) => item.id == entry.id) ?? false,
+            available: installed.hasValue && !_installing,
+          ),
+      ],
+    );
+  }
+
+  List<Widget> _customSourceSections(
+    AsyncValue<List<PluginInfoDto>> installed,
+  ) {
+    final sources = ref.watch(pluginSourcesProvider).value;
+    return [
+      for (final source in sources ?? const <PluginSource>[])
+        if (!source.builtIn)
+          SettingsSection(
+            title: source.url,
+            trailing: IconButton(
+              tooltip: PluginStrings.removeSource,
+              icon: const Icon(Icons.delete_outline_rounded, size: 20),
+              onPressed: () => _removeSource(source.url),
+            ),
+            children: _catalogRows(
+              ref.watch(pluginSourceCatalogProvider(source.url)),
+              installed,
+              retry: () =>
+                  ref.invalidate(pluginSourceCatalogProvider(source.url)),
+              emptyLabel: PluginStrings.sourceEmpty,
+              errorLabel: PluginStrings.sourceLoadFailed,
+            ),
+          ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final plugins = ref.watch(pluginListProvider);
@@ -462,49 +573,34 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
                     ),
                   )
                 else
-                  SettingsSection(
-                    title: PluginStrings.catalogTitle,
-                    children: ref
-                        .watch(pluginRegistryProvider)
-                        .when(
-                          skipLoadingOnRefresh: false,
-                          loading: () => [
-                            ListTile(title: Text(PluginStrings.catalogLoading)),
-                            const LinearProgressIndicator(),
-                          ],
-                          error: (error, _) => [
-                            Padding(
-                              padding: const EdgeInsets.all(LekisSpacing.md),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '${PluginStrings.catalogFailed} ($error)',
-                                  ),
-                                  TextButton(
-                                    onPressed: () =>
-                                        ref.invalidate(pluginRegistryProvider),
-                                    child: Text(PluginStrings.retry),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                          data: (entries) => [
-                            if (entries.isEmpty)
-                              ListTile(title: Text(PluginStrings.catalogEmpty)),
-                            for (final entry in entries)
-                              _catalogRow(
-                                entry,
-                                installed:
-                                    plugins.value?.any(
-                                      (item) => item.id == entry.id,
-                                    ) ??
-                                    false,
-                                available: plugins.hasValue && !_installing,
-                              ),
-                          ],
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SettingsSection(
+                        title: PluginStrings.defaultSource,
+                        children: _catalogRows(
+                          ref.watch(pluginRegistryProvider),
+                          plugins,
+                          retry: () => ref.invalidate(pluginRegistryProvider),
                         ),
+                      ),
+                      ..._customSourceSections(plugins),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: LekisSpacing.xl),
+                        child: Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: SettingsReveal.control(
+                            context,
+                            OutlinedButton.icon(
+                              key: const ValueKey('plugins.add-source'),
+                              icon: const Icon(Icons.add_link_rounded),
+                              label: Text(PluginStrings.addSource),
+                              onPressed: _installing ? null : _addSource,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 plugins.when(
                   skipLoadingOnReload: true,
