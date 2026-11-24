@@ -38,6 +38,8 @@ import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
+part 'lyrics_stage_facing.dart';
+
 /// 底部翻译 / 下一句预留的高度。
 const double _footerReserve = 96;
 
@@ -449,6 +451,7 @@ class _LineArt {
     this.rows = const [],
     this.chars = const [],
     this.parts = const [],
+    this.facing,
     this.fit = 1,
   });
 
@@ -459,6 +462,7 @@ class _LineArt {
   final List<_Row> rows;
   final List<_TiltChar> chars;
   final List<_TiltPart> parts;
+  final _FacingPages? facing;
 
   /// 小于 1 表示放不下，需要按这个比例缩小字号重排。
   final double fit;
@@ -491,6 +495,7 @@ class _LineArt {
   }
 
   void dispose() {
+    facing?.dispose();
     for (final g in glyphs) {
       g.dispose();
     }
@@ -1125,8 +1130,11 @@ class _LyricsStageState extends ConsumerState<LyricsStage>
   Object? _artsKey;
   _Scene? _scene;
 
-  double get _lead =>
-      widget.style == LyricsStageStyle.tilt ? _tiltLead : _flowLead;
+  double get _lead => switch (widget.style) {
+    LyricsStageStyle.facing => 0,
+    LyricsStageStyle.tilt => _tiltLead,
+    _ => _flowLead,
+  };
 
   @override
   void initState() {
@@ -1309,12 +1317,21 @@ class _LyricsStageState extends ConsumerState<LyricsStage>
     final focus = _focus;
     if (focus < 0 || focus >= _lines.length) return;
     final art = _scene?.current;
-    final target = art?.hit(local) ?? _lines[focus].start;
+    final target =
+        art?.facing?.hit(local, _clock.value / 1000, _manual != null) ??
+        art?.hit(local) ??
+        _lines[focus].start;
     _resumeFollow();
     ref.read(playerActionsProvider).seek((target * 1000).round());
   }
 
-  _LineArt? _art(int index, Size size, TextStyle base) {
+  _LineArt? _art(
+    int index,
+    Size size,
+    TextStyle base,
+    Color bright,
+    Color accent,
+  ) {
     if (index < 0 || index >= _lines.length) return null;
     final cached = _arts[index];
     if (cached != null) return cached;
@@ -1329,6 +1346,10 @@ class _LyricsStageState extends ConsumerState<LyricsStage>
             0.8 *
             (_charCount(l.words) > 40 ? 0.8 : 1.0),
       LyricsStageStyle.flow => (size.width * 0.045).clamp(minFont, 64.0),
+      LyricsStageStyle.facing =>
+        (size.width * 0.12).clamp(minFont, 96.0) *
+            (base.fontSize ?? LekisType.lyrics.size) /
+            LekisType.lyrics.size,
     };
     _LineArt art;
     final lineBase = lyricTextStyleFor(l.line.text, base);
@@ -1337,6 +1358,15 @@ class _LyricsStageState extends ConsumerState<LyricsStage>
         LyricsStageStyle.flow => _layoutFlow(l, size, lineBase, f),
         LyricsStageStyle.steps => _layoutSteps(l, size, lineBase, f),
         LyricsStageStyle.tilt => _layoutTilt(l, size, lineBase, f),
+        LyricsStageStyle.facing => _layoutFacing(
+          _lines,
+          index,
+          size,
+          base,
+          f,
+          bright,
+          accent,
+        ),
       };
       // 放不下就缩小字号重排，最多三次，最小一半。
       if (art.fit >= 0.999 || attempt >= 2 || f <= minFont * 0.5) break;
@@ -1352,6 +1382,7 @@ class _LyricsStageState extends ConsumerState<LyricsStage>
       size,
       widget.style,
       widget.compact,
+      base.fontSize,
       base.fontFamily,
       base.fontFamilyFallback,
       bright,
@@ -1363,7 +1394,8 @@ class _LyricsStageState extends ConsumerState<LyricsStage>
     }
     final focus = _focus;
     final browsing = _manual != null;
-    final keep = {focus, if (!browsing) focus - 1};
+    final withPrevious = !browsing && widget.style != LyricsStageStyle.facing;
+    final keep = {focus, if (withPrevious) focus - 1};
     final stale = [
       for (final e in _arts.entries)
         if (!keep.contains(e.key)) e,
@@ -1375,8 +1407,10 @@ class _LyricsStageState extends ConsumerState<LyricsStage>
     return _Scene(
       lines: _lines,
       focus: focus,
-      current: _art(focus, size, base),
-      previous: browsing ? null : _art(focus - 1, size, base),
+      current: _art(focus, size, base, bright, accent),
+      previous: withPrevious
+          ? _art(focus - 1, size, base, bright, accent)
+          : null,
       lead: _lead,
     );
   }
@@ -1397,10 +1431,11 @@ class _LyricsStageState extends ConsumerState<LyricsStage>
     return LayoutBuilder(
       builder: (context, constraints) {
         final full = constraints.biggest;
-        final size = Size(
-          full.width,
-          math.max(0, full.height - _footerReserve),
-        );
+        final facing = widget.style == LyricsStageStyle.facing;
+        final reserve = facing
+            ? math.min(72.0, full.height * 0.25)
+            : _footerReserve;
+        final size = Size(full.width, math.max(0, full.height - reserve));
         final scene = size.width < 40 || size.height < 40
             ? null
             : _sceneFor(size, base, bright, accent);
@@ -1422,7 +1457,7 @@ class _LyricsStageState extends ConsumerState<LyricsStage>
               fit: StackFit.expand,
               children: [
                 Positioned.fill(
-                  bottom: _footerReserve,
+                  bottom: reserve,
                   child: Semantics(
                     button: line != null,
                     selected: line != null,
@@ -1431,10 +1466,15 @@ class _LyricsStageState extends ConsumerState<LyricsStage>
                         : line.line.translation == null
                         ? line.line.text
                         : '${line.line.text}，${line.line.translation}',
-                    hint: context.l10n.pick(
-                      '上下滑动浏览歌词，点按跳到这一句',
-                      'Swipe up or down to browse lyrics, tap to jump to this line',
-                    ),
+                    hint: facing && next != null && line != null && !_interlude
+                        ? context.l10n.pick(
+                            '下一句：${next.line.text}。上下滑动浏览歌词，点按跳到当前句',
+                            'Up next: ${next.line.text}. Swipe to browse, tap to jump to the current line.',
+                          )
+                        : context.l10n.pick(
+                            '上下滑动浏览歌词，点按跳到这一句',
+                            'Swipe up or down to browse lyrics, tap to jump to this line',
+                          ),
                     excludeSemantics: true,
                     onTap: line == null
                         ? null
@@ -1467,7 +1507,7 @@ class _LyricsStageState extends ConsumerState<LyricsStage>
                 ),
                 if (_interlude && !browsing)
                   Positioned.fill(
-                    bottom: _footerReserve,
+                    bottom: reserve,
                     child: Semantics(
                       key: const ValueKey('stage-interlude'),
                       container: true,
@@ -1481,7 +1521,9 @@ class _LyricsStageState extends ConsumerState<LyricsStage>
                   bottom: LekisSpacing.lg,
                   child: _StageFooter(
                     translation: line?.line.translation,
-                    next: next?.line.text,
+                    next: facing && line != null && (browsing || !_interlude)
+                        ? null
+                        : next?.line.text,
                     lowPower: _reduce,
                   ),
                 ),
@@ -1576,6 +1618,14 @@ class _StagePainter extends CustomPainter {
         _paintSteps(canvas, size, art, t, fade, settled);
       case LyricsStageStyle.tilt:
         _paintTilt(canvas, art, t, fade, settled);
+      case LyricsStageStyle.facing:
+        art.facing!.paint(
+          canvas,
+          t,
+          still: still,
+          browsing: settled,
+          sparks: sparks,
+        );
     }
   }
 

@@ -1,8 +1,4 @@
 // 歌词视图样式：设置页和播放页共用同一份持久化状态。
-//
-// 核心设置 `ui.lyrics_stage` 里存 `classic`（默认）/ `flow` / `steps` /
-// `tilt`。经典视图是 Apple Music 那样的逐行滚动歌词；另外三种是逐字
-// 跟唱的「歌词舞台」。
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -10,11 +6,12 @@ import 'package:material_ui/material_ui.dart';
 import '../settings/settings_providers.dart';
 import '../settings/strings.dart';
 
-/// 歌词舞台的排版方式（经典视图之外的三选一）。
+/// 歌词舞台的排版方式。
 enum LyricsStageStyle {
   flow('flow'),
   steps('steps'),
-  tilt('tilt');
+  tilt('tilt'),
+  facing('facing');
 
   const LyricsStageStyle(this.storageValue);
 
@@ -22,12 +19,13 @@ enum LyricsStageStyle {
   final String storageValue;
 }
 
-/// 歌词视图样式。经典视图是默认，另外三种由舞台渲染。
+/// 歌词视图样式。经典视图是默认。
 enum LyricsStyle {
   classic('classic'),
   flow('flow'),
   steps('steps'),
-  tilt('tilt');
+  tilt('tilt'),
+  facing('facing');
 
   const LyricsStyle(this.storageValue);
 
@@ -39,7 +37,7 @@ enum LyricsStyle {
   static LyricsStyle fromStorage(String? value) =>
       values.firstWhere((s) => s.storageValue == value, orElse: () => classic);
 
-  /// 经典视图之外的三种样式由舞台渲染。
+  /// 经典视图之外的样式由舞台渲染。
   bool get isStage => this != LyricsStyle.classic;
 
   /// 对应的舞台排版；经典视图返回 `null`。
@@ -48,6 +46,7 @@ enum LyricsStyle {
     LyricsStyle.flow => LyricsStageStyle.flow,
     LyricsStyle.steps => LyricsStageStyle.steps,
     LyricsStyle.tilt => LyricsStageStyle.tilt,
+    LyricsStyle.facing => LyricsStageStyle.facing,
   };
 
   String get label => switch (this) {
@@ -55,6 +54,7 @@ enum LyricsStyle {
     LyricsStyle.flow => SettingsStrings.styleFlow,
     LyricsStyle.steps => SettingsStrings.styleSteps,
     LyricsStyle.tilt => SettingsStrings.styleTilt,
+    LyricsStyle.facing => SettingsStrings.styleFacing,
   };
 
   IconData get icon => switch (this) {
@@ -62,6 +62,7 @@ enum LyricsStyle {
     LyricsStyle.flow => Icons.waves_rounded,
     LyricsStyle.steps => Icons.stairs_rounded,
     LyricsStyle.tilt => Icons.format_italic_rounded,
+    LyricsStyle.facing => Icons.chrome_reader_mode_outlined,
   };
 }
 
@@ -90,18 +91,18 @@ class LyricsStyleSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SegmentedButton<LyricsStyle>(
-      showSelectedIcon: false,
-      segments: [
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      children: [
         for (final style in LyricsStyle.values)
-          ButtonSegment(
-            value: style,
-            label: Text(style.label),
-            icon: Icon(style.icon),
+          ChoiceChip(
+            selected: style == selected,
+            avatar: Icon(style.icon, size: 16),
+            label: Text(style.label, overflow: TextOverflow.ellipsis),
+            onSelected: (_) => onChanged(style),
           ),
       ],
-      selected: {selected},
-      onSelectionChanged: (selection) => onChanged(selection.first),
     );
   }
 }
