@@ -706,9 +706,11 @@ Future<String> addToPlaylist({
 Future<void> removeFromPlaylist({
   required PlatformInt64 playlistId,
   required String positionKey,
+  String? expectedTrackUid,
 }) => RustLib.instance.api.crateApiCoreRemoveFromPlaylist(
   playlistId: playlistId,
   positionKey: positionKey,
+  expectedTrackUid: expectedTrackUid,
 );
 
 Future<void> movePlaylistItem({

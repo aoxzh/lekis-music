@@ -342,16 +342,23 @@ impl Library {
     /// 按位置键删掉一个条目。
     ///
     /// 歌单或条目不存在返回 [`LekisError::not_found`]。
-    pub async fn remove_from_playlist(&self, id: PlaylistId, position_key: &str) -> Result<()> {
+    pub async fn remove_from_playlist(
+        &self,
+        id: PlaylistId,
+        position_key: &str,
+        expected_track_uid: Option<&str>,
+    ) -> Result<()> {
         let key = position_key.to_string();
+        let expected_track_uid = expected_track_uid.map(str::to_owned);
         self.write(move |conn| {
             let tx = conn.transaction().db()?;
             let now = now_ms();
             ensure_playlist(&tx, id)?;
             let n = tx
                 .execute(
-                    "DELETE FROM playlist_item WHERE playlist_id = ?1 AND position_key = ?2",
-                    params![id.0, key],
+                    "DELETE FROM playlist_item WHERE playlist_id = ?1 AND position_key = ?2
+                       AND (?3 IS NULL OR track_uid = ?3)",
+                    params![id.0, key, expected_track_uid],
                 )
                 .db()?;
             if n == 0 {
@@ -539,6 +546,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn reused_position_does_not_remove_a_different_track() -> Result<()> {
+        let lib = temp_library("reused-playlist-position")?;
+        let id = lib.create_playlist("Test", None).await?;
+        let selected = lib
+            .add_to_playlist(id, TrackUid("old".into()), None, None)
+            .await?;
+        lib.remove_from_playlist(id, &selected, Some("old")).await?;
+        let replacement = lib
+            .add_to_playlist(id, TrackUid("new".into()), None, None)
+            .await?;
+        assert_eq!(replacement, selected);
+        assert_eq!(
+            err_code(lib.remove_from_playlist(id, &selected, Some("old")).await),
+            Some(ErrorCode::NotFound)
+        );
+        assert_eq!(lib.playlist_items(id, 0, 1).await?[0].item.track_uid, "new");
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn playlist_crud_and_ordering() -> Result<()> {
         let lib = temp_library("playlists-order")?;
         for (uid, title) in [("u-a", "A"), ("u-b", "B"), ("u-c", "C")] {
@@ -581,7 +608,7 @@ mod tests {
 
         // 删掉 B。
         let b_key = key_of(&items, "u-b");
-        lib.remove_from_playlist(id, &b_key).await?;
+        lib.remove_from_playlist(id, &b_key, None).await?;
         let items = lib.playlist_items(id, 0, 10).await?;
         assert_eq!(titles(&items), vec!["C", "A"]);
         assert_eq!(lib.get_playlist(id).await?.track_count, 2);
@@ -692,7 +719,7 @@ mod tests {
             Some(ErrorCode::NotFound)
         );
         assert_eq!(
-            err_code(lib.remove_from_playlist(a, "zzz").await),
+            err_code(lib.remove_from_playlist(a, "zzz", None).await),
             Some(ErrorCode::NotFound)
         );
         assert_eq!(

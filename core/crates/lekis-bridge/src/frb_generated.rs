@@ -6588,6 +6588,7 @@ fn wire__crate__api__core__remove_from_playlist_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_playlist_id = <i64>::sse_decode(&mut deserializer);
             let api_position_key = <String>::sse_decode(&mut deserializer);
+            let api_expected_track_uid = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, crate::api::error::CoreError>(
@@ -6595,6 +6596,7 @@ fn wire__crate__api__core__remove_from_playlist_impl(
                         let output_ok = crate::api::core::remove_from_playlist(
                             api_playlist_id,
                             api_position_key,
+                            api_expected_track_uid,
                         )
                         .await?;
                         std::result::Result::Ok(output_ok)

@@ -107,6 +107,7 @@ class _PlaylistDetailViewState extends ConsumerState<PlaylistDetailView> {
       await core.removeFromPlaylist(
         playlistId: playlist.id,
         positionKey: entry.positionKey,
+        expectedTrackUid: entry.trackUid,
       );
       _refresh();
     });
@@ -167,7 +168,7 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
   final TextEditingController _search = TextEditingController();
   String _query = '';
   bool _selecting = false;
-  final Set<String> _selectedKeys = <String>{};
+  final Map<String, String> _selectedKeys = {};
 
   @override
   void dispose() {
@@ -180,9 +181,13 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
     ref.invalidate(playlistsProvider);
   }
 
-  void _toggleSelected(String positionKey) {
+  void _toggleSelected(PlaylistEntryDto entry) {
     setState(() {
-      if (!_selectedKeys.add(positionKey)) _selectedKeys.remove(positionKey);
+      if (_selectedKeys[entry.positionKey] == entry.trackUid) {
+        _selectedKeys.remove(entry.positionKey);
+      } else {
+        _selectedKeys[entry.positionKey] = entry.trackUid;
+      }
       _selecting = _selectedKeys.isNotEmpty;
     });
   }
@@ -279,6 +284,7 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
           await core.removeFromPlaylist(
             playlistId: playlist.id,
             positionKey: entry.positionKey,
+            expectedTrackUid: entry.trackUid,
           );
           removed++;
         } catch (_) {
@@ -379,10 +385,10 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
     // Position keys are rewritten whenever a row moves, so a selection made
     // before a sort/merge/move may point at keys that no longer exist. Only
     // show and act on keys that are still in the current list.
-    final rowKeys = {for (final entry in rows) entry.positionKey};
     final selectedKeys = {
-      for (final key in _selectedKeys)
-        if (rowKeys.contains(key)) key,
+      for (final entry in rows)
+        if (_selectedKeys[entry.positionKey] == entry.trackUid)
+          entry.positionKey,
     };
 
     final content = CustomScrollView(
@@ -1006,7 +1012,7 @@ class _PlaylistEntryList extends StatefulWidget {
   final bool busy;
   final bool selecting;
   final Set<String> selectedKeys;
-  final void Function(String positionKey) onToggleSelect;
+  final ValueChanged<PlaylistEntryDto> onToggleSelect;
   final Future<void> Function(
     List<PlaylistEntryDto> entries,
     int index,
@@ -1100,7 +1106,7 @@ class _PlaylistEntryListState extends State<_PlaylistEntryList>
               index: i,
               selecting: widget.selecting,
               selected: widget.selectedKeys.contains(rows[i].positionKey),
-              onToggleSelect: () => widget.onToggleSelect(rows[i].positionKey),
+              onToggleSelect: () => widget.onToggleSelect(rows[i]),
               canMoveUp: !busy && i > 0,
               canMoveDown: !busy && i < rows.length - 1,
               canMoveToTop: !busy && i > 0,

@@ -2761,10 +2761,19 @@ impl LekisCore {
     }
 
     /// 从歌单移除一条。
-    pub async fn remove_from_playlist(&self, id: PlaylistId, position_key: String) -> Result<()> {
+    pub async fn remove_from_playlist(
+        &self,
+        id: PlaylistId,
+        position_key: String,
+        expected_track_uid: Option<String>,
+    ) -> Result<()> {
         let s = self.services.clone();
-        self.run(async move { s.library.remove_from_playlist(id, &position_key).await })
-            .await?;
+        self.run(async move {
+            s.library
+                .remove_from_playlist(id, &position_key, expected_track_uid.as_deref())
+                .await
+        })
+        .await?;
         self.services.events.emit(CoreEvent::LibraryChanged {
             scope: LibraryScope::Playlists,
         });

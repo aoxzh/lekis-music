@@ -704,6 +704,7 @@ abstract class RustLibApi extends BaseApi {
   Future<void> crateApiCoreRemoveFromPlaylist({
     required PlatformInt64 playlistId,
     required String positionKey,
+    String? expectedTrackUid,
   });
 
   Future<void> crateApiCoreRemovePlugin({required String pluginId});
@@ -6465,6 +6466,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<void> crateApiCoreRemoveFromPlaylist({
     required PlatformInt64 playlistId,
     required String positionKey,
+    String? expectedTrackUid,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -6472,6 +6474,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_64(playlistId, serializer);
           sse_encode_String(positionKey, serializer);
+          sse_encode_opt_String(expectedTrackUid, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -6484,7 +6487,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiCoreRemoveFromPlaylistConstMeta,
-        argValues: [playlistId, positionKey],
+        argValues: [playlistId, positionKey, expectedTrackUid],
         apiImpl: this,
       ),
     );
@@ -6493,7 +6496,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiCoreRemoveFromPlaylistConstMeta =>
       const TaskConstMeta(
         debugName: "remove_from_playlist",
-        argNames: ["playlistId", "positionKey"],
+        argNames: ["playlistId", "positionKey", "expectedTrackUid"],
       );
 
   @override

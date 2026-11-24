@@ -1099,9 +1099,17 @@ pub async fn add_to_playlist(
         .await?)
 }
 
-pub async fn remove_from_playlist(playlist_id: i64, position_key: String) -> Result<(), CoreError> {
+pub async fn remove_from_playlist(
+    playlist_id: i64,
+    position_key: String,
+    expected_track_uid: Option<String>,
+) -> Result<(), CoreError> {
     Ok(core()
-        .remove_from_playlist(lekis_types::PlaylistId(playlist_id), position_key)
+        .remove_from_playlist(
+            lekis_types::PlaylistId(playlist_id),
+            position_key,
+            expected_track_uid,
+        )
         .await?)
 }
 
