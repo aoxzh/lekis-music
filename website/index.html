@@ -732,7 +732,7 @@
           <div class="card">
             <div class="card-icon">🎼</div>
             <h3><span class="en">Lyrics, Exports &amp; Video</span><span class="zh">歌词、导出与视频</span></h3>
-            <p><span class="en">Read local WebVTT, QRC, YRC, and KRC lyrics with word timing, QQ Music lookup, duet stages, and facing pages. Export tracks or albums with artwork and lyrics, and open Bilibili videos in the official player on macOS and Android.</span><span class="zh">支持带逐字时间的 WebVTT、QRC、YRC、KRC 歌词，内置 QQ 音乐源、对唱舞台与对开页；曲目/专辑可按模板导出封面与歌词，macOS 和 Android 可在应用内打开 Bilibili 官方播放器。</span></p>
+            <p><span class="en">Read local WebVTT, QRC, YRC, and KRC lyrics with word timing, QQ Music lookup, duet stages, and facing pages. Export tracks or albums with artwork and lyrics, and open video sources in a dedicated player on macOS and Android.</span><span class="zh">支持带逐字时间的 WebVTT、QRC、YRC、KRC 歌词，内置 QQ 音乐源、对唱舞台与对开页；曲目/专辑可按模板导出封面与歌词，macOS 和 Android 支持在独立播放器里打开视频音源。</span></p>
           </div>
         </div>
       </div>
@@ -743,7 +743,7 @@
         <div class="sec-head">
           <img class="sec-mascot" src="assets/kit/thinking.jpg" alt="" loading="lazy" />
           <h2><span class="en">Community Plugins</span><span class="zh">社区插件</span></h2>
-          <p><span class="en">Optional source plugins are made and maintained by third-party community contributors. They are not provided by Lekis Music and are not affiliated with, endorsed by, or connected to Lekis Music or any content rights holder.</span><span class="zh">可选的音源插件由社区第三方制作和维护，不是月兔音乐官方提供，也与月兔音乐及内容权益方没有任何隶属、合作或背书关系。</span></p>
+          <p><span class="en">Lekis Music supports a rich and diverse plugin ecosystem. Local JavaScript plugins can extend online sources, lyrics, artwork and exports — install from a .zip or an HTTPS link and manage permissions in Settings.</span><span class="zh">月兔音乐支持丰富多样的插件生态。本地 JavaScript 插件可以扩展在线音源、歌词、封面与导出能力——支持从 .zip 或 HTTPS 链接安装，并在设置里管理权限。</span></p>
         </div>
         <div class="plugin-grid">
           <div class="plugin-card">
@@ -751,22 +751,17 @@
               <img src="assets/kit/thumbs-up.jpg" alt="" loading="lazy" />
               <div>
                 <div class="badge">Community</div>
-                <h3>Bilibili</h3>
-                <p class="plugin-meta">dev.mygo.bilibili · v0.5.0-lekis.1 · MIT</p>
+                <h3><span class="en">A plugin host, not a walled garden</span><span class="zh">开放的插件宿主</span></h3>
               </div>
             </div>
-            <p><span class="en">Play audio from public Bilibili videos. Search by title, BV ID, or video link; the plugin and catalog are maintained by independent contributors, and each provider is responsible for its content and services.</span><span class="zh">播放 B 站公开视频的音频，可按歌名、BV 号或视频链接搜索。插件和目录由独立社区贡献者维护，内容与服务由相应提供方负责。</span></p>
-            <div class="plugin-actions">
-              <a class="btn btn-primary" href="plugins/bilibili.zip" download="bilibili.zip"><span class="en">Download ZIP</span><span class="zh">下载插件 ZIP</span></a>
-              <a class="btn btn-glass" href="https://github.com/hal-pixel/lekis-plugin-registry" target="_blank" rel="noopener"><span class="en">Browse catalog</span><span class="zh">浏览插件目录</span></a>
-            </div>
-            <p class="plugin-note"><span class="en">Install in the app from Settings → Advanced → Plugins → Install from .zip, or paste the HTTPS link under Install from link. SHA-256: <code>ac94435f…ac39e</code>.</span><span class="zh">在应用内「设置 → 高级 → 插件」选择「从 .zip 安装」，或在「从链接安装」里粘贴 HTTPS 地址。SHA-256：<code>ac94435f…ac39e</code>。</span></p>
+            <p><span class="en">Plugins run in a permissioned local JavaScript sandbox and can add new online sources, lyric providers, artwork lookups and export helpers. Browse a community catalog, or install a package from .zip or an HTTPS link — nothing is installed unless you confirm it.</span><span class="zh">插件运行在带权限控制的本地 JavaScript 沙箱中，可扩展在线音源、歌词来源、封面查询与导出能力。可以浏览社区目录，也可以从 .zip 或 HTTPS 链接安装——未经确认不会安装任何内容。</span></p>
+            <p class="plugin-note"><span class="en">Plugins are optional: local folders, NAS shares and media servers work without any plugin.</span><span class="zh">插件是可选的：本地文件夹、NAS 共享和媒体服务器无需插件即可播放。</span></p>
           </div>
           <div class="plugin-card plugin-disclaimer">
             <h3><span class="en">Please read before installing</span><span class="zh">安装前请知悉</span></h3>
             <ul>
               <li><span class="en"><strong>Made by the community.</strong> Plugins are not official Lekis Music features and are not provided, reviewed, or supported by the project.</span><span class="zh"><strong>均由社区制作。</strong>插件不是月兔音乐官方功能，也不由本项目提供、审核或提供支持。</span></li>
-              <li><span class="en"><strong>No affiliation with rights holders.</strong> Lekis Music and any content rights holder (such as Bilibili) are not affiliated with, do not endorse, and are not connected to these plugins.</span><span class="zh"><strong>与权益方无关。</strong>月兔音乐与任何内容权益方（如哔哩哔哩）均与这些插件没有隶属、合作或背书关系。</span></li>
+              <li><span class="en"><strong>No affiliation with rights holders.</strong> Lekis Music and any content rights holder are not affiliated with, do not endorse, and are not connected to these plugins.</span><span class="zh"><strong>与权益方无关。</strong>月兔音乐与任何内容权益方均与这些插件没有隶属、合作或背书关系。</span></li>
               <li><span class="en"><strong>Responsibility stays with the author.</strong> The plugin author and the respective providers are responsible for the content and services the plugin offers.</span><span class="zh"><strong>责任由插件作者承担。</strong>插件提供的内容与服务由插件作者和相应提供方负责。</span></li>
               <li><span class="en">Verify the source, version, and license before installing, and only use plugins you trust.</span><span class="zh">安装前请自行确认来源、版本与许可，只使用你信任的插件。</span></li>
             </ul>
@@ -846,7 +841,7 @@
           </details>
           <details>
             <summary><span class="en">Are the plugins official? Who is responsible for them?</span><span class="zh">插件是官方的吗？由谁负责？</span></summary>
-            <p><span class="en">No. Plugins are made and maintained by third-party community contributors and are not provided or supported by Lekis Music. Neither Lekis Music nor any content rights holder (such as Bilibili) is affiliated with, endorses, or is connected to them; the plugin author and the respective providers are responsible for the content and services.</span><span class="zh">不是。插件均由社区第三方制作和维护，不由月兔音乐提供或支持。月兔音乐与任何内容权益方（如哔哩哔哩）均与插件没有隶属、合作或背书关系；插件的内容与服务由插件作者和相应提供方负责。</span></p>
+            <p><span class="en">No. Plugins are made and maintained by third-party community contributors and are not provided or supported by Lekis Music. Neither Lekis Music nor any content rights holder is affiliated with, endorses, or is connected to them; the plugin author and the respective providers are responsible for the content and services.</span><span class="zh">不是。插件均由社区第三方制作和维护，不由月兔音乐提供或支持。月兔音乐与任何内容权益方均与插件没有隶属、合作或背书关系；插件的内容与服务由插件作者和相应提供方负责。</span></p>
           </details>
           <details>
             <summary><span class="en">Do I need plugins to play my music?</span><span class="zh">不装插件就不能播放音乐吗？</span></summary>
