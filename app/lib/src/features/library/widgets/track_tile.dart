@@ -96,9 +96,13 @@ class TrackTile extends ConsumerWidget {
       playbackProvider.select((s) => s.trackId == track.id),
     );
     final downloadState = ref.watch(downloadStateProvider(track.id));
+    final albumTitle = track.albumTitle?.trim();
     final subtitle = [
       track.artistLine,
-      if (track.albumTitle != null && leadingNumber == null) track.albumTitle!,
+      if (leadingNumber == null &&
+          albumTitle != null &&
+          albumTitle != track.title.trim())
+        albumTitle,
     ].where((s) => s.isNotEmpty).join(' · ');
 
     Widget leading;
