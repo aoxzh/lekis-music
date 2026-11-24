@@ -10,6 +10,7 @@ import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_filter.dart';
 import 'package:lekis/src/features/player/queue_move_next.dart';
 import 'package:lekis/src/features/player/queue_panel.dart';
+import 'package:lekis/src/features/player/queue_removals.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
@@ -40,8 +41,8 @@ class _QueueListState extends ConsumerState<QueueList>
   List<TrackRowDto>? _optimistic;
   List<Object> _shownKeys = const [];
 
-  /// Rows collapsing out (by key) until the queue reports the removal.
-  final Set<Object> _removing = <Object>{};
+  int _shownVersion = 0;
+  int _shownStart = 0;
   Timer? _settleFallback;
 
   @override
@@ -56,13 +57,15 @@ class _QueueListState extends ConsumerState<QueueList>
       occurrenceKeys(rows, (row) => row.id);
 
   /// Fresh provider data: animate from what is on screen to it.
-  List<TrackRowDto> _present(List<TrackRowDto> items) {
+  List<TrackRowDto> _present(List<TrackRowDto> items, int start, int version) {
     if (!identical(items, _source)) {
       final keys = _keysOf(items);
+      final removals = ref.read(queueRemovalsProvider.notifier);
       // Collapsed rows already left the screen; diff without them.
       final old = [
-        for (final k in _shownKeys)
-          if (!_removing.contains(k)) k,
+        for (var i = 0; i < _shownKeys.length; i++)
+          if (!removals.isRemoving(_shownStart + i, _shownVersion, version))
+            _shownKeys[i],
       ];
       _motion.listChanged(
         old: (i) => old[i],
@@ -73,7 +76,8 @@ class _QueueListState extends ConsumerState<QueueList>
       );
       _source = items;
       _optimistic = null;
-      _removing.clear();
+      _shownVersion = version;
+      _shownStart = start;
       _settleFallback?.cancel();
       _shownKeys = keys;
     }
@@ -100,7 +104,6 @@ class _QueueListState extends ConsumerState<QueueList>
           _shownKeys = keys;
         }
         _optimistic = null;
-        _removing.clear();
       });
     });
   }
@@ -120,29 +123,13 @@ class _QueueListState extends ConsumerState<QueueList>
     ref.read(playerActionsProvider).moveQueueItem(start + from, start + to);
   }
 
-  void _remove(Object key, int actualIndex) {
-    if (_removing.contains(key)) return;
-    final version = ref.read(playbackProvider).queueVersion;
-    setState(() => _removing.add(key));
-    void commit() {
-      if (!mounted) return;
-      if (ref.read(playbackProvider).queueVersion != version) return;
-      ref.read(playerActionsProvider).removeQueueAt(actualIndex);
-      _armFallback();
-    }
-
-    if (lekisReduceMotion(context)) {
-      commit();
-    } else {
-      Timer(ListRowCollapse.duration, commit);
-    }
-  }
-
   @override
   Widget build(BuildContext context) =>
       QueueFilter(controller: _filter, child: _preview(context));
 
   Widget _preview(BuildContext context) {
+    ref.watch(queueRemovalsProvider);
+    final removals = ref.read(queueRemovalsProvider.notifier);
     final compact = widget.compact;
     final rows = ref.watch(queuePreviewProvider);
     final playback = ref.watch(
@@ -151,6 +138,7 @@ class _QueueListState extends ConsumerState<QueueList>
           trackId: s.trackId,
           queueIndex: s.queueIndex,
           queueLength: s.queueLength,
+          version: s.queueVersion,
         ),
       ),
     );
@@ -181,7 +169,9 @@ class _QueueListState extends ConsumerState<QueueList>
         ),
       ),
       data: (data) {
-        final items = _present(data);
+        final items = _present(data, start, playback.version);
+        final shownVersion = _shownVersion;
+        final shownStart = _shownStart;
         if (items.isEmpty) {
           return Center(
             child: Text(
@@ -208,8 +198,13 @@ class _QueueListState extends ConsumerState<QueueList>
             final row = items[i];
             final actualIndex = start + i;
             final key = _shownKeys[i];
-            final moveToNext =
-                rows.isLoading || _optimistic != null || _removing.contains(key)
+            final removalIndex = shownStart + i;
+            final removing = removals.isRemoving(
+              removalIndex,
+              shownVersion,
+              playback.version,
+            );
+            final moveToNext = rows.isLoading || _optimistic != null || removing
                 ? null
                 : queueMoveToNext(ref, actualIndex);
             final isCurrent = playback.queueIndex != null
@@ -221,7 +216,7 @@ class _QueueListState extends ConsumerState<QueueList>
               motion: _motion,
               index: i,
               child: ListRowCollapse(
-                collapsed: _removing.contains(key),
+                collapsed: removing,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     vertical: LekisSpacing.xxs / 2,
@@ -299,7 +294,13 @@ class _QueueListState extends ConsumerState<QueueList>
                                   trackTitle: row.title,
                                 );
                               case 'remove':
-                                _remove(key, actualIndex);
+                                if (mounted) {
+                                  removals.remove(
+                                    this.context,
+                                    removalIndex,
+                                    shownVersion,
+                                  );
+                                }
                             }
                           },
                           itemBuilder: (_) => [
