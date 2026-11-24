@@ -31,12 +31,13 @@ jobs:
       - name: Assemble site
         run: |
           set -euo pipefail
-          mkdir -p _site
+          mkdir -p _site/screenshots _site/assets
           cp -r website/* _site/
-          # website/kit holds the full-resolution source renders and
-          # website/README.md is maintenance documentation; neither belongs in
-          # the published artifact.
-          rm -rf _site/kit _site/assets/kit _site/README.md
+          # website/kit holds the full-resolution source renders; the site serves
+          # the cropped, compressed derivatives under website/assets/kit.
+          rm -rf _site/kit
+          cp docs/screenshots/*.png _site/screenshots/
+          cp app/assets/brand/mark.png _site/assets/mark.png
           cp llms.txt _site/llms.txt
 
       - uses: actions/configure-pages@v6
