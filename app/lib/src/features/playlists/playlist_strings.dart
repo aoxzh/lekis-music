@@ -122,6 +122,22 @@ abstract final class PlaylistStrings {
           'Removed $removed; $failed failed',
         );
   static String get noMissing => L10n.tr('没有缺失曲目', 'No missing tracks');
+  static String get selectEntries => L10n.tr('批量选择', 'Select Tracks');
+  static String get removeSelected => L10n.tr('移除选中', 'Remove Selected');
+  static String removeSelectedTitle(int count) =>
+      L10n.tr('移除选中的 $count 首？', 'Remove $count selected tracks?');
+  static String removeSelectedBody(int count) => L10n.tr(
+    '将从歌单移除 $count 个条目，曲目文件不受影响。',
+    'This removes $count entries from the playlist; your music files are not affected.',
+  );
+  static String get removingSelected =>
+      L10n.tr('正在移除选中曲目', 'Removing Selected Tracks');
+  static String removedSelected(int removed, int failed) => failed == 0
+      ? L10n.tr('已移除 $removed 个条目', 'Removed $removed entries')
+      : L10n.tr(
+          '已移除 $removed 个，$failed 个失败',
+          'Removed $removed; $failed failed',
+        );
   static String get sortPlaylist => L10n.tr('排序歌单', 'Sort Playlist');
   static String get sortByTitle => L10n.tr('按标题', 'By Title');
   static String get sortByArtist => L10n.tr('按艺人', 'By Artist');

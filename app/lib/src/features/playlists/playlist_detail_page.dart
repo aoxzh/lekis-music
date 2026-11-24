@@ -15,6 +15,7 @@ import 'package:lekis/src/features/playlists/playlist_cover.dart';
 import 'package:lekis/src/features/playlists/playlist_m3u.dart';
 import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/features/playlists/smart_playlist_editor_page.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/nav_icon.dart' show lekisReduceMotion;
@@ -165,11 +166,127 @@ class _StaticPlaylistBody extends ConsumerStatefulWidget {
 class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
   final TextEditingController _search = TextEditingController();
   String _query = '';
+  bool _selecting = false;
+  final Set<String> _selectedKeys = <String>{};
 
   @override
   void dispose() {
     _search.dispose();
     super.dispose();
+  }
+
+  void _refresh() {
+    ref.invalidate(playlistEntriesProvider(widget.playlist.id));
+    ref.invalidate(playlistsProvider);
+  }
+
+  void _toggleSelected(String positionKey) {
+    setState(() {
+      _selecting = true;
+      if (!_selectedKeys.add(positionKey)) _selectedKeys.remove(positionKey);
+    });
+  }
+
+  void _clearSelection() {
+    if (!_selecting && _selectedKeys.isEmpty) return;
+    setState(() {
+      _selecting = false;
+      _selectedKeys.clear();
+    });
+  }
+
+  Future<void> _removeSelected(
+    PlaylistDto playlist,
+    List<PlaylistEntryDto> rows,
+  ) async {
+    final entries = [
+      for (final entry in rows)
+        if (_selectedKeys.contains(entry.positionKey)) entry,
+    ];
+    if (entries.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(PlaylistStrings.removeSelectedTitle(entries.length)),
+        content: Text(PlaylistStrings.removeSelectedBody(entries.length)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(false),
+            child: Text(PlaylistStrings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialog).pop(true),
+            child: Text(PlaylistStrings.removeSelected),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final progress = ValueNotifier<int>(0);
+    final navigator = Navigator.of(context, rootNavigator: true);
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: Text(PlaylistStrings.removingSelected),
+          content: ValueListenableBuilder<int>(
+            valueListenable: progress,
+            builder: (_, done, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LinearProgressIndicator(
+                  value: entries.isEmpty
+                      ? 0
+                      : (done / entries.length).clamp(0.0, 1.0),
+                ),
+                const SizedBox(height: LekisSpacing.md),
+                Text('$done / ${entries.length}'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    var removed = 0;
+    var failed = 0;
+    try {
+      for (final entry in entries) {
+        try {
+          await core.removeFromPlaylist(
+            playlistId: playlist.id,
+            positionKey: entry.positionKey,
+          );
+          removed++;
+        } catch (_) {
+          failed++;
+        }
+        progress.value++;
+      }
+      _refresh();
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(PlaylistStrings.removedSelected(removed, failed)),
+            ),
+          );
+      }
+    } catch (e) {
+      if (mounted) showPlaylistError(context, e);
+    } finally {
+      if (navigator.mounted && navigator.canPop()) navigator.pop();
+      progress.dispose();
+      if (mounted) {
+        setState(() {
+          _selecting = false;
+          _selectedKeys.clear();
+        });
+      }
+    }
   }
 
   Future<void> _moveToTop(PlaylistEntryDto entry) async {
@@ -237,7 +354,7 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
                 entry,
           ];
 
-    return CustomScrollView(
+    final content = CustomScrollView(
       key: PageStorageKey('playlist-${playlist.id}'),
       slivers: [
         SliverPadding(
@@ -289,6 +406,14 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
               onMerge: playlist.kind == PlaylistKindDto.static_
                   ? () => mergePlaylistFlow(context, ref, playlist, playlists)
                   : null,
+              onSelect: rows.isEmpty
+                  ? null
+                  : () {
+                      setState(() {
+                        _selecting = true;
+                        _selectedKeys.clear();
+                      });
+                    },
               queueTrackIds: playableIds,
             ),
           ),
@@ -369,6 +494,9 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
               playlist: playlist,
               rows: visible,
               busy: widget.busy || query.isNotEmpty,
+              selecting: _selecting,
+              selectedKeys: _selectedKeys,
+              onToggleSelect: _toggleSelected,
               onMove: widget.onMove,
               onRemove: widget.onRemove,
               onMoveToTop: _moveToTop,
@@ -381,7 +509,33 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
             ),
           ),
         SliverPadding(
-          padding: EdgeInsets.only(bottom: scrollEndPadding(context)),
+          padding: EdgeInsets.only(
+            bottom:
+                scrollEndPadding(context) +
+                (_selecting ? LekisSizes.touchTargetMin + LekisSpacing.xl : 0),
+          ),
+        ),
+      ],
+    );
+
+    if (!_selecting) return content;
+    return Stack(
+      children: [
+        Positioned.fill(child: content),
+        Positioned(
+          left: gutter,
+          right: gutter,
+          bottom: LekisSpacing.lg,
+          child: SafeArea(
+            top: false,
+            child: _SelectionBar(
+              count: _selectedKeys.length,
+              onCancel: _clearSelection,
+              onRemove: _selectedKeys.isEmpty
+                  ? null
+                  : () => _removeSelected(playlist, rows),
+            ),
+          ),
         ),
       ],
     );
@@ -493,6 +647,7 @@ class _PlaylistHeader extends ConsumerWidget {
     this.onDedupe,
     this.onCleanMissing,
     this.onMerge,
+    this.onSelect,
     this.queueTrackIds = const [],
   });
 
@@ -508,6 +663,7 @@ class _PlaylistHeader extends ConsumerWidget {
   final VoidCallback? onDedupe;
   final VoidCallback? onCleanMissing;
   final VoidCallback? onMerge;
+  final VoidCallback? onSelect;
 
   /// 歌单里能播放的曲目，给"下一首播放 / 加入播放队列"用。
   final List<int> queueTrackIds;
@@ -648,6 +804,8 @@ class _PlaylistHeader extends ConsumerWidget {
                         onCleanMissing?.call();
                       case 'merge':
                         onMerge?.call();
+                      case 'select':
+                        onSelect?.call();
                       case 'delete':
                         delete();
                     }
@@ -706,6 +864,11 @@ class _PlaylistHeader extends ConsumerWidget {
                         value: 'merge',
                         child: Text(PlaylistStrings.mergePlaylist),
                       ),
+                    if (onSelect != null)
+                      PopupMenuItem(
+                        value: 'select',
+                        child: Text(PlaylistStrings.selectEntries),
+                      ),
                     PopupMenuItem(
                       value: 'delete',
                       child: Text(PlaylistStrings.deletePlaylist),
@@ -739,6 +902,56 @@ class _PlaylistHeader extends ConsumerWidget {
   }
 }
 
+class _SelectionBar extends StatelessWidget {
+  const _SelectionBar({
+    required this.count,
+    required this.onCancel,
+    required this.onRemove,
+  });
+
+  final int count;
+  final VoidCallback onCancel;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.lekisColors;
+    return Material(
+      elevation: 8,
+      color: colors.surfaceElevated,
+      borderRadius: BorderRadius.circular(LekisRadius.lg),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: LekisSpacing.md,
+          vertical: LekisSpacing.sm,
+        ),
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: LekisSpacing.sm,
+          runSpacing: LekisSpacing.xs,
+          children: [
+            Text(
+              context.l10n.pick('已选 $count 首', '$count selected'),
+              style: theme.textTheme.bodyMedium,
+            ),
+            TextButton(
+              onPressed: onCancel,
+              child: Text(PlaylistStrings.cancel),
+            ),
+            FilledButton.icon(
+              onPressed: onRemove,
+              icon: const Icon(Icons.delete_outline_rounded),
+              label: Text(PlaylistStrings.removeSelected),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Entries of a static playlist. Moves slide the two rows past each other,
 /// removals collapse the row before the core is asked, and rows that the
 /// refreshed list adds fade in.
@@ -747,6 +960,9 @@ class _PlaylistEntryList extends StatefulWidget {
     required this.playlist,
     required this.rows,
     required this.busy,
+    required this.selecting,
+    required this.selectedKeys,
+    required this.onToggleSelect,
     required this.onMove,
     required this.onRemove,
     required this.onMoveToTop,
@@ -757,6 +973,9 @@ class _PlaylistEntryList extends StatefulWidget {
   final PlaylistDto playlist;
   final List<PlaylistEntryDto> rows;
   final bool busy;
+  final bool selecting;
+  final Set<String> selectedKeys;
+  final void Function(String positionKey) onToggleSelect;
   final Future<void> Function(
     List<PlaylistEntryDto> entries,
     int index,
@@ -848,6 +1067,9 @@ class _PlaylistEntryListState extends State<_PlaylistEntryList>
             child: _PlaylistEntryTile(
               entry: rows[i],
               index: i,
+              selecting: widget.selecting,
+              selected: widget.selectedKeys.contains(rows[i].positionKey),
+              onToggleSelect: () => widget.onToggleSelect(rows[i].positionKey),
               canMoveUp: !busy && i > 0,
               canMoveDown: !busy && i < rows.length - 1,
               canMoveToTop: !busy && i > 0,
@@ -878,6 +1100,9 @@ class _PlaylistEntryTile extends StatelessWidget {
   const _PlaylistEntryTile({
     required this.entry,
     required this.index,
+    required this.selecting,
+    required this.selected,
+    required this.onToggleSelect,
     required this.canMoveUp,
     required this.canMoveDown,
     required this.canMoveToTop,
@@ -892,6 +1117,9 @@ class _PlaylistEntryTile extends StatelessWidget {
 
   final PlaylistEntryDto entry;
   final int index;
+  final bool selecting;
+  final bool selected;
+  final VoidCallback onToggleSelect;
   final bool canMoveUp;
   final bool canMoveDown;
   final bool canMoveToTop;
@@ -909,7 +1137,8 @@ class _PlaylistEntryTile extends StatelessWidget {
     final colors = context.lekisColors;
     final track = entry.track;
     return InkWell(
-      onTap: onPlay,
+      onTap: selecting ? onToggleSelect : onPlay,
+      onLongPress: onToggleSelect,
       borderRadius: BorderRadius.circular(LekisRadius.sm),
       child: Padding(
         padding: const EdgeInsets.symmetric(
@@ -923,6 +1152,14 @@ class _PlaylistEntryTile extends StatelessWidget {
             final compact = constraints.maxWidth < 560;
             return Row(
               children: [
+                if (selecting)
+                  SizedBox(
+                    width: 32,
+                    child: Checkbox(
+                      value: selected,
+                      onChanged: (_) => onToggleSelect(),
+                    ),
+                  ),
                 SizedBox.square(
                   dimension: LekisSizes.listArtwork,
                   child: track == null

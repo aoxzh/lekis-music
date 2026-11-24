@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 /// Current application version (kept in sync with `app/pubspec.yaml`).
-const String kLekisAppVersion = '0.2.116';
+const String kLekisAppVersion = '0.2.117';
 
 const String kLekisReleasesApiUrl =
     'https://api.github.com/repos/aoxzh/lekis-music/releases?per_page=10';
