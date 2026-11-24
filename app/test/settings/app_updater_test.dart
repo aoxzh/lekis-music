@@ -204,6 +204,16 @@ B062125CE0FA2C0A3EAE3F56098C378E00F6551AA1D4BA1765960931BFE13875 *lekis-0.2.0-wi
       expect(mac, contains(r"o'\''brien"));
     });
 
+    test('Windows apply helper starts through cmd start', () {
+      final args = windowsApplyHelperCommand(r'C:\Temp\lekis update\apply.ps1');
+      expect(args.first, '/c');
+      expect(
+        args,
+        containsAllInOrder(['start', '', '/min', 'powershell', '-File']),
+      );
+      expect(args.last, r'C:\Temp\lekis update\apply.ps1');
+    });
+
     test(
       'downloadAndStageDesktopUpdate verifies SHA-256 and extracts archive',
       () async {

@@ -502,6 +502,40 @@ Future<void> _extractArchive(
   }
 }
 
+/// Arguments for `cmd.exe` that start the apply script in an independent
+/// process. `start` detaches it from Lekis's console/job so quitting the app
+/// does not kill the updater before it can replace the files.
+List<String> windowsApplyHelperCommand(String scriptPath) => [
+  '/c',
+  'start',
+  '',
+  '/min',
+  'powershell',
+  '-NoProfile',
+  '-ExecutionPolicy',
+  'Bypass',
+  '-WindowStyle',
+  'Hidden',
+  '-File',
+  scriptPath,
+];
+
+/// Best-effort diagnostics for the Windows self-updater.
+void _appendUpdateLog(String message) {
+  try {
+    final base = Platform.environment['LOCALAPPDATA'];
+    if (base == null || base.isEmpty) return;
+    final dir = Directory('$base\\Lekis');
+    dir.createSync(recursive: true);
+    File('${dir.path}\\update.log').writeAsStringSync(
+      '${DateTime.now().toIso8601String()} $message\n',
+      mode: FileMode.append,
+    );
+  } catch (_) {
+    // Diagnostics must never break the update itself.
+  }
+}
+
 /// Spawns a detached OS helper script to wait for the current process to exit,
 /// replace the installed files with [staged], relaunch Lekis, and clean up.
 Future<void> applyStagedDesktopUpdateAndRelaunch(
@@ -521,19 +555,18 @@ Future<void> applyStagedDesktopUpdateAndRelaunch(
         stagingDir: staged.stagingDir,
       ),
     );
+    _appendUpdateLog(
+      'launching helper for ${staged.version} (wait pid $waitPid)',
+    );
+    // A plain detached PowerShell keeps the parent's console/job and is killed
+    // as soon as Lekis exits (observed on Windows 11: the helper never reached
+    // its first log line). `start` gives it an independent process.
     await Process.start(
-      'powershell',
-      [
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-WindowStyle',
-        'Hidden',
-        '-File',
-        script.path,
-      ],
+      'cmd.exe',
+      windowsApplyHelperCommand(script.path),
       mode: ProcessStartMode.detached,
     );
+    _appendUpdateLog('helper spawned');
   } else if (staged.operatingSystem == 'macos') {
     final script = File('${staged.stagingDir}/apply.sh');
     await script.writeAsString(
