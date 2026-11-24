@@ -38,6 +38,21 @@ pub struct LyricsRow {
     pub created_at: i64,
 }
 
+/// Stored version with optional provider-supplied recording metadata.
+#[derive(Debug, Clone)]
+pub struct LyricSearchVersion {
+    /// Lyrics and local selection state.
+    pub row: LyricsRow,
+    /// Provider's recording title, including its version label.
+    pub title: Option<String>,
+    /// Credited artists in provider order.
+    pub artists: Vec<String>,
+    /// Album reported by the provider.
+    pub album: Option<String>,
+    /// Recording duration when available.
+    pub duration_ms: Option<i64>,
+}
+
 /// 数据库里存的字符串（snake_case）。
 fn format_to_db(format: LyricsFormat) -> &'static str {
     match format {
@@ -76,21 +91,37 @@ fn map_lyrics_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<LyricsRow> {
     })
 }
 
+enum Selection {
+    Automatic,
+    Inactive,
+    User,
+}
+
 impl Library {
     /// 写入一份歌词，并在它该生效时把同曲目的其它歌词置为非生效。
     ///
     /// 生效规则（ENR-03）：来源优先级高者胜；同优先级比置信度；再相同则保留原有的那一份
     /// （避免重复刮削时反复覆盖用户看到的内容）。返回写入行的 ID。
     pub async fn save_lyrics(&self, track: TrackId, lyrics: Lyrics) -> Result<i64> {
-        self.write_lyrics(track, lyrics, false).await
+        self.write_lyrics(track, lyrics, Selection::Automatic).await
     }
 
     /// 保存一个待手动选择的版本，不改变当前生效歌词。
     pub async fn save_lyrics_inactive(&self, track: TrackId, lyrics: Lyrics) -> Result<i64> {
-        self.write_lyrics(track, lyrics, true).await
+        self.write_lyrics(track, lyrics, Selection::Inactive).await
     }
 
-    async fn write_lyrics(&self, track: TrackId, lyrics: Lyrics, inactive: bool) -> Result<i64> {
+    /// Save and bind a version explicitly pasted or imported by the user.
+    pub async fn save_selected_lyrics(&self, track: TrackId, lyrics: Lyrics) -> Result<i64> {
+        self.write_lyrics(track, lyrics, Selection::User).await
+    }
+
+    async fn write_lyrics(
+        &self,
+        track: TrackId,
+        lyrics: Lyrics,
+        selection: Selection,
+    ) -> Result<i64> {
         if lyrics.content.trim().is_empty() {
             return Err(lekis_types::LekisError::invalid(
                 "lyrics content must not be empty",
@@ -100,9 +131,9 @@ impl Library {
             let tx = conn.transaction().db()?;
             let now = now_ms();
             // 当前生效的那份（用于比较优先级）。
-            let current: Option<(i64, String, f64)> = tx
+            let current: Option<(String, f64, bool)> = tx
                 .query_row(
-                    "SELECT id, source, confidence FROM lyrics
+                    "SELECT source, confidence, selected_by_user FROM lyrics
                      WHERE track_id = ?1 AND is_active = 1
                      ORDER BY created_at DESC, id DESC LIMIT 1",
                     params![track.0],
@@ -111,10 +142,14 @@ impl Library {
                 .optional()
                 .db()?;
 
-            let wins = !inactive
-                && match &current {
+            let explicit = matches!(selection, Selection::User);
+            let wins = match selection {
+                Selection::User => true,
+                Selection::Inactive => false,
+                Selection::Automatic => match &current {
                     None => true,
-                    Some((_, src, conf)) => {
+                    Some((_, _, true)) => false,
+                    Some((src, conf, false)) => {
                         let new_rank = source_rank(&lyrics.source);
                         let old_rank = source_rank(src);
                         if new_rank != old_rank {
@@ -125,19 +160,20 @@ impl Library {
                             false
                         }
                     }
-                };
+                },
+            };
 
             if wins {
                 tx.execute(
-                    "UPDATE lyrics SET is_active = 0 WHERE track_id = ?1 AND is_active = 1",
+                    "UPDATE lyrics SET is_active = 0, selected_by_user = 0 WHERE track_id = ?1 AND is_active = 1",
                     params![track.0],
                 )
                 .db()?;
             }
             tx.execute(
                 "INSERT INTO lyrics (track_id, format, content, source, offset_ms, confidence,
-                                     is_active, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                                     is_active, created_at, selected_by_user)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
                     track.0,
                     format_to_db(lyrics.format),
@@ -146,7 +182,8 @@ impl Library {
                     lyrics.offset_ms as i64,
                     lyrics.confidence as f64,
                     if wins { 1 } else { 0 },
-                    now
+                    now,
+                    explicit
                 ],
             )
             .db()?;
@@ -199,6 +236,15 @@ impl Library {
 
     /// 指定某一份歌词为生效（用户在"手动选择歌词"里切换）。
     pub async fn activate_lyrics(&self, track: TrackId, lyrics_id: i64) -> Result<()> {
+        self.select_lyrics(track, lyrics_id, true).await
+    }
+
+    /// Apply an automatic match only if no version was selected during lookup.
+    pub async fn activate_lyrics_if_empty(&self, track: TrackId, lyrics_id: i64) -> Result<()> {
+        self.select_lyrics(track, lyrics_id, false).await
+    }
+
+    async fn select_lyrics(&self, track: TrackId, lyrics_id: i64, explicit: bool) -> Result<()> {
         self.write(move |conn| {
             let tx = conn.transaction().db()?;
             let exists: Option<i64> = tx
@@ -214,20 +260,79 @@ impl Library {
                     "lyrics {lyrics_id} of track {track}"
                 )));
             }
+            if !explicit && tx.query_row("SELECT EXISTS(SELECT 1 FROM lyrics WHERE track_id=?1 AND is_active=1)", [track.0], |r| r.get::<_,bool>(0)).db()? {
+                return Ok(());
+            }
             tx.execute(
-                "UPDATE lyrics SET is_active = 0 WHERE track_id = ?1 AND is_active = 1",
+                "UPDATE lyrics SET is_active = 0, selected_by_user=0 WHERE track_id = ?1 AND is_active = 1",
                 params![track.0],
             )
             .db()?;
             tx.execute(
-                "UPDATE lyrics SET is_active = 1 WHERE id = ?1",
-                params![lyrics_id],
+                "UPDATE lyrics SET is_active = 1, selected_by_user=?2 WHERE id = ?1",
+                params![lyrics_id, explicit],
             )
             .db()?;
             tx.commit().db()?;
             Ok(())
         })
         .await
+    }
+
+    /// Store search results atomically without changing the active version.
+    pub async fn store_lyric_search(
+        &self,
+        track: TrackId,
+        versions: Vec<LyricSearchVersion>,
+    ) -> Result<Vec<LyricSearchVersion>> {
+        self.write(move |conn| {
+            let tx = conn.transaction().db()?;
+            let mut rows = Vec::new();
+            for mut version in versions {
+                let lyrics = &version.row.lyrics;
+                let artists = serde_json::to_string(&version.artists).map_err(|e| lekis_types::LekisError::internal(e.to_string()))?;
+                let format = format_to_db(lyrics.format);
+                let existing: Option<LyricsRow> = tx.query_row(
+                    "SELECT l.id,l.track_id,l.format,l.content,l.source,l.offset_ms,l.confidence,l.is_active,l.created_at
+                     FROM lyrics l LEFT JOIN lyric_recording m ON m.lyrics_id=l.id
+                     WHERE l.track_id=?1 AND l.format=?2 AND l.source=?3 AND l.content=?4
+                     AND (m.lyrics_id IS NULL OR (m.title IS ?5 AND m.artists=?6 AND m.album IS ?7 AND m.duration_ms IS ?8))
+                     ORDER BY m.lyrics_id IS NULL, l.is_active DESC,l.id LIMIT 1",
+                    params![track.0,format,lyrics.source,lyrics.content,version.title,artists,version.album,version.duration_ms],
+                    map_lyrics_row).optional().db()?;
+                if let Some(row) = existing {
+                    version.row = row;
+                } else {
+                    let created = now_ms();
+                    tx.execute("INSERT INTO lyrics(track_id,format,content,source,offset_ms,confidence,is_active,created_at)
+                        VALUES(?1,?2,?3,?4,0,?5,0,?6)", params![track.0,format,lyrics.content,lyrics.source,lyrics.confidence,created]).db()?;
+                    version.row = LyricsRow {id: tx.last_insert_rowid(), track_id:track, lyrics:lyrics.clone(), is_active:false, created_at:created};
+                }
+                tx.execute("INSERT OR IGNORE INTO lyric_recording(lyrics_id,title,artists,album,duration_ms) VALUES(?1,?2,?3,?4,?5)",
+                    params![version.row.id,version.title,artists,version.album,version.duration_ms]).db()?;
+                if !rows.iter().any(|r: &LyricSearchVersion| r.row.id == version.row.id) {
+                    rows.push(version);
+                }
+            }
+            tx.commit().db()?;
+            Ok(rows)
+        }).await
+    }
+
+    /// List the active version first, including versions that predate recording metadata.
+    pub async fn stored_lyric_versions(&self, track: TrackId) -> Result<Vec<LyricSearchVersion>> {
+        self.read(move |conn| {
+            let mut query = conn.prepare_cached("SELECT l.id,l.track_id,l.format,l.content,l.source,l.offset_ms,l.confidence,l.is_active,l.created_at,
+                m.title,m.artists,m.album,m.duration_ms FROM lyrics l LEFT JOIN lyric_recording m ON l.id=m.lyrics_id
+                WHERE l.track_id=?1 ORDER BY l.is_active DESC,l.id DESC").db()?;
+            let rows = query.query_map([track.0], |r| {
+                let json: Option<String> = r.get(10)?;
+                Ok(LyricSearchVersion { row:map_lyrics_row(r)?, title:r.get(9)?,
+                    artists:json.map(|text| serde_json::from_str(&text)).transpose().map_err(|e| rusqlite::Error::FromSqlConversionFailure(10, rusqlite::types::Type::Text, Box::new(e)))?.unwrap_or_default(),
+                    album:r.get(11)?,duration_ms:r.get(12)? })
+            }).db()?;
+            rows.collect::<rusqlite::Result<Vec<_>>>().db()
+        }).await
     }
 
     /// 调整生效歌词的整体偏移（ENR-07，正数表示歌词延后）。

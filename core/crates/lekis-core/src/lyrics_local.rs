@@ -1,4 +1,4 @@
-//! 本地歌词（ENR-03 的本地部分）：同名 ELRC / LRC / TTML / WebVTT / TXT 侧车，再退回内嵌歌词标签。
+//! 本地歌词：同名逐字歌词、LRC、TTML、WebVTT 或 TXT 侧车，再退回内嵌歌词标签。
 //!
 //! 按需调用（打开"正在播放"时），找到就写进 `lyrics` 表，下次直接命中。
 
@@ -7,10 +7,13 @@ use lekis_types::{Lyrics, LyricsFormat, Result, SourceId, TrackId};
 use lekis_vfs::{partial, EntryKind, Vfs, VfsPath};
 use std::sync::Arc;
 
+mod karaoke;
 mod webvtt;
 
-pub(super) const LYRICS_EXTS: &[&str] =
-    &["elrc", "ELRC", "lrc", "LRC", "ttml", "vtt", "VTT", "txt"];
+pub(super) const LYRICS_EXTS: &[&str] = &[
+    "elrc", "ELRC", "qrc", "QRC", "yrc", "YRC", "krc", "KRC", "lrc", "LRC", "ttml", "vtt", "VTT",
+    "txt",
+];
 
 /// 侧车歌词的大小上限（正常 LRC 只有几 KB）。
 const MAX_SIDECAR_BYTES: u64 = 1024 * 1024;
@@ -103,34 +106,40 @@ pub(crate) fn detect_format(content: &str) -> LyricsFormat {
     }
 }
 
-async fn read_sidecar(vfs: &dyn Vfs, audio: &VfsPath) -> Option<String> {
+pub(super) async fn read_sidecar(vfs: &dyn Vfs, audio: &VfsPath) -> Option<String> {
     let stem_path = audio.as_str().rsplit_once('.').map(|(s, _)| s)?;
     for &ext in LYRICS_EXTS {
         let Some(path) = VfsPath::parse(&format!("{stem_path}.{ext}")) else {
             continue;
         };
-        let Ok(meta) = vfs.stat(&path).await else {
+        let Some(bytes) = sidecar_bytes(vfs, &path).await else {
             continue;
         };
-        if !matches!(meta.kind, EntryKind::File) || meta.size == 0 || meta.size > MAX_SIDECAR_BYTES
-        {
+        if let Some(format) = karaoke::Format::from_ext(ext) {
+            if let Some(ttml) = karaoke::read(format, &bytes, vfs, stem_path, ext).await {
+                return Some(ttml);
+            }
             continue;
         }
-        if let Ok(bytes) = vfs.read_range(&path, 0..meta.size).await {
-            if bytes.len() as u64 != meta.size {
-                continue;
+        let text = decode_text(&bytes);
+        if ext.eq_ignore_ascii_case("vtt") {
+            if let Some(ttml) = webvtt::to_ttml(&text) {
+                return Some(ttml);
             }
-            let text = decode_text(&bytes);
-            if ext.eq_ignore_ascii_case("vtt") {
-                if let Some(ttml) = webvtt::to_ttml(&text) {
-                    return Some(ttml);
-                }
-            } else if !text.trim().is_empty() {
-                return Some(text);
-            }
+        } else if !text.trim().is_empty() {
+            return Some(text);
         }
     }
     None
+}
+
+async fn sidecar_bytes(vfs: &dyn Vfs, path: &VfsPath) -> Option<bytes::Bytes> {
+    let meta = vfs.stat(path).await.ok()?;
+    if meta.kind != EntryKind::File || !(1..=MAX_SIDECAR_BYTES).contains(&meta.size) {
+        return None;
+    }
+    let bytes = vfs.read_range(path, 0..meta.size).await.ok()?;
+    (bytes.len() as u64 == meta.size).then_some(bytes)
 }
 
 /// UTF-8（含 BOM）/ UTF-16 BOM；都不是时按有损 UTF-8 解。

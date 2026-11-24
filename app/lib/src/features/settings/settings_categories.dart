@@ -30,6 +30,7 @@ import 'desktop_self_updater.dart';
 import 'desktop_tray_settings_section.dart';
 import 'equalizer_page.dart';
 import 'logs_page.dart';
+import 'lyrics_presets.dart';
 import 'scrobble_page.dart';
 import 'settings_backup.dart';
 import 'settings_guard.dart';
@@ -159,6 +160,8 @@ enum SettingsCategory {
       SettingsStrings.navBarPosition,
       SettingsStrings.lyrics,
       SettingsStrings.lyricsStage,
+      SettingsStrings.lyricsPresets,
+      SettingsStrings.styleEnsemble,
       SettingsStrings.lyricsSparks,
       DesktopLyricsStrings.title,
     ],
@@ -787,6 +790,7 @@ class _LyricsSection extends ConsumerWidget {
     return SettingsSection(
       title: SettingsStrings.lyrics,
       children: [
+        const LyricsPresetTile(),
         if (UiProfile.current.desktopSettings)
           SettingsDropdownTile<LyricsStyle>(
             icon: Icons.lyrics_outlined,
@@ -841,7 +845,7 @@ class _LyricsSection extends ConsumerWidget {
           ),
         ),
         // 火花只对逐字舞台有意义，经典视图下不显示这个开关。
-        if (lyricsStyle.isStage)
+        if (lyricsStyle.stage != null)
           SettingsSwitchTile(
             icon: Icons.auto_awesome_outlined,
             title: SettingsStrings.lyricsSparks,

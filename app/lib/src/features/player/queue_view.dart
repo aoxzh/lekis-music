@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/player/queue_filter.dart';
 import 'package:lekis/src/features/player/queue_move_next.dart';
 import 'package:lekis/src/features/player/queue_panel.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
@@ -31,6 +32,7 @@ class QueueList extends ConsumerStatefulWidget {
 class _QueueListState extends ConsumerState<QueueList>
     with SingleTickerProviderStateMixin {
   late final ListMotion _motion = ListMotion(vsync: this);
+  final _filter = TextEditingController();
 
   /// Last provider data diffed against, and the order on screen (which a
   /// drag may have changed ahead of the core's reply).
@@ -46,6 +48,7 @@ class _QueueListState extends ConsumerState<QueueList>
   void dispose() {
     _settleFallback?.cancel();
     _motion.dispose();
+    _filter.dispose();
     super.dispose();
   }
 
@@ -136,7 +139,10 @@ class _QueueListState extends ConsumerState<QueueList>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      QueueFilter(controller: _filter, child: _preview(context));
+
+  Widget _preview(BuildContext context) {
     final compact = widget.compact;
     final rows = ref.watch(queuePreviewProvider);
     final playback = ref.watch(
@@ -369,42 +375,49 @@ Future<void> showQueueSheet(BuildContext context) {
 Future<void> _showQueueBottomSheet(BuildContext context) {
   return showLekisSheet<void>(
     context,
-    heightFactor: 0.62,
-    builder: (context) => Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            LekisSpacing.xl,
-            0,
-            LekisSpacing.xl,
-            LekisSpacing.sm,
-          ),
-          child: Consumer(
-            builder: (context, ref, _) {
-              final length = ref.watch(
-                playbackProvider.select((s) => s.queueLength),
-              );
-              return Row(
-                children: [
-                  Text(
-                    context.l10n.queue,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(width: LekisSpacing.sm),
-                  Text(
-                    context.l10n.pick('$length 首', '$length tracks'),
-                    style: Theme.of(context).textTheme.bodySmall
-                        ?.copyWith(color: context.lekisColors.onSurfaceVariant),
-                  ),
-                ],
-              );
-            },
-          ),
+    heightFactor: null,
+    builder: (context) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: FractionallySizedBox(
+        heightFactor: 0.62,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                LekisSpacing.xl,
+                0,
+                LekisSpacing.xl,
+                LekisSpacing.sm,
+              ),
+              child: Consumer(
+                builder: (context, ref, _) {
+                  final length = ref.watch(
+                    playbackProvider.select((s) => s.queueLength),
+                  );
+                  return Row(
+                    children: [
+                      Text(
+                        context.l10n.queue,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(width: LekisSpacing.sm),
+                      Text(
+                        context.l10n.pick('$length 首', '$length tracks'),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: context.lekisColors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            const Divider(height: 1),
+            const Expanded(child: QueueList()),
+          ],
         ),
-        const Divider(height: 1),
-        const Expanded(child: QueueList()),
-      ],
+      ),
     ),
   );
 }

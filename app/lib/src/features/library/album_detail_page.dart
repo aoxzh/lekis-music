@@ -4,6 +4,7 @@ import 'package:lekis/src/features/enrich/enrich_actions.dart';
 import 'package:lekis/src/features/library/artwork_actions.dart';
 import 'package:lekis/src/features/library/artist_detail_page.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
+import 'package:lekis/src/features/library/music_export_dialog.dart';
 import 'package:lekis/src/features/library/widgets/album_card.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
@@ -322,6 +323,11 @@ class _AlbumHeader extends ConsumerWidget {
                   albumId: album.id.toInt(),
                 ),
                 trailing: [
+                  IconButton(
+                    tooltip: context.l10n.pick('导出整张专辑', 'Export album'),
+                    onPressed: () => showMusicExport(context, albumId: album.id),
+                    icon: const Icon(Icons.drive_file_move_outline),
+                  ),
                   if (downloadableTrackIds.isNotEmpty)
                     BatchDownloadButton(
                       trackIds: downloadableTrackIds,

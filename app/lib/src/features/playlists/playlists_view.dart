@@ -16,6 +16,8 @@ import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/features/playlists/playlist_strings.dart';
+import '../../l10n/app_l10n.dart';
+import '../plugins/online_collections_page.dart';
 
 class PlaylistsView extends ConsumerWidget {
   const PlaylistsView({super.key});
@@ -88,6 +90,13 @@ class PlaylistsView extends ConsumerWidget {
               Wrap(
                 spacing: LekisSpacing.sm,
                 children: [
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(builder: (_) => const OnlineCollectionsPage()),
+                    ),
+                    icon: const Icon(Icons.public_rounded),
+                    label: Text(context.l10n.pick('在线歌单与榜单', 'Online collections')),
+                  ),
                   OutlinedButton.icon(
                     onPressed: () => _create(context, ref, smart: false),
                     icon: const Icon(Icons.playlist_add_rounded),

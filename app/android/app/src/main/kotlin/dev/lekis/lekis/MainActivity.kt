@@ -20,6 +20,7 @@ class MainActivity : AudioServiceActivity() {
     private var multicastLock: WifiManager.MulticastLock? = null
     private var videoChannel: MethodChannel? = null
     private var pendingVideo: MethodChannel.Result? = null
+    private var exportChannel: MethodChannel? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Rust 核心的音频输出（cpal → AAudio）需要 JavaVM 和 Context，必须在 Dart 调用核心之前登记。
@@ -32,6 +33,23 @@ class MainActivity : AudioServiceActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        val messenger = flutterEngine.dartExecutor.binaryMessenger
+        exportChannel = MethodChannel(messenger, "dev.lekis/music_export",
+            io.flutter.plugin.common.StandardMethodCodec.INSTANCE, messenger.makeBackgroundTaskQueue()).apply {
+            setMethodCallHandler { call, result ->
+                if (call.method != "publish") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+                try {
+                    val tree = Uri.parse(requireNotNull(call.argument<String>("tree")))
+                    val file = requireNotNull(call.argument<String>("file"))
+                    result.success(MusicExportDocuments.publish(applicationContext, tree, file).toString())
+                } catch (error: Exception) {
+                    result.error("export_failed", error.localizedMessage, null)
+                }
+            }
+        }
         videoChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "dev.lekis/bilibili_video").apply {
             setMethodCallHandler { call, result ->
                 if (call.method != "open") {
@@ -84,6 +102,8 @@ class MainActivity : AudioServiceActivity() {
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        exportChannel?.setMethodCallHandler(null)
+        exportChannel = null
         pendingVideo?.error("closed", "Player host closed", null)
         pendingVideo = null
         videoChannel?.setMethodCallHandler(null)

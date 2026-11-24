@@ -51,6 +51,8 @@ struct Song {
     #[serde(default)]
     songname: String,
     #[serde(default)]
+    albumname: String,
+    #[serde(default)]
     singer: Vec<Singer>,
     #[serde(default)]
     interval: u64,
@@ -304,10 +306,43 @@ impl LyricsProvider for QqLyrics {
     }
 
     async fn find_lyrics(&self, hint: &TrackHint) -> Result<Vec<Candidate<LyricsPayload>>> {
+        self.lookup(hint, false).await
+    }
+
+    async fn search_lyrics(&self, hint: &TrackHint) -> Result<Vec<Candidate<LyricsPayload>>> {
+        self.lookup(hint, true).await
+    }
+}
+
+fn review_match(hint: &TrackHint, song: &Song) -> bool {
+    let title = folded(&song.songname);
+    let query = folded(&hint.title);
+    let matches_title = title == query
+        || title.strip_prefix(&query).is_some_and(|suffix| {
+            matches!(
+                suffix.trim(),
+                "(live)" | "(remix)" | "(acoustic)" | "(现场版)" | "- live" | "- remix"
+            )
+        });
+    matches_title
+        && (hint.artists.is_empty()
+            || hint.artists.iter().any(|artist| {
+                song.singer
+                    .iter()
+                    .any(|singer| singer_matches(&singer.name, artist))
+            }))
+}
+
+impl QqLyrics {
+    async fn lookup(
+        &self,
+        hint: &TrackHint,
+        manual: bool,
+    ) -> Result<Vec<Candidate<LyricsPayload>>> {
         if hint.title.trim().is_empty() {
             return Ok(Vec::new());
         }
-        let key = cache_key(&self.base, hint);
+        let key = format!("{manual}:{}", cache_key(&self.base, hint));
         if let Some(cached) = self.cache.get(&key) {
             return Ok(cached);
         }
@@ -317,6 +352,7 @@ impl LyricsProvider for QqLyrics {
         }
         let mut searched = HashSet::new();
         let mut downloaded = HashSet::new();
+        let mut candidates = Vec::new();
         for (title, artist) in &queries {
             if searched.len() == 3 || downloaded.len() == 2 {
                 break;
@@ -347,7 +383,11 @@ impl LyricsProvider for QqLyrics {
                 .into_iter()
                 .take(10)
                 .filter(|s| !s.songmid.trim().is_empty())
-                .filter_map(|song| score(hint, &song, &queries).map(|score| (score, song)))
+                .filter_map(|song| {
+                    score(hint, &song, &queries)
+                        .or_else(|| (manual && review_match(hint, &song)).then_some(REVIEW))
+                        .map(|score| (score, song))
+                })
                 .collect();
             matches.sort_by(|a, b| b.0.total_cmp(&a.0));
             for (confidence, song) in matches {
@@ -363,23 +403,32 @@ impl LyricsProvider for QqLyrics {
                     ("format", "json"),
                     ("nobase64", "1"),
                 ]);
-                let Some(result) = self.read::<LyricResponse>(url, "QQ lyric").await? else {
-                    continue;
+                let result = match self.read::<LyricResponse>(url, "QQ lyric").await {
+                    Ok(Some(result)) => result,
+                    Ok(None) => continue,
+                    Err(_) if !candidates.is_empty() => break,
+                    Err(error) => return Err(error),
                 };
                 let Some(payload) = result.lyric.as_deref().and_then(decode_lyrics) else {
                     continue;
                 };
-                let candidates = vec![Candidate {
+                candidates.push(Candidate {
                     payload,
                     source: self.name().into(),
                     matched: TrackHint {
                         title: song.songname,
                         artists: song.singer.into_iter().map(|s| s.name).collect(),
-                        duration_ms: song.interval * 1000,
+                        duration_ms: song.interval.checked_mul(1000).unwrap_or_default(),
+                        album: Some(song.albumname).filter(|name| !name.trim().is_empty()),
                         ..Default::default()
                     },
                     provider_confidence: confidence,
-                }];
+                });
+                if !manual {
+                    break;
+                }
+            }
+            if !candidates.is_empty() {
                 self.cache.insert(key, candidates.clone());
                 return Ok(candidates);
             }
@@ -482,6 +531,7 @@ mod tests {
         Song {
             songname: title.into(),
             songmid: "id".into(),
+            albumname: String::new(),
             singer: vec![Singer {
                 name: artist.into(),
             }],
@@ -593,6 +643,39 @@ mod tests {
         assert!(captured[2]
             .to_lowercase()
             .contains("referer: https://y.qq.com/"));
+    }
+
+    #[tokio::test]
+    async fn manual_search_returns_distinct_recordings_and_keeps_automatic_cache_separate() {
+        let songs = json!({"code":0,"data":{"song":{"list":[
+            {"songmid":"wrong","songname":"Echo (Live)","singer":[{"name":"Other"}],"interval":185},
+            {"songmid":"live","songname":"Echo (Live)","albumname":"Concert","singer":[{"name":"Band"}],"interval":215},
+            {"songmid":"studio","songname":"Echo","singer":[{"name":"Band"}],"interval":185}
+        ]}}});
+        let lyric = json!({"code":0,"lyric":"[00:01.00]fixture"});
+        let (provider, requests) = fixture(vec![
+            (200, songs.clone()),
+            (200, lyric.clone()),
+            (200, lyric.clone()),
+            (200, songs),
+            (200, lyric),
+        ])
+        .await;
+        let wanted = hint("Echo", "Band", 185000);
+        let choices = provider.search_lyrics(&wanted).await.unwrap();
+        assert_eq!(choices.len(), 2);
+        assert_eq!(choices[1].matched.title, "Echo (Live)");
+        assert_eq!(choices[1].matched.album.as_deref(), Some("Concert"));
+        assert_eq!(choices[1].matched.duration_ms, 215000);
+        assert_eq!(provider.search_lyrics(&wanted).await.unwrap(), choices);
+        let automatic = provider.find_lyrics(&wanted).await.unwrap();
+        assert_eq!(automatic.len(), 1);
+        assert_eq!(automatic[0].matched.title, "Echo");
+        assert!(!requests
+            .await
+            .unwrap()
+            .iter()
+            .any(|r| r.contains("songmid=wrong")));
     }
 
     #[tokio::test]

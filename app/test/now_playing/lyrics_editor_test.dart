@@ -10,6 +10,7 @@ import 'package:lekis/src/features/now_playing/lyrics_view.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/rust/api/error.dart';
+import 'package:lekis/src/rust/api/lyric_search.dart';
 import 'package:lekis/src/rust/frb_generated.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
@@ -40,6 +41,57 @@ class _Api implements RustLibApi {
   Object? retryError;
   LyricsDto? retryResult;
   LyricsDto? saved;
+  final searches = <(int, String, String)>[];
+  bool emptySearch = false;
+  Object? searchError;
+
+  @override
+  Future<TrackDto> crateApiCoreGetTrack({required int trackId}) async =>
+      TrackDto(
+        id: trackId,
+        uid: 'fixture',
+        title: 'Library title',
+        artists: const ['Library artist'],
+        durationMs: BigInt.from(180000),
+        genres: const [],
+        loved: false,
+        playCount: 0,
+        isLocal: true,
+      );
+
+  @override
+  Future<List<LyricSearchVersionDto>> crateApiLyricSearchStoredLyricVersions({
+    required int trackId,
+  }) async => [
+    for (final row in await crateApiCoreLyricsVersions(trackId: trackId))
+      LyricSearchVersionDto(row: row, artists: const []),
+    if (searches.isNotEmpty && !emptySearch) _live(trackId),
+  ];
+
+  LyricSearchVersionDto _live(int trackId) => LyricSearchVersionDto(
+    row: LyricsRowDto(
+      id: 25,
+      trackId: trackId,
+      lyrics: review,
+      isActive: active == 25,
+    ),
+    title: 'Echo (Live)',
+    artists: const ['Band'],
+    album: 'Concert',
+    durationMs: 215000,
+  );
+
+  @override
+  Future<List<LyricSearchVersionDto>> crateApiLyricSearchSearchLyricVersions({
+    required int trackId,
+    required String title,
+    required String artist,
+  }) async {
+    searches.add((trackId, title, artist));
+    if (searchError != null) throw searchError!;
+    return emptySearch ? [] : [_live(trackId)];
+  }
+
   @override
   Future<LyricsDto?> crateApiCoreLyrics({required int trackId}) async {
     lookups++;
@@ -290,7 +342,7 @@ void main() {
     await tester.tap(retry);
     await tester.pumpAndSettle();
     expect(api.retries, 1);
-    expect(api.lookups, 1);
+    expect(api.lookups, 0);
     expect(content(tester), embedded.content);
     expect(find.textContaining('未找到可自动使用的歌词'), findsOneWidget);
     api.retryError = const CoreError(
@@ -352,5 +404,48 @@ void main() {
     expect(api.saved?.source, 'manual');
     expect(api.saved?.format, LyricsFormatDto.lrc);
     expect(api.saved?.content, '[00:01.00]Original manual fixture');
+  });
+  testWidgets('search uses edited tags and only switches when selected', (
+    tester,
+  ) async {
+    await mount(tester);
+    await tester.tap(find.byKey(const ValueKey('lyrics-editor.search')));
+    await tester.pumpAndSettle();
+    final title = find.byKey(const ValueKey('lyrics-search.title'));
+    final artist = find.byKey(const ValueKey('lyrics-search.artist'));
+    expect(tester.widget<TextField>(title).controller!.text, 'Library title');
+    expect(tester.widget<TextField>(artist).controller!.text, 'Library artist');
+    await tester.enterText(title, 'Echo');
+    await tester.enterText(artist, 'Band');
+    final submit = find.byKey(const ValueKey('lyrics-search.submit'));
+    await tester.ensureVisible(submit);
+    api.emptySearch = true;
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+    expect(find.text('没有符合条件的版本'), findsOneWidget);
+    expect(content(tester), embedded.content);
+    api.searchError = const CoreError(
+      kind: ErrorKind.network,
+      detail: 'offline',
+    );
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('请检查网络后重试'), findsOneWidget);
+    expect(api.active, 10);
+    expect(content(tester), embedded.content);
+    api.searchError = null;
+    api.emptySearch = false;
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+    expect(api.searches.last, (7, 'Echo', 'Band'));
+    expect(find.text('Echo (Live)'), findsOneWidget);
+    expect(find.textContaining('Band · Concert · 3:35'), findsOneWidget);
+    expect(api.activations, isEmpty);
+    final select = find.byKey(const ValueKey('lyrics-editor.result.25'));
+    await tester.ensureVisible(select);
+    await tester.tap(select);
+    await tester.pumpAndSettle();
+    expect(api.activations, [25]);
+    expect(content(tester), review.content);
   });
 }

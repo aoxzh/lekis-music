@@ -339,7 +339,7 @@ async fn persist_cover(
 }
 
 /// 缓存里的是 WebP；侧车统一写 JPEG，兼容不认 WebP 的播放器 / 扫描器。
-fn webp_to_jpeg(bytes: &[u8]) -> Result<Vec<u8>> {
+pub(super) fn webp_to_jpeg(bytes: &[u8]) -> Result<Vec<u8>> {
     let image = image::load_from_memory_with_format(bytes, image::ImageFormat::WebP)
         .map_err(|error| LekisError::new(ErrorCode::Decode, format!("封面解码失败：{error}")))?;
     let mut output = Vec::new();

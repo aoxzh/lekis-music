@@ -48,6 +48,26 @@ pub fn list_output_devices() -> Result<Vec<OutputDevice>> {
 /// 引擎命令。
 #[derive(Debug)]
 pub enum EngineCommand {
+    /// Audition a resolved stream without replacing the queue or its playback session.
+    PreviewSource {
+        /// Identifies this audition across asynchronous UI calls.
+        id: u32,
+        /// The track ID remains the original queue entry.
+        media: MediaSource,
+        /// Acknowledged only after the candidate decoder/output opens.
+        reply: oneshot::Sender<Result<()>>,
+    },
+    /// Finish the matching audition and optionally promote its session.
+    FinishSourcePreview {
+        /// Audition to finish.
+        id: u32,
+        /// Keep this stream for the current session.
+        keep: bool,
+        /// Reports whether this audition was still active.
+        reply: oneshot::Sender<Result<()>>,
+    },
+    /// Discard cached sources and reload the specified track if currently open.
+    ReloadSource(TrackId),
     /// 用一组曲目替换队列并开始播放。
     SetQueue {
         /// 曲目。
@@ -241,6 +261,7 @@ struct State {
     handle: Handle,
     /// 当前曲目的播放会话（没在播时为 `None`）。
     session: Option<Session>,
+    preview: Option<SourcePreview>,
     /// 已解析好、等着播的曲目（无缝换曲用）。
     prefetched: VecDeque<(TrackId, MediaSource)>,
     prefetch_rx: mpsc::UnboundedReceiver<(TrackId, Result<MediaSource>)>,
@@ -286,6 +307,13 @@ struct State {
     snapshot_tx: watch::Sender<PlaybackSnapshot>,
 }
 
+struct SourcePreview {
+    id: u32,
+    session: Session,
+    media: MediaSource,
+    original_state: PlaybackState,
+}
+
 impl State {
     fn new(
         resolver: mpsc::Sender<ResolveRequest>,
@@ -303,6 +331,7 @@ impl State {
             resolver,
             handle,
             session: None,
+            preview: None,
             prefetched: VecDeque::new(),
             prefetch_rx: rx,
             prefetch_tx: tx,
@@ -345,7 +374,39 @@ impl State {
 
     /// 处理一条命令（不含 Shutdown）。
     async fn handle(&mut self, cmd: EngineCommand) {
+        if self.preview.is_some()
+            && !matches!(
+                &cmd,
+                EngineCommand::FinishSourcePreview { .. }
+                    | EngineCommand::SetVolume(_)
+                    | EngineCommand::SetDuck(_)
+            )
+        {
+            let _ = self.finish_preview(false);
+        }
         match cmd {
+            EngineCommand::PreviewSource { id, media, reply } => {
+                let result = self.start_preview(id, media).await;
+                if reply.send(result).is_err() && self.preview.is_some() {
+                    let _ = self.finish_preview(false);
+                }
+                return;
+            }
+            EngineCommand::FinishSourcePreview { id, keep, reply } => {
+                let result = if self.preview.as_ref().is_some_and(|active| active.id == id) {
+                    self.finish_preview(keep)
+                } else {
+                    Err(LekisError::invalid("试听已结束"))
+                };
+                let _ = reply.send(result);
+            }
+            EngineCommand::ReloadSource(track) => {
+                self.invalidate_prefetch();
+                self.queued_media = None;
+                if self.snap.track_id == Some(track) {
+                    self.reopen_session().await;
+                }
+            }
             EngineCommand::SetQueue { tracks, start } => {
                 self.queue_dirty = true;
                 self.queue.set(tracks, start);
@@ -513,6 +574,9 @@ impl State {
                 let v = v.clamp(0.0, 1.0);
                 self.snap.volume = v;
                 let effective = self.effective_volume();
+                if let Some(preview) = &mut self.preview {
+                    preview.session.set_volume(effective);
+                }
                 if let Some(session) = self.session.as_mut() {
                     session.set_volume(effective);
                 }
@@ -520,6 +584,9 @@ impl State {
             EngineCommand::SetDuck(d) => {
                 self.duck = d.clamp(0.0, 1.0);
                 let effective = self.effective_volume();
+                if let Some(preview) = &mut self.preview {
+                    preview.session.set_volume(effective);
+                }
                 if let Some(session) = self.session.as_mut() {
                     session.set_volume(effective);
                 }
@@ -628,6 +695,9 @@ impl State {
 
     /// 定时推进：回写播放位置、处理"这首放完了"。
     async fn on_tick(&mut self) {
+        if self.preview.is_some() {
+            return;
+        }
         let Some(session) = self.session.as_ref() else {
             return;
         };
@@ -695,6 +765,111 @@ impl State {
             self.drain_prefetch();
             self.pump_gapless();
         }
+    }
+
+    async fn start_preview(&mut self, id: u32, media: MediaSource) -> Result<()> {
+        if self.snap.track_id != Some(media.track_id) {
+            return Err(LekisError::invalid("当前曲目已变化"));
+        }
+        let was_playing = self.snap.state == PlaybackState::Playing;
+        if let Some(session) = self.session.as_mut() {
+            if was_playing {
+                session.pause()?;
+            }
+            self.snap.position_ms = session.position_ms();
+        }
+        let original_state = self.snap.state;
+        let opening = Session::start_with_factory_and_eq(
+            &media,
+            self.device_id.as_deref(),
+            self.mode,
+            self.effective_volume(),
+            self.handle.clone(),
+            self.eq.clone(),
+            self.output_factory.clone(),
+        );
+        let candidate = tokio::select! {
+            result = opening => result,
+            command = self.inbox.recv() => {
+                self.pending.push_back(command.unwrap_or(EngineCommand::Shutdown));
+                Err(LekisError::invalid("播放操作已中断试听"))
+            }
+        };
+        match candidate {
+            Ok(session) => {
+                self.snap.state = PlaybackState::Paused;
+                self.preview = Some(SourcePreview {
+                    id,
+                    media,
+                    session,
+                    original_state,
+                });
+                Ok(())
+            }
+            Err(error) => {
+                if was_playing {
+                    if let Some(original) = &mut self.session {
+                        original.resume()?;
+                    }
+                }
+                Err(error)
+            }
+        }
+    }
+
+    fn finish_preview(&mut self, keep: bool) -> Result<()> {
+        let Some(mut preview) = self.preview.take() else {
+            return Ok(());
+        };
+        let was_playing = preview.original_state == PlaybackState::Playing;
+        let prepared = if keep {
+            let pause = if was_playing {
+                Ok(())
+            } else {
+                preview.session.pause()
+            };
+            pause.and_then(|()| preview.session.seek(self.snap.position_ms))
+        } else {
+            Ok(())
+        };
+        if keep && prepared.is_ok() {
+            self.close_session();
+            self.snap.duration_ms = preview
+                .session
+                .duration_ms()
+                .unwrap_or(preview.media.duration_hint_ms);
+            self.snap.output_mode = preview.session.output_mode();
+            self.snap.state = if was_playing {
+                PlaybackState::Playing
+            } else {
+                PlaybackState::Paused
+            };
+            self.current_media = Some(preview.media);
+            self.last_track_generation = preview
+                .session
+                .audible_track()
+                .map_or(0, |track| track.generation);
+            self.last_audible_splice_count = 0;
+            self.last_decoded_splice_count = 0;
+            self.queued_media = None;
+            self.queued_next = None;
+            self.invalidate_prefetch();
+            self.session = Some(preview.session);
+        } else {
+            drop(preview.session);
+            if was_playing {
+                if let Some(original) = &mut self.session {
+                    original.resume()?;
+                }
+            }
+            self.snap.state = preview.original_state;
+        }
+        prepared
+    }
+
+    fn invalidate_prefetch(&mut self) {
+        self.prefetched.clear();
+        (self.prefetch_tx, self.prefetch_rx) = mpsc::unbounded_channel();
     }
 
     /// 可听曲目变了：只有**自然拼接**才推进队列；seek 重建只同步曲目信息。
@@ -1477,6 +1652,93 @@ mod tests {
             }
         });
         resolve_tx
+    }
+
+    #[tokio::test]
+    async fn alternate_source_preview_restores_transport_and_keeps_queue_identity() {
+        let root = temp_dir("alternate-source-preview");
+        let original = write_wav(&root, "original.wav", 8000, 1, 40000, 8000);
+        let alternate = write_wav(&root, "alternate.wav", 8000, 1, 40000, -8000);
+        let factory = Arc::new(NullOutputFactory::new(PcmFormat {
+            sample_rate: 8000,
+            channels: 1,
+        }));
+        let (_commands, inbox) = mpsc::unbounded_channel();
+        let (snapshots, _) = watch::channel(PlaybackSnapshot::default());
+        let mut state = State::new(
+            wav_resolver(original.clone(), original),
+            Handle::current(),
+            PlaybackSnapshot::default(),
+            Arc::default(),
+            factory.clone(),
+            inbox,
+            snapshots,
+        );
+        let track = TrackId(1);
+        state
+            .handle(EngineCommand::SetQueue {
+                tracks: vec![track, track, TrackId(2)],
+                start: 1,
+            })
+            .await;
+        let queue = state.snap.queue.clone();
+        async fn samples(factory: &NullOutputFactory, from: usize, sign: f32) {
+            tokio::time::timeout(Duration::from_secs(3), async {
+                while !factory.captured()[from..]
+                    .iter()
+                    .any(|sample| sample * sign > 0.01)
+                {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .unwrap();
+        }
+        samples(&factory, 0, 1.0).await;
+        let media = media_for(track, &alternate, 5000);
+        assert!(state
+            .start_preview(1, media_for(track, &root.join("missing.wav"), 0))
+            .await
+            .is_err());
+        samples(&factory, factory.captured().len(), 1.0).await;
+        state.start_preview(2, media.clone()).await.unwrap();
+        samples(&factory, 0, -1.0).await;
+        let position = state.snap.position_ms;
+        state.finish_preview(false).unwrap();
+        assert_eq!(state.snap.state, PlaybackState::Playing);
+        assert_eq!(state.snap.position_ms, position);
+        samples(&factory, factory.captured().len(), 1.0).await;
+
+        state.handle(EngineCommand::Pause).await;
+        state.start_preview(3, media.clone()).await.unwrap();
+        let position = state.snap.position_ms;
+        state.finish_preview(false).unwrap();
+        assert_eq!(state.snap.state, PlaybackState::Paused);
+        assert_eq!(state.snap.position_ms, position);
+        state.start_preview(4, media.clone()).await.unwrap();
+        state.finish_preview(true).unwrap();
+        assert_eq!(state.snap.state, PlaybackState::Paused);
+        assert_eq!(state.snap.position_ms, position);
+        assert_eq!(state.snap.queue, queue);
+        assert_eq!(state.snap.queue_index, Some(1));
+        state.handle(EngineCommand::Play).await;
+        samples(&factory, factory.captured().len(), -1.0).await;
+
+        state.start_preview(5, media).await.unwrap();
+        state.handle(EngineCommand::Next).await;
+        let (reply, result) = oneshot::channel();
+        state
+            .handle(EngineCommand::FinishSourcePreview {
+                id: 5,
+                keep: true,
+                reply,
+            })
+            .await;
+        assert!(result.await.unwrap().is_err());
+        assert_eq!(state.snap.track_id, Some(TrackId(2)));
+        assert_eq!(state.snap.queue, queue);
+        drop(state);
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     /// 引擎级 PLY-01：两首 500 ms 的 WAV 顺序播放，队列自动推进且样本零断点。

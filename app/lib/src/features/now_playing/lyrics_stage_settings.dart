@@ -25,7 +25,8 @@ enum LyricsStyle {
   flow('flow'),
   steps('steps'),
   tilt('tilt'),
-  facing('facing');
+  facing('facing'),
+  ensemble('ensemble');
 
   const LyricsStyle(this.storageValue);
 
@@ -42,7 +43,7 @@ enum LyricsStyle {
 
   /// 对应的舞台排版；经典视图返回 `null`。
   LyricsStageStyle? get stage => switch (this) {
-    LyricsStyle.classic => null,
+    LyricsStyle.classic || LyricsStyle.ensemble => null,
     LyricsStyle.flow => LyricsStageStyle.flow,
     LyricsStyle.steps => LyricsStageStyle.steps,
     LyricsStyle.tilt => LyricsStageStyle.tilt,
@@ -55,6 +56,7 @@ enum LyricsStyle {
     LyricsStyle.steps => SettingsStrings.styleSteps,
     LyricsStyle.tilt => SettingsStrings.styleTilt,
     LyricsStyle.facing => SettingsStrings.styleFacing,
+    LyricsStyle.ensemble => SettingsStrings.styleEnsemble,
   };
 
   IconData get icon => switch (this) {
@@ -63,6 +65,7 @@ enum LyricsStyle {
     LyricsStyle.steps => Icons.stairs_rounded,
     LyricsStyle.tilt => Icons.format_italic_rounded,
     LyricsStyle.facing => Icons.chrome_reader_mode_outlined,
+    LyricsStyle.ensemble => Icons.groups_rounded,
   };
 }
 

@@ -53,7 +53,10 @@ class _FakeActions extends PlayerActions {
   final moved = <(int, int)>[];
 
   @override
-  Future<void> playQueueAt(int index) async => played.add(index);
+  Future<void> playQueueAt(
+    int index, {
+    Iterable<int> loadedIds = const [],
+  }) async => played.add(index);
 
   @override
   void removeQueueAt(int index) => removed++;

@@ -371,6 +371,18 @@ final queueListProvider = Provider.autoDispose<PagedList<TrackRowDto>>((ref) {
   return list;
 });
 
+Stream<List<TrackRowDto>> queuePages(int length, {int offset = 0}) async* {
+  while (offset < length) {
+    final rows = await core.queueItems(
+      offset: offset,
+      limit: (length - offset).clamp(1, 500),
+    );
+    if (rows.isEmpty) throw StateError('Queue changed while reading it');
+    yield rows;
+    offset += rows.length;
+  }
+}
+
 /// Commands. All are fire-and-forget; state comes back through events.
 class PlayerActions {
   PlayerActions(this._ref);
@@ -569,26 +581,31 @@ class PlayerActions {
     }
   }
 
-  /// Jump to queue row [index].
-  ///
-  /// The bridge has no `play_queue_index` yet. For queues up to 500 rows the
-  /// complete queue is rebuilt and playback starts at the tapped row; larger
-  /// queues restart from a bounded window beginning at that row (the earlier
-  /// history is dropped) instead of materialising 100k ids in Dart.
-  Future<void> playQueueAt(int index) async {
-    final length = _ref.read(playbackProvider).queueLength;
-    if (length == 0) return;
-    final target = index.clamp(0, length - 1);
+  int _queuePlayRequest = 0;
+
+  /// Jump to [index] with every occurrence in the queue preserved.
+  Future<void> playQueueAt(
+    int index, {
+    Iterable<int> loadedIds = const [],
+  }) async {
+    final request = ++_queuePlayRequest;
+    final playback = _ref.read(playbackProvider);
+    if (index < 0 || index >= playback.queueLength) return;
+    final ids = loadedIds.toList();
+    bool stillCurrent() =>
+        request == _queuePlayRequest &&
+        _ref.read(playbackProvider).queueVersion == playback.queueVersion;
     try {
-      if (length <= 500) {
-        final rows = await core.queueItems(offset: 0, limit: length);
-        if (rows.isEmpty) return;
-        playTracks([for (final row in rows) row.id], start: target);
-        return;
+      await for (final rows in queuePages(
+        playback.queueLength,
+        offset: ids.length,
+      )) {
+        if (!stillCurrent()) return;
+        ids.addAll(rows.map((row) => row.id));
       }
-      final rows = await core.queueItems(offset: target, limit: 500);
-      if (rows.isEmpty) return;
-      playTracks([for (final row in rows) row.id], start: 0);
+      if (ids.length == playback.queueLength && stillCurrent()) {
+        playTracks(ids, start: index);
+      }
     } catch (e) {
       final message = e is CoreError ? '${e.kind.name}: ${e.detail}' : '$e';
       debugPrint('player playQueueAt failed: $message');

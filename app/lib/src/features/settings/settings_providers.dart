@@ -23,6 +23,7 @@ abstract final class SettingKeys {
 
   /// 歌词视图样式：`classic`（默认）/ `flow` / `steps` / `tilt`。
   static const lyricsStage = 'ui.lyrics_stage';
+  static const lyricsPresets = 'ui.lyrics_presets';
 
   /// 歌词舞台火花：`true`（默认）/ `false`。只对舞台样式有效。
   static const lyricsSparks = 'ui.lyrics_sparks';

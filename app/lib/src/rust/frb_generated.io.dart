@@ -3,12 +3,15 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
+import 'api/alternate_source.dart';
 import 'api/connect.dart';
 import 'api/core.dart';
 import 'api/desktop_lyrics.dart';
 import 'api/dto.dart';
 import 'api/error.dart';
+import 'api/lyric_search.dart';
 import 'api/media_controls.dart';
+import 'api/music_export.dart';
 import 'api/podcast.dart';
 import 'api/ruby.dart';
 import 'api/usb_output.dart';
@@ -59,6 +62,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AlbumListeningDto dco_decode_album_listening_dto(dynamic raw);
 
   @protected
+  AlternateSourceDto dco_decode_alternate_source_dto(dynamic raw);
+
+  @protected
   ArtistDto dco_decode_artist_dto(dynamic raw);
 
   @protected
@@ -75,6 +81,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   bool dco_decode_bool(dynamic raw);
+
+  @protected
+  AlternateSourceDto dco_decode_box_autoadd_alternate_source_dto(dynamic raw);
 
   @protected
   ArtworkChangeDto dco_decode_box_autoadd_artwork_change_dto(dynamic raw);
@@ -317,6 +326,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<AlbumListeningDto> dco_decode_list_album_listening_dto(dynamic raw);
 
   @protected
+  List<AlternateSourceDto> dco_decode_list_alternate_source_dto(dynamic raw);
+
+  @protected
   List<ArtistDto> dco_decode_list_artist_dto(dynamic raw);
 
   @protected
@@ -381,7 +393,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ListeningBucketDto> dco_decode_list_listening_bucket_dto(dynamic raw);
 
   @protected
+  List<LyricSearchVersionDto> dco_decode_list_lyric_search_version_dto(
+    dynamic raw,
+  );
+
+  @protected
   List<LyricsRowDto> dco_decode_list_lyrics_row_dto(dynamic raw);
+
+  @protected
+  List<MusicExportItemDto> dco_decode_list_music_export_item_dto(dynamic raw);
 
   @protected
   List<OfflineDownloadDto> dco_decode_list_offline_download_dto(dynamic raw);
@@ -485,6 +505,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ListeningSummaryDto dco_decode_listening_summary_dto(dynamic raw);
 
   @protected
+  LyricSearchVersionDto dco_decode_lyric_search_version_dto(dynamic raw);
+
+  @protected
   LyricsDto dco_decode_lyrics_dto(dynamic raw);
 
   @protected
@@ -495,6 +518,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MediaViaDto dco_decode_media_via_dto(dynamic raw);
+
+  @protected
+  MusicExportItemDto dco_decode_music_export_item_dto(dynamic raw);
 
   @protected
   OfflineDownloadDto dco_decode_offline_download_dto(dynamic raw);
@@ -510,6 +536,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
+
+  @protected
+  AlternateSourceDto? dco_decode_opt_box_autoadd_alternate_source_dto(
+    dynamic raw,
+  );
 
   @protected
   ArtworkDto? dco_decode_opt_box_autoadd_artwork_dto(dynamic raw);
@@ -840,6 +871,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  AlternateSourceDto sse_decode_alternate_source_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ArtistDto sse_decode_artist_dto(SseDeserializer deserializer);
 
   @protected
@@ -860,6 +896,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   bool sse_decode_bool(SseDeserializer deserializer);
+
+  @protected
+  AlternateSourceDto sse_decode_box_autoadd_alternate_source_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ArtworkChangeDto sse_decode_box_autoadd_artwork_change_dto(
@@ -1176,6 +1217,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<AlternateSourceDto> sse_decode_list_alternate_source_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<ArtistDto> sse_decode_list_artist_dto(SseDeserializer deserializer);
 
   @protected
@@ -1264,7 +1310,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<LyricSearchVersionDto> sse_decode_list_lyric_search_version_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<LyricsRowDto> sse_decode_list_lyrics_row_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<MusicExportItemDto> sse_decode_list_music_export_item_dto(
     SseDeserializer deserializer,
   );
 
@@ -1410,6 +1466,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  LyricSearchVersionDto sse_decode_lyric_search_version_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LyricsDto sse_decode_lyrics_dto(SseDeserializer deserializer);
 
   @protected
@@ -1420,6 +1481,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MediaViaDto sse_decode_media_via_dto(SseDeserializer deserializer);
+
+  @protected
+  MusicExportItemDto sse_decode_music_export_item_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   OfflineDownloadDto sse_decode_offline_download_dto(
@@ -1439,6 +1505,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
+
+  @protected
+  AlternateSourceDto? sse_decode_opt_box_autoadd_alternate_source_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ArtworkDto? sse_decode_opt_box_autoadd_artwork_dto(
@@ -1836,6 +1907,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_alternate_source_dto(
+    AlternateSourceDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_artist_dto(ArtistDto self, SseSerializer serializer);
 
   @protected
@@ -1861,6 +1938,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_alternate_source_dto(
+    AlternateSourceDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_artwork_change_dto(
@@ -2259,6 +2342,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_alternate_source_dto(
+    List<AlternateSourceDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_artist_dto(
     List<ArtistDto> self,
     SseSerializer serializer,
@@ -2367,8 +2456,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_lyric_search_version_dto(
+    List<LyricSearchVersionDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_lyrics_row_dto(
     List<LyricsRowDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_music_export_item_dto(
+    List<MusicExportItemDto> self,
     SseSerializer serializer,
   );
 
@@ -2565,6 +2666,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_lyric_search_version_dto(
+    LyricSearchVersionDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_lyrics_dto(LyricsDto self, SseSerializer serializer);
 
   @protected
@@ -2578,6 +2685,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_media_via_dto(MediaViaDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_music_export_item_dto(
+    MusicExportItemDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_offline_download_dto(
@@ -2605,6 +2718,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_alternate_source_dto(
+    AlternateSourceDto? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_box_autoadd_artwork_dto(

@@ -14,6 +14,9 @@ with each package. The Rust dependency graph is checked in CI with
 | cpal, ciborium, russh, russh-sftp | Apache-2.0 |
 | tokio, tracing, tracing-subscriber, tower, axum, pinyin, quick-xml, rubato, rusqlite, rquickjs, souvlaki, wasapi | MIT |
 | ringbuf | MIT OR Apache-2.0 |
+| regex, tempfile | MIT OR Apache-2.0 |
+| encoding_rs | (Apache-2.0 OR MIT) AND BSD-3-Clause |
+| miniz_oxide | MIT OR Zlib OR Apache-2.0 |
 | lofty, mdns-sd, image, serde, serde_json, sha2, md-5, thiserror, url, uuid, windows, windows-sys, reqwest, base64, bytes, hex, httpdate, futures-util, async-trait, anyhow, percent-encoding, log, md5, smb2, cpal (dual), android_logger, jni-sys, ndk-context | MIT OR Apache-2.0 |
 | zstd | BSD-3-Clause |
 | nfs3_client | Unlicense |

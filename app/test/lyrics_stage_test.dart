@@ -351,7 +351,7 @@ void main() {
     expect(chips.first.selected, isTrue);
     expect(
       [for (final chip in chips) (chip.label as Text).data],
-      ['经典', '流动', '阶梯', '倾斜', '对页'],
+      ['经典', '流动', '阶梯', '倾斜', '对页', '声部'],
     );
 
     await tester.tap(find.widgetWithText(ChoiceChip, '对页'));

@@ -118,6 +118,10 @@ pub trait LyricsProvider: Send + Sync {
     fn name(&self) -> &str;
     /// 查找歌词。
     async fn find_lyrics(&self, hint: &TrackHint) -> Result<Vec<Candidate<LyricsPayload>>>;
+    /// Return recording versions for explicit selection in the editor.
+    async fn search_lyrics(&self, hint: &TrackHint) -> Result<Vec<Candidate<LyricsPayload>>> {
+        self.find_lyrics(hint).await
+    }
 }
 
 /// 对一个候选做出的决定。

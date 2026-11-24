@@ -8,6 +8,7 @@ import 'package:lekis/src/features/downloads/downloads_providers.dart';
 import 'package:lekis/src/features/enrich/enrich_actions.dart';
 import 'package:lekis/src/features/library/artwork_actions.dart';
 import 'package:lekis/src/features/library/tag_editor_dialog.dart';
+import 'package:lekis/src/features/library/music_export_dialog.dart';
 import 'package:lekis/src/features/library/track_sources_sheet.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
@@ -44,6 +45,7 @@ enum _TrackMenuAction {
   addToPlaylist,
   rate,
   editTags,
+  exportMusic,
   enrich,
   artwork,
   sources,
@@ -151,6 +153,8 @@ class TrackTile extends ConsumerWidget {
 
     void onMenu(_TrackMenuAction action) {
       switch (action) {
+        case _TrackMenuAction.exportMusic:
+          showMusicExport(context, trackId: track.id);
         case _TrackMenuAction.video:
           watchBilibiliTrack(context, trackId: track.id);
         case _TrackMenuAction.playNext:
@@ -246,6 +250,16 @@ class TrackTile extends ConsumerWidget {
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.edit_note_rounded),
             title: Text(context.l10n.pick('编辑标签', 'Edit Tags')),
+          ),
+        ),
+      if (!onlinePlugin && track.id > 0)
+        PopupMenuItem(
+          value: _TrackMenuAction.exportMusic,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.drive_file_move_outline),
+            title: Text(context.l10n.pick('导出音乐文件', 'Export music file')),
           ),
         ),
       PopupMenuItem(

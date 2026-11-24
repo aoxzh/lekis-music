@@ -6,6 +6,7 @@ import 'package:lekis/src/features/now_playing/lyrics_classic.dart';
 import 'package:lekis/src/features/now_playing/lyrics_editor_sheet.dart';
 import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
 import 'package:lekis/src/features/now_playing/lyrics_stage.dart';
+import 'package:lekis/src/features/now_playing/lyrics_ensemble.dart';
 import 'package:lekis/src/features/now_playing/lyrics_stage_settings.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/features/settings/settings_providers.dart';
@@ -97,7 +98,9 @@ class LyricsView extends ConsumerWidget {
         final showTranslation =
             ref.watch(settingProvider(SettingKeys.lyricsTranslation)).value !=
             'false';
-        final display = showTranslation
+        final display =
+            showTranslation ||
+                lyricsStyle == LyricsStyle.ensemble && parsed.synced
             ? parsed
             : ParsedLyrics(
                 lines: [
@@ -124,6 +127,15 @@ class LyricsView extends ConsumerWidget {
             key: const ValueKey('plain'),
             lyrics: display,
             style: style.copyWith(fontWeight: FontWeight.w600),
+          );
+        }
+        if (lyricsStyle == LyricsStyle.ensemble) {
+          return EnsembleLyrics(
+            key: ValueKey('ensemble-$trackId'),
+            lyrics: parsed,
+            style: style,
+            translation: showTranslation,
+            reduceMotion: lowPower,
           );
         }
         // 经典视图是默认；只有用户显式选了舞台样式才走逐字舞台。
@@ -156,7 +168,9 @@ class LyricsView extends ConsumerWidget {
       fit: StackFit.expand,
       children: [
         AnimatedSwitcher(
-          duration: LekisMotion.normal,
+          duration: lowPower || MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : LekisMotion.normal,
           layoutBuilder: (current, previous) =>
               Stack(fit: StackFit.expand, children: [...previous, ?current]),
           child: body,

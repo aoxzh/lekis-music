@@ -172,6 +172,95 @@ impl EnrichPipeline {
         Ok(all)
     }
 
+    pub(crate) async fn manual_lyric_search(
+        &self,
+        library: &Library,
+        track_id: TrackId,
+        title: String,
+        artist: String,
+    ) -> Result<Vec<lekis_library::LyricSearchVersion>> {
+        use futures_util::{stream, StreamExt};
+        let title = title.trim();
+        let artist = artist.trim();
+        if title.is_empty() || title.chars().count() > 512 || artist.chars().count() > 512 {
+            return Err(LekisError::invalid("invalid lyric search title or artist"));
+        }
+        let track = library.get_track(track_id).await?;
+        let hint = TrackHint {
+            title: title.to_owned(),
+            artists: if artist.is_empty() {
+                vec![]
+            } else {
+                vec![artist.to_owned()]
+            },
+            duration_ms: track.duration_ms,
+            ..Default::default()
+        };
+        let hint = &hint;
+        let mut requests = Vec::new();
+        for (order, provider) in self.lyrics_providers.iter().enumerate() {
+            if provider.name() == "lyrics.ovh" {
+                continue;
+            }
+            requests.push(async move {
+                let result = tokio::time::timeout(
+                    std::time::Duration::from_secs(12),
+                    provider.search_lyrics(hint),
+                )
+                .await
+                .map_err(|_| LekisError::new(ErrorCode::Network, "lyric provider timeout"))
+                .and_then(|r| r);
+                (order, result)
+            });
+        }
+        let responses = stream::iter(requests)
+            .buffer_unordered(3)
+            .collect::<Vec<_>>()
+            .await;
+        let mut candidates = Vec::new();
+        let mut error = None;
+        for (order, result) in responses {
+            match result {
+                Ok(list) => candidates.extend(list.into_iter().map(|candidate| (order, candidate))),
+                Err(e) => {
+                    error.get_or_insert(e);
+                }
+            }
+        }
+        if candidates.is_empty() {
+            return error.map_or_else(|| Ok(Vec::new()), Err);
+        }
+        candidates.sort_by(|(order_a, a), (order_b, b)| {
+            b.provider_confidence
+                .total_cmp(&a.provider_confidence)
+                .then(order_a.cmp(order_b))
+        });
+        let versions = candidates
+            .into_iter()
+            .take(20)
+            .map(|(_, c)| lekis_library::LyricSearchVersion {
+                row: lekis_library::LyricsRow {
+                    id: 0,
+                    track_id,
+                    lyrics: Lyrics {
+                        source: c.source,
+                        format: c.payload.format,
+                        content: c.payload.content,
+                        offset_ms: 0,
+                        confidence: c.provider_confidence,
+                    },
+                    is_active: false,
+                    created_at: 0,
+                },
+                title: Some(c.matched.title).filter(|s| !s.trim().is_empty()),
+                artists: c.matched.artists,
+                album: c.matched.album,
+                duration_ms: i64::try_from(c.matched.duration_ms).ok().filter(|d| *d > 0),
+            })
+            .collect();
+        library.store_lyric_search(track_id, versions).await
+    }
+
     // Stop only after an image has actually downloaded and decoded. A matching
     // MusicBrainz release can have no CAA image; its guessed URL is not success.
     async fn fill_artwork(
@@ -357,7 +446,7 @@ impl EnrichPipeline {
             }
         }
         if let Some(id) = selected {
-            library.activate_lyrics(track_id, id).await?;
+            library.activate_lyrics_if_empty(track_id, id).await?;
         }
         report.queued = library.insert_enrich_candidates(queued).await? as u32;
         Ok(report)
@@ -616,7 +705,7 @@ pub(crate) async fn apply_candidate(
                 return Err(LekisError::invalid("歌词候选缺少曲目"));
             };
             library
-                .save_lyrics(
+                .save_selected_lyrics(
                     track_id,
                     Lyrics {
                         format,

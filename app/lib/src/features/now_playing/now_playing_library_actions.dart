@@ -15,6 +15,7 @@ import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/library/library_providers.dart'
     show artistIdForNameProvider;
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
+import 'package:lekis/src/features/now_playing/alternate_source_sheet.dart';
 import 'package:lekis/src/features/now_playing/lyrics_editor_sheet.dart';
 import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
@@ -38,6 +39,7 @@ const BoxConstraints _touchTarget = BoxConstraints(
 );
 
 enum _MoreAction {
+  alternateSource,
   video,
   rate,
   download,
@@ -319,6 +321,8 @@ class _MoreButton extends ConsumerWidget {
       icon: Icon(Icons.more_horiz_rounded, color: colors.onSurfaceVariant),
       onSelected: (action) {
         switch (action) {
+          case _MoreAction.alternateSource:
+            showAlternateSourceSheet(context, track);
           case _MoreAction.video:
             unawaited(
               watchBilibiliTrack(context, trackId: track.id, video: video),
@@ -368,6 +372,14 @@ class _MoreButton extends ConsumerWidget {
           PopupMenuItem(
             value: _MoreAction.video,
             child: item(Icons.ondemand_video_rounded, watchVideoLabel(context)),
+          ),
+        if (!track.isLocal && track.id > 0)
+          PopupMenuItem(
+            value: _MoreAction.alternateSource,
+            child: item(
+              Icons.swap_horiz_rounded,
+              context.l10n.pick('手动换源', 'Change audio source'),
+            ),
           ),
         if (includeRating)
           PopupMenuItem(

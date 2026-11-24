@@ -136,23 +136,30 @@ pub(crate) async fn ingest_missing(
 
 /// 先找单曲专用封面，再找目录侧车封面，最后读内嵌封面。
 async fn load_cover(vfs: &dyn Vfs, path: &VfsPath) -> Option<(Vec<u8>, &'static str)> {
-    if let Some(bytes) = read_track_sidecar(vfs, path).await {
+    if let Some(bytes) = load_sidecar_cover(vfs, path).await {
         return Some((bytes, "sidecar"));
-    }
-    if let Some(dir) = path.parent() {
-        if let Some(bytes) = read_sidecar(vfs, &dir).await {
-            return Some((bytes, "sidecar"));
-        }
-        // 多碟专辑的封面经常放在上一级目录。
-        if let Some(parent) = dir.parent() {
-            if let Some(bytes) = read_sidecar(vfs, &parent).await {
-                return Some((bytes, "sidecar"));
-            }
-        }
     }
     read_embedded(vfs, path)
         .await
         .map(|bytes| (bytes, "embedded"))
+}
+
+pub(super) async fn load_sidecar_cover(vfs: &dyn Vfs, path: &VfsPath) -> Option<Vec<u8>> {
+    if let Some(bytes) = read_track_sidecar(vfs, path).await {
+        return Some(bytes);
+    }
+    if let Some(dir) = path.parent() {
+        if let Some(bytes) = read_sidecar(vfs, &dir).await {
+            return Some(bytes);
+        }
+        // 多碟专辑的封面经常放在上一级目录。
+        if let Some(parent) = dir.parent() {
+            if let Some(bytes) = read_sidecar(vfs, &parent).await {
+                return Some(bytes);
+            }
+        }
+    }
+    None
 }
 
 /// `<歌曲名>.jpg` 这类单曲封面；同一目录里每首歌可以有不同封面。

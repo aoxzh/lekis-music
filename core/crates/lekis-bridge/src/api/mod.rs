@@ -1,9 +1,12 @@
+pub mod alternate_source;
 pub mod connect;
 pub mod core;
 pub mod desktop_lyrics;
 pub mod dto;
 pub mod error;
+pub mod lyric_search;
 pub mod media_controls;
+pub mod music_export;
 pub mod podcast;
 pub mod ruby;
 pub mod usb_output;
