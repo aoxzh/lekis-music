@@ -427,7 +427,7 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
                         icon: const Icon(Icons.visibility_outlined),
                       ),
                       title: Text(
-                        '${v.lyrics.source} · ${v.lyrics.format.name}',
+                        '${context.l10n.lyricsSourceName(v.lyrics.source)} · ${v.lyrics.format.name}',
                       ),
                       subtitle: Text(
                         context.l10n.pick(

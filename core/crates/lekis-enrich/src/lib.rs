@@ -35,10 +35,12 @@ pub mod spotify;
 pub mod throttle;
 
 mod md5;
+mod qq_lyrics;
 
 use async_trait::async_trait;
 use lekis_types::{LyricsFormat, Result};
 
+pub use qq_lyrics::QqLyrics;
 pub use scoring::{score_match, similarity, Explanation};
 pub use scrobble::{
     api_signature, should_scrobble, AuthRequest, NowPlaying, Scrobble, ScrobbleClient,

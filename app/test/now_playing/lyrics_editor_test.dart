@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lekis/src/features/enrich/enrich_actions.dart';
+import 'package:lekis/src/features/enrich/widgets/candidate_card.dart';
 import 'package:lekis/src/features/now_playing/lyrics_editor_sheet.dart';
 import 'package:lekis/src/features/now_playing/lyrics_view.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/rust/api/error.dart';
 import 'package:lekis/src/rust/frb_generated.dart';
@@ -142,6 +145,87 @@ void main() {
       .widget<TextField>(find.byKey(const ValueKey('lyrics-editor.content')))
       .controller!
       .text;
+
+  for (final (locale, label) in [('zh', 'QQ 音乐'), ('en', 'QQ Music')]) {
+    for (final source in ['qqmusic', 'plugin:dev.lekis.example.qq-lyrics']) {
+      testWidgets(
+        'QQ attribution across lyrics and review ($locale, $source)',
+        (tester) async {
+          api.active = 20;
+          api.candidate = LyricsDto(
+            format: LyricsFormatDto.plain,
+            content: 'QQ fixture',
+            source: source,
+            offsetMs: 0,
+            confidence: .7,
+          );
+          await tester.pumpWidget(
+            ProviderScope(
+              child: LekisLocale(
+                locale: Locale(locale),
+                child: MaterialApp(
+                  theme: lekisLightTheme(),
+                  home: Scaffold(
+                    body: Consumer(
+                      builder: (context, ref, _) => Column(
+                        children: [
+                          const Expanded(child: LyricsView(trackId: 7)),
+                          CandidateCard(
+                            candidate: EnrichCandidateDto(
+                              id: 1,
+                              kind: 'lyrics',
+                              source: source,
+                              payloadJson:
+                                  '{"format":"plain","content":"QQ fixture"}',
+                              score: .7,
+                              createdAt: 0,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => showEnrichScopeDialog(context),
+                            child: const Text('Scope'),
+                          ),
+                          TextButton(
+                            onPressed: () => showLyricsEditor(context, ref, 7),
+                            child: const Text('Versions'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('$label · Text'), findsOneWidget);
+          expect(
+            find.textContaining(locale == 'en' ? 'From $label' : '来自 $label'),
+            findsOneWidget,
+          );
+          await tester.tap(find.text('Scope'));
+          await tester.pumpAndSettle();
+          final hint = find.descendant(
+            of: find.byType(SimpleDialog),
+            matching: find.textContaining(label),
+          );
+          expect(hint, findsOneWidget);
+          await tester.tap(hint);
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Versions'));
+          await tester.pumpAndSettle();
+          expect(find.text('$label · plain'), findsOneWidget);
+          expect(api.activations, isEmpty);
+          expect(api.candidate.source, source);
+          const other = 'plugin:dev.lekis.test.other-lyrics';
+          expect(
+            L10n(isEnglish: locale == 'en').lyricsSourceName(other),
+            other,
+          );
+        },
+      );
+    }
+  }
 
   testWidgets('selects the stored version by ID only after host success', (
     tester,

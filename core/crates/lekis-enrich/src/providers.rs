@@ -459,7 +459,7 @@ fn parse_lrclib_search(body: &str) -> Result<Vec<LrcEntry>> {
 }
 
 // A metadata tag or arbitrary nonempty string is not synchronized lyrics.
-fn has_lyric_timestamp(value: &str) -> bool {
+pub(crate) fn has_lyric_timestamp(value: &str) -> bool {
     value.split('[').skip(1).any(|part| {
         let Some((stamp, text)) = part.split_once(']') else {
             return false;

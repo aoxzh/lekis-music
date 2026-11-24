@@ -25,13 +25,22 @@ use lekis_enrich::providers_extra::{
 };
 use lekis_enrich::{
     decide, ArtworkPayload, ArtworkProvider, Candidate, Decision, LyricsPayload, LyricsProvider,
-    TrackHint, AUTO_APPLY_THRESHOLD,
+    QqLyrics, TrackHint, AUTO_APPLY_THRESHOLD,
 };
 use lekis_library::{cache_relative_path, Library, NewEnrichCandidate};
 use lekis_types::*;
 
 /// 一次补全最多保留多少条候选。
 const MAX_PROVIDERS_PER_KIND: usize = 8;
+const QQ_EXAMPLE_ID: &str = "dev.lekis.example.qq-lyrics";
+
+fn lyrics_source_key(source: &str) -> &str {
+    if source.strip_prefix("plugin:") == Some(QQ_EXAMPLE_ID) {
+        QqLyrics::NAME
+    } else {
+        source
+    }
+}
 
 /// 补全范围设置键：`all`（默认）/ `artwork`（仅封面）/ `lyrics`（仅歌词）。
 const ENRICH_SCOPE_SETTING_KEY: &str = "enrich.scope";
@@ -77,6 +86,9 @@ impl EnrichPipeline {
             lyrics_providers.push(Box::new(p));
         }
         if let Ok(p) = NetEaseLyrics::new() {
+            lyrics_providers.push(Box::new(p));
+        }
+        if let Ok(p) = QqLyrics::new() {
             lyrics_providers.push(Box::new(p));
         }
         if let Ok(p) = KugouLyrics::new() {
@@ -193,7 +205,14 @@ impl EnrichPipeline {
         manager: &crate::plugins::PluginManager,
         track_id: TrackId,
     ) -> Result<()> {
-        let available = manager.list().await?;
+        let mut available = manager.list().await?;
+        if self
+            .lyrics_providers
+            .iter()
+            .any(|p| p.name() == QqLyrics::NAME)
+        {
+            available.retain(|plugin| plugin.id != QQ_EXAMPLE_ID);
+        }
         if !available
             .iter()
             .any(|p| p.enabled && p.kinds.iter().any(|k| k == "lyrics" || k == "source"))
@@ -291,7 +310,7 @@ impl EnrichPipeline {
         let mut selected = existing.iter().find(|row| row.is_active).map(|row| row.id);
         let mut seen = Vec::new();
         for candidate in &candidates {
-            let identity = (&candidate.source, &candidate.payload);
+            let identity = (lyrics_source_key(&candidate.source), &candidate.payload);
             if seen.contains(&identity) {
                 continue;
             }
@@ -313,11 +332,12 @@ impl EnrichPipeline {
                 offset_ms: 0,
                 confidence: score,
             };
-            let id = if let Some(row) = existing.iter().find(|row| {
-                row.lyrics.source == lyrics.source
+            let existing_row = existing.iter().find(|row| {
+                lyrics_source_key(&row.lyrics.source) == lyrics_source_key(&lyrics.source)
                     && row.lyrics.format == lyrics.format
                     && row.lyrics.content == lyrics.content
-            }) {
+            });
+            let id = if let Some(row) = existing_row {
                 row.id
             } else {
                 library
@@ -331,7 +351,7 @@ impl EnrichPipeline {
                 Decision::Review => queued.push(NewEnrichCandidate {
                     track_id: Some(track_id), album_id: None, kind: "lyrics".into(),
                     payload_json: serde_json::json!({ "format": format_to_str(lyrics.format), "content": lyrics.content }).to_string(),
-                    source: candidate.source.clone(), score,
+                    source: existing_row.map(|row| &row.lyrics.source).unwrap_or(&candidate.source).clone(), score,
                 }),
                 Decision::Discard => {}
             }

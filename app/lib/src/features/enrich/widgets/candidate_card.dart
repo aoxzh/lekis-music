@@ -5,6 +5,7 @@ import 'dart:io' show File;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../l10n/app_l10n.dart';
 import '../../../rust/api/dto.dart';
 import '../../../theme/tokens.dart';
 import '../../settings/widgets/settings_widgets.dart';
@@ -26,6 +27,9 @@ class CandidateCard extends ConsumerWidget {
     final proposal = parseProposal(candidate);
     final track = current.value?.track;
     final percent = (candidate.score * 100).round();
+    final source = candidate.kind == 'lyrics'
+        ? context.l10n.lyricsSourceName(candidate.source)
+        : candidate.source;
 
     return DecoratedBox(
       decoration: settingsPanelDecoration(context),
@@ -52,7 +56,7 @@ class CandidateCard extends ConsumerWidget {
             ),
             const SizedBox(height: LekisSpacing.xs),
             Text(
-              '${EnrichStrings.fromSource(candidate.source)} · ${EnrichStrings.score(percent)}',
+              '${EnrichStrings.fromSource(source)} · ${EnrichStrings.score(percent)}',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colors.onSurfaceVariant,
               ),

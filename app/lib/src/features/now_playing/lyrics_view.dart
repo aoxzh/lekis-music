@@ -198,7 +198,7 @@ class _LyricsSourceBadge extends StatelessWidget {
       'sidecar' => l10n.pick('同名文件', 'Sidecar'),
       'lrclib' => l10n.pick('在线歌词', 'Online'),
       'manual' => l10n.pick('手动编辑', 'Manual'),
-      _ => source,
+      _ => l10n.lyricsSourceName(source),
     };
     final formatLabel = switch (format) {
       LyricsFormatDto.lrc => 'LRC',

@@ -56,7 +56,7 @@
 |---|---|---|
 | **Zero-Server NAS Direct Play** | Stream directly from **SMB, WebDAV, NFS, SFTP** & local folders with LAN auto-discovery (mDNS / WS-Discovery / SSDP) and automatic Home/Away failover — no Docker or server setup required. | **免部署直连 NAS**：直接播放本机与 **SMB / WebDAV / NFS / SFTP**，支持局域网自动发现与内外网地址自动故障切换，同时兼容 Navidrome / Jellyfin / Emby / Plex。 |
 | **Audiophile Rust Core** | **100,000+ tracks** cold start in ~0.3s at 120 fps; sample-accurate **gapless playback**, **Windows WASAPI bit-perfect exclusive mode**, ReplayGain, 10-band EQ & headphone presets. | **专业级 Rust 引擎**：10 万首大曲库 ~0.3 秒冷启动、120 fps 流畅滚动；样本级无缝播放、Windows WASAPI 独占逐位一致输出、ReplayGain、10 段均衡器与耳机预设。 |
-| **Zero-Key Cover & Lyrics** | Built-in 5 artwork sources + 4 lyrics sources (LRCLIB, Cover Art Archive, iTunes JP/Global, Deezer, VocaDB, etc.) with word-by-word karaoke, CJK per-locale font fallback, and **Windows native floating desktop lyrics**. | **免 Key 封面与歌词补全**：内置 5 个封面源 + 4 个歌词源（含日区 iTunes、VocaDB 与翻译歌词），支持逐字卡拉 OK、中日韩分语种字体回退与 **Windows 原生桌面悬浮歌词**。 |
+| **Zero-Key Cover & Lyrics** | Built-in artwork and lyrics sources, including QQ Music for lyrics, with word-by-word karaoke, CJK per-locale font fallback, and **Windows native floating desktop lyrics**. | **免 Key 封面与歌词补全**：内置封面与歌词来源，歌词可从 QQ 音乐等来源查找，支持逐字卡拉 OK、中日韩分语种字体回退与 **Windows 原生桌面悬浮歌词**。 |
 | **Unified Library & Dedup** | Automatically merges duplicate tracks across local storage, NAS, and media servers, picking the highest quality; one-click cleanup of lower-quality duplicates (index or disk/NAS). | **统一资料库与低音质去重**：同一首歌在本地 / NAS / 媒体服务器的多副本自动合并择优；重复歌曲支持一键删除低音质版本并释放磁盘 / NAS 空间。 |
 | **LAN Connect & Sync** | Discover and pair devices on your LAN to remote-control playback, transfer queues, and stream missing tracks; serverless multi-device sync for favorites, playlists, and history via any shared folder. | **局域网遥控与无服务器同步**：设备间局域网配对遥控、播放队列接力与缺失曲目串流；通过本地或 NAS 共享目录实现无服务器多设备同步。 |
 | **Refined UI & Privacy** | Liquid Glass & flat styles, Vinyl / Cassette / Cover now-playing modes, full English & Chinese UI, JS plugin host, **no accounts, no telemetry, no ads, no Google Play Services**. | **精致界面与隐私优先**：液态玻璃 / 扁平风格、黑胶 / 磁带播放页、中英双语、本地 JS 插件宿主；**无账号、无遥测、无广告、无 Google 服务依赖**。 |
@@ -106,7 +106,7 @@
   - **ReplayGain**, **10-band equalizer** with AutoEq-style headphone presets, sleep timer (15/30/60/90 min + end-of-track), playback session restore, and **Last.fm / ListenBrainz / Libre.fm** scrobbling.
   - Podcasts (directory search, charts, RSS, OPML) and Internet Radio (Radio Browser + custom streams).
 - **Lyrics, Artwork & Visual Experience**
-  - Zero-API-key cascading enrichment for **album artwork** (Cover Art Archive, iTunes Global/JP, Deezer, VocaDB, MusicBrainz) and **synced lyrics** (LRCLIB, etc.), with a review queue for low-confidence matches. Results are written back next to the source files by default (`cover.jpg` / `<track>.jpg` and matching `.lrc`), so a rescan or re-add does not fetch them again; read-only shares and media servers are skipped.
+  - Zero-API-key cascading enrichment for **album artwork** (Cover Art Archive, iTunes Global/JP, Deezer, VocaDB, MusicBrainz) and **lyrics** (AMLL, LRCLIB, NetEase, QQ Music, KuGou and Lyrics.ovh), with a review queue for low-confidence matches. Results are written back next to the source files by default (`cover.jpg` / `<track>.jpg` and matching `.lrc`), so a rescan or re-add does not fetch them again; read-only shares and media servers are skipped.
   - Classic lyrics view + Flow / Steps / Tilt stages, word-by-word karaoke, CJK per-locale font fallback, manual lyric & offset editor, and **Windows native floating desktop lyrics** (Win32 layered window + Direct2D/DirectWrite, click-through lock).
   - **Vinyl**, **Cassette**, and **Cover** Now Playing styles; **Liquid Glass** & **Flat** display styles; full **English / Simplified Chinese** live language switching.
 - **Multi-Device & Extensibility**
@@ -153,7 +153,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release history.
   - **ReplayGain 响度均衡**、**10 段均衡器**与 AutoEq 风格耳机预设、睡眠定时（含「放完这首」）、播放会话恢复、**Last.fm / ListenBrainz / Libre.fm** 听歌上报。
   - 内置 **播客**（目录搜索、榜单、RSS、OPML）与 **网络电台**（Radio Browser 与自定义流）。
 - **封面、歌词与桌面体验**
-  - **免 API Key 多源补全**：级联 5 个封面源（含 Cover Art Archive、iTunes 日区/全球、Deezer、VocaDB、网易云等，针对日系 / ACG 专辑专项增强）与 4 个歌词源（含 LRCLIB、网易云翻译歌词、酷狗等），支持按需选择补全并内置待确认队列。补全结果默认写回音源目录（`cover.jpg` / `<歌曲名>.jpg` 与同名 `.lrc`），重新扫描或重新添加不用再补；只读共享和媒体服务器自动跳过。
+  - **免 API Key 多源补全**：封面来源包括 Cover Art Archive、iTunes 日区/全球、Deezer、VocaDB 和网易云等，针对日系 / ACG 专辑专项增强。内置歌词来源包括 AMLL、LRCLIB、网易云（含翻译歌词）、QQ 音乐、酷狗和 Lyrics.ovh。支持按需选择补全并内置待确认队列。补全结果默认写回音源目录（`cover.jpg` / `<歌曲名>.jpg` 与同名 `.lrc`），重新扫描或重新添加不用再补；只读共享和媒体服务器自动跳过。
   - **沉浸式歌词**：经典歌词 + Flow / Steps / Tilt 歌词舞台、逐字卡拉 OK、中日韩分语种字体回退（解决中日双语汉字异体字混排）、手动编辑歌词与时间偏移。
   - **Windows 原生桌面悬浮歌词**：Win32 分层窗口 + Direct2D / DirectWrite 逐字渲染，支持拖动、鼠标穿透锁定、自定义字体与配色。
   - **多元视觉**：提供封面、**黑胶唱片**、**复古磁带**三种播放页样式，支持**液态玻璃 / 扁平**显示样式、可定制导航栏位置与中英双语实时切换。

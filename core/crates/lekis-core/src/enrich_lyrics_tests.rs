@@ -219,3 +219,31 @@ async fn lyrics_fetch_force_preserves_selection_and_candidates_are_selectable() 
     drop(library);
     let _ = std::fs::remove_dir_all(root);
 }
+
+#[tokio::test]
+async fn builtin_qq_reuses_the_selected_plugin_version_and_pending_review() {
+    let (root, library, id) = library("qq-upgrade").await;
+    let mut qq = candidate(LyricsFormat::Lrc, 0.72);
+    qq.source = format!("plugin:{QQ_EXAMPLE_ID}");
+    let hint = qq.matched.clone();
+    let (pipeline, _) = pipeline(vec![]);
+    pipeline
+        .apply_lyrics(&library, id, &hint, vec![qq.clone()])
+        .await
+        .unwrap();
+    let selected = library.list_lyrics(id).await.unwrap()[0].id;
+    library.activate_lyrics(id, selected).await.unwrap();
+
+    qq.source = QqLyrics::NAME.into();
+    pipeline
+        .apply_lyrics(&library, id, &hint, vec![qq])
+        .await
+        .unwrap();
+    let versions = library.list_lyrics(id).await.unwrap();
+    assert_eq!(versions.len(), 1);
+    assert_eq!(versions[0].id, selected);
+    assert!(versions[0].is_active);
+    assert_eq!(library.list_pending_candidates(10).await.unwrap().len(), 1);
+    drop(library);
+    std::fs::remove_dir_all(root).unwrap();
+}

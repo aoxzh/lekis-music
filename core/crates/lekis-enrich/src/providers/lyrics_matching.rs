@@ -1,7 +1,7 @@
 //! Conservative lyric identity checks, including explicit kana-script equivalents.
 use super::{LyricsFormat, TrackHint};
 
-fn width_fold(value: &str) -> String {
+pub(crate) fn width_fold(value: &str) -> String {
     value
         .chars()
         .map(|ch| match ch {
@@ -270,7 +270,7 @@ pub(crate) fn search_variants(hint: &TrackHint) -> Vec<(String, Option<String>)>
     variants
 }
 
-fn versions(title: &str) -> Vec<bool> {
+pub(crate) fn versions(title: &str) -> Vec<bool> {
     let folded = width_fold(title).to_lowercase();
     let compact = key(title);
     [

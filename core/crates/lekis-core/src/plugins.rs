@@ -1467,6 +1467,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn builtin_qq_skips_only_its_legacy_example() -> Result<()> {
+        let root = test_root("builtin-qq");
+        let (library, manager) = open_manager(&root);
+        let source = write_source_plugin(
+            &root,
+            "export function search() { return {items:[{id:'1',title:'Song'}]}; }",
+        );
+        manager.install(&source).await?;
+        let track = manager
+            .search("dev.lekis.test.source", "Song", 1)
+            .await?
+            .tracks
+            .remove(0);
+        for id in ["dev.lekis.example.qq-lyrics", "dev.lekis.test.other-lyrics"] {
+            let directory = root.join(id);
+            write_plugin(&directory, id);
+            fs::write(
+                directory.join("index.js"),
+                "export function lyrics() { return {format:'lrc',content:'[00:01]sample'}; }",
+            )?;
+            manager.install(&directory).await?;
+        }
+        let pipeline = crate::enrich::EnrichPipeline::new(&crate::CoreConfig::for_tests(&root));
+        pipeline
+            .fetch_plugin_lyrics(&library, &manager, track.id)
+            .await?;
+        let versions = library.list_lyrics(track.id).await?;
+        assert_eq!(versions.len(), 1);
+        assert_eq!(
+            versions[0].lyrics.source,
+            "plugin:dev.lekis.test.other-lyrics"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn source_search_keeps_queue_references_and_resolves_fresh_streams() -> Result<()> {
         let root = test_root("source-flow");
         let source = write_source_plugin(
