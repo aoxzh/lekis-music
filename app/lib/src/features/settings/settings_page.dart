@@ -26,6 +26,7 @@ import '../library/widgets/page_gutter.dart';
 import '../sources/sources_providers.dart';
 import 'desktop_settings_view.dart';
 import 'settings_categories.dart';
+import 'settings_search.dart';
 import 'strings.dart';
 import 'widgets/settings_widgets.dart';
 
@@ -46,12 +47,27 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   /// 宽窗口右栏显示的分类。
   SettingsCategory _selected = SettingsCategory.playback;
+  SettingsSearchItem? _target;
 
-  void _open(SettingsCategory category) {
+  void _open(SettingsCategory category, {SettingsSearchItem? target}) {
+    FocusManager.instance.primaryFocus?.unfocus();
     if (isWideLayout(context)) {
-      setState(() => _selected = category);
+      setState(() {
+        _selected = category;
+        _target = target;
+      });
     } else {
-      Navigator.of(context).push(SettingsCategoryPage.route(category));
+      Navigator.of(context)
+          .push(SettingsCategoryPage.route(category, target: target));
+    }
+  }
+
+  void _openSearch(SettingsSearchItem item) {
+    if (item.inPlugins) {
+      FocusManager.instance.primaryFocus?.unfocus();
+      Navigator.of(context).push(item.pluginRoute());
+    } else {
+      _open(item.category, target: item);
     }
   }
 
@@ -61,12 +77,15 @@ class _SettingsPageState extends State<SettingsPage> {
     if (wide && UiProfile.current.desktopSettings) {
       return DesktopSettingsView(
         selected: _selected,
-        onSelected: (c) => setState(() => _selected = c),
+        onSelected: _open,
+        target: _target,
+        onSearchSelected: _openSearch,
       );
     }
     final list = SettingsHomeList(
       selected: wide ? _selected : null,
       onOpen: _open,
+      onSearchSelected: _openSearch,
     );
     return SettingsScaffold(
       title: context.l10n.settingsTitle,
@@ -77,7 +96,7 @@ class _SettingsPageState extends State<SettingsPage> {
               primary: list,
               secondary: KeyedSubtree(
                 key: ValueKey(_selected),
-                child: SettingsListView(children: _selected.sections),
+                child: _selected.detail(_target),
               ),
             ),
     );
@@ -85,13 +104,31 @@ class _SettingsPageState extends State<SettingsPage> {
 }
 
 /// 设置首页的列表本体。
-class SettingsHomeList extends ConsumerWidget {
-  const SettingsHomeList({super.key, required this.onOpen, this.selected});
+class SettingsHomeList extends ConsumerStatefulWidget {
+  const SettingsHomeList({
+    super.key,
+    required this.onOpen,
+    required this.onSearchSelected,
+    this.selected,
+  });
 
   final ValueChanged<SettingsCategory> onOpen;
+  final ValueChanged<SettingsSearchItem> onSearchSelected;
 
   /// 宽窗口里高亮的分类；窄窗口为 `null`。
   final SettingsCategory? selected;
+  @override
+  ConsumerState<SettingsHomeList> createState() => _SettingsHomeListState();
+}
+
+class _SettingsHomeListState extends ConsumerState<SettingsHomeList> {
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   Widget _category(
     BuildContext context,
@@ -104,17 +141,70 @@ class SettingsHomeList extends ConsumerWidget {
     subtitle: Text(c.hint, maxLines: 1, overflow: TextOverflow.ellipsis),
     trailing: trailing,
     chevron: true,
-    selected: selected == c,
-    onTap: () => onOpen(c),
+    selected: widget.selected == c,
+    onTap: () => widget.onOpen(c),
   );
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final query = _search.text.trim().toLowerCase();
+    final items = searchSettings(ref, query);
+    final categories = SettingsCategory.values.where((c) => c.matches(query));
+    return Column(
+      children: [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: pageGutterOf(context)),
+          child: TextField(
+            key: const ValueKey('settings-mobile-search'),
+            controller: _search,
+            onChanged: (_) => setState(() {}),
+            textInputAction: TextInputAction.search,
+            onSubmitted: (_) {
+              if (items.isNotEmpty) {
+                widget.onSearchSelected(items.first);
+              } else if (categories.isNotEmpty) {
+                widget.onOpen(categories.first);
+              }
+            },
+            decoration: InputDecoration(
+              hintText: context.l10n.searchSettingsHint,
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _search.text.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: context.l10n.pick('清除', 'Clear'),
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => setState(_search.clear),
+                    ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: query.isNotEmpty
+              ? SettingsListView(
+                  children: [
+                    if (items.isEmpty && categories.isEmpty)
+                      Text(SettingsStrings.searchEmpty),
+                    for (final item in items)
+                      SettingsSearchRow(
+                        item: item,
+                        onTap: () => widget.onSearchSelected(item),
+                      ),
+                    for (final category in categories)
+                      _category(context, category),
+                  ],
+                )
+              : _home(context),
+        ),
+      ],
+    );
+  }
+
+  Widget _home(BuildContext context) {
     final sources = ref.watch(sourcesProvider).value;
     final downloads = ref.watch(downloadsSummaryProvider);
     final pending = ref.watch(enrichPendingCountProvider);
     final noSources = sources != null && sources.isEmpty;
-
     return SettingsListView(
       children: [
         if (noSources) const SettingsSetupCard(),

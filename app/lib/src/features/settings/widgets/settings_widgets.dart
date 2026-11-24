@@ -17,6 +17,7 @@ import '../../../platform/ui_profile.dart';
 import '../../../theme/theme.dart';
 import '../../library/widgets/page_gutter.dart';
 import '../../sources/common.dart';
+import 'settings_reveal.dart';
 
 /// 行首图标占的宽度（也是图标尺寸）。
 const double _iconSlot = LekisSpacing.xl;
@@ -351,6 +352,13 @@ class SettingsGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Widget row(Widget child) => SettingsReveal.control(
+      context,
+      child,
+      key: child is SettingsBlockTile
+          ? child.key ?? child.child.key
+          : child.key,
+    );
     if (_desktop) {
       // Windows 11: one card per group, full-width hairlines between rows.
       final colors = context.lekisColors;
@@ -365,7 +373,7 @@ class SettingsGroup extends StatelessWidget {
               children: [
                 for (var i = 0; i < children.length; i++) ...[
                   if (i > 0) Divider(height: 1, color: colors.outline),
-                  children[i],
+                  row(children[i]),
                 ],
               ],
             ),
@@ -382,7 +390,7 @@ class SettingsGroup extends StatelessWidget {
         children: [
           for (var i = 0; i < children.length; i++) ...[
             if (i > 0) Divider(height: 1, indent: dividerIndent),
-            children[i],
+            row(children[i]),
           ],
         ],
       ),

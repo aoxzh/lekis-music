@@ -40,6 +40,7 @@ import '../library/widgets/page_gutter.dart';
 import '../sources/sources_providers.dart';
 import 'settings_categories.dart';
 import 'settings_page.dart' show SettingsSetupCard;
+import 'settings_search.dart';
 import 'strings.dart';
 import 'widgets/settings_widgets.dart' show SettingsPageTitle;
 
@@ -55,10 +56,14 @@ class DesktopSettingsView extends ConsumerStatefulWidget {
     super.key,
     required this.selected,
     required this.onSelected,
+    required this.onSearchSelected,
+    this.target,
   });
 
   final SettingsCategory selected;
   final ValueChanged<SettingsCategory> onSelected;
+  final ValueChanged<SettingsSearchItem> onSearchSelected;
+  final SettingsSearchItem? target;
 
   static const Key searchKey = ValueKey('settings-search');
 
@@ -110,16 +115,6 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
     return true;
   }
 
-  List<SettingsCategory> _matches(String query) => [
-    for (final c in SettingsCategory.values)
-      if (c.matches(query)) c,
-  ];
-
-  void _openFirstMatch() {
-    final first = _matches(_query).firstOrNull;
-    if (first != null) widget.onSelected(first);
-  }
-
   @override
   Widget build(BuildContext context) => Material(
     type: MaterialType.transparency,
@@ -147,14 +142,24 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
     final downloads = ref.watch(downloadsSummaryProvider);
     final pending = ref.watch(enrichPendingCountProvider);
     final query = _query;
+    final results = searchSettings(ref, query);
     bool linkMatches(String title, String hint) =>
         query.isEmpty ||
         title.toLowerCase().contains(query) ||
         hint.toLowerCase().contains(query);
 
-    final groups = <Widget>[];
+    final groups = <Widget>[
+      for (final item in results)
+        SettingsSearchRow(
+          item: item,
+          onTap: () => widget.onSearchSelected(item),
+        ),
+    ];
+    VoidCallback? firstAction = results.isEmpty
+        ? null
+        : () => widget.onSearchSelected(results.first);
     for (final group in SettingsCategoryGroup.values) {
-      final items = <Widget>[
+      final items = <_NavItem>[
         if (group == SettingsCategoryGroup.music) ...[
           if (linkMatches(
             SettingsStrings.downloads,
@@ -192,6 +197,7 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
             ),
       ];
       if (items.isEmpty) continue;
+      firstAction ??= items.first.onTap;
       groups.add(
         Padding(
           padding: const EdgeInsets.fromLTRB(
@@ -238,7 +244,7 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
               controller: _search,
               focusNode: _searchFocus,
               textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _openFirstMatch(),
+              onSubmitted: (_) => firstAction?.call(),
               style: theme.textTheme.bodyMedium,
               decoration: InputDecoration(
                 isDense: true,
@@ -295,7 +301,7 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
     final noSources = sources != null && sources.isEmpty;
     final category = widget.selected;
     final gutter = pageGutterOf(context);
-    return KeyedSubtree(
+    final detail = KeyedSubtree(
       key: ValueKey(category),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -351,6 +357,7 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
         ],
       ),
     );
+    return widget.target?.reveal(detail) ?? detail;
   }
 }
 

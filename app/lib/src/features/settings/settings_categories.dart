@@ -35,6 +35,7 @@ import 'scrobble_page.dart';
 import 'settings_backup.dart';
 import 'settings_guard.dart';
 import 'settings_providers.dart';
+import 'settings_search.dart';
 import '../connect/connect_strings.dart';
 import '../desktop_lyrics/desktop_lyrics_settings_section.dart';
 import '../desktop_lyrics/desktop_lyrics_strings.dart';
@@ -200,6 +201,20 @@ enum SettingsCategory {
   /// 这个分类的内容（若干分组）。
   List<Widget> get sections => _sections();
 
+  Widget detail(SettingsSearchItem? target) {
+    final list = SettingsListView(
+      children: target == null
+          ? sections
+          : [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: sections,
+              ),
+            ],
+    );
+    return target?.reveal(list) ?? list;
+  }
+
   /// The categories of [group], in declaration order.
   static List<SettingsCategory> inGroup(SettingsCategoryGroup group) =>
       values.where((c) => c.group == group).toList(growable: false);
@@ -232,19 +247,22 @@ List<Widget> _aboutSections() => const [_AboutSection()];
 
 /// 手机 / 窄窗口里推入的二级页面。
 class SettingsCategoryPage extends StatelessWidget {
-  const SettingsCategoryPage({super.key, required this.category});
+  const SettingsCategoryPage({super.key, required this.category, this.target});
 
   final SettingsCategory category;
+  final SettingsSearchItem? target;
 
-  static Route<void> route(SettingsCategory category) =>
-      MaterialPageRoute<void>(
-        builder: (_) => SettingsCategoryPage(category: category),
-      );
+  static Route<void> route(
+    SettingsCategory category, {
+    SettingsSearchItem? target,
+  }) => MaterialPageRoute<void>(
+    builder: (_) => SettingsCategoryPage(category: category, target: target),
+  );
 
   @override
   Widget build(BuildContext context) => SettingsScaffold(
     title: category.titleOf(context),
-    body: SettingsListView(children: category.sections),
+    body: category.detail(target),
   );
 }
 
@@ -340,6 +358,7 @@ class _PlaybackSection extends ConsumerWidget {
       children: [
         if (desktop && error == null && output.devices.isNotEmpty)
           SettingsDropdownTile<String?>(
+            key: const ValueKey('audio.device'),
             icon: Icons.speaker_outlined,
             title: SettingsStrings.outputDevice,
             value: output.selectedDeviceId,
@@ -364,6 +383,7 @@ class _PlaybackSection extends ConsumerWidget {
           )
         else
           SettingsBlockTile(
+            key: const ValueKey('audio.device'),
             icon: Icons.speaker_outlined,
             title: SettingsStrings.outputDevice,
             trailing: IconButton(
@@ -419,6 +439,7 @@ class _PlaybackSection extends ConsumerWidget {
         ),
         // 简单开关；按曲目 / 按专辑的细节在“高级”里。
         SettingsSwitchTile(
+          key: const ValueKey('audio.normalize'),
           icon: Icons.equalizer_rounded,
           title: SettingsStrings.normalize,
           subtitle: SettingsStrings.normalizeHint,
@@ -790,9 +811,10 @@ class _LyricsSection extends ConsumerWidget {
     return SettingsSection(
       title: SettingsStrings.lyrics,
       children: [
-        const LyricsPresetTile(),
+        const LyricsPresetTile(key: ValueKey('lyrics.presets')),
         if (UiProfile.current.desktopSettings)
           SettingsDropdownTile<LyricsStyle>(
+            key: const ValueKey('lyrics.style'),
             icon: Icons.lyrics_outlined,
             title: SettingsStrings.lyricsStage,
             subtitle: SettingsStrings.lyricsStageHint,
@@ -805,6 +827,7 @@ class _LyricsSection extends ConsumerWidget {
           )
         else
           SettingsBlockTile(
+            key: const ValueKey('lyrics.style'),
             icon: Icons.lyrics_outlined,
             title: SettingsStrings.lyricsStage,
             hint: SettingsStrings.lyricsStageHint,
@@ -833,6 +856,7 @@ class _LyricsSection extends ConsumerWidget {
           ),
         ),
         SettingsSwitchTile(
+          key: const ValueKey('lyrics.translation'),
           icon: Icons.translate_rounded,
           title: SettingsStrings.lyricsTranslation,
           subtitle: SettingsStrings.lyricsTranslationHint,
@@ -847,6 +871,7 @@ class _LyricsSection extends ConsumerWidget {
         // 火花只对逐字舞台有意义，经典视图下不显示这个开关。
         if (lyricsStyle.stage != null)
           SettingsSwitchTile(
+            key: const ValueKey('lyrics.sparks'),
             icon: Icons.auto_awesome_outlined,
             title: SettingsStrings.lyricsSparks,
             subtitle: SettingsStrings.lyricsSparksHint,
@@ -861,6 +886,7 @@ class _LyricsSection extends ConsumerWidget {
         // 注音目前只在经典视图上画（舞台是逐字排版，见 lyrics_ruby.dart 的说明）。
         if (!lyricsStyle.isStage)
           SettingsDropdownTile<LyricsRubyMode>(
+            key: const ValueKey('lyrics.ruby'),
             icon: Icons.translate_rounded,
             title: SettingsStrings.lyricsRuby,
             subtitle: SettingsStrings.lyricsRubyHint,
@@ -901,6 +927,7 @@ class _AudioOutputSection extends ConsumerWidget {
           ...usbTiles,
           if (!usbOwnsMode)
             SettingsDropdownTile<OutputModeDto>(
+              key: const ValueKey('audio.mode'),
               icon: Icons.graphic_eq_rounded,
               title: SettingsStrings.outputMode,
               subtitle: output.mode == OutputModeDto.exclusive
@@ -924,6 +951,7 @@ class _AudioOutputSection extends ConsumerWidget {
                   settingsGuard(context, () => notifier.setMode(m)),
             ),
           SettingsDropdownTile<ReplayGainMode>(
+            key: const ValueKey('audio.replaygain'),
             icon: Icons.equalizer_rounded,
             title: SettingsStrings.replayGain,
             subtitle: SettingsStrings.replayGainHint,
@@ -949,6 +977,7 @@ class _AudioOutputSection extends ConsumerWidget {
         ...usbTiles,
         if (!usbOwnsMode)
           SettingsBlockTile(
+            key: const ValueKey('audio.mode'),
             icon: Icons.graphic_eq_rounded,
             title: SettingsStrings.outputMode,
             hint: output.mode == OutputModeDto.exclusive
@@ -977,6 +1006,7 @@ class _AudioOutputSection extends ConsumerWidget {
             ),
           ),
         SettingsBlockTile(
+          key: const ValueKey('audio.replaygain'),
           icon: Icons.equalizer_rounded,
           title: SettingsStrings.replayGain,
           hint: SettingsStrings.replayGainHint,
@@ -1016,7 +1046,10 @@ class _ServicesSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SettingsSection(
     title: SettingsStrings.servicesGroup,
-    children: [ScrobbleSettingsTile(), PluginsSettingsTile()],
+    children: [
+      ScrobbleSettingsTile(),
+      PluginsSettingsTile(key: ValueKey('plugins.entry')),
+    ],
   );
 }
 
