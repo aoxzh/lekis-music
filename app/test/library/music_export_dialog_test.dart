@@ -32,7 +32,9 @@ class _ExportApi implements RustLibApi {
   }) async {
     expect(trackId, isNull);
     expect(albumId, 12);
-    expect(directory, '/music export/');
+    // `exportToDestination` converts the URI with `toFilePath()`, which uses
+    // backslashes on Windows; compare against the same platform form.
+    expect(directory, Uri.directory('/music export/').toFilePath());
     expect(nameTemplate, '{track}-{title}');
     expect(includeArtwork, isTrue);
     expect(includeLyrics, isFalse);
