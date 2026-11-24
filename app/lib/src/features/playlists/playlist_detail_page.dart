@@ -322,7 +322,7 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
       await core.movePlaylistItem(
         playlistId: widget.playlist.id,
         positionKey: entry.positionKey,
-        beforeKey: first.first.positionKey,
+        afterKey: first.first.positionKey,
       );
       if (!mounted) return;
       ref.invalidate(playlistEntriesProvider(widget.playlist.id));
