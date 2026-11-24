@@ -1607,11 +1607,40 @@ mod tests {
 
     #[tokio::test]
     async fn alternate_source_filters_and_resolves_after_restart() -> Result<()> {
-        let root = test_root("alternate-source");
+        const ROOT_ENV: &str = "LEKIS_TEST_ALTERNATE_SOURCE_RESTART_DIR";
+        let Some(root) = std::env::var_os(ROOT_ENV) else {
+            let root = test_root("alternate-source");
+            for phase in ["seed", "reopen"] {
+                let output = std::process::Command::new(std::env::current_exe()?)
+                    .args([
+                        "--exact",
+                        "plugins::tests::alternate_source_filters_and_resolves_after_restart",
+                    ])
+                    .env(ROOT_ENV, &root)
+                    .output()?;
+                assert!(
+                    output.status.success(),
+                    "{phase}: {}\n{}",
+                    String::from_utf8_lossy(&output.stdout),
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                assert_eq!(root.join("expected.json").exists(), phase == "seed");
+            }
+            fs::remove_dir_all(root)?;
+            return Ok(());
+        };
+        let root = PathBuf::from(root);
+        let expected = root.join("expected.json");
         let plugin = "dev.lekis.test.source";
-        let source = write_source_plugin(
-            &root,
-            r#"
+        let core = crate::LekisCore::with_runtime(
+            crate::CoreConfig::for_tests(&root),
+            crate::PlatformServices::in_memory(),
+            tokio::runtime::Handle::current(),
+        )?;
+        if !expected.exists() {
+            let source = write_source_plugin(
+                &root,
+                r#"
             export function search(p) {
                 const ids = p.query === 'original' ? ['original'] :
                     ['original','expired','forbidden','alternative','alternative','second'];
@@ -1625,16 +1654,7 @@ mod tests {
                 return {url:'https://media.example.com/'+p.id+'?rev='+revision,headers:{'User-Agent':'Lekis'}};
             }
         "#,
-        );
-        let open = || {
-            crate::LekisCore::with_runtime(
-                crate::CoreConfig::for_tests(&root),
-                crate::PlatformServices::in_memory(),
-                tokio::runtime::Handle::current(),
-            )
-        };
-        let (track, candidate) = {
-            let core = open()?;
+            );
             core.install_plugin_from_path(source.to_string_lossy().into_owned())
                 .await?;
             let original = core
@@ -1679,9 +1699,14 @@ mod tests {
             let uid = core.get_track(original.id).await?.uid;
             crate::alternate_source::save_binding(&core.services.library, &uid.0, &matches[0])
                 .await?;
-            (original.id, matches[0].clone())
-        };
-        let core = open()?;
+            fs::write(
+                &expected,
+                serde_json::to_vec(&(original.id, &matches[0])).map_err(std::io::Error::other)?,
+            )?;
+            return Ok(());
+        }
+        let (track, candidate) =
+            serde_json::from_slice(&fs::read(&expected)?).map_err(std::io::Error::other)?;
         assert_eq!(core.get_alternate_source(track).await?, Some(candidate));
         for (revision, expected) in [("fresh", "alternative"), ("offline", "original")] {
             core.services
@@ -1711,8 +1736,7 @@ mod tests {
             panic!("expected stream")
         };
         assert_eq!(url, "https://media.example.com/original?rev=restored");
-        drop(core);
-        fs::remove_dir_all(root)?;
+        fs::remove_file(expected)?;
         Ok(())
     }
 
