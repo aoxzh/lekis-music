@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
 import 'package:lekis/src/features/plugins/plugins_providers.dart';
 
 import '../plugins/plugin_browse_page.dart';
@@ -47,6 +48,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   static const _recentKey = 'search.recent';
   static const _maxRecent = 8;
 
+  final _searchFocus = FocusNode(debugLabel: 'search.query');
   late final TextEditingController _text = TextEditingController(
     text: widget.pluginId == null ? ref.read(searchQueryProvider) : '',
   );
@@ -56,7 +58,35 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   @override
   void initState() {
     super.initState();
+    HardwareKeyboard.instance.addHandler(_handleFind);
     if (widget.pluginId == null) unawaited(_loadRecent());
+  }
+
+  bool _handleFind(KeyEvent event) {
+    if (!_isDesktop || event is! KeyDownEvent) return false;
+    final keyboard = HardwareKeyboard.instance;
+    if (!const SingleActivator(
+          LogicalKeyboardKey.keyF,
+          control: true,
+        ).accepts(event, keyboard) &&
+        !const SingleActivator(
+          LogicalKeyboardKey.keyF,
+          meta: true,
+        ).accepts(event, keyboard)) {
+      return false;
+    }
+    if (!TickerMode.valuesOf(context).enabled ||
+        !_searchFocus.canRequestFocus ||
+        ModalRoute.isCurrentOf(context) == false ||
+        ModalRoute.isCurrentOf(Navigator.of(context).context) == false) {
+      return false;
+    }
+    _searchFocus.requestFocus();
+    _text.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _text.text.length,
+    );
+    return true;
   }
 
   Future<void> _loadRecent() async {
@@ -129,6 +159,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleFind);
+    _searchFocus.dispose();
     _text.dispose();
     super.dispose();
   }
@@ -178,6 +210,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       ),
       child: SearchBar(
         controller: _text,
+        focusNode: _searchFocus,
         autoFocus: _isDesktop,
         hintText: source == null
             ? l10n.pick('歌曲、专辑、艺人', 'Songs, albums, artists')

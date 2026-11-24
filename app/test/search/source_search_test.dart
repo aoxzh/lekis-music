@@ -103,6 +103,7 @@ void main() {
     String? selected,
     List<PluginInfoDto>? plugins,
     bool dark = false,
+    bool active = true,
     Future<SearchResultsDto?> Function(Ref ref)? loadResults,
   }) async {
     final container = ProviderContainer.test(
@@ -135,13 +136,91 @@ void main() {
           locale: const Locale('en'),
           child: MaterialApp(
             theme: theme,
-            home: RepaintBoundary(key: boundaryKey, child: const SearchPage()),
+            home: RepaintBoundary(
+              key: boundaryKey,
+              child: TickerMode(enabled: active, child: const SearchPage()),
+            ),
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
     return container;
+  }
+
+  Future<void> pressFind(
+    WidgetTester tester,
+    LogicalKeyboardKey modifier,
+  ) async {
+    await tester.sendKeyDownEvent(modifier);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.sendKeyUpEvent(modifier);
+    await tester.pump();
+  }
+
+  for (final modifier in [
+    LogicalKeyboardKey.controlLeft,
+    LogicalKeyboardKey.metaLeft,
+  ]) {
+    testWidgets('${modifier.keyLabel}+F refocuses and selects the query', (
+      tester,
+    ) async {
+      UiProfile.debugOverride = UiProfile.desktop;
+      final container = await mount(tester);
+      final field = tester.widget<EditableText>(find.byType(EditableText));
+      field.focusNode.unfocus();
+      await tester.pump();
+      expect(field.focusNode.hasFocus, isFalse);
+
+      await pressFind(tester, modifier);
+      expect(field.focusNode.hasFocus, isTrue);
+      expect(
+        field.controller.selection.textInside(field.controller.text),
+        'evening',
+      );
+      expect(container.read(searchQueryProvider), 'evening');
+      tester.testTextInput.updateEditingValue(
+        field.controller.value.replaced(field.controller.selection, 'night'),
+      );
+      await tester.pump();
+      expect(container.read(searchQueryProvider), 'night');
+    });
+  }
+
+  testWidgets('search shortcut leaves an open dialog in focus', (tester) async {
+    UiProfile.debugOverride = UiProfile.desktop;
+    await mount(tester);
+    final field = tester.widget<EditableText>(find.byType(EditableText));
+    unawaited(
+      showDialog<void>(
+        context: tester.element(find.byType(SearchPage)),
+        builder: (_) => const AlertDialog(content: TextField(autofocus: true)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final dialogField = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(EditableText),
+      ),
+    );
+    await pressFind(tester, LogicalKeyboardKey.controlLeft);
+    expect(dialogField.focusNode.hasFocus, isTrue);
+    expect(field.focusNode.hasFocus, isFalse);
+  });
+
+  for (final desktop in [false, true]) {
+    testWidgets('find ignores ${desktop ? 'inactive tab' : 'mobile search'}', (
+      tester,
+    ) async {
+      UiProfile.debugOverride = desktop ? UiProfile.desktop : UiProfile.mobile;
+      await mount(tester, active: !desktop);
+      final field = tester.widget<EditableText>(find.byType(EditableText));
+      field.focusNode.unfocus();
+      await tester.pump();
+      await pressFind(tester, LogicalKeyboardKey.controlLeft);
+      expect(field.focusNode.hasFocus, isFalse);
+    });
   }
 
   testWidgets('source picker switches between installed source and library', (
