@@ -3,6 +3,8 @@ name: release
 # 推送 v* 标签（例如 v0.2.3）时：构建 Android arm64-v8a APK、Windows x64
 # 安装器 EXE + 便携 ZIP、macOS arm64 DMG + ZIP、Linux x64 AppImage + tar.gz，
 # 然后**直接发布** GitHub Release（含全部产物和校验和），无需人工再点一次发布。
+# 同一个仓库同一时间只保留最新 tag 的发布会话：连续打 tag 时旧会话会被取消，
+# 且旧 tag 在 publish 阶段会自行跳过，避免每个 commit 都发一条 Release 通知。
 # 版本号带 "-"（beta / rc）时标成 pre-release；普通 0.x 版本按正式 Release 发布，
 # 这样 GitHub 仓库首页的 Releases 区域才会显示 Latest，而不是只看到一排 tag。
 # ZIP / tar.gz 是应用内更新用的可解压载荷；DMG / EXE / AppImage 是给首次安装的。
@@ -31,8 +33,12 @@ env:
   CARGO_INCREMENTAL: 0
 
 concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
+  # 所有 tag 发布共用一个组：新 tag 到达时取消旧 tag 的发布任务。
+  # 本地流程几乎每个 commit 都会打一个 v0.2.x tag；旧的分组（release-${{ github.ref }}）
+  # 会让每次提交都排一套 4 平台矩阵，把 runner 占满一整夜，新提交的 app/Pages CI
+  # 反而一直排队。只保留最新 tag 的发布会话即可（workflow_dispatch 单独分组）。
+  group: release-${{ github.ref_type }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -399,13 +405,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 被更新 tag 取代的旧发布不再上传 Release：否则一个晚上能发出上百条
+      # “新版本已发布”通知，而且这些版本一落地就已经过期了。
+      - name: Skip if a newer release tag already exists
+        id: newest
+        run: |
+          set -euo pipefail
+          git fetch --tags --quiet --force
+          newest=$(git tag --list 'v*' --sort=-v:refname | head -n1)
+          echo "current=$GITHUB_REF_NAME newest=$newest"
+          if [ "$newest" != "$GITHUB_REF_NAME" ]; then
+            echo "superseded=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$GITHUB_REF_NAME is superseded by $newest; not publishing"
+          fi
+
       - uses: actions/download-artifact@v4
+        if: steps.newest.outputs.superseded != 'true'
         with:
           path: dist
           merge-multiple: true
 
       - name: Checksums and release notes
         id: notes
+        if: steps.newest.outputs.superseded != 'true'
         run: |
           set -euo pipefail
           cd dist
@@ -421,6 +443,7 @@ jobs:
           echo "path=$notes" >> "$GITHUB_OUTPUT"
 
       - uses: softprops/action-gh-release@v2
+        if: steps.newest.outputs.superseded != 'true'
         with:
           name: Lekis ${{ needs.version.outputs.version }}
           body_path: ${{ steps.notes.outputs.path }}
