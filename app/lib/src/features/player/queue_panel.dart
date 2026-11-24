@@ -19,6 +19,7 @@ import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_filter.dart';
 import 'package:lekis/src/features/player/queue_move_next.dart';
+import 'package:lekis/src/features/player/queue_removals.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
@@ -72,15 +73,11 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
   /// previous rows stay up until the new list has its first page, then the
   /// rows slide / fade to their new places instead of flashing a spinner.
   PagedList<TrackRowDto>? _shown;
-  final Set<int> _removing = <int>{};
-  Timer? _removeDelay;
-  Timer? _removeFallback;
+  int _shownVersion = 0;
   bool _jumpedToCurrent = false;
 
   @override
   void dispose() {
-    _removeDelay?.cancel();
-    _removeFallback?.cancel();
     _scroll.dispose();
     _filter.dispose();
     _filterFocus.dispose();
@@ -88,12 +85,11 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
     super.dispose();
   }
 
-  PagedList<TrackRowDto> _present(PagedList<TrackRowDto> latest) {
+  PagedList<TrackRowDto> _present(PagedList<TrackRowDto> latest, int version) {
     final shown = _shown;
     if (identical(latest, shown)) return latest;
-    if (shown == null) return _shown = latest;
-    if (latest.isInitialLoading) return shown;
-    if (latest.error == null) {
+    if (shown != null && latest.isInitialLoading) return shown;
+    if (shown != null && latest.error == null) {
       _motion.listChanged(
         old: (i) => shown.itemAt(i)?.id,
         oldLength: shown.itemCount,
@@ -102,8 +98,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
         animate: !lekisReduceMotion(context),
       );
     }
-    // Rows faded out for removal are gone from the new list.
-    _removing.clear();
+    _shownVersion = version;
     return _shown = latest;
   }
 
@@ -470,6 +465,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
     TrackRowDto row,
     int index,
     VoidCallback? moveToNext,
+    VoidCallback remove,
   ) async {
     final length = ref.read(playbackProvider).queueLength;
     final loved = ref.read(lovedOverridesProvider)[row.id] ?? row.loved;
@@ -642,7 +638,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
                   ),
                   onTap: () {
                     close();
-                    _remove(index);
+                    remove();
                   },
                 ),
               ],
@@ -918,40 +914,11 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
     }
   }
 
-  void _remove(int index) {
-    if (_removing.contains(index)) return;
-    final version = ref.read(playbackProvider).queueVersion;
-    setState(() => _removing.add(index));
-    _removeDelay?.cancel();
-    _removeDelay = Timer(LekisMotion.fast, () {
-      if (!mounted) return;
-      if (ref.read(playbackProvider).queueVersion != version) return;
-      ref.read(playerActionsProvider).removeQueueAt(index);
-      // If the core rejects the change, do not leave an invisible row.
-      _removeFallback?.cancel();
-      _removeFallback = Timer(LekisMotion.slow, () {
-        if (!mounted) return;
-        if (_removing.contains(index) &&
-            ref.read(playbackProvider).queueVersion == version) {
-          setState(() => _removing.remove(index));
-        }
-      });
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    ref.listen<int>(playbackProvider.select((s) => s.queueVersion), (
-      previous,
-      next,
-    ) {
-      // The faded-out rows stay hidden until the rebuilt list is shown
-      // ([_present]); only the pending timers are stale now.
-      if (previous != null && previous != next && mounted) {
-        _removeDelay?.cancel();
-        _removeFallback?.cancel();
-      }
-    });
+    ref.watch(queueRemovalsProvider);
+    final removals = ref.read(queueRemovalsProvider.notifier);
+    final version = ref.watch(playbackProvider.select((s) => s.queueVersion));
 
     final colors = context.lekisColors;
     final theme = Theme.of(context);
@@ -1024,7 +991,8 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
                 child: ListenableBuilder(
                   listenable: latest,
                   builder: (context, _) {
-                    final list = _present(latest);
+                    final list = _present(latest, version);
+                    final shownVersion = _shownVersion;
                     if (queueLength == 0) {
                       return _QueueEmpty(
                         message: context.l10n.pick('队列为空', 'Queue is empty'),
@@ -1080,7 +1048,21 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
                           if (row == null) {
                             return _QueueRowPlaceholder(colors: colors);
                           }
-                          final removing = _removing.contains(index);
+                          final removing = removals.isRemoving(
+                            index,
+                            shownVersion,
+                            version,
+                          );
+                          void remove() {
+                            if (mounted) {
+                              removals.remove(
+                                this.context,
+                                index,
+                                shownVersion,
+                              );
+                            }
+                          }
+
                           final moveToNext =
                               identical(list, latest) && !removing
                               ? queueMoveToNext(ref, index)
@@ -1114,8 +1096,9 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
                                     row,
                                     index,
                                     moveToNext,
+                                    remove,
                                   ),
-                                  onRemove: () => _remove(index),
+                                  onRemove: remove,
                                   onMoveUp: index > 0
                                       ? () => ref
                                             .read(playerActionsProvider)

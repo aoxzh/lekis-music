@@ -22,7 +22,7 @@ class SourcesPage extends ConsumerStatefulWidget {
   const SourcesPage({super.key});
 
   @override
-  ConsumerState<SourcesPage> createState() => _SourcesPageState();
+  ConsumerState<SourcesPage> createState() => SourcesPageState();
 }
 
 /// 宽窗口右栏显示什么。
@@ -43,24 +43,35 @@ final class _Source extends _Selection {
   final int id;
 }
 
-class _SourcesPageState extends ConsumerState<SourcesPage> {
+class SourcesPageState extends ConsumerState<SourcesPage> {
   _Selection _selection = const _None();
+  LocalHistoryEntry? _addHistory;
 
   void _open(int id) {
     if (!isWideLayout(context)) {
       Navigator.of(context).push(SourceDetailPage.route(id));
     } else {
+      _addHistory?.remove();
       setState(() => _selection = _Source(id));
     }
   }
 
-  Future<void> _add() async {
+  Future<void> addSource() async {
     if (!isWideLayout(context)) {
       final id = await Navigator.of(context).push<int>(
         MaterialPageRoute<int>(builder: (_) => const AddSourcePage()),
       );
       if (id != null && mounted) _open(id);
-    } else {
+    } else if (_addHistory == null) {
+      final previous = _selection;
+      final entry = LocalHistoryEntry(
+        onRemove: () {
+          _addHistory = null;
+          if (mounted) setState(() => _selection = previous);
+        },
+      );
+      _addHistory = entry;
+      ModalRoute.of(context)!.addLocalHistoryEntry(entry);
       setState(() => _selection = const _Adding());
     }
   }
@@ -108,7 +119,7 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
     final list = SourceList(
       selectedId: twoPane ? selectedId : null,
       onOpen: _open,
-      onAdd: _add,
+      onAdd: addSource,
       // Room for the extended FAB below the last row on phones.
       bottomClearance: compact && hasSources
           ? LekisSizes.touchTargetMin + LekisSpacing.xl
@@ -123,8 +134,8 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
             secondary: switch (selection) {
               _None() => const _Placeholder(),
               _Adding() => AddSourcePane(
-                onDone: (id) => setState(() => _selection = _Source(id)),
-                onCancel: () => setState(() => _selection = const _None()),
+                onDone: _open,
+                onCancel: () => _addHistory?.remove(),
               ),
               _Source(:final id) => SourceDetail(
                 key: ValueKey(id),
@@ -136,7 +147,8 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
 
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(LogicalKeyboardKey.keyN, control: true): _add,
+        const SingleActivator(LogicalKeyboardKey.keyN, control: true):
+            addSource,
         const SingleActivator(LogicalKeyboardKey.f5): _rescanSelected,
         const SingleActivator(LogicalKeyboardKey.f5, shift: true): _scanAll,
       },
@@ -149,7 +161,7 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _Header(
-                  onAdd: compact ? null : _add,
+                  onAdd: compact ? null : addSource,
                   onScanAll: hasSources ? _scanAll : null,
                 ),
                 Expanded(child: body),
@@ -169,7 +181,7 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
                     ),
                   ),
                   child: FloatingActionButton.extended(
-                    onPressed: _add,
+                    onPressed: addSource,
                     icon: const Icon(Icons.add),
                     label: Text(SourcesStrings.addSource),
                   ),

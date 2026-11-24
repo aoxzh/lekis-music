@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/player/queue_removals.dart';
 import 'package:lekis/src/features/player/queue_view.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
@@ -25,6 +28,12 @@ class _FakePlayback extends PlaybackController {
 
   void queueEdited() =>
       state = state.copyWith(queueVersion: state.queueVersion + 1);
+
+  void acknowledgeRemoval() => state = state.copyWith(
+    queueVersion: state.queueVersion + 1,
+    queueLength: state.queueLength - 1,
+    queueIndex: () => state.queueIndex! - 1,
+  );
 
   @override
   PlaybackUiState build() => PlaybackUiState(
@@ -57,6 +66,65 @@ class _FakeActions extends PlayerActions {
 }
 
 void main() {
+  testWidgets('remove from a refreshing preview uses the visible occurrence', (
+    tester,
+  ) async {
+    final queue = [for (var index = 0; index < 12; index++) _row(index)];
+    queue[7] = _row(5);
+    final expected = [...queue]
+      ..removeAt(7)
+      ..removeAt(4);
+    final playback = _FakePlayback(5, queue.length);
+    final refresh = Completer<List<TrackRowDto>>();
+    final container = ProviderContainer(
+      overrides: [
+        playbackProvider.overrideWith(() => playback),
+        queuePreviewProvider.overrideWith((ref) async {
+          final version = ref.watch(
+            playbackProvider.select((s) => s.queueVersion),
+          );
+          return version == 0 ? queue.skip(4).toList() : refresh.future;
+        }),
+        queueRemoveCommandProvider.overrideWith((ref) => queue.removeAt),
+        trackArtworkProvider.overrideWith((ref, id) async => null),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: lekisDarkTheme(),
+          home: const Scaffold(body: QueueList()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Future<void> remove(Finder title) async {
+      final row = find.ancestor(of: title, matching: find.byType(ListTile));
+      await tester.tap(
+        find.descendant(of: row, matching: find.byTooltip('队列操作')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('从队列移除'));
+      await tester.pumpAndSettle();
+    }
+
+    await remove(find.text('曲目 4'));
+    expect(queue.length, 11);
+    playback.acknowledgeRemoval();
+    await tester.pump();
+    await remove(find.text('曲目 5').last);
+    expect(queue, expected);
+    playback.queueEdited();
+    await tester.pump();
+    await remove(find.text('曲目 6'));
+    expect(queue, expected);
+    expect(find.text('队列已变化，请重新选择曲目'), findsOneWidget);
+    refresh.complete(queue.skip(3).toList());
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('move to next uses the selected occurrence in the preview', (
     tester,
   ) async {
@@ -132,6 +200,9 @@ void main() {
           playerActionsProvider.overrideWith(
             (ref) => actions = _FakeActions(ref),
           ),
+          queueRemoveCommandProvider.overrideWith(
+            (ref) => actions.removeQueueAt,
+          ),
           trackArtworkProvider.overrideWith((ref, trackId) async => null),
         ],
       );
@@ -158,10 +229,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('从队列移除'));
       await tester.pump();
-      // The row collapses first; the core is asked once it is out of sight.
-      expect(actions.removed, isEmpty);
-      await tester.pumpAndSettle();
       expect(actions.removed, [5]);
+      await tester.pumpAndSettle();
 
       // Drag handles are present for touch reordering.
       expect(find.byIcon(Icons.drag_handle_rounded), findsNWidgets(4));

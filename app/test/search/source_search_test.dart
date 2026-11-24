@@ -22,29 +22,32 @@ import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
-PluginInfoDto source({bool enabled = true, String name = 'Demo source'}) =>
-    PluginInfoDto(
-      id: 'dev.lekis.test.music',
-      name: name,
-      compatibility: 'mygo',
-      version: '1.0.0',
-      apiVersion: '1.0',
-      runtime: 'js',
-      kinds: const ['source'],
-      entry: 'index.js',
-      enabled: enabled,
-      nativeAndroidGranted: false,
-      directory: 'dev.lekis.test.music',
-      permissions: const PluginPermissionsDto(
-        network: [],
-        process: [],
-        requestHeaderHosts: [],
-        webSignIn: false,
-        nativeAndroid: false,
-        storageKb: 1024,
-      ),
-      settings: const [],
-    );
+PluginInfoDto source({
+  bool enabled = true,
+  String name = 'Demo source',
+  String id = 'dev.lekis.test.music',
+}) => PluginInfoDto(
+  id: id,
+  name: name,
+  compatibility: 'mygo',
+  version: '1.0.0',
+  apiVersion: '1.0',
+  runtime: 'js',
+  kinds: const ['source'],
+  entry: 'index.js',
+  enabled: enabled,
+  nativeAndroidGranted: false,
+  directory: 'dev.lekis.test.music',
+  permissions: const PluginPermissionsDto(
+    network: [],
+    process: [],
+    requestHeaderHosts: [],
+    webSignIn: false,
+    nativeAndroid: false,
+    storageKb: 1024,
+  ),
+  settings: const [],
+);
 
 class IdlePlayback extends PlaybackController {
   @override
@@ -408,6 +411,35 @@ void main() {
     await tester.pumpAndSettle();
     expect(container.read(searchSourceProvider), isNull);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('empty library search offers enabled sources only on tap', (
+    tester,
+  ) async {
+    final onlineQueries = <(String, String)>[];
+    final container = await mount(
+      tester,
+      initialQuery: '夜航星',
+      plugins: [
+        source(),
+        source(name: 'Other', id: 'other'),
+        source(name: 'Disabled', id: 'disabled', enabled: false),
+      ],
+      loadResults: (ref) async {
+        final selected = ref.watch(searchSourceProvider);
+        final query = ref.watch(searchQueryProvider);
+        if (selected != null) onlineQueries.add((selected, query));
+        return const SearchResultsDto(tracks: [], albums: [], artists: []);
+      },
+    );
+    expect(find.text('Search Demo source for “夜航星”'), findsOneWidget);
+    expect(find.text('Search Disabled for “夜航星”'), findsNothing);
+    expect(onlineQueries, isEmpty);
+    await tester.tap(find.text('Search Other for “夜航星”'));
+    await tester.pumpAndSettle();
+    expect(onlineQueries, [('other', '夜航星')]);
+    expect(container.read(searchQueryProvider), '夜航星');
+    expect(find.text('Search Demo source for “夜航星”'), findsNothing);
   });
 
   testWidgets(

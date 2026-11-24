@@ -1,7 +1,5 @@
 // 正在播放里的收藏 / 评分 / 下载 / 添加到歌单。
 //
-// 只占标题行尾部的几个图标位：喜欢 + 评分（一个星标，显示当前星级，点开
-// 评分面板）+ “更多”菜单（下载、添加到歌单）。永远不换行。
 
 import 'dart:async';
 
@@ -54,6 +52,63 @@ enum _MoreAction {
   lyricsEarlier,
   lyricsLater,
   lyricsReset,
+}
+
+List<String> nowPlayingArtistNames(TrackDto track) => {
+  for (final artist in track.artists)
+    if (artist.trim().isNotEmpty) artist.trim(),
+}.toList();
+
+Future<void> openNowPlayingArtist(
+  BuildContext context,
+  WidgetRef ref,
+  List<String> names,
+) async {
+  if (names.isEmpty) return;
+  final name = names.length == 1
+      ? names.single
+      : await showDialog<String>(
+          context: context,
+          builder: (context) => SimpleDialog(
+            title: Text(context.l10n.pick('选择艺人', 'Choose an artist')),
+            children: [
+              for (final artist in names)
+                SimpleDialogOption(
+                  onPressed: () => Navigator.of(context).pop(artist),
+                  child: Text(artist),
+                ),
+            ],
+          ),
+        );
+  if (!context.mounted || name == null) return;
+  try {
+    final id = await ref.read(artistIdForNameProvider(name).future);
+    if (!context.mounted) return;
+    if (id != null) {
+      await Navigator.of(context).push(ArtistDetailPage.route(id));
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.pick('资料库里没有这位艺人', 'Artist not found in library'),
+          ),
+        ),
+      );
+  } catch (error) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.pick('打开艺人失败：$error', 'Failed to open artist: $error'),
+          ),
+        ),
+      );
+  }
 }
 
 class NowPlayingLibraryActions extends ConsumerWidget {
@@ -175,39 +230,6 @@ class _MoreButton extends ConsumerWidget {
     await Navigator.of(context).push(AlbumDetailPage.route(albumId.toInt()));
   }
 
-  Future<void> _openArtist(BuildContext context, WidgetRef ref) async {
-    final name = track.artists.isEmpty ? '' : track.artists.first.trim();
-    if (name.isEmpty) return;
-    try {
-      final id = await ref.read(artistIdForNameProvider(name).future);
-      if (!context.mounted) return;
-      if (id == null) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text(
-                context.l10n.pick('资料库里没有这位艺人', 'Artist not found in library'),
-              ),
-            ),
-          );
-        return;
-      }
-      await Navigator.of(context).push(ArtistDetailPage.route(id));
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              context.l10n.pick('打开艺人失败：$e', 'Failed to open artist: $e'),
-            ),
-          ),
-        );
-    }
-  }
-
   Future<void> _copyLyrics(BuildContext context) async {
     try {
       final dto = await core.lyrics(trackId: track.id);
@@ -302,6 +324,7 @@ class _MoreButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.lekisColors;
     final downloadState = ref.watch(downloadStateProvider(track.id));
+    final artists = nowPlayingArtistNames(track);
     final video = supportsBilibiliVideo
         ? BilibiliVideoRef.fromTrackUid(track.uid)
         : null;
@@ -344,7 +367,7 @@ class _MoreButton extends ConsumerWidget {
           case _MoreAction.viewAlbum:
             unawaited(_openAlbum(context));
           case _MoreAction.viewArtist:
-            unawaited(_openArtist(context, ref));
+            unawaited(openNowPlayingArtist(context, ref, artists));
           case _MoreAction.playOnDevice:
             showPlayOnDeviceSheet(context, ref);
           case _MoreAction.editLyrics:
@@ -417,7 +440,7 @@ class _MoreButton extends ConsumerWidget {
               context.l10n.pick('查看专辑', 'View Album'),
             ),
           ),
-        if (track.artists.isNotEmpty)
+        if (artists.isNotEmpty)
           PopupMenuItem(
             value: _MoreAction.viewArtist,
             child: item(

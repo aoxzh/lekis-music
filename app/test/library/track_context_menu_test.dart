@@ -16,6 +16,46 @@ class _IdlePlayback extends PlaybackController {
 }
 
 void main() {
+  testWidgets('track subtitles omit repeated titles and keep distinct albums', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          playbackProvider.overrideWith(_IdlePlayback.new),
+          downloadStateProvider.overrideWith((ref, id) => null),
+          downloadProgressProvider.overrideWith((ref, id) => null),
+        ],
+        child: MaterialApp(
+          theme: lekisDarkTheme(),
+          home: Scaffold(
+            body: Column(
+              children: [
+                for (final (id, album) in [(1, ' Song '), (2, 'Song (Live)')])
+                  TrackTile(
+                    track: TrackRowDto(
+                      id: id,
+                      title: 'Song',
+                      albumTitle: album,
+                      artistLine: 'Artist',
+                      durationMs: BigInt.zero,
+                      loved: false,
+                      isLocal: false,
+                    ),
+                    showArtwork: false,
+                    onlinePlugin: true,
+                    onTap: () {},
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Artist'), findsOneWidget);
+    expect(find.text('Artist · Song (Live)'), findsOneWidget);
+  });
+
   for (final local in [false, true]) {
     for (final online in [false, true]) {
       testWidgets('right-click menu local=$local plugin=$online', (

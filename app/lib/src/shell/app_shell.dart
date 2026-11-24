@@ -18,6 +18,7 @@ import 'package:lekis/src/features/desktop_lyrics/desktop_lyrics_controller.dart
 import 'package:lekis/src/features/player/mini_player.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/player_bar.dart';
+import 'package:lekis/src/features/sources/sources_page.dart';
 import 'package:lekis/src/layout/window_size.dart';
 import 'package:lekis/src/theme/tokens.dart';
 
@@ -61,6 +62,9 @@ class AppShell extends ConsumerStatefulWidget {
   static void select(BuildContext context, LekisDestination destination) =>
       context.findAncestorStateOfType<_AppShellState>()?._select(destination);
 
+  static void openAddSource(BuildContext context) =>
+      context.findAncestorStateOfType<_AppShellState>()?._openAddSource();
+
   @override
   ConsumerState<AppShell> createState() => _AppShellState();
 }
@@ -69,6 +73,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   static const _destinations = LekisDestination.values;
 
   final _tabsKey = GlobalKey(debugLabel: 'AppShell.tabs');
+  final _sourcesPageKey = GlobalKey<SourcesPageState>();
   final _navigatorKeys = [
     for (final d in _destinations)
       GlobalKey<NavigatorState>(debugLabel: 'tab:${d.name}'),
@@ -106,6 +111,14 @@ class _AppShellState extends ConsumerState<AppShell> {
     setState(() => _current = destination);
   }
 
+  void _openAddSource() {
+    _select(LekisDestination.sources);
+    _currentNavigator?.popUntil(
+      (route) => route.isFirst && !route.willHandlePopInternally,
+    );
+    _sourcesPageKey.currentState?.addSource();
+  }
+
   void _onSystemBack(bool didPop, Object? _) {
     if (didPop) return;
     final navigator = _currentNavigator;
@@ -138,7 +151,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             for (final d in _destinations)
               _TabNavigator(
                 key: ValueKey(d),
-                destination: d,
+                page: d.buildPage(sourcesPageKey: _sourcesPageKey),
                 active: d == _current,
                 navigatorKey: _navigatorKeys[d.index],
                 heroController: _heroControllers[d.index],
@@ -191,13 +204,13 @@ class _AppShellState extends ConsumerState<AppShell> {
 class _TabNavigator extends StatelessWidget {
   const _TabNavigator({
     super.key,
-    required this.destination,
+    required this.page,
     required this.active,
     required this.navigatorKey,
     required this.heroController,
   });
 
-  final LekisDestination destination;
+  final Widget page;
   final bool active;
   final GlobalKey<NavigatorState> navigatorKey;
   final HeroController heroController;
@@ -216,7 +229,7 @@ class _TabNavigator extends StatelessWidget {
               key: navigatorKey,
               onGenerateRoute: (settings) => MaterialPageRoute<void>(
                 settings: settings,
-                builder: (_) => destination.buildPage(),
+                builder: (_) => page,
               ),
             ),
           ),

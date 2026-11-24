@@ -331,6 +331,25 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             '换一个关键词，或检查一下拼写。',
             'Try another keyword or check spelling.',
           ),
+          actions: [
+            if (source == null)
+              for (final plugin in sources)
+                TextButton.icon(
+                  icon: const Icon(Icons.travel_explore_rounded, size: 18),
+                  label: Text(
+                    l10n.pick(
+                      '在 ${plugin.name} 搜索“${query.trim()}”',
+                      'Search ${plugin.name} for “${query.trim()}”',
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onPressed: () {
+                    ref.read(searchLimitProvider.notifier).reset();
+                    ref.read(searchSourceProvider.notifier).set(plugin.id);
+                  },
+                ),
+          ],
         );
       } else {
         body = _Results(
@@ -805,10 +824,16 @@ class _Results extends ConsumerWidget {
 }
 
 class _Hint extends StatelessWidget {
-  const _Hint({required this.icon, required this.text, required this.message});
+  const _Hint({
+    required this.icon,
+    required this.text,
+    required this.message,
+    this.actions = const [],
+  });
   final IconData icon;
   final String text;
   final String message;
+  final List<Widget> actions;
 
   @override
   Widget build(BuildContext context) {
@@ -852,6 +877,8 @@ class _Hint extends StatelessWidget {
                       color: context.lekisColors.onSurfaceVariant,
                     ),
                   ),
+                  if (actions.isNotEmpty)
+                    Wrap(spacing: LekisSpacing.sm, children: actions),
                 ],
               ),
             ),
