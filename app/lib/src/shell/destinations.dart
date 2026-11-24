@@ -46,12 +46,12 @@ enum LekisDestination {
   }
 
   /// Root page of this destination's tab.
-  Widget buildPage() => switch (this) {
+  Widget buildPage({Key? sourcesPageKey}) => switch (this) {
     home => const HomePage(),
     library => const LibraryPage(),
     search => const SearchPage(),
     podcasts => const PodcastsPage(),
-    sources => const SourcesPage(),
+    sources => SourcesPage(key: sourcesPageKey),
     settings => const SettingsPage(),
   };
 }
