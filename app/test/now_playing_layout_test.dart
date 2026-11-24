@@ -9,11 +9,15 @@
 // * an open lyrics pane without lyrics shows its centred empty state;
 // * covers without artwork tint the page from the placeholder colours.
 
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lekis/src/bridge/core_events.dart';
 import 'package:lekis/src/features/downloads/downloads_providers.dart';
+import 'package:lekis/src/features/library/artist_detail_page.dart';
+import 'package:lekis/src/features/library/library_providers.dart';
+import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/now_playing/now_playing_artwork.dart';
 import 'package:lekis/src/features/now_playing/now_playing_page.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
@@ -41,11 +45,15 @@ class _FakePosition extends PositionController {
   int build() => 0;
 }
 
-TrackDto _track(String uid) => TrackDto(
+TrackDto _track({
+  String uid = 'track-7',
+  String title = 'Lekis Stage Preview',
+  List<String> artists = const ['月兔'],
+}) => TrackDto(
   id: 7,
   uid: uid,
-  title: 'Lekis Stage Preview',
-  artists: const ['月兔'],
+  title: title,
+  artists: artists,
   albumId: 3,
   albumTitle: '夜航',
   durationMs: BigInt.from(60000),
@@ -58,14 +66,29 @@ TrackDto _track(String uid) => TrackDto(
 ProviderContainer _container({
   NowPlayingPane pane = NowPlayingPane.cover,
   LyricsDto? lyrics,
-  String uid = 'track-7',
+  TrackDto? track,
+  Map<String, int> artistIds = const {},
+  List<String>? lookups,
 }) {
   final container = ProviderContainer(
     overrides: [
       coreEventSourceProvider.overrideWithValue(const Stream.empty()),
       playbackProvider.overrideWith(_FakePlayback.new),
       positionProvider.overrideWith(_FakePosition.new),
-      currentTrackProvider.overrideWith((ref) async => _track(uid)),
+      currentTrackProvider.overrideWith((ref) async => track ?? _track()),
+      artistIdForNameProvider.overrideWith((ref, name) async {
+        lookups?.add(name);
+        return artistIds[name];
+      }),
+      artistProvider.overrideWith(
+        (ref, id) async => ArtistDto(
+          id: id,
+          name: artistIds.keys.firstWhere((name) => artistIds[name] == id),
+          aliases: const [],
+        ),
+      ),
+      artistAlbumsProvider.overrideWith((ref, id) async => []),
+      artistTracksProvider.overrideWith((ref, id) async => []),
       currentArtworkProvider.overrideWith((ref) async => null),
       downloadStateProvider.overrideWith((ref, id) => null),
       downloadProgressProvider.overrideWith((ref, id) => null),
@@ -78,8 +101,12 @@ ProviderContainer _container({
   return container;
 }
 
-Future<void> _pump(WidgetTester tester, ProviderContainer container) async {
-  tester.view.physicalSize = const Size(829, 690);
+Future<void> _pump(
+  WidgetTester tester,
+  ProviderContainer container, {
+  Size size = const Size(829, 690),
+}) async {
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
@@ -100,6 +127,91 @@ Future<void> _pump(WidgetTester tester, ProviderContainer container) async {
 }
 
 void main() {
+  testWidgets('compact title wraps across the full artist and actions row', (
+    tester,
+  ) async {
+    final track = _track(title: '月光落在海面上的时候' * 5);
+    final container = _container(track: track);
+    addTearDown(container.dispose);
+    await _pump(tester, container, size: const Size(320, 568));
+
+    final title = find.byKey(const ValueKey('now-playing.title'));
+    final paragraph = tester.renderObject<RenderParagraph>(title);
+    expect(paragraph.maxLines, 2);
+    final boxes = paragraph.getBoxesForSelection(
+      TextSelection(baseOffset: 0, extentOffset: track.title.length),
+    );
+    expect(boxes.map((box) => box.top).toSet(), hasLength(2));
+    final titleRect = tester.getRect(title);
+    final artist = tester.getRect(find.text('月兔'));
+    final more = tester.getRect(find.byKey(const ValueKey('now-playing.more')));
+    expect(titleRect.left, closeTo(artist.left, 1));
+    expect(titleRect.right, closeTo(more.right, 1));
+    expect(titleRect.bottom, lessThanOrEqualTo(more.top));
+    expect(artist.center.dy, closeTo(more.center.dy, 1));
+    expect(
+      artist.center.dy,
+      closeTo(tester.getCenter(find.byType(LovedButton)).dy, 1),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('one artist opens directly using the whole credited name', (
+    tester,
+  ) async {
+    const artist = '月兔 / 夜航';
+    final lookups = <String>[];
+    final container = _container(
+      track: _track(artists: ['', ' $artist ', artist]),
+      artistIds: {artist: 19},
+      lookups: lookups,
+    );
+    addTearDown(container.dispose);
+    await _pump(tester, container, size: const Size(375, 667));
+
+    await tester.tap(find.text(artist));
+    await tester.pumpAndSettle();
+    expect(lookups, [artist]);
+    expect(
+      tester.widget<ArtistDetailPage>(find.byType(ArtistDetailPage)).artistId,
+      19,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('artist credit and menu let the listener choose a collaborator', (
+    tester,
+  ) async {
+    final lookups = <String>[];
+    final container = _container(
+      track: _track(artists: const ['月兔', '星海']),
+      artistIds: {'月兔': 19, '星海': 23},
+      lookups: lookups,
+    );
+    addTearDown(container.dispose);
+    await _pump(tester, container, size: const Size(375, 667));
+
+    await tester.tap(find.text('月兔 / 星海'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(SimpleDialogOption, '月兔'), findsOneWidget);
+    expect(find.widgetWithText(SimpleDialogOption, '星海'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(lookups, isEmpty);
+    await tester.tap(find.byKey(const ValueKey('now-playing.more')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('查看艺人'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(SimpleDialogOption, '星海'));
+    await tester.pumpAndSettle();
+    expect(lookups, ['星海']);
+    expect(
+      tester.widget<ArtistDetailPage>(find.byType(ArtistDetailPage)).artistId,
+      23,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Bilibili track opens its official video from Now Playing', (
     tester,
   ) async {
@@ -117,7 +229,9 @@ void main() {
         null,
       ),
     );
-    final container = _container(uid: 'plugin:dev.mygo.bilibili:BV1GJ411x7h7');
+    final container = _container(
+      track: _track(uid: 'plugin:dev.mygo.bilibili:BV1GJ411x7h7'),
+    );
     addTearDown(container.dispose);
     await _pump(tester, container);
     await tester.tap(find.byKey(const ValueKey('now-playing.more')));
