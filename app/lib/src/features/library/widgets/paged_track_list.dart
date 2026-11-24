@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/tag_editor_dialog.dart';
@@ -26,6 +28,7 @@ class PagedTrackList extends ConsumerStatefulWidget {
     this.header,
     this.showHeaderWhenEmpty = false,
     this.indexOffsets,
+    this.playContext,
   });
 
   final PagedList<TrackRowDto> list;
@@ -39,6 +42,10 @@ class PagedTrackList extends ConsumerStatefulWidget {
 
   /// 首字母快速索引偏移（仅在按标题排序的长列表上传入，UIX-05）。
   final List<LetterOffsetDto>? indexOffsets;
+
+  /// 列表对应的核心播放上下文。传入后，点击任意一行会从该行在完整
+  /// 上下文中的位置开播，而不是只播放已加载的几页。
+  final PlayContextDto? playContext;
 
   @override
   ConsumerState<PagedTrackList> createState() => _PagedTrackListState();
@@ -99,9 +106,17 @@ class _PagedTrackListState extends ConsumerState<PagedTrackList> {
   }
 
   void _play(int index) {
-    // TODO(core): a "play this sorted library view from index N" call would
-    // let the queue span the whole library; until then we send the loaded
-    // window (up to ~3 pages) around the tapped row.
+    final context = widget.playContext;
+    if (context != null) {
+      // The core expands the whole context itself, so a 100k-row library
+      // does not need every id materialised in Dart.
+      unawaited(
+        ref.read(playerActionsProvider).playContext(context, startIndex: index),
+      );
+      return;
+    }
+    // Fallback for callers without a core context: play the loaded window
+    // (up to ~3 pages) around the tapped row.
     final (rows, start) = widget.list.loadedWindow(index);
     ref.read(playerActionsProvider).playRows(rows, start: start);
   }

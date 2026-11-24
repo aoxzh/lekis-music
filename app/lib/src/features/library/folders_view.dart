@@ -14,6 +14,7 @@ import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/layout/adaptive_two_pane.dart';
 import 'package:lekis/src/layout/fold.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
+import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -79,10 +80,7 @@ class FolderRootsList extends ConsumerWidget {
       data: (roots) {
         if (roots.isEmpty) {
           return LibraryEmptyState(
-            title: context.l10n.pick(
-              '还没有可浏览的文件夹',
-              'No Browsable Folders Yet',
-            ),
+            title: context.l10n.pick('还没有可浏览的文件夹', 'No Browsable Folders Yet'),
             message: context.l10n.pick(
               '添加并扫描一个音源后，这里会按文件夹显示音乐。',
               'Add and scan a music source to browse your music by folder.',
@@ -354,6 +352,10 @@ class _SingleFolderView extends ConsumerWidget {
     return PagedTrackList(
       list: list,
       showHeaderWhenEmpty: true,
+      playContext: PlayContextDto.folder(
+        sourceId: location.sourceId,
+        path: location.path,
+      ),
       header: _FolderHeader(
         location: location,
         showBreadcrumb: true,
@@ -376,6 +378,10 @@ class _FolderTracksView extends ConsumerWidget {
     return PagedTrackList(
       list: list,
       showHeaderWhenEmpty: true,
+      playContext: PlayContextDto.folder(
+        sourceId: location.sourceId,
+        path: location.path,
+      ),
       header: _FolderHeader(
         location: location,
         showBreadcrumb: false,
@@ -535,10 +541,7 @@ class _PlayFolderButton extends ConsumerWidget {
                 ScaffoldMessenger.maybeOf(context)?.showSnackBar(
                   SnackBar(
                     content: Text(
-                      context.l10n.pick(
-                        '无法播放这个文件夹',
-                        'Cannot play this folder',
-                      ),
+                      context.l10n.pick('无法播放这个文件夹', 'Cannot play this folder'),
                     ),
                   ),
                 );

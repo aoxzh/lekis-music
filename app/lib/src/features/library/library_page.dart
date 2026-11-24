@@ -588,6 +588,7 @@ class _SongsSegment extends ConsumerWidget {
       key: ValueKey(sort),
       list: ref.watch(songsListProvider(sort)),
       indexOffsets: indexOffsets,
+      playContext: contextFor,
       header: Padding(
         padding: EdgeInsets.fromLTRB(
           gutter,

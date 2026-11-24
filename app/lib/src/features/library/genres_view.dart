@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/library/album_detail_page.dart'
@@ -9,6 +11,7 @@ import 'package:lekis/src/features/library/widgets/paged_track_list.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
+import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/features/library/widgets/press_feedback.dart';
 import 'package:material_ui/material_ui.dart';
@@ -98,8 +101,12 @@ class GenreDetailPage extends ConsumerWidget {
     final list = ref.watch(genreTracksListProvider(genre));
     final actions = ref.read(playerActionsProvider);
     void playAll({bool shuffle = false}) {
-      final (rows, _) = list.loadedWindow(0);
-      actions.playRows(rows, shuffle: shuffle);
+      unawaited(
+        actions.playContext(
+          PlayContextDto.genre(name: genre),
+          shuffle: shuffle,
+        ),
+      );
     }
 
     Future<void> downloadAll() async {
@@ -140,6 +147,7 @@ class GenreDetailPage extends ConsumerWidget {
       appBar: AppBar(title: Text(genre)),
       body: PagedTrackList(
         list: list,
+        playContext: PlayContextDto.genre(name: genre),
         header: Padding(
           padding: const EdgeInsets.all(LekisSpacing.lg),
           child: Row(

@@ -298,6 +298,7 @@ class LikedSongsView extends ConsumerWidget {
       list: list,
       header: header,
       empty: const _EmptyLiked(),
+      playContext: const PlayContextDto.loved(),
     );
   }
 }
