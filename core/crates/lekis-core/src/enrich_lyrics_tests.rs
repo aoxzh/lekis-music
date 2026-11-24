@@ -317,5 +317,15 @@ async fn builtin_qq_reuses_the_selected_plugin_version_and_pending_review() {
     assert!(versions[0].is_active);
     assert_eq!(library.list_pending_candidates(10).await.unwrap().len(), 1);
     drop(library);
-    std::fs::remove_dir_all(root).unwrap();
+    let mut retries_left = 40;
+    loop {
+        match std::fs::remove_dir_all(&root) {
+            Ok(()) => break,
+            Err(error) if cfg!(windows) && error.raw_os_error() == Some(32) && retries_left > 0 => {
+                retries_left -= 1;
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+            Err(error) => panic!("failed to remove {}: {error}", root.display()),
+        }
+    }
 }
