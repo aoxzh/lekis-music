@@ -20,6 +20,7 @@ import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
+import 'package:lekis/src/l10n/duration_text.dart';
 import 'package:lekis/src/layout/window_size.dart';
 import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
@@ -27,6 +28,7 @@ import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/nav_icon.dart' show lekisReduceMotion;
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:lekis/src/widgets/list_motion.dart';
+import 'package:lekis/src/widgets/progress_dialog.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Paged queue list with current-item highlight and explicit row actions.
@@ -399,7 +401,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
       showDialog<void>(
         context: context,
         barrierDismissible: false,
-        builder: (_) => AlertDialog(
+        builder: (_) => nonDismissibleProgressDialog(
           title: Text(context.l10n.pick('正在检查队列', 'Checking Queue')),
           content: ValueListenableBuilder<int>(
             valueListenable: progress,
@@ -527,6 +529,19 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
           ),
         );
     }
+  }
+
+  Future<void> _showQueueInfo(BuildContext context) async {
+    final playback = ref.read(playbackProvider);
+    if (playback.queueLength == 0) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => _QueueInfoSheet(
+        length: playback.queueLength,
+        currentIndex: playback.queueIndex,
+      ),
+    );
   }
 
   Future<void> _showRowMenu(
@@ -843,7 +858,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
       showDialog<void>(
         context: context,
         barrierDismissible: false,
-        builder: (_) => AlertDialog(
+        builder: (_) => nonDismissibleProgressDialog(
           title: Text(l10n.pick('正在保存歌单', 'Saving Playlist')),
           content: ValueListenableBuilder<int>(
             valueListenable: progress,
@@ -889,8 +904,8 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
           // Best-effort cleanup; the error below is the useful one.
         }
       }
-      ref.invalidate(playlistsProvider);
       if (context.mounted) {
+        ref.invalidate(playlistsProvider);
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(
@@ -1062,6 +1077,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
                     ? null
                     : () => _clearUpcoming(context),
                 onDedupe: queueLength < 2 ? null : () => _dedupeQueue(context),
+                onInfo: queueLength == 0 ? null : () => _showQueueInfo(context),
                 onFind: queueLength == 0 ? null : () => _findInQueue(context),
                 onJumpToCurrent: currentIndex == null
                     ? null
@@ -1181,7 +1197,196 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
   }
 }
 
+class _QueueInfoSheet extends StatefulWidget {
+  const _QueueInfoSheet({required this.length, required this.currentIndex});
+
+  final int length;
+  final int? currentIndex;
+
+  @override
+  State<_QueueInfoSheet> createState() => _QueueInfoSheetState();
+}
+
+class _QueueInfo {
+  const _QueueInfo({
+    required this.total,
+    required this.totalMs,
+    required this.upcoming,
+    required this.upcomingMs,
+  });
+
+  final int total;
+  final int totalMs;
+  final int upcoming;
+  final int upcomingMs;
+}
+
+class _QueueInfoSheetState extends State<_QueueInfoSheet> {
+  late Future<_QueueInfo> _future = _load();
+
+  Future<_QueueInfo> _load() async {
+    var total = 0;
+    var totalMs = 0;
+    var upcoming = 0;
+    var upcomingMs = 0;
+    final current = widget.currentIndex;
+    var offset = 0;
+    while (offset < widget.length) {
+      final page = await core.queueItems(
+        offset: offset,
+        limit: math.min(500, widget.length - offset),
+      );
+      if (page.isEmpty) break;
+      for (var i = 0; i < page.length; i++) {
+        final index = offset + i;
+        final ms = page[i].durationMs.toInt();
+        total++;
+        totalMs += ms;
+        if (current != null && index > current) {
+          upcoming++;
+          upcomingMs += ms;
+        }
+      }
+      offset += page.length;
+      if (page.length < 500) break;
+    }
+    return _QueueInfo(
+      total: total,
+      totalMs: totalMs,
+      upcoming: upcoming,
+      upcomingMs: upcomingMs,
+    );
+  }
+
+  void _retry() {
+    setState(() => _future = _load());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.lekisColors;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          LekisSpacing.xl,
+          0,
+          LekisSpacing.xl,
+          LekisSpacing.xl,
+        ),
+        child: FutureBuilder<_QueueInfo>(
+          future: _future,
+          builder: (context, snapshot) {
+            final info = snapshot.data;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  context.l10n.pick('队列信息', 'Queue Info'),
+                  style: theme.textTheme.titleLarge,
+                ),
+                const SizedBox(height: LekisSpacing.md),
+                if (snapshot.connectionState == ConnectionState.waiting)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: LekisSpacing.xl),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (snapshot.hasError)
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        context.l10n.pick(
+                          '读取队列失败：${snapshot.error}',
+                          'Failed to read queue: ${snapshot.error}',
+                        ),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: LekisSpacing.sm),
+                      TextButton(
+                        onPressed: _retry,
+                        child: Text(context.l10n.pick('重试', 'Retry')),
+                      ),
+                    ],
+                  )
+                else if (info != null) ...[
+                  _QueueInfoRow(
+                    icon: Icons.queue_music_rounded,
+                    label: context.l10n.pick('总曲目', 'Total Tracks'),
+                    value: context.l10n.pick(
+                      '${info.total} 首',
+                      '${info.total} tracks',
+                    ),
+                  ),
+                  _QueueInfoRow(
+                    icon: Icons.timer_outlined,
+                    label: context.l10n.pick('总时长', 'Total Time'),
+                    value: formatTotalDuration(
+                      Duration(milliseconds: info.totalMs),
+                    ),
+                  ),
+                  if (widget.currentIndex != null) ...[
+                    const Divider(height: 1),
+                    _QueueInfoRow(
+                      icon: Icons.playlist_play_rounded,
+                      label: context.l10n.pick('当前之后', 'After Current'),
+                      value: context.l10n.pick(
+                        '${info.upcoming} 首 · '
+                            '${formatTotalDuration(Duration(milliseconds: info.upcomingMs))}',
+                        '${info.upcoming} tracks · '
+                            '${formatTotalDuration(Duration(milliseconds: info.upcomingMs))}',
+                      ),
+                    ),
+                  ],
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _QueueInfoRow extends StatelessWidget {
+  const _QueueInfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.lekisColors;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: LekisSpacing.sm),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: colors.onSurfaceVariant),
+          const SizedBox(width: LekisSpacing.md),
+          Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
+          Text(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 enum _QueueHeaderAction {
+  info,
   find,
   copy,
   saveAsPlaylist,
@@ -1200,6 +1405,7 @@ class _QueueHeader extends StatelessWidget {
     this.onClearUpcoming,
     this.onShuffleUpcoming,
     this.onDedupe,
+    this.onInfo,
     this.onFind,
     this.onJumpToCurrent,
     this.onClose,
@@ -1212,6 +1418,7 @@ class _QueueHeader extends StatelessWidget {
   final VoidCallback? onClearUpcoming;
   final VoidCallback? onShuffleUpcoming;
   final VoidCallback? onDedupe;
+  final VoidCallback? onInfo;
   final VoidCallback? onFind;
   final VoidCallback? onJumpToCurrent;
   final VoidCallback? onClose;
@@ -1241,7 +1448,8 @@ class _QueueHeader extends StatelessWidget {
             const SizedBox(width: LekisSpacing.sm),
             _CountBadge(count: length),
             const Spacer(),
-            if (onFind != null ||
+            if (onInfo != null ||
+                onFind != null ||
                 onCopy != null ||
                 onSaveAsPlaylist != null ||
                 onShuffleUpcoming != null ||
@@ -1254,6 +1462,8 @@ class _QueueHeader extends StatelessWidget {
                 icon: const Icon(Icons.more_horiz_rounded, size: 20),
                 onSelected: (action) {
                   switch (action) {
+                    case _QueueHeaderAction.info:
+                      onInfo?.call();
                     case _QueueHeaderAction.find:
                       onFind?.call();
                     case _QueueHeaderAction.copy:
@@ -1271,6 +1481,16 @@ class _QueueHeader extends StatelessWidget {
                   }
                 },
                 itemBuilder: (_) => [
+                  if (onInfo != null)
+                    PopupMenuItem(
+                      value: _QueueHeaderAction.info,
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.info_outline_rounded),
+                        title: Text(context.l10n.pick('队列信息', 'Queue Info')),
+                      ),
+                    ),
                   if (onFind != null)
                     PopupMenuItem(
                       value: _QueueHeaderAction.find,
