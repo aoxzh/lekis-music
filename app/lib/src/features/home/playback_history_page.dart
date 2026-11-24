@@ -1,10 +1,14 @@
 // Playback history: the most recent tracks, newest first.
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/library/library_providers.dart'
     show LekisRefX;
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/track_tile.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/features/playlists/playlist_actions.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
@@ -53,6 +57,29 @@ class _PlaybackHistoryPageState extends ConsumerState<PlaybackHistoryPage> {
         title: Text(l10n.pick('播放历史', 'Playback History')),
         actions: [
           IconButton(
+            tooltip: l10n.pick('加入歌单', 'Add to Playlist'),
+            onPressed: appBarTracks.isEmpty
+                ? null
+                : () => showAddTracksToPlaylistSheet(
+                    context,
+                    ref,
+                    trackIds: [for (final track in appBarTracks) track.id],
+                  ),
+            icon: const Icon(Icons.playlist_add_rounded),
+          ),
+          IconButton(
+            tooltip: l10n.pick('下载全部', 'Download All'),
+            onPressed: appBarTracks.any((track) => !track.isLocal)
+                ? () => unawaited(
+                    startDownloads(context, ref, [
+                      for (final track in appBarTracks)
+                        if (!track.isLocal) track.id,
+                    ]),
+                  )
+                : null,
+            icon: const Icon(Icons.download_for_offline_outlined),
+          ),
+          IconButton(
             tooltip: l10n.pick('保存为歌单', 'Save as Playlist'),
             onPressed: appBarTracks.isEmpty
                 ? null
@@ -64,7 +91,7 @@ class _PlaybackHistoryPageState extends ConsumerState<PlaybackHistoryPage> {
                         '${l10n.pick('播放历史', 'Playback History')} '
                         '${DateTime.now().toString().substring(0, 16).replaceAll('T', ' ')}',
                   ),
-            icon: const Icon(Icons.playlist_add_rounded),
+            icon: const Icon(Icons.playlist_add_check_rounded),
           ),
           IconButton(
             tooltip: l10n.pick('复制列表', 'Copy List'),
