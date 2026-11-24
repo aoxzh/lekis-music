@@ -15,6 +15,8 @@ use crate::Library;
 use lekis_types::{now_ms, ErrorCode, LekisError, Result, TrackId, TrackTagOverrides};
 use lofty::config::WriteOptions;
 use lofty::file::{FileType, TaggedFile, TaggedFileExt};
+use lofty::id3::v2::Id3v2Tag;
+use lofty::picture::{Picture, PictureType};
 use lofty::probe::Probe;
 use lofty::tag::{ItemKey, ItemValue, Tag, TagExt, TagItem, TagType};
 use rusqlite::{params, OptionalExtension};
@@ -904,11 +906,21 @@ fn apply_tags_to_path(path: &Path, values: &TrackTagOverrides, explicit_all: boo
             .unwrap_or_else(|| Tag::new(tag_type))
     };
 
+    write_fields(path, &mut tag, values, explicit_all)?;
+    save_tag(path, &tag)
+}
+
+fn write_fields(
+    path: &Path,
+    tag: &mut Tag,
+    values: &TrackTagOverrides,
+    explicit_all: bool,
+) -> Result<()> {
     for field in FIELDS {
         if !explicit_all && !field.is_set(values) {
             continue;
         }
-        if !field.write(&mut tag, values) {
+        if !field.write(tag, values) {
             return Err(LekisError::unsupported(format!(
                 "当前格式不支持写入字段 {}：{}",
                 field.key(),
@@ -917,6 +929,10 @@ fn apply_tags_to_path(path: &Path, values: &TrackTagOverrides, explicit_all: boo
         }
     }
 
+    Ok(())
+}
+
+fn save_tag(path: &Path, tag: &impl TagExt) -> Result<()> {
     tag.save_to_path(path, WriteOptions::default())
         .map_err(|e| {
             LekisError::new(
@@ -924,6 +940,71 @@ fn apply_tags_to_path(path: &Path, values: &TrackTagOverrides, explicit_all: boo
                 format!("写入标签失败（{}）：{e}", path.to_string_lossy()),
             )
         })
+}
+
+/// Apply library metadata to a private export copy. Missing optional assets
+/// retain embedded values when enabled; disabling them removes their tag items.
+pub fn write_export_tags(
+    path: &Path,
+    values: &TrackTagOverrides,
+    include_artwork: bool,
+    artwork: Option<&[u8]>,
+    include_lyrics: bool,
+    lyrics: Option<&str>,
+) -> Result<()> {
+    let mut file = probe_file(path)?;
+    let primary = primary_tag_type(file.file_type(), path)?;
+    if file.primary_tag().is_none() {
+        file.insert_tag(Tag::new(primary));
+    }
+    for original in file.tags() {
+        let mut tag = original.clone();
+        let main = tag.tag_type() == primary;
+        let mut changed = main;
+        if !include_artwork && !tag.pictures().is_empty() {
+            while !tag.pictures().is_empty() {
+                tag.remove_picture(tag.pictures().len() - 1);
+            }
+            changed = true;
+        }
+        let replace_lyrics = !include_lyrics || (main && lyrics.is_some());
+        if replace_lyrics {
+            for key in [ItemKey::Lyrics, ItemKey::UnsyncLyrics] {
+                if tag.get(key).is_some() {
+                    tag.remove_key(key);
+                    changed = true;
+                }
+            }
+        }
+        if main {
+            write_fields(path, &mut tag, values, false)?;
+            if let Some(bytes) = artwork.filter(|_| include_artwork) {
+                let mut picture = Picture::from_reader(&mut std::io::Cursor::new(bytes))
+                    .map_err(|error| LekisError::invalid(format!("无法嵌入封面：{error}")))?;
+                picture.set_pic_type(PictureType::CoverFront);
+                tag.remove_picture_type(PictureType::CoverFront);
+                tag.push_picture(picture);
+            }
+            if let Some(text) = lyrics.filter(|_| include_lyrics) {
+                let key = if primary == TagType::Id3v2 {
+                    ItemKey::UnsyncLyrics
+                } else {
+                    ItemKey::Lyrics
+                };
+                if !tag.insert_text(key, text.to_owned()) {
+                    return Err(LekisError::unsupported("该格式不能写入歌词标签"));
+                }
+            }
+        }
+        if tag.tag_type() == TagType::Id3v2 && replace_lyrics {
+            let mut id3 = Id3v2Tag::from(tag);
+            id3.retain(|frame| frame.id().as_str() != "SYLT");
+            save_tag(path, &id3)?;
+        } else if changed {
+            save_tag(path, &tag)?;
+        }
+    }
+    Ok(())
 }
 
 fn primary_tag_type(file_type: FileType, path: &Path) -> Result<TagType> {

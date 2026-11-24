@@ -25,13 +25,22 @@ use lekis_enrich::providers_extra::{
 };
 use lekis_enrich::{
     decide, ArtworkPayload, ArtworkProvider, Candidate, Decision, LyricsPayload, LyricsProvider,
-    TrackHint, AUTO_APPLY_THRESHOLD,
+    QqLyrics, TrackHint, AUTO_APPLY_THRESHOLD,
 };
 use lekis_library::{cache_relative_path, Library, NewEnrichCandidate};
 use lekis_types::*;
 
 /// 一次补全最多保留多少条候选。
 const MAX_PROVIDERS_PER_KIND: usize = 8;
+const QQ_EXAMPLE_ID: &str = "dev.lekis.example.qq-lyrics";
+
+fn lyrics_source_key(source: &str) -> &str {
+    if source.strip_prefix("plugin:") == Some(QQ_EXAMPLE_ID) {
+        QqLyrics::NAME
+    } else {
+        source
+    }
+}
 
 /// 补全范围设置键：`all`（默认）/ `artwork`（仅封面）/ `lyrics`（仅歌词）。
 const ENRICH_SCOPE_SETTING_KEY: &str = "enrich.scope";
@@ -77,6 +86,9 @@ impl EnrichPipeline {
             lyrics_providers.push(Box::new(p));
         }
         if let Ok(p) = NetEaseLyrics::new() {
+            lyrics_providers.push(Box::new(p));
+        }
+        if let Ok(p) = QqLyrics::new() {
             lyrics_providers.push(Box::new(p));
         }
         if let Ok(p) = KugouLyrics::new() {
@@ -160,6 +172,95 @@ impl EnrichPipeline {
         Ok(all)
     }
 
+    pub(crate) async fn manual_lyric_search(
+        &self,
+        library: &Library,
+        track_id: TrackId,
+        title: String,
+        artist: String,
+    ) -> Result<Vec<lekis_library::LyricSearchVersion>> {
+        use futures_util::{stream, StreamExt};
+        let title = title.trim();
+        let artist = artist.trim();
+        if title.is_empty() || title.chars().count() > 512 || artist.chars().count() > 512 {
+            return Err(LekisError::invalid("invalid lyric search title or artist"));
+        }
+        let track = library.get_track(track_id).await?;
+        let hint = TrackHint {
+            title: title.to_owned(),
+            artists: if artist.is_empty() {
+                vec![]
+            } else {
+                vec![artist.to_owned()]
+            },
+            duration_ms: track.duration_ms,
+            ..Default::default()
+        };
+        let hint = &hint;
+        let mut requests = Vec::new();
+        for (order, provider) in self.lyrics_providers.iter().enumerate() {
+            if provider.name() == "lyrics.ovh" {
+                continue;
+            }
+            requests.push(async move {
+                let result = tokio::time::timeout(
+                    std::time::Duration::from_secs(12),
+                    provider.search_lyrics(hint),
+                )
+                .await
+                .map_err(|_| LekisError::new(ErrorCode::Network, "lyric provider timeout"))
+                .and_then(|r| r);
+                (order, result)
+            });
+        }
+        let responses = stream::iter(requests)
+            .buffer_unordered(3)
+            .collect::<Vec<_>>()
+            .await;
+        let mut candidates = Vec::new();
+        let mut error = None;
+        for (order, result) in responses {
+            match result {
+                Ok(list) => candidates.extend(list.into_iter().map(|candidate| (order, candidate))),
+                Err(e) => {
+                    error.get_or_insert(e);
+                }
+            }
+        }
+        if candidates.is_empty() {
+            return error.map_or_else(|| Ok(Vec::new()), Err);
+        }
+        candidates.sort_by(|(order_a, a), (order_b, b)| {
+            b.provider_confidence
+                .total_cmp(&a.provider_confidence)
+                .then(order_a.cmp(order_b))
+        });
+        let versions = candidates
+            .into_iter()
+            .take(20)
+            .map(|(_, c)| lekis_library::LyricSearchVersion {
+                row: lekis_library::LyricsRow {
+                    id: 0,
+                    track_id,
+                    lyrics: Lyrics {
+                        source: c.source,
+                        format: c.payload.format,
+                        content: c.payload.content,
+                        offset_ms: 0,
+                        confidence: c.provider_confidence,
+                    },
+                    is_active: false,
+                    created_at: 0,
+                },
+                title: Some(c.matched.title).filter(|s| !s.trim().is_empty()),
+                artists: c.matched.artists,
+                album: c.matched.album,
+                duration_ms: i64::try_from(c.matched.duration_ms).ok().filter(|d| *d > 0),
+            })
+            .collect();
+        library.store_lyric_search(track_id, versions).await
+    }
+
     // Stop only after an image has actually downloaded and decoded. A matching
     // MusicBrainz release can have no CAA image; its guessed URL is not success.
     async fn fill_artwork(
@@ -193,7 +294,14 @@ impl EnrichPipeline {
         manager: &crate::plugins::PluginManager,
         track_id: TrackId,
     ) -> Result<()> {
-        let available = manager.list().await?;
+        let mut available = manager.list().await?;
+        if self
+            .lyrics_providers
+            .iter()
+            .any(|p| p.name() == QqLyrics::NAME)
+        {
+            available.retain(|plugin| plugin.id != QQ_EXAMPLE_ID);
+        }
         if !available
             .iter()
             .any(|p| p.enabled && p.kinds.iter().any(|k| k == "lyrics" || k == "source"))
@@ -289,7 +397,16 @@ impl EnrichPipeline {
         let mut queued: Vec<NewEnrichCandidate> = Vec::new();
         let existing = library.list_lyrics(track_id).await?;
         let mut selected = existing.iter().find(|row| row.is_active).map(|row| row.id);
-        for candidate in candidates.into_iter().take(MAX_PROVIDERS_PER_KIND) {
+        let mut seen = Vec::new();
+        for candidate in &candidates {
+            let identity = (lyrics_source_key(&candidate.source), &candidate.payload);
+            if seen.contains(&identity) {
+                continue;
+            }
+            if seen.len() == MAX_PROVIDERS_PER_KIND {
+                break;
+            }
+            seen.push(identity);
             // Providers already combine metadata identity and their own reliability.
             let score = candidate.provider_confidence;
             let decision = decide(score);
@@ -299,16 +416,17 @@ impl EnrichPipeline {
             }
             let lyrics = Lyrics {
                 format: candidate.payload.format,
-                content: candidate.payload.content,
+                content: candidate.payload.content.clone(),
                 source: candidate.source.clone(),
                 offset_ms: 0,
                 confidence: score,
             };
-            let id = if let Some(row) = existing.iter().find(|row| {
-                row.lyrics.source == lyrics.source
+            let existing_row = existing.iter().find(|row| {
+                lyrics_source_key(&row.lyrics.source) == lyrics_source_key(&lyrics.source)
                     && row.lyrics.format == lyrics.format
                     && row.lyrics.content == lyrics.content
-            }) {
+            });
+            let id = if let Some(row) = existing_row {
                 row.id
             } else {
                 library
@@ -322,13 +440,13 @@ impl EnrichPipeline {
                 Decision::Review => queued.push(NewEnrichCandidate {
                     track_id: Some(track_id), album_id: None, kind: "lyrics".into(),
                     payload_json: serde_json::json!({ "format": format_to_str(lyrics.format), "content": lyrics.content }).to_string(),
-                    source: candidate.source, score,
+                    source: existing_row.map(|row| &row.lyrics.source).unwrap_or(&candidate.source).clone(), score,
                 }),
                 Decision::Discard => {}
             }
         }
         if let Some(id) = selected {
-            library.activate_lyrics(track_id, id).await?;
+            library.activate_lyrics_if_empty(track_id, id).await?;
         }
         report.queued = library.insert_enrich_candidates(queued).await? as u32;
         Ok(report)
@@ -587,7 +705,7 @@ pub(crate) async fn apply_candidate(
                 return Err(LekisError::invalid("歌词候选缺少曲目"));
             };
             library
-                .save_lyrics(
+                .save_selected_lyrics(
                     track_id,
                     Lyrics {
                         format,

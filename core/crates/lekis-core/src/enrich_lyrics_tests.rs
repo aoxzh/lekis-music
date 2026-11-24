@@ -177,9 +177,82 @@ pub(super) async fn library_with_kind(
     (root, library, id)
 }
 #[tokio::test]
+async fn manual_search_keeps_metadata_and_binding_across_reopen() {
+    let (root, library, id) = library("manual-search").await;
+    let mut first = candidate(LyricsFormat::Lrc, 0.92);
+    first.matched.title = "舞台 (Live)".into();
+    first.matched.album = Some("Live at dawn".into());
+    let mut second = first.clone();
+    second.matched.title = "舞台 (Remix)".into();
+    second.matched.duration_ms = 199000;
+    let (pipeline, calls) = pipeline(vec![Ok(vec![first]), Ok(vec![second])]);
+    let previous = library
+        .save_lyrics(
+            id,
+            Lyrics {
+                source: "manual".into(),
+                content: "existing".into(),
+                format: LyricsFormat::Plain,
+                confidence: 1.0,
+                offset_ms: 350,
+            },
+        )
+        .await
+        .unwrap();
+    library.activate_lyrics(id, previous).await.unwrap();
+    let hits = pipeline
+        .manual_lyric_search(&library, id, "舞台".into(), "艺人".into())
+        .await
+        .unwrap();
+    assert_eq!(hits.len(), 2);
+    assert_ne!(hits[0].row.id, hits[1].row.id);
+    assert_eq!(hits[1].title.as_deref(), Some("舞台 (Remix)"));
+    assert_eq!(hits[1].artists, ["YOASOBI"]);
+    assert_eq!(hits[1].duration_ms, Some(199000));
+    assert_eq!(
+        library.active_lyrics(id).await.unwrap().unwrap().offset_ms,
+        350
+    );
+    assert!(calls
+        .iter()
+        .all(|counter| counter.load(Ordering::SeqCst) == 1));
+    library.activate_lyrics(id, hits[1].row.id).await.unwrap();
+    let repeated = pipeline
+        .manual_lyric_search(&library, id, "舞台".into(), "艺人".into())
+        .await
+        .unwrap();
+    assert_eq!(repeated[1].row.id, hits[1].row.id);
+    library
+        .activate_lyrics_if_empty(id, previous)
+        .await
+        .unwrap();
+    library
+        .save_lyrics(
+            id,
+            Lyrics {
+                source: "embedded".into(),
+                content: "late result".into(),
+                ..hits[0].row.lyrics.clone()
+            },
+        )
+        .await
+        .unwrap();
+    drop(library);
+    let reopened = Library::open(&root.join("library.sqlite")).unwrap();
+    let versions = reopened.stored_lyric_versions(id).await.unwrap();
+    assert_eq!(versions.len(), 4);
+    assert!(versions[0].row.is_active);
+    assert_eq!(versions[0].row.id, hits[1].row.id);
+    assert_eq!(versions[0].album.as_deref(), Some("Live at dawn"));
+    drop(reopened);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
 async fn lyrics_fetch_force_preserves_selection_and_candidates_are_selectable() {
     let (root, library, id) = library("force").await;
     let (pipeline, calls) = pipeline(vec![Ok(vec![
+        candidate(LyricsFormat::Lrc, 0.87),
         candidate(LyricsFormat::Lrc, 0.87),
         candidate(LyricsFormat::Plain, 0.65),
     ])]);
@@ -217,4 +290,42 @@ async fn lyrics_fetch_force_preserves_selection_and_candidates_are_selectable() 
     );
     drop(library);
     let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn builtin_qq_reuses_the_selected_plugin_version_and_pending_review() {
+    let (root, library, id) = library("qq-upgrade").await;
+    let mut qq = candidate(LyricsFormat::Lrc, 0.72);
+    qq.source = format!("plugin:{QQ_EXAMPLE_ID}");
+    let hint = qq.matched.clone();
+    let (pipeline, _) = pipeline(vec![]);
+    pipeline
+        .apply_lyrics(&library, id, &hint, vec![qq.clone()])
+        .await
+        .unwrap();
+    let selected = library.list_lyrics(id).await.unwrap()[0].id;
+    library.activate_lyrics(id, selected).await.unwrap();
+
+    qq.source = QqLyrics::NAME.into();
+    pipeline
+        .apply_lyrics(&library, id, &hint, vec![qq])
+        .await
+        .unwrap();
+    let versions = library.list_lyrics(id).await.unwrap();
+    assert_eq!(versions.len(), 1);
+    assert_eq!(versions[0].id, selected);
+    assert!(versions[0].is_active);
+    assert_eq!(library.list_pending_candidates(10).await.unwrap().len(), 1);
+    drop(library);
+    let mut retries_left = 40;
+    loop {
+        match std::fs::remove_dir_all(&root) {
+            Ok(()) => break,
+            Err(error) if cfg!(windows) && error.raw_os_error() == Some(32) && retries_left > 0 => {
+                retries_left -= 1;
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+            Err(error) => panic!("failed to remove {}: {error}", root.display()),
+        }
+    }
 }

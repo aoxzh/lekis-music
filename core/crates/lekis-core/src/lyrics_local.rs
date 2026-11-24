@@ -1,4 +1,4 @@
-//! 本地歌词（ENR-03 的本地部分）：同名 `.lrc` / `.txt` 侧车文件，再退回内嵌歌词标签。
+//! 本地歌词：同名逐字歌词、LRC、TTML、WebVTT 或 TXT 侧车，再退回内嵌歌词标签。
 //!
 //! 按需调用（打开"正在播放"时），找到就写进 `lyrics` 表，下次直接命中。
 
@@ -6,6 +6,14 @@ use crate::Services;
 use lekis_types::{Lyrics, LyricsFormat, Result, SourceId, TrackId};
 use lekis_vfs::{partial, EntryKind, Vfs, VfsPath};
 use std::sync::Arc;
+
+mod karaoke;
+mod webvtt;
+
+pub(super) const LYRICS_EXTS: &[&str] = &[
+    "elrc", "ELRC", "qrc", "QRC", "yrc", "YRC", "krc", "KRC", "lrc", "LRC", "ttml", "vtt", "VTT",
+    "txt",
+];
 
 /// 侧车歌词的大小上限（正常 LRC 只有几 KB）。
 const MAX_SIDECAR_BYTES: u64 = 1024 * 1024;
@@ -98,27 +106,40 @@ pub(crate) fn detect_format(content: &str) -> LyricsFormat {
     }
 }
 
-async fn read_sidecar(vfs: &dyn Vfs, audio: &VfsPath) -> Option<String> {
+pub(super) async fn read_sidecar(vfs: &dyn Vfs, audio: &VfsPath) -> Option<String> {
     let stem_path = audio.as_str().rsplit_once('.').map(|(s, _)| s)?;
-    for ext in ["elrc", "ELRC", "lrc", "LRC", "ttml", "txt"] {
+    for &ext in LYRICS_EXTS {
         let Some(path) = VfsPath::parse(&format!("{stem_path}.{ext}")) else {
             continue;
         };
-        let Ok(meta) = vfs.stat(&path).await else {
+        let Some(bytes) = sidecar_bytes(vfs, &path).await else {
             continue;
         };
-        if !matches!(meta.kind, EntryKind::File) || meta.size == 0 || meta.size > MAX_SIDECAR_BYTES
-        {
+        if let Some(format) = karaoke::Format::from_ext(ext) {
+            if let Some(ttml) = karaoke::read(format, &bytes, vfs, stem_path, ext).await {
+                return Some(ttml);
+            }
             continue;
         }
-        if let Ok(bytes) = vfs.read_range(&path, 0..meta.size).await {
-            let text = decode_text(&bytes);
-            if !text.trim().is_empty() {
-                return Some(text);
+        let text = decode_text(&bytes);
+        if ext.eq_ignore_ascii_case("vtt") {
+            if let Some(ttml) = webvtt::to_ttml(&text) {
+                return Some(ttml);
             }
+        } else if !text.trim().is_empty() {
+            return Some(text);
         }
     }
     None
+}
+
+async fn sidecar_bytes(vfs: &dyn Vfs, path: &VfsPath) -> Option<bytes::Bytes> {
+    let meta = vfs.stat(path).await.ok()?;
+    if meta.kind != EntryKind::File || !(1..=MAX_SIDECAR_BYTES).contains(&meta.size) {
+        return None;
+    }
+    let bytes = vfs.read_range(path, 0..meta.size).await.ok()?;
+    (bytes.len() as u64 == meta.size).then_some(bytes)
 }
 
 /// UTF-8（含 BOM）/ UTF-16 BOM；都不是时按有损 UTF-8 解。
@@ -206,6 +227,99 @@ mod tests {
         assert_eq!(lyrics.format, LyricsFormat::EnhancedLrc);
         assert_eq!(lyrics.source, "sidecar");
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn converts_webvtt_blocks_to_frontend_ttml() {
+        let input = "WEBVTT title\r\nKind: captions\r\n\r\n\
+            NOTE\tcomment\r\n00:00.000 --> 00:01.000\r\nignore\r\n \t\r\n\
+            STYLE\r\n::cue { color: lime }\r\n\r\n\
+            REGION\r\nid:main\r\n\r\n\
+            verse 1\r\n00:01.007 --> 00:04.120 align:start position:10%\r\n\
+            <v 声優><c.blue><b>春</b> &amp; <i>夏</i></c></v>\r\n\
+            <00:02.010><u>&lt;tag&gt;</u> [00:03.00]\r\n\r\n\
+            01:40:05.123 --> 01:40:06.456\r\n<lang en>last\u{0}</lang>";
+        let expected = "<tt xmlns=\"http://www.w3.org/ns/ttml\"><body><div>\
+            <p begin=\"1007ms\" end=\"4120ms\">春 &amp; 夏<br/>&lt;tag&gt; [00:03.00]</p>\
+            <p begin=\"6005123ms\" end=\"6006456ms\">last</p></div></body></tt>";
+        assert_eq!(webvtt::to_ttml(input).as_deref(), Some(expected));
+        assert_eq!(detect_format(expected), LyricsFormat::Ttml);
+    }
+
+    #[test]
+    fn skips_invalid_webvtt_cues_and_recovers_at_next_block() {
+        for timing in [
+            "00:61.123 --> 01:02.000",
+            "01:60:00.000 --> 02:00:00.000",
+            "00:00.00 --> 00:01.000",
+            "00:01.000 --> 00:01.000",
+            "00:02.000 --> 00:01.000",
+            "00:00.000 --> broken",
+            "9999999999999999999:00:00.000 --> 9999999999999999999:01:00.000",
+        ] {
+            let input = format!("WEBVTT\n\n{timing}\nbad");
+            assert!(webvtt::to_ttml(&input).is_none());
+            let recovered =
+                webvtt::to_ttml(&format!("{input}\n\n00:00.001 --> 00:02.000\nok")).unwrap();
+            assert!(recovered.contains(">ok</p>"));
+            assert!(!recovered.contains("bad"));
+        }
+        for input in [
+            "WEBVTTjunk\n\n00:00.000 --> 00:01.000\ntext",
+            "WEBVTT\n\n00:00.000 --> 00:01.000\n<i></i>&nbsp;",
+            "WEBVTT\n\nNOTE\n00:00.000 --> 00:01.000\nhidden",
+        ] {
+            assert!(webvtt::to_ttml(input).is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn loads_webvtt_in_sidecar_order_and_falls_back() {
+        let root = std::env::temp_dir().join(format!("lekis-vtt-read-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let vfs = lekis_vfs::local::LocalVfs::new(&root).unwrap();
+        let audio = VfsPath::parse("disc.one.flac").unwrap();
+        let vtt = root.join("disc.one.VTT");
+        std::fs::write(&vtt, "\u{feff}WEBVTT\r\r00:01.001 --> 00:02.002\rtext").unwrap();
+        let txt = root.join("disc.one.txt");
+        std::fs::write(&txt, "fallback").unwrap();
+        let lrc = root.join("disc.one.lrc");
+        std::fs::write(&lrc, "[00:01.00]preferred").unwrap();
+        assert_eq!(load(&vfs, &audio).await.unwrap().format, LyricsFormat::Lrc);
+        std::fs::remove_file(lrc).unwrap();
+        let lyrics = load(&vfs, &audio).await.unwrap();
+        assert_eq!(lyrics.source, "sidecar");
+        assert_eq!(lyrics.format, LyricsFormat::Ttml);
+        assert!(lyrics
+            .content
+            .contains("<p begin=\"1001ms\" end=\"2002ms\">text</p>"));
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&vtt)
+            .unwrap()
+            .set_len(MAX_SIDECAR_BYTES + 1)
+            .unwrap();
+        assert_eq!(load(&vfs, &audio).await.unwrap().content, "fallback");
+        std::fs::write(vtt, "WEBVTT\n\nNOTE ignore me").unwrap();
+        assert_eq!(load(&vfs, &audio).await.unwrap().content, "fallback");
+        std::fs::remove_file(txt).unwrap();
+        assert!(load(&vfs, &audio).await.is_none());
+        let mut flac = b"fLaC\x00\x00\x00\x22".to_vec();
+        let mut stream_info = [0u8; 34];
+        stream_info[..4].copy_from_slice(&[0x10, 0, 0x10, 0]);
+        stream_info[10..18].copy_from_slice(&[0x0a, 0xc4, 0x42, 0xf0, 0, 0, 0xac, 0x44]);
+        flac.extend_from_slice(&stream_info);
+        let comment = b"LYRICS=embedded line";
+        flac.extend_from_slice(&[0x84, 0, 0, (12 + comment.len()) as u8]);
+        flac.extend_from_slice(&0u32.to_le_bytes());
+        flac.extend_from_slice(&1u32.to_le_bytes());
+        flac.extend_from_slice(&(comment.len() as u32).to_le_bytes());
+        flac.extend_from_slice(comment);
+        std::fs::write(root.join(audio.as_str()), flac).unwrap();
+        let embedded = load(&vfs, &audio).await.unwrap();
+        assert_eq!(embedded.source, "embedded");
+        assert_eq!(embedded.content, "embedded line");
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

@@ -6,6 +6,9 @@ import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.ResultReceiver
 import android.provider.Settings
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -15,6 +18,9 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : AudioServiceActivity() {
     // Android 默认丢弃 Wi-Fi 组播包；mDNS / SSDP 扫描期间要短暂持有这把锁。
     private var multicastLock: WifiManager.MulticastLock? = null
+    private var videoChannel: MethodChannel? = null
+    private var pendingVideo: MethodChannel.Result? = null
+    private var exportChannel: MethodChannel? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Rust 核心的音频输出（cpal → AAudio）需要 JavaVM 和 Context，必须在 Dart 调用核心之前登记。
@@ -27,6 +33,54 @@ class MainActivity : AudioServiceActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        val messenger = flutterEngine.dartExecutor.binaryMessenger
+        exportChannel = MethodChannel(messenger, "dev.lekis/music_export",
+            io.flutter.plugin.common.StandardMethodCodec.INSTANCE, messenger.makeBackgroundTaskQueue()).apply {
+            setMethodCallHandler { call, result ->
+                if (call.method != "publish") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+                try {
+                    val tree = Uri.parse(requireNotNull(call.argument<String>("tree")))
+                    val file = requireNotNull(call.argument<String>("file"))
+                    result.success(MusicExportDocuments.publish(applicationContext, tree, file).toString())
+                } catch (error: Exception) {
+                    result.error("export_failed", error.localizedMessage, null)
+                }
+            }
+        }
+        videoChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "dev.lekis/bilibili_video").apply {
+            setMethodCallHandler { call, result ->
+                if (call.method != "open") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+                val video = BilibiliVideo.fromArguments(call.arguments)
+                if (video == null) {
+                    result.error("invalid_args", "Expected bvid and positive page", null)
+                    return@setMethodCallHandler
+                }
+                pendingVideo?.error("replaced", "Player replaced", null)
+                pendingVideo = result
+                val reply = object : ResultReceiver(Handler(Looper.getMainLooper())) {
+                    override fun onReceiveResult(resultCode: Int, data: Bundle?) {
+                        if (pendingVideo !== result) return
+                        pendingVideo = null
+                        if (resultCode == RESULT_OK) result.success(null)
+                        else result.error(data?.getString("code") ?: "closed", "Player unavailable", null)
+                    }
+                }
+                try {
+                    startActivity(Intent(this@MainActivity, BilibiliVideoActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        .putExtra("bvid", video.bvid).putExtra("page", video.page).putExtra("reply", reply))
+                } catch (error: RuntimeException) {
+                    pendingVideo = null
+                    result.error("open_failed", error.localizedMessage, null)
+                }
+            }
+        }
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             DISCOVERY_CHANNEL,
@@ -45,6 +99,16 @@ class MainActivity : AudioServiceActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        exportChannel?.setMethodCallHandler(null)
+        exportChannel = null
+        pendingVideo?.error("closed", "Player host closed", null)
+        pendingVideo = null
+        videoChannel?.setMethodCallHandler(null)
+        videoChannel = null
+        super.cleanUpFlutterEngine(flutterEngine)
     }
 
     // 用户在系统设置里起的名字（"Fold5"）；拿不到就用厂商 + 型号。

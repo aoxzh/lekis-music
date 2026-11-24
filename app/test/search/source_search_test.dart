@@ -91,7 +91,12 @@ void main() {
     final fontPath = Platform.environment['LEKIS_UI_FONT'];
     if (fontPath != null) {
       final bytes = ByteData.sublistView(await File(fontPath).readAsBytes());
-      for (final family in ['Roboto', '.AppleSystemUIFont', 'Ahem']) {
+      for (final family in [
+        'Roboto',
+        '.AppleSystemUIFont',
+        'PingFang SC',
+        'Ahem',
+      ]) {
         await (FontLoader(family)..addFont(Future.value(bytes))).load();
       }
     }
@@ -103,6 +108,10 @@ void main() {
     String? selected,
     List<PluginInfoDto>? plugins,
     bool dark = false,
+    bool active = true,
+    String initialQuery = 'evening',
+    String? fixedSource,
+    Locale locale = const Locale('en'),
     Future<SearchResultsDto?> Function(Ref ref)? loadResults,
   }) async {
     final container = ProviderContainer.test(
@@ -111,7 +120,12 @@ void main() {
         trackArtworkProvider.overrideWith((ref, id) async => null),
         pluginListProvider.overrideWith(() => Sources(plugins ?? [source()])),
         searchSourceProvider.overrideWith(() => SimpleValue<String?>(selected)),
-        searchQueryProvider.overrideWith(() => SimpleValue<String>('evening')),
+        searchQueryProvider.overrideWith(
+          () => SimpleValue<String>(initialQuery),
+        ),
+        librarySourceSearchProvider.overrideWith(
+          (ref, request) async => results,
+        ),
         searchResultsProvider.overrideWith(
           loadResults ?? (ref) async => results,
         ),
@@ -132,16 +146,250 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: LekisLocale(
-          locale: const Locale('en'),
+          locale: locale,
           child: MaterialApp(
             theme: theme,
-            home: RepaintBoundary(key: boundaryKey, child: const SearchPage()),
+            home: RepaintBoundary(
+              key: boundaryKey,
+              child: TickerMode(
+                enabled: active,
+                child: SearchPage(pluginId: fixedSource),
+              ),
+            ),
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
     return container;
+  }
+
+  Future<void> capture(WidgetTester tester, String? output, String name) async {
+    if (output == null) return;
+    await tester.runAsync(() async {
+      final boundary =
+          boundaryKey.currentContext!.findRenderObject()!
+              as RenderRepaintBoundary;
+      final image = await boundary.toImage();
+      try {
+        final bytes = (await image.toByteData(format: ui.ImageByteFormat.png))!;
+        await Directory(output).create(recursive: true);
+        await File('$output/$name.png').writeAsBytes(
+          bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
+        );
+      } finally {
+        image.dispose();
+      }
+    });
+  }
+
+  for (final (name, size, chinese) in [
+    ('narrow', const Size(320, 640), true),
+    ('wide', const Size(1000, 620), false),
+  ]) {
+    testWidgets('search tools, empty state and history at $name width', (
+      tester,
+    ) async {
+      UiProfile.debugOverride = chinese ? UiProfile.mobile : UiProfile.desktop;
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = size;
+      addTearDown(tester.view.reset);
+      final container = await mount(
+        tester,
+        initialQuery: '',
+        locale: Locale(chinese ? 'zh' : 'en'),
+        dark: chinese,
+      );
+      final catalogue = find.byKey(const ValueKey('spotify-catalog-entry'));
+      final scope = find.text(chinese ? '搜索范围' : 'Search in');
+      final field = find.byType(SearchBar);
+      final picker = tester.getRect(sourcePicker());
+      final link = tester.getRect(catalogue);
+      expect(tester.getRect(scope).center.dy, closeTo(picker.center.dy, 1));
+      if (chinese) {
+        expect(link.top, greaterThanOrEqualTo(picker.bottom));
+      } else {
+        expect(link.center.dy, closeTo(picker.center.dy, 1));
+      }
+      expect(tester.getSize(field).height, lessThanOrEqualTo(50));
+      final empty = chinese ? '搜索你的资料库' : 'Search Your Library';
+      expect(find.text(empty), findsOneWidget);
+      final output = Platform.environment['LEKIS_SEARCH_REFRESH_CAPTURE_DIR'];
+      await capture(tester, output, '$name-empty');
+      final queries = chinese
+          ? ['落日飞车', '椎名林檎', '夜航星']
+          : ['In Rainbows', 'Little Simz', 'Blue Train'];
+      for (final query in queries) {
+        await tester.enterText(field, query);
+        await tester.testTextInput.receiveAction(TextInputAction.search);
+        await tester.pumpAndSettle();
+      }
+      await tester.tap(find.byTooltip(chinese ? '清除' : 'Clear'));
+      await tester.pumpAndSettle();
+      expect(find.text(empty), findsNothing);
+      final recent = find.byType(ListTile);
+      expect(
+        tester
+            .widgetList<ListTile>(recent)
+            .map((row) => (row.title! as Text).data),
+        queries.reversed,
+      );
+      await capture(tester, output, '$name-history');
+      if (!chinese) {
+        final lastRow = find.byKey(ValueKey(queries.last));
+        for (var press = 0; press < 12; press++) {
+          if (Focus.of(
+            tester.element(
+              find.descendant(of: lastRow, matching: find.text(queries.last)),
+            ),
+          ).hasPrimaryFocus) {
+            break;
+          }
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pump();
+        }
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      } else {
+        await tester.tap(find.text(queries.last));
+      }
+      await tester.pumpAndSettle();
+      expect(container.read(searchQueryProvider), queries.last);
+      await tester.tap(field);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(container.read(searchQueryProvider), isEmpty);
+      await tester.tap(
+        find.byTooltip(
+          chinese ? '移除“${queries.last}”' : 'Remove "${queries.last}"',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(queries.last), findsNothing);
+      await tester.tap(find.text(chinese ? '清空' : 'Clear all'));
+      await tester.pumpAndSettle();
+      expect(find.text(empty), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets(
+    'fixed plugin reuses the search field and keeps scope and query independent',
+    (tester) async {
+      UiProfile.debugOverride = UiProfile.desktop;
+      final container = await mount(tester, fixedSource: source().id);
+      expect(find.text('Demo source'), findsOneWidget);
+      expect(find.text('Browse source'), findsOneWidget);
+      expect(find.byKey(const ValueKey('spotify-catalog-entry')), findsNothing);
+      expect(find.byType(SettingsComboBox<String>), findsNothing);
+      await tester.enterText(find.byType(SearchBar), 'river');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      expect(container.read(searchSourceProvider), isNull);
+      expect(container.read(searchQueryProvider), 'evening');
+      expect(find.text('Evening light'), findsOneWidget);
+    },
+  );
+
+  Future<void> pressFind(
+    WidgetTester tester,
+    LogicalKeyboardKey modifier,
+  ) async {
+    await tester.sendKeyDownEvent(modifier);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.sendKeyUpEvent(modifier);
+    await tester.pump();
+  }
+
+  testWidgets(
+    'fixed missing source cannot be mistaken for another installed plugin',
+    (tester) async {
+      await mount(tester, fixedSource: 'missing.plugin');
+      expect(find.text('Source unavailable'), findsOneWidget);
+      expect(find.text('Demo source'), findsNothing);
+      expect(find.text('Browse source'), findsNothing);
+    },
+  );
+
+  testWidgets('Escape leaves an active IME composition intact', (tester) async {
+    UiProfile.debugOverride = UiProfile.desktop;
+    final container = await mount(tester);
+    await tester.tap(find.byType(SearchBar));
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'lin',
+        selection: TextSelection.collapsed(offset: 3),
+        composing: TextRange(start: 0, end: 3),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(container.read(searchQueryProvider), 'lin');
+  });
+
+  for (final modifier in [
+    LogicalKeyboardKey.controlLeft,
+    LogicalKeyboardKey.metaLeft,
+  ]) {
+    testWidgets('${modifier.keyLabel}+F refocuses and selects the query', (
+      tester,
+    ) async {
+      UiProfile.debugOverride = UiProfile.desktop;
+      final container = await mount(tester);
+      final field = tester.widget<EditableText>(find.byType(EditableText));
+      field.focusNode.unfocus();
+      await tester.pump();
+      expect(field.focusNode.hasFocus, isFalse);
+
+      await pressFind(tester, modifier);
+      expect(field.focusNode.hasFocus, isTrue);
+      expect(
+        field.controller.selection.textInside(field.controller.text),
+        'evening',
+      );
+      expect(container.read(searchQueryProvider), 'evening');
+      tester.testTextInput.updateEditingValue(
+        field.controller.value.replaced(field.controller.selection, 'night'),
+      );
+      await tester.pump();
+      expect(container.read(searchQueryProvider), 'night');
+    });
+  }
+
+  testWidgets('search shortcut leaves an open dialog in focus', (tester) async {
+    UiProfile.debugOverride = UiProfile.desktop;
+    await mount(tester);
+    final field = tester.widget<EditableText>(find.byType(EditableText));
+    unawaited(
+      showDialog<void>(
+        context: tester.element(find.byType(SearchPage)),
+        builder: (_) => const AlertDialog(content: TextField(autofocus: true)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final dialogField = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(EditableText),
+      ),
+    );
+    await pressFind(tester, LogicalKeyboardKey.controlLeft);
+    expect(dialogField.focusNode.hasFocus, isTrue);
+    expect(field.focusNode.hasFocus, isFalse);
+  });
+
+  for (final desktop in [false, true]) {
+    testWidgets('find ignores ${desktop ? 'inactive tab' : 'mobile search'}', (
+      tester,
+    ) async {
+      UiProfile.debugOverride = desktop ? UiProfile.desktop : UiProfile.mobile;
+      await mount(tester, active: !desktop);
+      final field = tester.widget<EditableText>(find.byType(EditableText));
+      field.focusNode.unfocus();
+      await tester.pump();
+      await pressFind(tester, LogicalKeyboardKey.controlLeft);
+      expect(field.focusNode.hasFocus, isFalse);
+    });
   }
 
   testWidgets('source picker switches between installed source and library', (
@@ -299,21 +547,7 @@ void main() {
         expect(find.text('Evening light'), findsOneWidget);
         expect(tester.takeException(), isNull);
         final output = Platform.environment['LEKIS_UI_CAPTURE_DIR'];
-        if (output != null) {
-          await tester.runAsync(() async {
-            final boundary =
-                boundaryKey.currentContext!.findRenderObject()!
-                    as RenderRepaintBoundary;
-            final image = await boundary.toImage();
-            final bytes = await image.toByteData(
-              format: ui.ImageByteFormat.png,
-            );
-            await Directory(output).create(recursive: true);
-            await File('$output/$name.png')
-                .writeAsBytes(bytes!.buffer.asUint8List());
-            image.dispose();
-          });
-        }
+        await capture(tester, output, name);
       });
     }
   }

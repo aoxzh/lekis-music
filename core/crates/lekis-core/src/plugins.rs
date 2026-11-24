@@ -453,6 +453,19 @@ impl PluginManager {
             return Err(LekisError::unsupported("插件不是音源"));
         }
         let limit = limit.min(100);
+        let items = self.search_items(plugin_id, query, limit).await?;
+        Ok(lekis_types::SearchResults {
+            tracks: self.import_tracks(plugin_id, manifest.name, items).await?,
+            ..Default::default()
+        })
+    }
+
+    async fn search_items(
+        &self,
+        plugin_id: &str,
+        query: &str,
+        limit: u32,
+    ) -> Result<Vec<SourceTrack>> {
         let result = self
             .call(
                 plugin_id,
@@ -462,16 +475,39 @@ impl PluginManager {
             .await?;
         let page: TrackPage = serde_json::from_value(result)
             .map_err(|e| LekisError::invalid(format!("插件搜索结果无效：{e}")))?;
-        Ok(lekis_types::SearchResults {
-            tracks: self
-                .import_tracks(
-                    plugin_id,
-                    manifest.name,
-                    page.items.into_iter().take(limit as usize).collect(),
-                )
-                .await?,
-            ..Default::default()
-        })
+        Ok(page.items.into_iter().take(limit as usize).collect())
+    }
+
+    pub(crate) async fn alternate_candidates(
+        &self,
+        plugin_id: &str,
+        query: &str,
+        original_ids: &[String],
+    ) -> Result<Vec<crate::alternate_source::AlternateSource>> {
+        let mut results = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        for track in self.search_items(plugin_id, query, 6).await? {
+            if track.id.trim().is_empty()
+                || track.title.trim().is_empty()
+                || original_ids.contains(&track.id)
+                || !seen.insert(track.id.clone())
+            {
+                continue;
+            }
+            if self.stream(plugin_id, &track.id).await.is_ok() {
+                results.push(crate::alternate_source::AlternateSource {
+                    plugin_id: plugin_id.to_owned(),
+                    external_id: track.id,
+                    title: track.title,
+                    artist: track.artists.join(", "),
+                    duration_ms: track.duration_ms,
+                });
+            }
+            if results.len() == 3 {
+                break;
+            }
+        }
+        Ok(results)
     }
 
     async fn import_tracks(
@@ -593,7 +629,7 @@ impl PluginManager {
                     }
                 }
                 tracks.push(track);
-            } else if matches!(kind, "folder" | "album" | "playlist" | "artist") {
+            } else if matches!(kind, "folder" | "album" | "playlist" | "artist" | "chart") {
                 let id = entry
                     .get("id")
                     .and_then(Value::as_str)
@@ -1467,6 +1503,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn builtin_qq_skips_only_its_legacy_example() -> Result<()> {
+        let root = test_root("builtin-qq");
+        let (library, manager) = open_manager(&root);
+        let source = write_source_plugin(
+            &root,
+            "export function search() { return {items:[{id:'1',title:'Song'}]}; }",
+        );
+        manager.install(&source).await?;
+        let track = manager
+            .search("dev.lekis.test.source", "Song", 1)
+            .await?
+            .tracks
+            .remove(0);
+        for id in ["dev.lekis.example.qq-lyrics", "dev.lekis.test.other-lyrics"] {
+            let directory = root.join(id);
+            write_plugin(&directory, id);
+            fs::write(
+                directory.join("index.js"),
+                "export function lyrics() { return {format:'lrc',content:'[00:01]sample'}; }",
+            )?;
+            manager.install(&directory).await?;
+        }
+        let pipeline = crate::enrich::EnrichPipeline::new(&crate::CoreConfig::for_tests(&root));
+        pipeline
+            .fetch_plugin_lyrics(&library, &manager, track.id)
+            .await?;
+        let versions = library.list_lyrics(track.id).await?;
+        assert_eq!(versions.len(), 1);
+        assert_eq!(
+            versions[0].lyrics.source,
+            "plugin:dev.lekis.test.other-lyrics"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn source_search_keeps_queue_references_and_resolves_fresh_streams() -> Result<()> {
         let root = test_root("source-flow");
         let source = write_source_plugin(
@@ -1530,6 +1602,141 @@ mod tests {
             ErrorCode::Unsupported
         );
         let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn alternate_source_filters_and_resolves_after_restart() -> Result<()> {
+        const ROOT_ENV: &str = "LEKIS_TEST_ALTERNATE_SOURCE_RESTART_DIR";
+        let Some(root) = std::env::var_os(ROOT_ENV) else {
+            let root = test_root("alternate-source");
+            for phase in ["seed", "reopen"] {
+                let output = std::process::Command::new(std::env::current_exe()?)
+                    .args([
+                        "--exact",
+                        "plugins::tests::alternate_source_filters_and_resolves_after_restart",
+                    ])
+                    .env(ROOT_ENV, &root)
+                    .output()?;
+                assert!(
+                    output.status.success(),
+                    "{phase}: {}\n{}",
+                    String::from_utf8_lossy(&output.stdout),
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                assert_eq!(root.join("expected.json").exists(), phase == "seed");
+            }
+            fs::remove_dir_all(root)?;
+            return Ok(());
+        };
+        let root = PathBuf::from(root);
+        let expected = root.join("expected.json");
+        let plugin = "dev.lekis.test.source";
+        let core = crate::LekisCore::with_runtime(
+            crate::CoreConfig::for_tests(&root),
+            crate::PlatformServices::in_memory(),
+            tokio::runtime::Handle::current(),
+        )?;
+        if !expected.exists() {
+            let source = write_source_plugin(
+                &root,
+                r#"
+            export function search(p) {
+                const ids = p.query === 'original' ? ['original'] :
+                    ['original','expired','forbidden','alternative','alternative','second'];
+                return {items: ids.map(id => ({id,title:id,artists:['Artist'],durationMs:8000}))};
+            }
+            export function stream(p) {
+                if (p.id === 'expired') return {url:'https://media.example.com/old',expiresAt:1};
+                if (p.id === 'forbidden') return {url:'https://other.example.com/track'};
+                const revision = host.setting('prefix');
+                if (revision === 'offline' && p.id === 'alternative') throw new Error('unavailable');
+                return {url:'https://media.example.com/'+p.id+'?rev='+revision,headers:{'User-Agent':'Lekis'}};
+            }
+        "#,
+            );
+            core.install_plugin_from_path(source.to_string_lossy().into_owned())
+                .await?;
+            let original = core
+                .search_plugin(plugin.into(), "original".into(), 10)
+                .await?
+                .tracks
+                .remove(0);
+            let matches = core
+                .search_alternate_sources(original.id, plugin.into(), "Artist".into())
+                .await?;
+            assert_eq!(
+                matches
+                    .iter()
+                    .map(|row| row.external_id.as_str())
+                    .collect::<Vec<_>>(),
+                ["alternative", "second"]
+            );
+            let source = core
+                .services
+                .library
+                .track_files(original.id)
+                .await?
+                .remove(0)
+                .source_id;
+            assert_eq!(
+                core.services
+                    .library
+                    .find_track_by_external(source, "original")
+                    .await?,
+                Some(original.id)
+            );
+            for candidate in &matches {
+                assert_eq!(
+                    core.services
+                        .library
+                        .find_track_by_external(source, &candidate.external_id)
+                        .await?,
+                    None
+                );
+            }
+            assert_eq!(core.get_alternate_source(original.id).await?, None);
+            let uid = core.get_track(original.id).await?.uid;
+            crate::alternate_source::save_binding(&core.services.library, &uid.0, &matches[0])
+                .await?;
+            fs::write(
+                &expected,
+                serde_json::to_vec(&(original.id, &matches[0])).map_err(std::io::Error::other)?,
+            )?;
+            return Ok(());
+        }
+        let (track, candidate) =
+            serde_json::from_slice(&fs::read(&expected)?).map_err(std::io::Error::other)?;
+        assert_eq!(core.get_alternate_source(track).await?, Some(candidate));
+        for (revision, expected) in [("fresh", "alternative"), ("offline", "original")] {
+            core.services
+                .plugins
+                .set_setting(plugin, "prefix", revision)
+                .await?;
+            let media = core.services.resolver.resolve(track).await?;
+            assert_eq!(media.track_id, track);
+            let lekis_playback::MediaLocation::Url { url, headers } = media.location else {
+                panic!("expected stream")
+            };
+            assert_eq!(
+                url,
+                format!("https://media.example.com/{expected}?rev={revision}")
+            );
+            assert_eq!(headers, vec![("User-Agent".into(), "Lekis".into())]);
+        }
+        core.reset_alternate_source(track).await?;
+        assert_eq!(core.get_alternate_source(track).await?, None);
+        core.services
+            .plugins
+            .set_setting(plugin, "prefix", "restored")
+            .await?;
+        let lekis_playback::MediaLocation::Url { url, .. } =
+            core.services.resolver.resolve(track).await?.location
+        else {
+            panic!("expected stream")
+        };
+        assert_eq!(url, "https://media.example.com/original?rev=restored");
+        fs::remove_file(expected)?;
         Ok(())
     }
 
@@ -1639,7 +1846,7 @@ mod tests {
             &root,
             r#"
             export function browse(p) {
-                if (!p.path) return {items:[{kind:'folder',id:'page:mix',title:'Mix'}]};
+                if (!p.path) return {items:[{kind:'folder',id:'page:mix',title:'Mix'},{kind:'chart',id:'r:42',title:'Weekly'}]};
                 return {items:[{kind:'track',id:'same',title:p.cursor ? 'Enriched' : 'Song',
                     artists:['Artist'],durationMs:p.cursor ? 1000 : 0}],next:p.cursor ? null : 'next'};
             }
@@ -1649,6 +1856,7 @@ mod tests {
         manager.install(&source).await?;
         let home = manager.browse("dev.lekis.test.source", "", None).await?;
         assert_eq!(home.folders[0].id, "page:mix");
+        assert_eq!(home.folders[1].id, "r:42");
         let first = manager
             .browse("dev.lekis.test.source", &home.folders[0].id, None)
             .await?;

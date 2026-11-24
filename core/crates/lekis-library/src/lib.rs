@@ -50,7 +50,7 @@ pub use library_health::{
 pub use listening::{
     AlbumListening, ArtistListening, ListeningBucket, ListeningSummary, TrackListening,
 };
-pub use lyrics::LyricsRow;
+pub use lyrics::{LyricSearchVersion, LyricsRow};
 pub use offline::{OfflineDownload, OfflineStats};
 pub use playback_state::PlaybackStateRow;
 pub use playlist_io::{parse_m3u, M3uEntry, PlaylistImportReport};
@@ -62,8 +62,8 @@ pub use smart::{AllowedColumns, Rule, RuleField, RuleGroup, RuleOp, RuleValue, S
 pub use sources::SourceInfo;
 pub use sync::OutboxEntry;
 pub use tag_edit::{
-    backup_path_for, BatchTagWriteItem, TagBackup, TagWriteResult, TAG_BACKUP_SUFFIX,
-    TAG_BACKUP_VERSION,
+    backup_path_for, write_export_tags, BatchTagWriteItem, TagBackup, TagWriteResult,
+    TAG_BACKUP_SUFFIX, TAG_BACKUP_VERSION,
 };
 pub use tracks::{TrackContext, TrackFile, TrackUserState};
 pub use unified::TrackSourceEntry;

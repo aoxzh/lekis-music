@@ -148,6 +148,11 @@ class L10n {
   String get mute => pick('静音', 'Mute');
   String get unmute => pick('取消静音', 'Unmute');
   String get noLyrics => pick('暂无歌词', 'No Lyrics');
+  String lyricsSourceName(String source) => switch (source) {
+    'qqmusic' || 'plugin:dev.lekis.example.qq-lyrics' =>
+      pick('QQ 音乐', 'QQ Music'),
+    _ => source,
+  };
   String get notPlaying => pick('未在播放', 'Not Playing');
   String volumeTooltip(int pct) => pick('音量 $pct%', 'Volume $pct%');
 

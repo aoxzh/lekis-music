@@ -11,7 +11,7 @@
 
 use crate::cache::{cache_key, TtlCache};
 use crate::http;
-use crate::providers::clean_acg_query;
+use crate::providers::{clean_acg_query, lyrics_matching};
 use crate::scoring::score_match;
 use crate::throttle::{Backoff, RateLimiter};
 use crate::{ArtworkPayload, ArtworkProvider, Candidate, LyricsPayload, LyricsProvider, TrackHint};
@@ -700,78 +700,80 @@ impl LyricsProvider for NetEaseLyrics {
             return Ok(cached);
         }
 
-        let query = format!("{} {}", hint.title.trim(), first_artist(hint))
-            .trim()
-            .to_string();
-        let mut search_url = http::join(&self.base_url, "/api/search/get")?;
-        search_url
-            .query_pairs_mut()
-            .append_pair("s", &query)
-            .append_pair("type", "1")
-            .append_pair("limit", "5");
-
-        let Some(search_body) = fetch_with_headers(
-            &self.client,
-            &self.limiter,
-            &self.backoff,
-            search_url,
-            NETEASE_HEADERS,
-            "NetEase /api/search/get",
-        )
-        .await?
-        else {
-            return Ok(Vec::new());
-        };
-
-        let songs = parse_netease_songs(&search_body)?;
-        // 先按元数据打分，挑前 2 首最匹配的去拉歌词，避免浪费请求。
-        let mut scored: Vec<(u64, TrackHint, f32)> = songs
-            .into_iter()
-            .map(|(id, matched)| {
-                let conf = as_confidence(score_match(
-                    hint,
-                    &matched.title,
-                    &matched.artists.join(" / "),
-                    matched.album.as_deref(),
-                    matched.duration_ms,
-                ));
-                (id, matched, conf)
-            })
-            .filter(|(_, _, conf)| *conf >= crate::REVIEW_THRESHOLD)
-            .collect();
-        scored.sort_by(|a, b| b.2.total_cmp(&a.2));
-        scored.truncate(2);
-
         let mut out = Vec::new();
-        for (id, matched, confidence) in scored {
-            let mut lrc_url = http::join(&self.base_url, "/api/song/lyric")?;
-            lrc_url
+        let mut fetched = std::collections::HashSet::new();
+        for (title, artist) in lyrics_matching::search_variants(hint).into_iter().take(2) {
+            let query = artist.map_or_else(|| title.clone(), |artist| format!("{title} {artist}"));
+            let mut search_url = http::join(&self.base_url, "/api/search/get")?;
+            search_url
                 .query_pairs_mut()
-                .append_pair("id", &id.to_string())
-                .append_pair("lv", "1")
-                .append_pair("tv", "1");
-            let Some(lrc_body) = fetch_with_headers(
+                .append_pair("s", &query)
+                .append_pair("type", "1")
+                .append_pair("limit", "5");
+
+            let Some(search_body) = fetch_with_headers(
                 &self.client,
                 &self.limiter,
                 &self.backoff,
-                lrc_url,
+                search_url,
                 NETEASE_HEADERS,
-                "NetEase /api/song/lyric",
+                "NetEase /api/search/get",
             )
             .await?
             else {
                 continue;
             };
-            if let Some(payload) = parse_netease_lyric_body(&lrc_body)? {
-                out.push(Candidate {
-                    payload,
-                    source: self.name().to_string(),
-                    matched,
-                    provider_confidence: confidence,
-                });
+
+            let songs = parse_netease_songs(&search_body)?;
+            // 先按元数据打分，挑前 2 首最匹配的去拉歌词，避免浪费请求。
+            let mut scored: Vec<(u64, TrackHint, f32)> = songs
+                .into_iter()
+                .filter_map(|(id, matched)| {
+                    let conf = lyrics_matching::confidence(hint, &matched)?;
+                    Some((id, matched, conf))
+                })
+                .filter(|(_, _, conf)| *conf >= crate::REVIEW_THRESHOLD)
+                .collect();
+            scored.sort_by(|a, b| b.2.total_cmp(&a.2));
+            for (id, matched, confidence) in scored {
+                if fetched.len() == 2 {
+                    break;
+                }
+                if !fetched.insert(id) {
+                    continue;
+                }
+                let mut lrc_url = http::join(&self.base_url, "/api/song/lyric")?;
+                lrc_url
+                    .query_pairs_mut()
+                    .append_pair("id", &id.to_string())
+                    .append_pair("lv", "1")
+                    .append_pair("tv", "1");
+                let Some(lrc_body) = fetch_with_headers(
+                    &self.client,
+                    &self.limiter,
+                    &self.backoff,
+                    lrc_url,
+                    NETEASE_HEADERS,
+                    "NetEase /api/song/lyric",
+                )
+                .await?
+                else {
+                    continue;
+                };
+                if let Some(payload) = parse_netease_lyric_body(&lrc_body)? {
+                    out.push(Candidate {
+                        payload,
+                        source: self.name().to_string(),
+                        matched,
+                        provider_confidence: confidence,
+                    });
+                }
+            }
+
+            if !out.is_empty() || fetched.len() == 2 {
+                break;
             }
         }
-
         let candidates = sort_and_filter(out, hint);
         if !candidates.is_empty() {
             self.cache.insert(key, candidates.clone());
@@ -1007,96 +1009,96 @@ impl LyricsProvider for KugouLyrics {
             return Ok(cached);
         }
 
-        let artist = first_artist(hint);
-        let keyword = if artist.is_empty() {
-            hint.title.trim().to_string()
-        } else {
-            format!("{artist} - {}", hint.title.trim())
-        };
-        let mut search_url = http::join(&self.base_url, "/search")?;
-        {
-            let mut q = search_url.query_pairs_mut();
-            q.append_pair("ver", "1")
-                .append_pair("man", "yes")
-                .append_pair("client", "pc")
-                .append_pair("keyword", &keyword);
-            if hint.duration_ms > 0 {
-                q.append_pair("duration", &hint.duration_ms.to_string());
-            }
-        }
-
-        let Some(search_body) = fetch_with_headers(
-            &self.client,
-            &self.limiter,
-            &self.backoff,
-            search_url,
-            &[],
-            "KuGou /search",
-        )
-        .await?
-        else {
-            return Ok(Vec::new());
-        };
-
-        let items = parse_kugou_search(&search_body)?;
-        let mut scored: Vec<(String, String, TrackHint, f32)> = items
-            .into_iter()
-            .map(|(id, accesskey, matched)| {
-                let conf = as_confidence(score_match(
-                    hint,
-                    &matched.title,
-                    &matched.artists.join(" / "),
-                    None,
-                    matched.duration_ms,
-                ));
-                (id, accesskey, matched, conf)
-            })
-            .filter(|(_, _, _, conf)| *conf >= crate::REVIEW_THRESHOLD)
-            .collect();
-        scored.sort_by(|a, b| b.3.total_cmp(&a.3));
-        scored.truncate(2);
-
         let mut out = Vec::new();
-        for (id, accesskey, matched, confidence) in scored {
-            let mut dl_url = http::join(&self.base_url, "/download")?;
-            dl_url
-                .query_pairs_mut()
-                .append_pair("ver", "1")
-                .append_pair("client", "pc")
-                .append_pair("id", &id)
-                .append_pair("accesskey", &accesskey)
-                .append_pair("fmt", "lrc")
-                .append_pair("charset", "utf8");
-            let Some(dl_body) = fetch_with_headers(
+        let mut fetched = std::collections::HashSet::new();
+        for (title, artist) in lyrics_matching::search_variants(hint).into_iter().take(2) {
+            let keyword =
+                artist.map_or_else(|| title.clone(), |artist| format!("{artist} - {title}"));
+            let mut search_url = http::join(&self.base_url, "/search")?;
+            {
+                let mut q = search_url.query_pairs_mut();
+                q.append_pair("ver", "1")
+                    .append_pair("man", "yes")
+                    .append_pair("client", "pc")
+                    .append_pair("keyword", &keyword);
+                if hint.duration_ms > 0 {
+                    q.append_pair("duration", &hint.duration_ms.to_string());
+                }
+            }
+
+            let Some(search_body) = fetch_with_headers(
                 &self.client,
                 &self.limiter,
                 &self.backoff,
-                dl_url,
+                search_url,
                 &[],
-                "KuGou /download",
+                "KuGou /search",
             )
             .await?
             else {
                 continue;
             };
-            if let Some(lrc) = parse_kugou_download(&dl_body)? {
-                let format = if looks_like_lrc(&lrc) {
-                    LyricsFormat::Lrc
-                } else {
-                    LyricsFormat::Plain
+
+            let items = parse_kugou_search(&search_body)?;
+            let mut scored: Vec<(String, String, TrackHint, f32)> = items
+                .into_iter()
+                .filter_map(|(id, accesskey, matched)| {
+                    let conf = lyrics_matching::confidence(hint, &matched)?;
+                    Some((id, accesskey, matched, conf))
+                })
+                .filter(|(_, _, _, conf)| *conf >= crate::REVIEW_THRESHOLD)
+                .collect();
+            scored.sort_by(|a, b| b.3.total_cmp(&a.3));
+            for (id, accesskey, matched, confidence) in scored {
+                if fetched.len() == 2 {
+                    break;
+                }
+                if !fetched.insert(id.clone()) {
+                    continue;
+                }
+                let mut dl_url = http::join(&self.base_url, "/download")?;
+                dl_url
+                    .query_pairs_mut()
+                    .append_pair("ver", "1")
+                    .append_pair("client", "pc")
+                    .append_pair("id", &id)
+                    .append_pair("accesskey", &accesskey)
+                    .append_pair("fmt", "lrc")
+                    .append_pair("charset", "utf8");
+                let Some(dl_body) = fetch_with_headers(
+                    &self.client,
+                    &self.limiter,
+                    &self.backoff,
+                    dl_url,
+                    &[],
+                    "KuGou /download",
+                )
+                .await?
+                else {
+                    continue;
                 };
-                out.push(Candidate {
-                    payload: LyricsPayload {
-                        format,
-                        content: lrc,
-                    },
-                    source: self.name().to_string(),
-                    matched,
-                    provider_confidence: confidence,
-                });
+                if let Some(lrc) = parse_kugou_download(&dl_body)? {
+                    let format = if looks_like_lrc(&lrc) {
+                        LyricsFormat::Lrc
+                    } else {
+                        LyricsFormat::Plain
+                    };
+                    out.push(Candidate {
+                        payload: LyricsPayload {
+                            format,
+                            content: lrc,
+                        },
+                        source: self.name().to_string(),
+                        matched,
+                        provider_confidence: confidence,
+                    });
+                }
+            }
+
+            if !out.is_empty() || fetched.len() == 2 {
+                break;
             }
         }
-
         let candidates = sort_and_filter(out, hint);
         if !candidates.is_empty() {
             self.cache.insert(key, candidates.clone());

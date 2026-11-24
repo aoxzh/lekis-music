@@ -21,6 +21,85 @@ fn record(synced: bool) -> String {
     serde_json::json!({"trackName":"勇者","artistName":"YOASOBI","duration":196,
         "plainLyrics":"Original test fixture", "syncedLyrics":if synced {Some("[00:01.00]Original test fixture")} else {None}}).to_string()
 }
+
+#[test]
+fn compact_credits_and_mixed_script_queries_keep_identity() {
+    for (title, tagged, song, performer) in [
+        (
+            "星野｜Midnight列車 (Live)",
+            "Uploader",
+            "Midnight列車 (Live)",
+            "星野",
+        ),
+        ("Midnight列車—星野", "星野", "Midnight列車", "星野"),
+        ("星野-Midnight列車", "星野", "Midnight列車", "星野"),
+    ] {
+        let wanted = hint(title, tagged, 180_000);
+        let variants = lyrics_matching::search_variants(&wanted);
+        assert_eq!(variants[0], (title.into(), Some(tagged.into())));
+        assert!(
+            variants.contains(&(song.into(), Some(performer.into()))),
+            "{variants:?}"
+        );
+        let score = lyrics_matching::confidence(&wanted, &hint(song, performer, 180_000)).unwrap();
+        assert!(score < crate::AUTO_APPLY_THRESHOLD);
+        assert!(lyrics_matching::confidence(&wanted, &hint(song, "Other", 180_000)).is_none());
+    }
+    let wanted = hint("Midnight列車", "星野", 180_000);
+    assert!(lyrics_matching::search_variants(&wanted)
+        .contains(&("Midnight 列車".into(), Some("星野".into()))));
+    assert!(lyrics_matching::confidence(
+        &hint("星野｜夜行 (Live)", "Uploader", 180_000),
+        &hint("夜行", "星野", 180_000)
+    )
+    .is_none());
+    assert!(
+        !lyrics_matching::search_variants(&hint("Re-entry", "Band", 0))
+            .contains(&("entry".into(), Some("Re".into())))
+    );
+}
+
+#[tokio::test]
+async fn keyword_providers_reject_wrong_versions_before_downloading_and_retry_once() {
+    use crate::providers_extra::{KugouLyrics, NetEaseLyrics};
+    use serde_json::json;
+    let wanted = hint("星野｜Midnight列車", "Uploader", 180_000);
+    for netease in [true, false] {
+        let search = |song: &str, id| {
+            if netease {
+                json!({"result":{"songs":[{"id":id,"name":song,"artists":[{"name":"星野"}],"duration":180000}]}})
+            } else {
+                json!({"candidates":[{"id":format!("{id}"),"accesskey":"fixture","song":song,"singer":"星野","duration":180000}]})
+            }.to_string()
+        };
+        let lyric = if netease {
+            json!({"lrc":{"lyric":"[00:01]fixture"}})
+        } else {
+            use base64::Engine;
+            json!({"content":base64::engine::general_purpose::STANDARD.encode("[00:01]fixture")})
+        };
+        let (base, requests, thread) = server(vec![
+            (200, search("Midnight列車 (Remix)", 1)),
+            (200, search("Midnight列車", 2)),
+            (200, lyric.to_string()),
+        ]);
+        let provider: Box<dyn LyricsProvider> = if netease {
+            Box::new(NetEaseLyrics::with_base_url(&base).unwrap())
+        } else {
+            Box::new(KugouLyrics::with_base_url(&base).unwrap())
+        };
+        let found = provider.find_lyrics(&wanted).await.unwrap();
+        assert_eq!(found.len(), 1);
+        assert!(found[0].provider_confidence < crate::AUTO_APPLY_THRESHOLD);
+        assert_eq!(provider.find_lyrics(&wanted).await.unwrap(), found);
+        thread.join().unwrap();
+        let requests = requests.lock().unwrap();
+        assert_eq!(requests.len(), 3);
+        assert!(requests[0].contains("Uploader"));
+        assert!(!requests[1].contains("Uploader"));
+        assert!(requests[2].contains("id=2"));
+    }
+}
 fn server(
     responses: Vec<(u16, String)>,
 ) -> (String, Arc<Mutex<Vec<String>>>, std::thread::JoinHandle<()>) {

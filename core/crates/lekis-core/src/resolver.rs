@@ -179,6 +179,15 @@ impl Resolver {
                 gain_db: None,
             });
         }
+        if let Some(plugins) = &self.plugins {
+            if let Ok(Some(binding)) =
+                crate::alternate_source::binding(&self.library, track_id).await
+            {
+                if let Ok(media) = binding.media(&self.library, plugins, track_id).await {
+                    return Ok(media);
+                }
+            }
+        }
         // OFF-03：已经有完整缓存时优先播本机文件。即使 NAS / 服务器暂时离线也能播。
         if let Some(download) = self.library.offline_ready_download(track_id).await? {
             if std::path::Path::new(&download.cache_path).is_file() {

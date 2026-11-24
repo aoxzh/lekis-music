@@ -17,6 +17,8 @@ import 'package:lekis/src/features/library/library_providers.dart'
     show PagedList, artistIdForNameProvider;
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/player/queue_filter.dart';
+import 'package:lekis/src/features/player/queue_move_next.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
@@ -62,6 +64,8 @@ class QueuePanel extends ConsumerStatefulWidget {
 class _QueuePanelState extends ConsumerState<QueuePanel>
     with SingleTickerProviderStateMixin {
   final _scroll = ScrollController();
+  final _filter = TextEditingController();
+  final _filterFocus = FocusNode();
   late final ListMotion _motion = ListMotion(vsync: this);
 
   /// The list on screen. Each queue edit rebuilds [queueListProvider]; the
@@ -78,6 +82,8 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
     _removeDelay?.cancel();
     _removeFallback?.cancel();
     _scroll.dispose();
+    _filter.dispose();
+    _filterFocus.dispose();
     _motion.dispose();
     super.dispose();
   }
@@ -115,6 +121,10 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
   }
 
   void _jumpToCurrent(int? currentIndex) {
+    if (_filter.text.isNotEmpty) {
+      _jumpedToCurrent = false;
+      _filter.clear();
+    }
     if (currentIndex == null || !_scroll.hasClients) return;
     final target = math.max(
       0.0,
@@ -132,95 +142,6 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
         curve: Curves.easeOutCubic,
       );
     }
-  }
-
-  void _jumpToIndex(int index) {
-    if (!_scroll.hasClients) return;
-    final target = math.max(
-      0.0,
-      index * QueuePanel.rowExtent - QueuePanel.rowExtent * 2,
-    );
-    final clamped = target
-        .clamp(0.0, _scroll.position.maxScrollExtent)
-        .toDouble();
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _scroll.jumpTo(clamped);
-    } else {
-      _scroll.animateTo(
-        clamped,
-        duration: LekisMotion.normal,
-        curve: Curves.easeOutCubic,
-      );
-    }
-  }
-
-  Future<void> _findInQueue(BuildContext context) async {
-    final length = ref.read(playbackProvider).queueLength;
-    if (length == 0) return;
-    final l10n = context.l10n;
-    final controller = TextEditingController();
-    final query = await showDialog<String>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: Text(l10n.pick('在队列中查找', 'Find in Queue')),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: l10n.pick('歌名或艺人', 'Title or artist'),
-          ),
-          onSubmitted: (value) => Navigator.of(dialog).pop(value.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialog).pop(),
-            child: Text(l10n.pick('取消', 'Cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialog).pop(controller.text.trim()),
-            child: Text(l10n.pick('查找', 'Find')),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (query == null || query.isEmpty || !context.mounted) return;
-    final needle = query.toLowerCase();
-    var offset = 0;
-    const pageSize = 200;
-    while (offset < length) {
-      final rows = await core.queueItems(offset: offset, limit: pageSize);
-      if (rows.isEmpty) break;
-      for (var i = 0; i < rows.length; i++) {
-        final row = rows[i];
-        if (row.title.toLowerCase().contains(needle) ||
-            row.artistLine.toLowerCase().contains(needle)) {
-          if (!mounted || !context.mounted) return;
-          _jumpToIndex(offset + i);
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              SnackBar(
-                content: Text(
-                  l10n.pick('已定位到「${row.title}」', 'Jumped to "${row.title}"'),
-                ),
-              ),
-            );
-          return;
-        }
-      }
-      offset += rows.length;
-    }
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            l10n.pick('队列里没有找到「$query」', 'No queue match for "$query"'),
-          ),
-        ),
-      );
   }
 
   Future<void> _clearUpcoming(BuildContext context) async {
@@ -548,6 +469,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
     BuildContext context,
     TrackRowDto row,
     int index,
+    VoidCallback? moveToNext,
   ) async {
     final length = ref.read(playbackProvider).queueLength;
     final loved = ref.read(lovedOverridesProvider)[row.id] ?? row.loved;
@@ -565,6 +487,15 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (moveToNext != null)
+                  ListTile(
+                    leading: const Icon(Icons.queue_play_next_rounded),
+                    title: Text(moveToNextLabel(sheet)),
+                    onTap: () {
+                      close();
+                      moveToNext();
+                    },
+                  ),
                 if (row.albumTitle != null && row.albumTitle!.isNotEmpty)
                   ListTile(
                     leading: const Icon(Icons.album_outlined),
@@ -1078,7 +1009,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
                     : () => _clearUpcoming(context),
                 onDedupe: queueLength < 2 ? null : () => _dedupeQueue(context),
                 onInfo: queueLength == 0 ? null : () => _showQueueInfo(context),
-                onFind: queueLength == 0 ? null : () => _findInQueue(context),
+                onFind: queueLength == 0 ? null : _filterFocus.requestFocus,
                 onJumpToCurrent: currentIndex == null
                     ? null
                     : () => _jumpToCurrent(currentIndex),
@@ -1087,107 +1018,123 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
               Divider(height: 1, color: colors.outline),
             ],
             Expanded(
-              child: ListenableBuilder(
-                listenable: latest,
-                builder: (context, _) {
-                  final list = _present(latest);
-                  if (queueLength == 0) {
-                    return _QueueEmpty(
-                      message: context.l10n.pick('队列为空', 'Queue is empty'),
-                      colors: colors,
-                      theme: theme,
-                    );
-                  }
-                  if (list.error != null && list.itemCount == 0) {
-                    return Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            context.l10n.pick('队列加载失败', 'Failed to load queue'),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.onSurfaceVariant,
+              child: QueueFilter(
+                controller: _filter,
+                focusNode: _filterFocus,
+                child: ListenableBuilder(
+                  listenable: latest,
+                  builder: (context, _) {
+                    final list = _present(latest);
+                    if (queueLength == 0) {
+                      return _QueueEmpty(
+                        message: context.l10n.pick('队列为空', 'Queue is empty'),
+                        colors: colors,
+                        theme: theme,
+                      );
+                    }
+                    if (list.error != null && list.itemCount == 0) {
+                      return Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              context.l10n.pick(
+                                '队列加载失败',
+                                'Failed to load queue',
+                              ),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colors.onSurfaceVariant,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: LekisSpacing.sm),
-                          TextButton(
-                            onPressed: list.retry,
-                            child: Text(context.l10n.pick('重试', 'Retry')),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                  if (list.isInitialLoading) {
-                    return const Center(
-                      child: SizedBox.square(
-                        dimension: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    );
-                  }
+                            const SizedBox(height: LekisSpacing.sm),
+                            TextButton(
+                              onPressed: list.retry,
+                              child: Text(context.l10n.pick('重试', 'Retry')),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    if (list.isInitialLoading) {
+                      return const Center(
+                        child: SizedBox.square(
+                          dimension: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      );
+                    }
 
-                  final rowCount = list.itemCount;
-                  _scheduleJump(currentIndex, rowCount);
+                    final rowCount = list.itemCount;
+                    _scheduleJump(currentIndex, rowCount);
 
-                  return Scrollbar(
-                    controller: _scroll,
-                    interactive: true,
-                    child: ListView.builder(
-                      key: const ValueKey('queue-panel.list'),
+                    return Scrollbar(
                       controller: _scroll,
-                      itemExtent: QueuePanel.rowExtent,
-                      itemCount: rowCount,
-                      itemBuilder: (context, index) {
-                        final row = list.itemAt(index);
-                        if (row == null) {
-                          return _QueueRowPlaceholder(colors: colors);
-                        }
-                        final removing = _removing.contains(index);
-                        return ListMotionRow(
-                          key: ValueKey('queue-panel.entry-$index-${row.id}'),
-                          motion: _motion,
-                          index: index,
-                          child: AnimatedSlide(
-                            offset: removing
-                                ? const Offset(0.15, 0)
-                                : Offset.zero,
-                            duration: MediaQuery.disableAnimationsOf(context)
-                                ? Duration.zero
-                                : LekisMotion.fast,
-                            child: AnimatedOpacity(
-                              opacity: removing ? 0 : 1,
+                      interactive: true,
+                      child: ListView.builder(
+                        key: const ValueKey('queue-panel.list'),
+                        controller: _scroll,
+                        itemExtent: QueuePanel.rowExtent,
+                        itemCount: rowCount,
+                        itemBuilder: (context, index) {
+                          final row = list.itemAt(index);
+                          if (row == null) {
+                            return _QueueRowPlaceholder(colors: colors);
+                          }
+                          final removing = _removing.contains(index);
+                          final moveToNext =
+                              identical(list, latest) && !removing
+                              ? queueMoveToNext(ref, index)
+                              : null;
+                          return ListMotionRow(
+                            key: ValueKey('queue-panel.entry-$index-${row.id}'),
+                            motion: _motion,
+                            index: index,
+                            child: AnimatedSlide(
+                              offset: removing
+                                  ? const Offset(0.15, 0)
+                                  : Offset.zero,
                               duration: MediaQuery.disableAnimationsOf(context)
                                   ? Duration.zero
                                   : LekisMotion.fast,
-                              child: _QueueRow(
-                                key: ValueKey('queue-panel.row-$index'),
-                                row: row,
-                                current: index == currentIndex,
-                                onPlay: () => ref
-                                    .read(playerActionsProvider)
-                                    .playQueueAt(index),
-                                onLongPress: () =>
-                                    _showRowMenu(context, row, index),
-                                onRemove: () => _remove(index),
-                                onMoveUp: index > 0
-                                    ? () => ref
-                                          .read(playerActionsProvider)
-                                          .moveQueueItem(index, index - 1)
-                                    : null,
-                                onMoveDown: index + 1 < rowCount
-                                    ? () => ref
-                                          .read(playerActionsProvider)
-                                          .moveQueueItem(index, index + 1)
-                                    : null,
+                              child: AnimatedOpacity(
+                                opacity: removing ? 0 : 1,
+                                duration:
+                                    MediaQuery.disableAnimationsOf(context)
+                                    ? Duration.zero
+                                    : LekisMotion.fast,
+                                child: _QueueRow(
+                                  key: ValueKey('queue-panel.row-$index'),
+                                  row: row,
+                                  current: index == currentIndex,
+                                  onPlay: () => ref
+                                      .read(playerActionsProvider)
+                                      .playQueueAt(index),
+                                  onLongPress: () => _showRowMenu(
+                                    context,
+                                    row,
+                                    index,
+                                    moveToNext,
+                                  ),
+                                  onRemove: () => _remove(index),
+                                  onMoveUp: index > 0
+                                      ? () => ref
+                                            .read(playerActionsProvider)
+                                            .moveQueueItem(index, index - 1)
+                                      : null,
+                                  onMoveDown: index + 1 < rowCount
+                                      ? () => ref
+                                            .read(playerActionsProvider)
+                                            .moveQueueItem(index, index + 1)
+                                      : null,
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
-                  );
-                },
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ],

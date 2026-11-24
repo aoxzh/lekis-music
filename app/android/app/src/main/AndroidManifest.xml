@@ -55,6 +55,12 @@
                 <category android:name="android.intent.category.APP_MUSIC"/>
             </intent-filter>
         </activity>
+        <activity
+            android:name=".BilibiliVideoActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden|screenLayout"
+            android:hardwareAccelerated="true"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
         <!-- 系统媒体会话（audio_service）：MediaBrowserService + 媒体按键（蓝牙 / 线控） -->
         <service
             android:name="com.ryanheise.audioservice.AudioService"

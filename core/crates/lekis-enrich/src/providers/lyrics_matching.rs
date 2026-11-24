@@ -1,7 +1,7 @@
 //! Conservative lyric identity checks, including explicit kana-script equivalents.
 use super::{LyricsFormat, TrackHint};
 
-fn width_fold(value: &str) -> String {
+pub(crate) fn width_fold(value: &str) -> String {
     value
         .chars()
         .map(|ch| match ch {
@@ -137,8 +137,8 @@ pub(super) fn normalized_hint(hint: &TrackHint) -> TrackHint {
 
 // Video platforms often supply the uploader as artist. Extract an explicit
 // artist/title pair only as a search hint; it is not trusted for auto-apply.
-fn video_identity(title: &str) -> Option<(String, String)> {
-    let folded = width_fold(title);
+fn video_identity(hint: &TrackHint) -> Option<(String, String)> {
+    let folded = width_fold(&hint.title);
     let clean = clean_title(&folded, &[]);
     // Anime uploads commonly put the work and OP/ED label before the
     // quoted song, followed by its performer and a bracketed upload label.
@@ -177,35 +177,79 @@ fn video_identity(title: &str) -> Option<(String, String)> {
             }
         }
     }
-    for separator in [" - ", " – ", " — ", " | "] {
-        if let Some((artist, song)) = clean.split_once(separator) {
-            if !artist.trim().is_empty() && !song.trim().is_empty() {
-                return Some((song.trim().to_string(), artist.trim().to_string()));
-            }
+    let tagged = |part: &str| hint.artists.iter().any(|artist| key(artist) == key(part));
+    for (offset, separator) in clean.match_indices(['|', '–', '—', '-', '/']) {
+        let (left, right) = (&clean[..offset], &clean[offset + separator.len()..]);
+        let (first, second) = (left.trim(), right.trim());
+        if first.is_empty() || second.is_empty() {
+            continue;
+        }
+        if tagged(second) {
+            return Some((first.into(), second.into()));
+        }
+        if tagged(first) {
+            return Some((second.into(), first.into()));
+        }
+        let spaced = left.ends_with(' ') && right.starts_with(' ');
+        if (separator == "|" || spaced)
+            && !clean[offset + separator.len()..].contains(['|', '—', '–'])
+            && !matches!(
+                key(second).as_str(),
+                "live" | "remix" | "cover" | "acoustic" | "instrumental"
+            )
+        {
+            return Some((second.into(), first.into()));
         }
     }
     None
 }
 
-pub(super) fn search_variants(hint: &TrackHint) -> Vec<(String, Option<String>)> {
+fn space_scripts(text: &str) -> String {
+    let mut out = String::new();
+    let mut previous = None;
+    for ch in text.chars() {
+        let script = match ch {
+            'a'..='z' | 'A'..='Z' => Some(false),
+            '\u{3040}'..='\u{30ff}' | '\u{3400}'..='\u{9fff}' | '\u{ac00}'..='\u{d7a3}' => {
+                Some(true)
+            }
+            _ => None,
+        };
+        if previous.is_some() && script.is_some() && previous != script {
+            out.push(' ');
+        }
+        out.push(ch);
+        previous = script;
+    }
+    out
+}
+
+pub(crate) fn search_variants(hint: &TrackHint) -> Vec<(String, Option<String>)> {
     let artist = hint
         .artists
         .iter()
         .find(|a| !a.trim().is_empty())
         .map(|a| a.trim().to_string());
-    let mut variants = vec![(hint.title.trim().to_string(), artist.clone())];
+    let mut variants = Vec::new();
+    let mut push = |title: String, artist: Option<String>| {
+        let query = (title, artist);
+        if !query.0.is_empty() && !variants.contains(&query) {
+            variants.push(query);
+        }
+    };
+    push(hint.title.trim().into(), artist.clone());
     let clean = clean_title(&hint.title, &hint.artists);
-    if clean != hint.title.trim() {
-        variants.push((clean.clone(), artist.clone()));
+    let identity = video_identity(hint);
+    if let Some((song, performer)) = &identity {
+        push(song.clone(), Some(performer.clone()));
     }
-    if let Some((song, performer)) = video_identity(&hint.title) {
-        variants.push((song, Some(performer)));
-    }
+    push(clean.clone(), artist.clone());
+    let (song, performer) =
+        identity.map_or_else(|| (clean.clone(), artist.clone()), |(s, a)| (s, Some(a)));
+    push(space_scripts(&song), performer);
     if artist.is_some() {
-        variants.push((clean, None));
+        push(clean, None);
     }
-    variants.dedup();
-    variants.truncate(4);
     // Keep every existing search first, then add at most four script alternatives.
     // Each remains subject to the original identity and version gates.
     let original = variants.clone();
@@ -226,7 +270,7 @@ pub(super) fn search_variants(hint: &TrackHint) -> Vec<(String, Option<String>)>
     variants
 }
 
-fn versions(title: &str) -> Vec<bool> {
+pub(crate) fn versions(title: &str) -> Vec<bool> {
     let folded = width_fold(title).to_lowercase();
     let compact = key(title);
     [
@@ -269,11 +313,11 @@ fn versions(title: &str) -> Vec<bool> {
 
 /// Identity is a gate before the weighted score. Duration cannot compensate for
 /// an unrelated title/artist, or turn TV-size and live recordings into an album cut.
-pub(super) fn confidence(hint: &TrackHint, matched: &TrackHint) -> Option<f32> {
+pub(crate) fn confidence(hint: &TrackHint, matched: &TrackHint) -> Option<f32> {
     if let Some(score) = confidence_direct(hint, matched) {
         return Some(score);
     }
-    let (title, artist) = video_identity(&hint.title)?;
+    let (title, artist) = video_identity(hint)?;
     // A label such as Live or Cover must survive extraction and agree with the record.
     if versions(&hint.title) != versions(&matched.title) {
         return None;

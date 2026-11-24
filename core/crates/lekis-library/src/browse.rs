@@ -7,7 +7,7 @@ use crate::db::DbResultExt;
 use crate::Library;
 use lekis_types::{
     Album, AlbumId, Artist, ArtistId, ArtworkId, GenreCount, LekisError, Result, TrackQuery,
-    TrackRow, TrackSort,
+    TrackRow, TrackSort, TrackSourceScope,
 };
 use rusqlite::{params, OptionalExtension, Row};
 
@@ -106,6 +106,27 @@ impl Library {
         offset: u32,
         limit: u32,
     ) -> Result<Vec<Album>> {
+        self.query_albums(None, sort, offset, limit).await
+    }
+
+    /// List albums with scoped counts, cover fallback, and play-count ordering.
+    pub async fn list_albums_by_source(
+        &self,
+        scope: lekis_types::TrackSourceScope,
+        sort: TrackSort,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<Album>> {
+        self.query_albums(Some(scope), sort, offset, limit).await
+    }
+
+    async fn query_albums(
+        &self,
+        scope: Option<lekis_types::TrackSourceScope>,
+        sort: TrackSort,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<Album>> {
         check_limit(limit)?;
         let order = match sort {
             TrackSort::Title => "a.sort_title, a.id",
@@ -114,16 +135,21 @@ impl Library {
             TrackSort::MostPlayed => {
                 "(SELECT COALESCE(SUM(u.play_count), 0) FROM catalog_track t
                     LEFT JOIN user_state u ON u.track_uid = t.uid
-                   WHERE t.album_id = a.id) DESC, a.sort_title"
+                   WHERE t.album_id = a.id) DESC, a.sort_title, a.id"
             }
             TrackSort::Album => "a.sort_title, a.id",
         };
         let sql = format!(
-            "SELECT {ALBUM_COLUMNS} FROM catalog_album a ORDER BY {order} LIMIT ?1 OFFSET ?2"
+            "SELECT {ALBUM_COLUMNS} FROM catalog_album a ORDER BY {order} LIMIT ? OFFSET ?"
         );
+        let (sql, mut args) = crate::catalog::scoped_query(scope, &sql);
+        args.push(limit.into());
+        args.push(offset.into());
         self.read(move |c| {
-            let mut stmt = c.prepare_cached(&crate::catalog::query(&sql)).db()?;
-            let rows = stmt.query_map(params![limit, offset], map_album_row).db()?;
+            let mut stmt = c.prepare_cached(&sql).db()?;
+            let rows = stmt
+                .query_map(rusqlite::params_from_iter(args), map_album_row)
+                .db()?;
             rows.collect::<rusqlite::Result<Vec<_>>>().db()
         })
         .await
@@ -150,21 +176,48 @@ impl Library {
         offset: u32,
         limit: u32,
     ) -> Result<Vec<TrackRow>> {
+        self.query_album_tracks(None, id, offset, limit).await
+    }
+
+    /// List a page of an album's tracks with a copy in the selected source.
+    pub async fn album_tracks_by_source(
+        &self,
+        scope: TrackSourceScope,
+        id: AlbumId,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<TrackRow>> {
+        self.query_album_tracks(Some(scope), id, offset, limit)
+            .await
+    }
+
+    async fn query_album_tracks(
+        &self,
+        scope: Option<TrackSourceScope>,
+        id: AlbumId,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<TrackRow>> {
         check_limit(limit)?;
         let sql = format!(
             "SELECT {}
              FROM catalog_track t
              LEFT JOIN album a ON a.id = t.album_id
              LEFT JOIN user_state u ON u.track_uid = t.uid
-             WHERE t.album_id = ?1
-             ORDER BY t.disc_no, t.track_no, t.title_sort_key
-             LIMIT ?2 OFFSET ?3",
+             WHERE t.album_id = ?
+             ORDER BY t.disc_no, t.track_no, t.title_sort_key, t.id
+             LIMIT ? OFFSET ?",
             crate::tracks::TRACK_ROW_COLUMNS
         );
+        let (sql, mut args) = crate::catalog::scoped_query(scope, &sql);
+        args.extend([id.0.into(), limit.into(), offset.into()]);
         self.read(move |c| {
-            let mut stmt = c.prepare_cached(&crate::catalog::query(&sql)).db()?;
+            let mut stmt = c.prepare_cached(&sql).db()?;
             let rows = stmt
-                .query_map(params![id.0, limit, offset], crate::tracks::map_track_row)
+                .query_map(
+                    rusqlite::params_from_iter(args),
+                    crate::tracks::map_track_row,
+                )
                 .db()?;
             rows.collect::<rusqlite::Result<Vec<_>>>().db()
         })

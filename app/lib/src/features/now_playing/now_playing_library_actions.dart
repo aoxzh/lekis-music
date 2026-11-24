@@ -15,11 +15,14 @@ import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/library/library_providers.dart'
     show artistIdForNameProvider;
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
+import 'package:lekis/src/features/now_playing/alternate_source_sheet.dart';
 import 'package:lekis/src/features/now_playing/lyrics_editor_sheet.dart';
 import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/features/now_playing/track_sources_sheet.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/player/bilibili_video_action.dart';
+import 'package:lekis/src/features/player/bilibili_video_ref.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
@@ -36,6 +39,8 @@ const BoxConstraints _touchTarget = BoxConstraints(
 );
 
 enum _MoreAction {
+  alternateSource,
+  video,
   rate,
   download,
   addToPlaylist,
@@ -297,6 +302,9 @@ class _MoreButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.lekisColors;
     final downloadState = ref.watch(downloadStateProvider(track.id));
+    final video = supportsBilibiliVideo
+        ? BilibiliVideoRef.fromTrackUid(track.uid)
+        : null;
     final rating = ratingOf(ref, track.id, track.rating?.toInt()) ?? 0;
     Widget item(IconData icon, String label) => ListTile(
       dense: true,
@@ -313,6 +321,12 @@ class _MoreButton extends ConsumerWidget {
       icon: Icon(Icons.more_horiz_rounded, color: colors.onSurfaceVariant),
       onSelected: (action) {
         switch (action) {
+          case _MoreAction.alternateSource:
+            showAlternateSourceSheet(context, track);
+          case _MoreAction.video:
+            unawaited(
+              watchBilibiliTrack(context, trackId: track.id, video: video),
+            );
           case _MoreAction.rate:
             showTrackRatingSheet(
               context,
@@ -354,6 +368,19 @@ class _MoreButton extends ConsumerWidget {
         }
       },
       itemBuilder: (_) => [
+        if (video != null)
+          PopupMenuItem(
+            value: _MoreAction.video,
+            child: item(Icons.ondemand_video_rounded, watchVideoLabel(context)),
+          ),
+        if (!track.isLocal && track.id > 0)
+          PopupMenuItem(
+            value: _MoreAction.alternateSource,
+            child: item(
+              Icons.swap_horiz_rounded,
+              context.l10n.pick('手动换源', 'Change audio source'),
+            ),
+          ),
         if (includeRating)
           PopupMenuItem(
             value: _MoreAction.rate,

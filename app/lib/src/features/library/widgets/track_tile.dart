@@ -8,12 +8,15 @@ import 'package:lekis/src/features/downloads/downloads_providers.dart';
 import 'package:lekis/src/features/enrich/enrich_actions.dart';
 import 'package:lekis/src/features/library/artwork_actions.dart';
 import 'package:lekis/src/features/library/tag_editor_dialog.dart';
+import 'package:lekis/src/features/library/music_export_dialog.dart';
 import 'package:lekis/src/features/library/track_sources_sheet.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_actions.dart';
+import 'package:lekis/src/features/player/bilibili_video_action.dart';
+import 'package:lekis/src/features/player/bilibili_video_ref.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
@@ -36,11 +39,13 @@ String _compactQualityLabel(String label) {
 }
 
 enum _TrackMenuAction {
+  video,
   playNext,
   addToQueue,
   addToPlaylist,
   rate,
   editTags,
+  exportMusic,
   enrich,
   artwork,
   sources,
@@ -58,6 +63,7 @@ class TrackTile extends ConsumerWidget {
     this.showArtwork = true,
     this.selected = false,
     this.onlinePlugin = false,
+    this.pluginId,
   });
 
   /// Height of every row – use as `ListView.itemExtent`. 56 dp: the 48 dp
@@ -80,6 +86,7 @@ class TrackTile extends ConsumerWidget {
 
   /// Explicit source context, since NAS/server tracks are also non-local.
   final bool onlinePlugin;
+  final String? pluginId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -146,6 +153,10 @@ class TrackTile extends ConsumerWidget {
 
     void onMenu(_TrackMenuAction action) {
       switch (action) {
+        case _TrackMenuAction.exportMusic:
+          showMusicExport(context, trackId: track.id);
+        case _TrackMenuAction.video:
+          watchBilibiliTrack(context, trackId: track.id);
         case _TrackMenuAction.playNext:
           queueTracks(context, [track.id], where: QueuePlacement.next);
         case _TrackMenuAction.addToQueue:
@@ -184,6 +195,16 @@ class TrackTile extends ConsumerWidget {
     }
 
     List<PopupMenuEntry<_TrackMenuAction>> menuItems() => [
+      if (supportsBilibiliVideo && pluginId == BilibiliVideoRef.pluginId)
+        PopupMenuItem(
+          value: _TrackMenuAction.video,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.ondemand_video_rounded),
+            title: Text(watchVideoLabel(context)),
+          ),
+        ),
       PopupMenuItem(
         value: _TrackMenuAction.playNext,
         child: ListTile(
@@ -229,6 +250,16 @@ class TrackTile extends ConsumerWidget {
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.edit_note_rounded),
             title: Text(context.l10n.pick('编辑标签', 'Edit Tags')),
+          ),
+        ),
+      if (!onlinePlugin && track.id > 0)
+        PopupMenuItem(
+          value: _TrackMenuAction.exportMusic,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.drive_file_move_outline),
+            title: Text(context.l10n.pick('导出音乐文件', 'Export music file')),
           ),
         ),
       PopupMenuItem(

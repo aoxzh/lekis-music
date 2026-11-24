@@ -6,6 +6,7 @@ import 'package:lekis/src/features/now_playing/now_playing_layout.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
 import 'package:lekis/src/features/now_playing/now_playing_style.dart';
 import 'package:lekis/src/features/now_playing/now_playing_turntable.dart';
+import 'package:lekis/src/features/now_playing/track_dial.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_view.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
@@ -37,7 +38,9 @@ const double _changeSlide = 0.16;
 ///   drop shadow, matching the reference `modern` style);
 /// * vertical drags are left to the page (drag to close).
 class NowPlayingArtwork extends ConsumerStatefulWidget {
-  const NowPlayingArtwork({super.key});
+  const NowPlayingArtwork({super.key, this.showDial = false});
+
+  final bool showDial;
 
   @override
   ConsumerState<NowPlayingArtwork> createState() => _NowPlayingArtworkState();
@@ -160,7 +163,9 @@ class _NowPlayingArtworkState extends ConsumerState<NowPlayingArtwork>
 
     final track = ref.watch(currentTrackProvider).value;
     final artwork = ref.watch(currentArtworkProvider).value;
-    final artStyle = ref.watch(nowPlayingStyleProvider);
+    final artStyle = widget.showDial
+        ? NowPlayingStyle.cover
+        : ref.watch(nowPlayingStyleProvider);
     final isPlaying = ref.watch(playbackProvider.select((s) => s.isPlaying));
     final progress = artStyle == NowPlayingStyle.cassette
         ? ref.watch(progressProvider)
@@ -178,7 +183,9 @@ class _NowPlayingArtworkState extends ConsumerState<NowPlayingArtwork>
       reducedMotion: reducedMotion,
     );
     final Widget visual = switch (artStyle) {
-      NowPlayingStyle.cover => coverDeck,
+      NowPlayingStyle.cover => widget.showDial
+          ? TrackDial(cover: coverDeck)
+          : coverDeck,
       NowPlayingStyle.vinyl => VinylRecordArtwork(
         cover: coverDeck,
         isPlaying: isPlaying,

@@ -25,7 +25,13 @@ int albumGridColumns(double width) => math.max(
 
 /// Paged album grid.
 class AlbumGrid extends ConsumerStatefulWidget {
-  const AlbumGrid({super.key, required this.onOpen, this.selectedId});
+  const AlbumGrid({
+    super.key,
+    required this.onOpen,
+    this.selectedId,
+    this.list,
+    this.empty = const LibraryEmptyState(),
+  });
 
   /// Hero scope of the grid's covers; open the page with
   /// `AlbumHeroTag(albumId, AlbumGrid.heroScope)` for a cover flight.
@@ -33,6 +39,8 @@ class AlbumGrid extends ConsumerStatefulWidget {
 
   final void Function(AlbumDto album) onOpen;
   final int? selectedId;
+  final PagedList<AlbumDto>? list;
+  final Widget empty;
 
   @override
   ConsumerState<AlbumGrid> createState() => _AlbumGridState();
@@ -49,8 +57,9 @@ class _AlbumGridState extends ConsumerState<AlbumGrid> {
 
   @override
   Widget build(BuildContext context) {
-    final sort = ref.watch(albumSortProvider);
-    final list = ref.watch(albumsListProvider(sort));
+    final PagedList<AlbumDto> list =
+        widget.list ??
+        ref.watch(albumsListProvider(ref.watch(albumSortProvider)));
     final gutter = pageGutterOf(context);
     return ListenableBuilder(
       listenable: list,
@@ -78,7 +87,7 @@ class _AlbumGridState extends ConsumerState<AlbumGrid> {
     if (list.error != null) {
       return LoadErrorView(error: list.error!, onRetry: list.retry);
     }
-    if (list.isEmpty) return const LibraryEmptyState();
+    if (list.isEmpty) return widget.empty;
     return Scrollbar(
       controller: _controller,
       interactive: true,
@@ -94,6 +103,7 @@ class _AlbumGridState extends ConsumerState<AlbumGrid> {
             if (album == null) return SkeletonAlbumCard(index: i);
             return AlbumCard(
               album: album,
+              useListedArtwork: widget.list != null,
               selected: album.id == widget.selectedId,
               heroTag: AlbumHeroTag(album.id, AlbumGrid.heroScope),
               onTap: () => widget.onOpen(album),

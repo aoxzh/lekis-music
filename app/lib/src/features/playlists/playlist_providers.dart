@@ -6,6 +6,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_rust_bridge/flutter_rust_bridge.dart' show Int64List;
 import 'package:lekis/src/bridge/core_events.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
@@ -101,6 +102,41 @@ final smartPlaylistTracksProvider = FutureProvider.autoDispose
         offset += rows.length;
       }
       return out;
+    });
+
+typedef ScopedPlaylistQuery = ({LibraryScope scope, int playlistId});
+
+final playlistSourceFilterProvider = Provider(
+  (ref) => core.filterTrackIdsBySource,
+);
+
+final scopedPlaylistTracksProvider = FutureProvider.autoDispose
+    .family<List<TrackRowDto>, ScopedPlaylistQuery>((ref, query) async {
+      ref.invalidateOnCatalogChange();
+      final playlist = await ref.watch(
+        playlistProvider(query.playlistId).future,
+      );
+      if (!ref.mounted) return const [];
+      final rows = playlist.kind == PlaylistKindDto.smart
+          ? await ref.watch(
+              smartPlaylistTracksProvider(query.playlistId).future,
+            )
+          : [
+              for (final entry in await ref.watch(
+                playlistEntriesProvider(query.playlistId).future,
+              ))
+                ?entry.track,
+            ];
+      if (!ref.mounted || rows.isEmpty) return const [];
+      final filter = ref.watch(playlistSourceFilterProvider);
+      final matched = await filter(
+        scope: query.scope.toDto(),
+        trackIds: Int64List.fromList([for (final row in rows) row.id]),
+      );
+      final allowed = matched.map((id) => id.toInt()).toSet();
+      return rows
+          .where((row) => allowed.contains(row.id))
+          .toList(growable: false);
     });
 
 /// 歌单规则；普通歌单为 `None`。

@@ -608,24 +608,87 @@ final selectedArtistProvider = _valueProvider<int?>(null);
 /// 文件夹视图当前所在的位置；`null` 表示第一层（有曲目的音源）。
 final selectedFolderProvider = _valueProvider<FolderLocation?>(null);
 
-/// null is the user's catalog; online caches are never included in that catalog.
-final librarySourceProvider = NotifierProvider<SimpleValue<String?>, String?>(
-  () => SimpleValue<String?>(null),
-);
+enum LibraryScopeKind { local, nas, plugin }
+
+@immutable
+class LibraryScope {
+  const LibraryScope.local() : kind = LibraryScopeKind.local, pluginId = null;
+  const LibraryScope.nas() : kind = LibraryScopeKind.nas, pluginId = null;
+  const LibraryScope.plugin(String id)
+    : kind = LibraryScopeKind.plugin,
+      pluginId = id;
+
+  final LibraryScopeKind kind;
+  final String? pluginId;
+
+  TrackSourceScopeDto toDto() => switch (kind) {
+    LibraryScopeKind.local => const TrackSourceScopeDto.local(),
+    LibraryScopeKind.nas => const TrackSourceScopeDto.nas(),
+    LibraryScopeKind.plugin => TrackSourceScopeDto.plugin(pluginId: pluginId!),
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is LibraryScope && kind == other.kind && pluginId == other.pluginId;
+
+  @override
+  int get hashCode => Object.hash(kind, pluginId);
+}
+
+bool _isActiveLibrarySource(PluginInfoDto plugin) =>
+    plugin.enabled && plugin.error == null && plugin.kinds.contains('source');
+
+class LibrarySourceNotifier extends Notifier<LibraryScope> {
+  @override
+  LibraryScope build() {
+    ref.listen(pluginListProvider, (_, next) {
+      final id = state.pluginId;
+      if (id != null &&
+          next is AsyncData<List<PluginInfoDto>> &&
+          !next.value.any((p) => p.id == id && _isActiveLibrarySource(p))) {
+        set(const LibraryScope.local());
+      }
+    });
+    return const LibraryScope.local();
+  }
+
+  void set(LibraryScope value) {
+    if (state == value) return;
+    ref.read(selectedAlbumProvider.notifier).set(null);
+    ref.read(selectedArtistProvider.notifier).set(null);
+    ref.read(selectedFolderProvider.notifier).set(null);
+    state = value;
+  }
+}
+
+final librarySourceProvider =
+    NotifierProvider<LibrarySourceNotifier, LibraryScope>(
+      LibrarySourceNotifier.new,
+    );
 
 final librarySourcePluginsProvider = Provider<List<PluginInfoDto>>((ref) {
   return (ref.watch(pluginListProvider).value ?? <PluginInfoDto>[])
-      .where(
-        (plugin) =>
-            plugin.enabled &&
-            plugin.error == null &&
-            plugin.kinds.contains('source'),
-      )
+      .where(_isActiveLibrarySource)
       .toList();
 });
 
-final effectiveLibrarySourceProvider = Provider<String?>((ref) {
-  final selected = ref.watch(librarySourceProvider);
-  final sources = ref.watch(librarySourcePluginsProvider);
-  return sources.any((plugin) => plugin.id == selected) ? selected : null;
-});
+final effectiveLibrarySourceProvider = librarySourceProvider;
+
+typedef ScopedSongQuery = (LibraryScope, TrackSortDto);
+
+final libraryScopedTrackPageProvider = Provider.autoDispose
+    .family<PageFetcher<TrackRowDto>, ScopedSongQuery>((ref, query) {
+      final (scope, sort) = query;
+      return (offset, limit) => core.listTracksBySource(
+        scope: scope.toDto(),
+        sort: sort,
+        offset: offset,
+        limit: limit,
+      );
+    });
+
+final scopedSongsListProvider = Provider.autoDispose
+    .family<PagedList<TrackRowDto>, ScopedSongQuery>(
+      (ref, query) =>
+          _pagedList(ref, ref.watch(libraryScopedTrackPageProvider(query))),
+    );

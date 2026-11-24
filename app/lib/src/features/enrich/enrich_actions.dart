@@ -44,8 +44,8 @@ enum EnrichScope {
       'Search iTunes (incl. JP), Deezer, NetEase, VocaDB & Cover Art Archive for covers',
     ),
     EnrichScope.lyrics => L10n.tr(
-      '仅从 LRCLIB / 网易云 / 酷狗 / Lyrics.ovh 查找歌词',
-      'Search LRCLIB, NetEase, KuGou & Lyrics.ovh for lyrics only',
+      '从 AMLL、LRCLIB、网易云、QQ 音乐、酷狗和 Lyrics.ovh 查找歌词',
+      'Find lyrics from AMLL, LRCLIB, NetEase, QQ Music, KuGou and Lyrics.ovh',
     ),
   };
 

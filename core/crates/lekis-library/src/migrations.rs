@@ -29,6 +29,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (12, include_str!("../migrations/0012_remote_albums.sql")),
     (13, include_str!("../migrations/0013_perf_indexes.sql")),
     (14, include_str!("../migrations/0014_source_indexes.sql")),
+    (15, include_str!("../migrations/0015_lyric_search.sql")),
 ];
 
 pub(crate) fn run(conn: &mut Connection) -> Result<bool> {
@@ -62,4 +63,46 @@ pub(crate) fn run(conn: &mut Connection) -> Result<bool> {
         applied = true;
     }
     Ok(applied)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lyric_search_schema_upgrades_v14_and_preserves_selection() -> Result<()> {
+        let mut conn = Connection::open_in_memory().db()?;
+        conn.execute_batch("CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL)").db()?;
+        for &(version, sql) in MIGRATIONS.iter().take_while(|(v, _)| *v <= 14) {
+            conn.execute_batch(sql).db()?;
+            conn.execute("INSERT INTO schema_migrations VALUES(?1,0)", [version])
+                .db()?;
+        }
+        conn.execute_batch(
+            "INSERT INTO track(uid,title,created_at,updated_at) VALUES('test','test',0,0);
+            INSERT INTO lyrics(track_id,format,content,source,is_active,created_at) VALUES
+            (1,'plain','chosen','manual',1,0),(1,'plain','previous','embedded',0,0);",
+        )
+        .db()?;
+        assert!(run(&mut conn)?);
+        assert!(!run(&mut conn)?);
+        let version: i64 = conn
+            .query_row("SELECT MAX(version) FROM schema_migrations", [], |row| {
+                row.get(0)
+            })
+            .db()?;
+        assert_eq!(version, 15);
+        let selected: i64 = conn
+            .query_row("SELECT id FROM lyrics WHERE selected_by_user=1", [], |r| {
+                r.get(0)
+            })
+            .db()?;
+        assert_eq!(selected, 1);
+        conn.execute(
+            "INSERT INTO lyric_recording(lyrics_id,artists) VALUES(1,'[]')",
+            [],
+        )
+        .db()?;
+        Ok(())
+    }
 }

@@ -292,11 +292,13 @@ class AlbumCard extends StatelessWidget {
     required this.onTap,
     this.selected = false,
     this.heroTag,
+    this.useListedArtwork = false,
   });
 
   final AlbumDto album;
   final VoidCallback onTap;
   final bool selected;
+  final bool useListedArtwork;
 
   /// Pass the same tag to `AlbumDetailPage.route` for a cover flight.
   final Object? heroTag;
@@ -312,11 +314,19 @@ class AlbumCard extends StatelessWidget {
       selected: selected,
       artwork: AspectRatio(
         aspectRatio: 1,
-        child: AlbumArtHero(
-          album: album,
-          tag: heroTag,
-          radius: LekisRadius.artworkGrid,
-        ),
+        child: useListedArtwork
+            ? ArtworkImage(
+                hash: album.artworkHash,
+                radius: LekisRadius.artworkGrid,
+                placeholderSeed: album.id,
+                placeholderIcon: Icons.album_rounded,
+                placeholderLabel: album.title,
+              )
+            : AlbumArtHero(
+                album: album,
+                tag: heroTag,
+                radius: LekisRadius.artworkGrid,
+              ),
       ),
       title: album.title,
       subtitle: subtitle.isEmpty ? null : subtitle,

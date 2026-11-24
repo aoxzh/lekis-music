@@ -20,6 +20,7 @@
     )
 )]
 
+pub mod alternate_source;
 mod artwork_local;
 pub mod config;
 pub mod connect;
@@ -33,6 +34,7 @@ mod health;
 pub mod logs;
 mod lyrics_local;
 mod lyrics_lookup;
+pub mod music_export;
 mod offline;
 pub mod platform;
 pub mod plugins;
@@ -128,6 +130,7 @@ struct Services {
     library: Library,
     scanner: Scanner,
     engine: PlaybackEngine,
+    alternate_preview: tokio::sync::Mutex<alternate_source::PreviewState>,
     events: EventBus,
     platform: PlatformServices,
     /// 音源可达性与网络环境（SRC-14）。
@@ -395,6 +398,7 @@ impl LekisCore {
             library,
             scanner,
             engine,
+            alternate_preview: Default::default(),
             events,
             platform,
             health,
@@ -1099,6 +1103,56 @@ impl LekisCore {
             .await
     }
 
+    /// Page through the library IDs carried by one group of sources.
+    pub async fn list_tracks_by_source(
+        &self,
+        scope: TrackSourceScope,
+        query: TrackQuery,
+    ) -> Result<Vec<TrackRow>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.list_tracks_by_source(scope, query).await })
+            .await
+    }
+
+    /// List albums using only tracks belonging to the selected source.
+    pub async fn list_albums_by_source(
+        &self,
+        scope: TrackSourceScope,
+        sort: TrackSort,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<Album>> {
+        let s = self.services.clone();
+        self.run(async move {
+            s.library
+                .list_albums_by_source(scope, sort, offset, limit)
+                .await
+        })
+        .await
+    }
+
+    /// Fetch category metadata for the matching input tracks in one batch.
+    pub async fn track_metadata_by_source(
+        &self,
+        scope: TrackSourceScope,
+        ids: Vec<TrackId>,
+    ) -> Result<Vec<ScopedTrackMetadata>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.track_metadata_by_source(scope, ids).await })
+            .await
+    }
+
+    /// Keep matching input IDs in their original order.
+    pub async fn filter_track_ids_by_source(
+        &self,
+        scope: TrackSourceScope,
+        ids: Vec<TrackId>,
+    ) -> Result<Vec<TrackId>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.filter_track_ids_by_source(scope, ids).await })
+            .await
+    }
+
     /// 曲目详情。
     ///
     /// 负数的合成 `TrackId` 表示网络电台（SRC-11），返回一个时长 0 的虚拟曲目，
@@ -1392,6 +1446,23 @@ impl LekisCore {
         let s = self.services.clone();
         self.run(async move { s.library.album_tracks(id, offset, limit).await })
             .await
+    }
+
+    /// Page through one album in disc order within the selected library source.
+    pub async fn album_tracks_by_source(
+        &self,
+        scope: TrackSourceScope,
+        id: AlbumId,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<TrackRow>> {
+        let s = self.services.clone();
+        self.run(async move {
+            s.library
+                .album_tracks_by_source(scope, id, offset, limit)
+                .await
+        })
+        .await
     }
 
     /// 专辑的艺人署名。
@@ -2465,13 +2536,38 @@ impl LekisCore {
             .await
     }
 
+    /// Read local lyric versions with recording details for manual selection.
+    pub async fn stored_lyric_versions(
+        &self,
+        id: TrackId,
+    ) -> Result<Vec<lekis_library::LyricSearchVersion>> {
+        let s = self.services.clone();
+        self.run(async move { s.library.stored_lyric_versions(id).await })
+            .await
+    }
+
+    /// Search edited tags without changing track metadata or its selected lyrics.
+    pub async fn search_lyric_versions(
+        &self,
+        id: TrackId,
+        title: String,
+        artist: String,
+    ) -> Result<Vec<lekis_library::LyricSearchVersion>> {
+        let s = self.services.clone();
+        self.run(async move {
+            s.enrich
+                .manual_lyric_search(&s.library, id, title, artist)
+                .await
+        })
+        .await
+    }
+
     /// 手动导入 / 粘贴歌词（ENR-07）。
     pub async fn set_lyrics(&self, id: TrackId, lyrics: Lyrics) -> Result<i64> {
         let s = self.services.clone();
         let created = self
             .run(async move {
-                let created = s.library.save_lyrics(id, lyrics).await?;
-                s.library.activate_lyrics(id, created).await?;
+                let created = s.library.save_selected_lyrics(id, lyrics).await?;
                 if let Err(error) = sidecars::persist_for_track(&s, id, true).await {
                     tracing::debug!(
                         target: "core::sidecars",
@@ -2761,10 +2857,19 @@ impl LekisCore {
     }
 
     /// 从歌单移除一条。
-    pub async fn remove_from_playlist(&self, id: PlaylistId, position_key: String) -> Result<()> {
+    pub async fn remove_from_playlist(
+        &self,
+        id: PlaylistId,
+        position_key: String,
+        expected_track_uid: Option<String>,
+    ) -> Result<()> {
         let s = self.services.clone();
-        self.run(async move { s.library.remove_from_playlist(id, &position_key).await })
-            .await?;
+        self.run(async move {
+            s.library
+                .remove_from_playlist(id, &position_key, expected_track_uid.as_deref())
+                .await
+        })
+        .await?;
         self.services.events.emit(CoreEvent::LibraryChanged {
             scope: LibraryScope::Playlists,
         });
@@ -3508,6 +3613,7 @@ mod tests {
                 .library
                 .save_lyrics(rows[0].id, make("embedded", "Embedded fixture"))
                 .await?;
+            core.activate_lyrics(rows[0].id, embedded).await?;
             let manual = core
                 .set_lyrics(rows[0].id, make("manual", "Manual fixture"))
                 .await?;

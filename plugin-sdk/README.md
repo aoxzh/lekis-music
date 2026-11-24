@@ -107,6 +107,8 @@ const result = await host.native.call("search", { query: "music" });
 
 浏览桥接：`browse_plugin(plugin_id, path, cursor)` 返回 folders、普通曲目行和 next 游标。原生 Lekis `browse({path,cursor})` 返回 `{items:[{kind:'folder',id,title}, {kind:'track',id,title,artists,durationMs}],next?}`；文件夹 ID 是不透明路径。
 
+歌单页的「在线歌单与榜单」汇集已启用的音源。插件可用 `kind:'playlist'` 或 `kind:'chart'` 返回歌单或榜单目录。订阅保存插件 ID 和目录 ID，重新打开或刷新时调用插件读取当前内容。目录 ID 应跨版本保持稳定，不要使用会过期的播放地址。
+
 MyGO 根目录调用 `home()`，`page:<id>` 调用 `browse({page:id})`；两者读取 `{sections:[{tracks,albums,artists,playlists,links,morePage}]}`，其中 `links` 使用 `{title,page,subtitle?,imageUrl?}`。`album:<id>` 读取 `album({id})` 的 `{album,tracks}`，`artist:<id>` 读取 `artist({id})` 的 `{artist,tracks,albums}`，`playlist:<id>` 读取 `playlist({id})` 的歌单及 `tracks`。分区中的曲目展开为普通曲目，实体、链接及 `morePage` 转为目录；页面标题与分区布局不保留。原插件没有 `home` 时，打开根目录会明确报不支持，不从清单 `navigation` 自动生成首页。
 
 权限默认值与标头范围：未声明 `permissions.network` 时不能访问网络；允许显式域名及 `*.example.com`，不接受 `["*"]` 或动态域名。默认私有存储配额为 1024 KiB，按键和值的 UTF-8 字节数计费，`storageKb` 可覆盖。进程声明只接受精确程序名/路径，仍不提供 MyGO 后台进程句柄。MyGO 的网络域名会同时成为 `stream` 返回标头的允许域名，播放前仍校验实际媒体地址。原版 `requestHeaders` 规则只接受省略 `kinds`、hosts 与 network 声明完全一致、无设置/存储占位符的字符串规则；目前只用其域名授权，固定头值尚未自动注入播放请求，图片请求也未接入。依赖这些固定规则鉴权的插件尚不兼容，应由 `stream` 主动返回所需 `headers`。

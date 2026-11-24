@@ -9,7 +9,7 @@ import 'package:lekis/src/rust/api/core.dart' as core;
 /// What the main Now Playing area shows. On wide windows `lyrics` and
 /// `queue` move to the third pane next to cover + controls; on compact
 /// windows they replace the cover (the queue opens as a bottom sheet).
-enum NowPlayingPane { cover, wall, lyrics, queue }
+enum NowPlayingPane { cover, wall, lyrics, queue, dial }
 
 /// Currently selected Now Playing pane. The desktop player bar sets
 /// [NowPlayingPane.lyrics] before opening the page.

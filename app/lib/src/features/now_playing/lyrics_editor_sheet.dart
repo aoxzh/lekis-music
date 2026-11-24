@@ -6,6 +6,7 @@ import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/rust/api/error.dart';
+import 'package:lekis/src/rust/api/lyric_search.dart' as search;
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:lekis/src/widgets/lekis_slider.dart';
@@ -37,6 +38,12 @@ class _LyricsEditorSheet extends ConsumerStatefulWidget {
 
 class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
   final _content = TextEditingController();
+  final _searchTitle = TextEditingController();
+  final _searchArtist = TextEditingController();
+  List<int> _hits = const [];
+  Map<int, search.LyricSearchVersionDto> _recordings = const {};
+  bool _searched = false;
+  bool _searchExpanded = false;
   var _format = LyricsFormatDto.lrc;
   var _offset = 0;
   String _loadedContent = '';
@@ -52,6 +59,61 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
   void initState() {
     super.initState();
     _load();
+    _prefillQuery();
+  }
+
+  Future<void> _prefillQuery() async {
+    try {
+      final track = await core.getTrack(trackId: widget.trackId);
+      if (!mounted ||
+          _searchTitle.text.isNotEmpty ||
+          _searchArtist.text.isNotEmpty) {
+        return;
+      }
+      setState(() {
+        _searchTitle.text = track.title;
+        _searchArtist.text = track.artists.firstOrNull ?? '';
+      });
+    } catch (_) {
+      // Query fields remain editable when the track tags are unavailable.
+    }
+  }
+
+  Future<void> _search() async {
+    final title = _searchTitle.text.trim();
+    if (title.isEmpty || _saving) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+      _notice = null;
+      _hits = [];
+      _searched = false;
+    });
+    try {
+      final results = await search.searchLyricVersions(
+        trackId: widget.trackId,
+        title: title,
+        artist: _searchArtist.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _searched = true;
+        _hits = [for (final hit in results) hit.row.id];
+        _recordings = {
+          ..._recordings,
+          for (final hit in results) hit.row.id: hit,
+        };
+        final rows = {
+          for (final row in _versions) row.id: row,
+          for (final hit in results) hit.row.id: hit.row,
+        };
+        _versions = rows.values.toList();
+      });
+    } catch (e) {
+      if (mounted) setState(() => _error = _lookupError(e));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   String _lookupError(Object error) {
@@ -68,33 +130,29 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
   }
 
   Future<void> _load({bool preserveDraft = false}) async {
-    LyricsDto? current;
-    String? error;
     try {
-      current = await core.lyrics(trackId: widget.trackId);
-    } catch (e) {
-      if (!mounted) return;
-      error = _lookupError(e);
-    }
-    try {
-      // Fetch versions after lookup, including new candidates awaiting selection.
-      final versions = await core.lyricsVersions(trackId: widget.trackId);
+      final recordings = await search.storedLyricVersions(
+        trackId: widget.trackId,
+      );
+      final versions = [for (final item in recordings) item.row];
+      final active = versions.where((row) => row.isActive).firstOrNull?.lyrics;
       if (!mounted) return;
       setState(() {
         _versions = versions;
+        _recordings = {for (final item in recordings) item.row.id: item};
         final hasDraft =
             _content.text != _loadedContent ||
             _format != _loadedFormat ||
             _offset != _loadedOffset;
-        _loadedContent = current?.content ?? '';
-        _loadedFormat = current?.format ?? LyricsFormatDto.lrc;
-        _loadedOffset = current?.offsetMs ?? 0;
+        _loadedContent = active?.content ?? '';
+        _loadedFormat = active?.format ?? LyricsFormatDto.lrc;
+        _loadedOffset = active?.offsetMs ?? 0;
         if (!preserveDraft || !hasDraft) {
           _content.text = _loadedContent;
           _format = _loadedFormat;
           _offset = _loadedOffset;
         }
-        _error = error;
+        _error = null;
         _loading = false;
       });
     } catch (_) {
@@ -232,7 +290,6 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
           confidence: 1,
         ),
       );
-      await core.setLyricsOffset(trackId: widget.trackId, offsetMs: _offset);
       if (!mounted) return;
       Navigator.of(context).pop();
     } catch (e) {
@@ -246,6 +303,8 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
 
   @override
   void dispose() {
+    _searchTitle.dispose();
+    _searchArtist.dispose();
     _content.dispose();
     super.dispose();
   }
@@ -256,6 +315,9 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
+    final stored = _versions.where(
+      (v) => !_searchExpanded || !_hits.contains(v.id),
+    );
     final close = _saving ? null : () => Navigator.of(context).pop();
     return LekisPanel(
       title: context.l10n.pick('编辑歌词', 'Edit Lyrics'),
@@ -294,6 +356,56 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
+                ExpansionTile(
+                  key: const ValueKey('lyrics-editor.search'),
+                  onExpansionChanged: (open) =>
+                      setState(() => _searchExpanded = open),
+                  title: Text(
+                    context.l10n.pick('按歌名和艺人搜索', 'Search by title and artist'),
+                  ),
+                  children: [
+                    TextField(
+                      controller: _searchTitle,
+                      enabled: !_saving,
+                      maxLength: 512,
+                      key: const ValueKey('lyrics-search.title'),
+                      decoration: InputDecoration(
+                        labelText: context.l10n.pick('歌名', 'Song title'),
+                        counterText: '',
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    TextField(
+                      controller: _searchArtist,
+                      enabled: !_saving,
+                      maxLength: 512,
+                      key: const ValueKey('lyrics-search.artist'),
+                      decoration: InputDecoration(
+                        labelText: context.l10n.pick(
+                          '艺人（可选）',
+                          'Artist (optional)',
+                        ),
+                        counterText: '',
+                      ),
+                      onSubmitted: (_) => _search(),
+                    ),
+                    TextButton.icon(
+                      key: const ValueKey('lyrics-search.submit'),
+                      onPressed: _saving || _searchTitle.text.trim().isEmpty
+                          ? null
+                          : _search,
+                      icon: const Icon(Icons.search),
+                      label: Text(context.l10n.pick('搜索版本', 'Search versions')),
+                    ),
+                    if (_searched && _hits.isEmpty)
+                      Text(
+                        context.l10n.pick('没有符合条件的版本', 'No matching versions'),
+                      ),
+                    for (final id in _hits)
+                      if (_recordings[id] case final hit?)
+                        _versionTile(hit.row, result: true),
+                  ],
+                ),
                 if (_notice != null) ...[
                   Text(
                     _notice!,
@@ -393,47 +505,59 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
                     color: colors.onSurfaceVariant,
                   ),
                 ),
-                if (_versions.isNotEmpty) ...[
+                if (stored.isNotEmpty) ...[
                   const SizedBox(height: LekisSpacing.xl),
                   _Label(
                     context.l10n.pick('已有版本', 'Existing versions'),
                     theme: theme,
                     colors: colors,
                   ),
-                  for (final v in _versions)
-                    ListTile(
-                      key: ValueKey('lyrics-editor.version.${v.id}'),
-                      onTap: _saving || v.isActive ? null : () => _activate(v),
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        v.isActive
-                            ? Icons.check_circle_rounded
-                            : Icons.description_outlined,
-                        size: LekisSpacing.xl - LekisSpacing.xs,
-                        color: v.isActive
-                            ? colors.accent
-                            : colors.onSurfaceVariant,
-                      ),
-                      trailing: IconButton(
-                        key: ValueKey('lyrics-editor.preview.${v.id}'),
-                        tooltip: context.l10n.pick('预览歌词', 'Preview lyrics'),
-                        onPressed: _saving ? null : () => _preview(v),
-                        icon: const Icon(Icons.visibility_outlined),
-                      ),
-                      title: Text(
-                        '${v.lyrics.source} · ${v.lyrics.format.name}',
-                      ),
-                      subtitle: Text(
-                        context.l10n.pick(
-                          '${v.lyrics.content.length} 字符',
-                          '${v.lyrics.content.length} chars',
-                        ),
-                      ),
-                    ),
+                  for (final v in stored) _versionTile(v),
                 ],
               ],
             ),
+    );
+  }
+
+  Widget _versionTile(LyricsRowDto v, {bool result = false}) {
+    final colors = context.lekisColors;
+    final metadata = _recordings[v.id];
+    final duration = metadata?.durationMs;
+    final detail = [
+      if (metadata?.artists.isNotEmpty ?? false) metadata!.artists.join(' / '),
+      if (metadata?.album case final String album) album,
+      if (duration != null)
+        '${duration ~/ 60000}:${(duration ~/ 1000 % 60).toString().padLeft(2, '0')}',
+      context.l10n.lyricsSourceName(v.lyrics.source),
+      v.lyrics.format.name,
+    ].join(' · ');
+    return ListTile(
+      key: ValueKey('lyrics-editor.${result ? 'result' : 'version'}.${v.id}'),
+      onTap: _saving || v.isActive ? null : () => _activate(v),
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(
+        v.isActive ? Icons.check_circle_rounded : Icons.description_outlined,
+        size: LekisSpacing.xl - LekisSpacing.xs,
+        color: v.isActive ? colors.accent : colors.onSurfaceVariant,
+      ),
+      trailing: IconButton(
+        key: ValueKey(
+          'lyrics-editor.${result ? 'result-preview' : 'preview'}.${v.id}',
+        ),
+        tooltip: context.l10n.pick('预览歌词', 'Preview lyrics'),
+        onPressed: _saving ? null : () => _preview(v),
+        icon: const Icon(Icons.visibility_outlined),
+      ),
+      title: Text(metadata?.title ?? detail),
+      subtitle: Text(
+        metadata?.title != null
+            ? detail
+            : context.l10n.pick(
+                '${v.lyrics.content.length} 字符',
+                '${v.lyrics.content.length} chars',
+              ),
+      ),
     );
   }
 }

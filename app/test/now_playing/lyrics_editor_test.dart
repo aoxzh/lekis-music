@@ -3,9 +3,14 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lekis/src/features/enrich/enrich_actions.dart';
+import 'package:lekis/src/features/enrich/widgets/candidate_card.dart';
 import 'package:lekis/src/features/now_playing/lyrics_editor_sheet.dart';
+import 'package:lekis/src/features/now_playing/lyrics_view.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/rust/api/error.dart';
+import 'package:lekis/src/rust/api/lyric_search.dart';
 import 'package:lekis/src/rust/frb_generated.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
@@ -30,14 +35,73 @@ class _Api implements RustLibApi {
   LyricsDto candidate = review;
   final activations = <int>[];
   var retries = 0;
+  var lookups = 0;
   Completer<void>? pending;
   bool failActivation = false;
   Object? retryError;
   LyricsDto? retryResult;
   LyricsDto? saved;
+  final searches = <(int, String, String)>[];
+  bool emptySearch = false;
+  Object? searchError;
+
   @override
-  Future<LyricsDto?> crateApiCoreLyrics({required int trackId}) async =>
-      active == 10 ? embedded : candidate;
+  Future<TrackDto> crateApiCoreGetTrack({required int trackId}) async =>
+      TrackDto(
+        id: trackId,
+        uid: 'fixture',
+        title: 'Library title',
+        artists: const ['Library artist'],
+        durationMs: BigInt.from(180000),
+        genres: const [],
+        loved: false,
+        playCount: 0,
+        isLocal: true,
+      );
+
+  @override
+  Future<List<LyricSearchVersionDto>> crateApiLyricSearchStoredLyricVersions({
+    required int trackId,
+  }) async => [
+    for (final row in await crateApiCoreLyricsVersions(trackId: trackId))
+      LyricSearchVersionDto(row: row, artists: const []),
+    if (searches.isNotEmpty && !emptySearch) _live(trackId),
+  ];
+
+  LyricSearchVersionDto _live(int trackId) => LyricSearchVersionDto(
+    row: LyricsRowDto(
+      id: 25,
+      trackId: trackId,
+      lyrics: review,
+      isActive: active == 25,
+    ),
+    title: 'Echo (Live)',
+    artists: const ['Band'],
+    album: 'Concert',
+    durationMs: 215000,
+  );
+
+  @override
+  Future<List<LyricSearchVersionDto>> crateApiLyricSearchSearchLyricVersions({
+    required int trackId,
+    required String title,
+    required String artist,
+  }) async {
+    searches.add((trackId, title, artist));
+    if (searchError != null) throw searchError!;
+    return emptySearch ? [] : [_live(trackId)];
+  }
+
+  @override
+  Future<LyricsDto?> crateApiCoreLyrics({required int trackId}) async {
+    lookups++;
+    return active == 10
+        ? embedded
+        : active == 20
+        ? candidate
+        : null;
+  }
+
   @override
   Future<List<LyricsRowDto>> crateApiCoreLyricsVersions({
     required int trackId,
@@ -134,6 +198,87 @@ void main() {
       .controller!
       .text;
 
+  for (final (locale, label) in [('zh', 'QQ 音乐'), ('en', 'QQ Music')]) {
+    for (final source in ['qqmusic', 'plugin:dev.lekis.example.qq-lyrics']) {
+      testWidgets(
+        'QQ attribution across lyrics and review ($locale, $source)',
+        (tester) async {
+          api.active = 20;
+          api.candidate = LyricsDto(
+            format: LyricsFormatDto.plain,
+            content: 'QQ fixture',
+            source: source,
+            offsetMs: 0,
+            confidence: .7,
+          );
+          await tester.pumpWidget(
+            ProviderScope(
+              child: LekisLocale(
+                locale: Locale(locale),
+                child: MaterialApp(
+                  theme: lekisLightTheme(),
+                  home: Scaffold(
+                    body: Consumer(
+                      builder: (context, ref, _) => Column(
+                        children: [
+                          const Expanded(child: LyricsView(trackId: 7)),
+                          CandidateCard(
+                            candidate: EnrichCandidateDto(
+                              id: 1,
+                              kind: 'lyrics',
+                              source: source,
+                              payloadJson:
+                                  '{"format":"plain","content":"QQ fixture"}',
+                              score: .7,
+                              createdAt: 0,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => showEnrichScopeDialog(context),
+                            child: const Text('Scope'),
+                          ),
+                          TextButton(
+                            onPressed: () => showLyricsEditor(context, ref, 7),
+                            child: const Text('Versions'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('$label · Text'), findsOneWidget);
+          expect(
+            find.textContaining(locale == 'en' ? 'From $label' : '来自 $label'),
+            findsOneWidget,
+          );
+          await tester.tap(find.text('Scope'));
+          await tester.pumpAndSettle();
+          final hint = find.descendant(
+            of: find.byType(SimpleDialog),
+            matching: find.textContaining(label),
+          );
+          expect(hint, findsOneWidget);
+          await tester.tap(hint);
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Versions'));
+          await tester.pumpAndSettle();
+          expect(find.text('$label · plain'), findsOneWidget);
+          expect(api.activations, isEmpty);
+          expect(api.candidate.source, source);
+          const other = 'plugin:dev.lekis.test.other-lyrics';
+          expect(
+            L10n(isEnglish: locale == 'en').lyricsSourceName(other),
+            other,
+          );
+        },
+      );
+    }
+  }
+
   testWidgets('selects the stored version by ID only after host success', (
     tester,
   ) async {
@@ -197,6 +342,7 @@ void main() {
     await tester.tap(retry);
     await tester.pumpAndSettle();
     expect(api.retries, 1);
+    expect(api.lookups, 0);
     expect(content(tester), embedded.content);
     expect(find.textContaining('未找到可自动使用的歌词'), findsOneWidget);
     api.retryError = const CoreError(
@@ -210,6 +356,28 @@ void main() {
     expect(find.textContaining('private remote detail'), findsNothing);
     expect(find.byKey(const ValueKey('lyrics-editor.notice')), findsNothing);
     expect(content(tester), embedded.content);
+  });
+  testWidgets('empty playback lyrics opens review-only candidates', (
+    tester,
+  ) async {
+    api.active = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: lekisLightTheme(),
+          home: const Scaffold(body: LyricsView(trackId: 7)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('查找歌词版本'));
+    await tester.pumpAndSettle();
+    final choice = find.byKey(const ValueKey('lyrics-editor.version.20'));
+    await tester.ensureVisible(choice);
+    await tester.tap(choice);
+    await tester.pumpAndSettle();
+    expect(api.activations, [20]);
+    expect(api.retries, 0);
   });
   testWidgets('retry preserves an unsaved lyrics draft', (tester) async {
     await mount(tester);
@@ -236,5 +404,48 @@ void main() {
     expect(api.saved?.source, 'manual');
     expect(api.saved?.format, LyricsFormatDto.lrc);
     expect(api.saved?.content, '[00:01.00]Original manual fixture');
+  });
+  testWidgets('search uses edited tags and only switches when selected', (
+    tester,
+  ) async {
+    await mount(tester);
+    await tester.tap(find.byKey(const ValueKey('lyrics-editor.search')));
+    await tester.pumpAndSettle();
+    final title = find.byKey(const ValueKey('lyrics-search.title'));
+    final artist = find.byKey(const ValueKey('lyrics-search.artist'));
+    expect(tester.widget<TextField>(title).controller!.text, 'Library title');
+    expect(tester.widget<TextField>(artist).controller!.text, 'Library artist');
+    await tester.enterText(title, 'Echo');
+    await tester.enterText(artist, 'Band');
+    final submit = find.byKey(const ValueKey('lyrics-search.submit'));
+    await tester.ensureVisible(submit);
+    api.emptySearch = true;
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+    expect(find.text('没有符合条件的版本'), findsOneWidget);
+    expect(content(tester), embedded.content);
+    api.searchError = const CoreError(
+      kind: ErrorKind.network,
+      detail: 'offline',
+    );
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('请检查网络后重试'), findsOneWidget);
+    expect(api.active, 10);
+    expect(content(tester), embedded.content);
+    api.searchError = null;
+    api.emptySearch = false;
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+    expect(api.searches.last, (7, 'Echo', 'Band'));
+    expect(find.text('Echo (Live)'), findsOneWidget);
+    expect(find.textContaining('Band · Concert · 3:35'), findsOneWidget);
+    expect(api.activations, isEmpty);
+    final select = find.byKey(const ValueKey('lyrics-editor.result.25'));
+    await tester.ensureVisible(select);
+    await tester.tap(select);
+    await tester.pumpAndSettle();
+    expect(api.activations, [25]);
+    expect(content(tester), review.content);
   });
 }

@@ -12,6 +12,13 @@ use lekis_types::Result;
 use rusqlite::{params, OptionalExtension};
 
 impl Library {
+    /// Local playback override keyed by the stable UID, with no metadata joins.
+    pub async fn track_alternate_source(&self, id: lekis_types::TrackId) -> Result<Option<String>> {
+        self.read(move |c| {
+            c.query_row("SELECT value FROM kv WHERE key = (SELECT 'alternate_source.' || uid FROM track WHERE id = ?1)", [id.0], |row| row.get(0)).optional().db()
+        }).await
+    }
+
     /// 读一个设置项（不存在返回 `None`）。
     pub async fn get_setting(&self, key: &str) -> Result<Option<String>> {
         let key = key.to_string();

@@ -10,6 +10,7 @@ import '../library/widgets/page_gutter.dart';
 import '../library/widgets/track_tile.dart';
 import '../player/player_providers.dart';
 import '../sources/common.dart';
+import 'collection_subscriptions.dart';
 
 typedef PluginBrowseRequest = ({String pluginId, String path, String? cursor});
 
@@ -52,11 +53,13 @@ class _PluginBrowsePageState extends ConsumerState<PluginBrowsePage> {
   String? _cursor;
   bool _loadingMore = false;
   Object? _moreError;
+  int _generation = 0;
 
   PluginBrowseRequest get _request =>
       (pluginId: widget.pluginId, path: widget.path, cursor: null);
 
   Future<void> _more(String cursor) async {
+    final generation = _generation;
     setState(() {
       _loadingMore = true;
       _moreError = null;
@@ -68,30 +71,22 @@ class _PluginBrowsePageState extends ConsumerState<PluginBrowsePage> {
         cursor: cursor,
       ));
       ref.invalidate(provider);
-      final page = await ref.read(
-        pluginBrowseProvider((
-          pluginId: widget.pluginId,
-          path: widget.path,
-          cursor: cursor,
-        )).future,
-      );
-      if (!mounted) return;
+      final page = await ref.read(provider.future);
+      if (!mounted || generation != _generation) return;
       setState(() {
         _loadedCursors.add(cursor);
-        for (final folder in page.folders) {
-          if (!_folders.any((item) => item.id == folder.id)) {
-            _folders.add(folder);
-          }
-        }
-        for (final track in page.tracks) {
-          if (!_tracks.any((item) => item.id == track.id)) _tracks.add(track);
-        }
+        _folders.addAll(page.folders);
+        _tracks.addAll(page.tracks);
         _cursor = page.next;
       });
     } catch (error) {
-      if (mounted) setState(() => _moreError = error);
+      if (mounted && generation == _generation) {
+        setState(() => _moreError = error);
+      }
     } finally {
-      if (mounted) setState(() => _loadingMore = false);
+      if (mounted && generation == _generation) {
+        setState(() => _loadingMore = false);
+      }
     }
   }
 
@@ -101,8 +96,60 @@ class _PluginBrowsePageState extends ConsumerState<PluginBrowsePage> {
     final page = loaded.value;
     final l10n = context.l10n;
     final gutter = pageGutterOf(context);
+    final saved = widget.path.isEmpty
+        ? null
+        : ref.watch(collectionSubscriptionsProvider);
+    final subscribed =
+        saved?.value?.any(
+          (row) => row.plugin == widget.pluginId && row.path == widget.path,
+        ) ??
+        false;
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+      appBar: AppBar(
+        title: Text(widget.title),
+        actions: [
+          if (widget.path.isNotEmpty)
+            IconButton(
+              tooltip: subscribed
+                  ? l10n.pick('取消订阅', 'Unsubscribe')
+                  : l10n.pick('订阅', 'Subscribe'),
+              icon: Icon(subscribed ? Icons.bookmark : Icons.bookmark_border),
+              onPressed: saved?.hasValue == true && (subscribed || page != null)
+                  ? () async {
+                      try {
+                        await ref
+                            .read(collectionSubscriptionsProvider.notifier)
+                            .setSubscribed((
+                              plugin: widget.pluginId,
+                              path: widget.path,
+                              title: widget.title,
+                            ), !subscribed);
+                      } catch (error) {
+                        if (context.mounted) {
+                          showFeatureSnack(context, describeCoreError(error));
+                        }
+                      }
+                    }
+                  : null,
+            ),
+          IconButton(
+            tooltip: l10n.pick('刷新目录', 'Refresh collection'),
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              setState(() {
+                _generation++;
+                _folders.clear();
+                _tracks.clear();
+                _loadedCursors.clear();
+                _cursor = null;
+                _loadingMore = false;
+                _moreError = null;
+              });
+              ref.invalidate(pluginBrowseProvider(_request));
+            },
+          ),
+        ],
+      ),
       body: page == null
           ? loaded.hasError
                 ? LoadErrorView(
@@ -155,6 +202,7 @@ class _PluginBrowsePageState extends ConsumerState<PluginBrowsePage> {
                       TrackTile(
                         track: tracks[i],
                         onlinePlugin: true,
+                        pluginId: widget.pluginId,
                         onTap: () => ref
                             .read(playerActionsProvider)
                             .playRows(tracks, start: i),

@@ -191,14 +191,17 @@ abstract final class SettingsStrings {
   static String get navBarLeft => L10n.tr('左侧', 'Left');
   static String get navBarRight => L10n.tr('右侧', 'Right');
   static String get lyricsStage => L10n.tr('歌词样式', 'Lyrics Style');
+  static String get styleEnsemble => L10n.tr('声部', 'Vocal parts');
+  static String get lyricsPresets => L10n.tr('歌词舞台预设', 'Lyric stage presets');
   static String get lyricsStageHint => L10n.tr(
-    '经典是简洁的逐行滚动歌词（默认）；流动 / 阶梯 / 倾斜是逐字跟唱的舞台。',
-    'Classic scrolls line by line (default); Flow / Steps / Tilt are word-by-word stages.',
+    '经典逐行滚动，对页呈现相邻两句，声部按歌词标记展示对唱与和声。',
+    'Classic scrolls by line. Facing Pages pairs adjacent lines. Vocal parts follows the singers and backing voices identified in the lyrics.',
   );
   static String get styleClassic => L10n.tr('经典', 'Classic');
   static String get styleFlow => L10n.tr('流动', 'Flow');
   static String get styleSteps => L10n.tr('阶梯', 'Steps');
   static String get styleTilt => L10n.tr('倾斜', 'Tilt');
+  static String get styleFacing => L10n.tr('对页', 'Facing Pages');
   static String get lyricsSparks => L10n.tr('火花', 'Sparks');
   static String get lyricsSparksHint => L10n.tr(
     '舞台样式下，唱到每个字时飞出细小的光点，最后一句更明显',

@@ -45,6 +45,14 @@ class LyricLine {
   bool get isInstrumental => text.trim().isEmpty;
 }
 
+typedef VocalCue = ({
+  LyricLine line,
+  int? endMs,
+  String? voice,
+  bool together,
+  bool backing,
+});
+
 @immutable
 class ParsedLyrics {
   const ParsedLyrics({
@@ -53,6 +61,7 @@ class ParsedLyrics {
     this.offsetMs = 0,
     this.source = '',
     this.format,
+    this.vocalCues = const [],
   });
 
   final List<LyricLine> lines;
@@ -67,6 +76,7 @@ class ParsedLyrics {
 
   /// Raw format reported by the core, if any.
   final LyricsFormatDto? format;
+  final List<VocalCue> vocalCues;
 
   bool get isEmpty => lines.isEmpty;
 
@@ -111,6 +121,7 @@ class ParsedLyrics {
     }
     return ParsedLyrics(
       lines: parsed.lines,
+      vocalCues: parsed.vocalCues,
       synced: parsed.synced,
       offsetMs: dto.offsetMs,
       source: dto.source,
@@ -377,7 +388,62 @@ ParsedLyrics? _parseLrc(String content, int userOffsetMs) {
       ),
     );
   }
-  return ParsedLyrics(synced: true, lines: lines);
+  return ParsedLyrics(
+    synced: true,
+    lines: lines,
+    vocalCues: _lrcVoices(out, shift),
+  );
+}
+
+final _voicePrefix = RegExp(
+  r'^(?:\[(合唱|齐唱|合|和声|男声?|女声?|A|B|All|Both|Male|Female|Backing|Voice [12])\]|(合唱|齐唱|合|和声|男声?|女声?|A|B|All|Both|Male|Female|Backing|Voice [12])\s*[:：]|\[(?:演唱|Vocal)\s*[:：]\s*([^\]\n]+)\])\s*',
+  caseSensitive: false,
+);
+
+List<VocalCue> _lrcVoices(List<LyricLine> lines, int shift) {
+  if (!lines.any((line) => _voicePrefix.hasMatch(line.text))) return const [];
+  final groups = <int, List<LyricLine>>{};
+  for (final line in lines) {
+    groups.putIfAbsent(line.startMs, () => []).add(line);
+  }
+  final result = <VocalCue>[];
+  for (final start in groups.keys.toList()..sort()) {
+    final at = _clampMs(start - shift);
+    final group = groups[start]!;
+    var index = 0;
+    while (index < group.length) {
+      final line = group[index++];
+      final match = _voicePrefix.firstMatch(line.text);
+      final voice = match == null
+          ? null
+          : (match[1] ?? match[2] ?? match[3]!).trim();
+      final backing = const {'和声', 'backing'}.contains(voice?.toLowerCase());
+      final secondary = <String>[];
+      while (index < group.length &&
+          !_voicePrefix.hasMatch(group[index].text)) {
+        final text = group[index++].text;
+        if (text.isNotEmpty) secondary.add(text);
+      }
+      result.add((
+        line: LyricLine(
+          at,
+          line.text.substring(match?.end ?? 0),
+          translation: secondary.isEmpty ? null : secondary.join('\n'),
+        ),
+        endMs: null,
+        voice: backing ? null : voice,
+        together: const {
+          '合',
+          '合唱',
+          '齐唱',
+          'both',
+          'all',
+        }.contains(voice?.toLowerCase()),
+        backing: backing,
+      ));
+    }
+  }
+  return result;
 }
 
 int? _ttmlTime(String t) {
@@ -400,6 +466,16 @@ int? _ttmlTime(String t) {
   return (total * 1000).round();
 }
 
+class _TtmlPart {
+  _TtmlPart(this.agentId, {this.backing = false, this.start, this.end});
+  final String? agentId;
+  final bool backing;
+  int? start;
+  int? end;
+  final text = StringBuffer();
+  final translations = <String>[];
+}
+
 ParsedLyrics? _parseTtml(String content, int userOffsetMs) {
   final XmlDocument document;
   try {
@@ -408,6 +484,23 @@ ParsedLyrics? _parseTtml(String content, int userOffsetMs) {
     return null;
   }
   final rows = <LyricLine>[];
+  final cues = <VocalCue>[];
+  String? attr(XmlElement element, String local) =>
+      element.attributes.where((a) => a.name.local == local).firstOrNull?.value;
+  final agents = {
+    for (final agent in document.descendantElements.where(
+      (node) => node.name.local == 'agent',
+    ))
+      if (attr(agent, 'id') case final String id)
+        id: (
+          name: agent.childElements
+              .where((node) => node.name.local == 'name')
+              .firstOrNull
+              ?.innerText
+              .trim(),
+          group: attr(agent, 'type') == 'group',
+        ),
+  };
   for (final p in document.descendantElements.where(
     (e) => e.name.local == 'p',
   )) {
@@ -416,26 +509,45 @@ ParsedLyrics? _parseTtml(String content, int userOffsetMs) {
     final text = StringBuffer();
     final translations = <String>[];
     final words = <LyricWord>[];
-    void read(XmlNode node) {
+    final endMs = _ttmlTime(p.getAttribute('end') ?? '');
+    final lead = _TtmlPart(attr(p, 'agent'), start: start, end: endMs);
+    final parts = [lead];
+    void read(XmlNode node, _TtmlPart part) {
       if (node is XmlText || node is XmlCDATA) {
         text.write(node.value);
+        part.text.write(node.value);
         return;
       }
       if (node is! XmlElement) return;
-      final role = node.attributes
-          .where((a) => a.name.local == 'role')
-          .firstOrNull
-          ?.value;
+      final role = attr(node, 'role');
       if (role == 'x-translation' || role == 'x-roman') {
-        translations.add(node.innerText.trim());
+        final secondary = node.innerText.trim();
+        if (secondary.isNotEmpty) {
+          translations.add(secondary);
+          part.translations.add(secondary);
+        }
         return;
       }
       if (node.name.local == 'br') {
         text.write(' ');
+        part.text.write(' ');
         return;
+      }
+      final agent = attr(node, 'agent');
+      if (role == 'x-bg' || agent != null && agent != part.agentId) {
+        part = _TtmlPart(agent, backing: role == 'x-bg' || part.backing);
+        parts.add(part);
       }
       final begin = _ttmlTime(node.getAttribute('begin') ?? '');
       final end = _ttmlTime(node.getAttribute('end') ?? '');
+      if (part != lead) {
+        if (begin != null && (part.start == null || part.start! > begin)) {
+          part.start = begin;
+        }
+        if (end != null && (part.end == null || part.end! < end)) {
+          part.end = end;
+        }
+      }
       if (begin != null &&
           end != null &&
           end >= begin &&
@@ -449,18 +561,38 @@ ParsedLyrics? _parseTtml(String content, int userOffsetMs) {
           ),
         );
         text.write(value);
+        part.text.write(value);
       } else {
         for (final child in node.children) {
-          read(child);
+          read(child, part);
         }
       }
     }
 
     for (final child in p.children) {
-      read(child);
+      read(child, lead);
     }
     final primary = text.toString().trim();
     final at = _clampMs(start - userOffsetMs);
+    for (final part in parts) {
+      final value = part.text.toString().trim();
+      if (value.isEmpty && parts.length > 1) continue;
+      final agent = agents[part.agentId];
+      final end = part.end ?? endMs;
+      cues.add((
+        line: LyricLine(
+          _clampMs((part.start ?? start) - userOffsetMs),
+          value,
+          translation: part.translations.isEmpty
+              ? null
+              : part.translations.join('\n'),
+        ),
+        endMs: end == null ? null : _clampMs(end - userOffsetMs),
+        voice: agent?.name ?? part.agentId,
+        together: agent?.group ?? false,
+        backing: part.backing,
+      ));
+    }
     rows.add(
       LyricLine(
         at,
@@ -475,5 +607,10 @@ ParsedLyrics? _parseTtml(String content, int userOffsetMs) {
     }
   }
   if (rows.isEmpty) return null;
-  return ParsedLyrics(synced: true, lines: _foldTimed(rows));
+  final hasParts = cues.any((cue) => cue.voice != null || cue.backing);
+  return ParsedLyrics(
+    synced: true,
+    lines: _foldTimed(rows),
+    vocalCues: hasParts ? cues : const [],
+  );
 }

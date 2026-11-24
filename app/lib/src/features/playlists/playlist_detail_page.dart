@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/library/artwork_actions.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
+import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
@@ -28,26 +29,30 @@ import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/features/playlists/playlist_strings.dart';
 
 class PlaylistDetailPage extends StatelessWidget {
-  const PlaylistDetailPage({super.key, required this.playlistId});
+  const PlaylistDetailPage({super.key, required this.playlistId, this.scope});
 
   final int playlistId;
+  final LibraryScope? scope;
 
-  static Route<void> route(int playlistId) => MaterialPageRoute<void>(
-    settings: RouteSettings(name: '/playlist/$playlistId'),
-    builder: (_) => PlaylistDetailPage(playlistId: playlistId),
-  );
+  static Route<void> route(int playlistId, {LibraryScope? scope}) =>
+      MaterialPageRoute<void>(
+        settings: RouteSettings(name: '/playlist/$playlistId'),
+        builder: (_) =>
+            PlaylistDetailPage(playlistId: playlistId, scope: scope),
+      );
 
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(),
-    body: PlaylistDetailView(playlistId: playlistId),
+    body: PlaylistDetailView(playlistId: playlistId, scope: scope),
   );
 }
 
 class PlaylistDetailView extends ConsumerStatefulWidget {
-  const PlaylistDetailView({super.key, required this.playlistId});
+  const PlaylistDetailView({super.key, required this.playlistId, this.scope});
 
   final int playlistId;
+  final LibraryScope? scope;
 
   @override
   ConsumerState<PlaylistDetailView> createState() => _PlaylistDetailViewState();
@@ -107,6 +112,7 @@ class _PlaylistDetailViewState extends ConsumerState<PlaylistDetailView> {
       await core.removeFromPlaylist(
         playlistId: playlist.id,
         positionKey: entry.positionKey,
+        expectedTrackUid: entry.trackUid,
       );
       _refresh();
     });
@@ -126,6 +132,73 @@ class _PlaylistDetailViewState extends ConsumerState<PlaylistDetailView> {
     if (playlist == null) {
       return const LekisDelayedSkeleton(
         child: SkeletonTrackListView(top: LekisSpacing.lg),
+      );
+    }
+    final scope = widget.scope;
+    if (scope != null) {
+      final provider = scopedPlaylistTracksProvider((
+        scope: scope,
+        playlistId: playlist.id,
+      ));
+      final active = ref.watch(librarySourceProvider);
+      final tracks = active == scope
+          ? ref.watch(provider)
+          : const AsyncData(<TrackRowDto>[]);
+      return tracks.when(
+        error: (error, _) => Center(
+          child: Text(
+            PlaylistStrings.entriesLoadFailed(describeCoreError(error)),
+          ),
+        ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        data: (rows) {
+          final actions = ref.read(playerActionsProvider);
+          final gutter = pageGutterOf(context);
+          return ListView.builder(
+            padding: EdgeInsets.fromLTRB(
+              gutter,
+              LekisSpacing.md,
+              gutter,
+              scrollEndPadding(context),
+            ),
+            itemCount: rows.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _PlaylistHeader(
+                      playlist: playlist,
+                      subtitle: PlaylistStrings.detailSubtitle(rows.length),
+                      queueTrackIds: [for (final row in rows) row.id],
+                      onPlay: rows.isEmpty
+                          ? null
+                          : () => actions.playRows(rows),
+                      onShuffle: rows.isEmpty
+                          ? null
+                          : () => actions.playRows(rows, shuffle: true),
+                    ),
+                    TextButton.icon(
+                      icon: const Icon(Icons.edit_outlined),
+                      label: Text(
+                        context.l10n.pick('编辑完整歌单', 'Edit full playlist'),
+                      ),
+                      onPressed: () =>
+                          Navigator.of(context)
+                              .push(PlaylistDetailPage.route(playlist.id)),
+                    ),
+                  ],
+                );
+              }
+              return TrackTile(
+                track: rows[index - 1],
+                onlinePlugin: scope.kind == LibraryScopeKind.plugin,
+                pluginId: scope.pluginId,
+                onTap: () => actions.playRows(rows, start: index - 1),
+              );
+            },
+          );
+        },
       );
     }
     return playlist.kind == PlaylistKindDto.smart
@@ -167,7 +240,7 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
   final TextEditingController _search = TextEditingController();
   String _query = '';
   bool _selecting = false;
-  final Set<String> _selectedKeys = <String>{};
+  final Map<String, String> _selectedKeys = {};
 
   @override
   void dispose() {
@@ -180,9 +253,13 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
     ref.invalidate(playlistsProvider);
   }
 
-  void _toggleSelected(String positionKey) {
+  void _toggleSelected(PlaylistEntryDto entry) {
     setState(() {
-      if (!_selectedKeys.add(positionKey)) _selectedKeys.remove(positionKey);
+      if (_selectedKeys[entry.positionKey] == entry.trackUid) {
+        _selectedKeys.remove(entry.positionKey);
+      } else {
+        _selectedKeys[entry.positionKey] = entry.trackUid;
+      }
       _selecting = _selectedKeys.isNotEmpty;
     });
   }
@@ -279,6 +356,7 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
           await core.removeFromPlaylist(
             playlistId: playlist.id,
             positionKey: entry.positionKey,
+            expectedTrackUid: entry.trackUid,
           );
           removed++;
         } catch (_) {
@@ -322,7 +400,7 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
       await core.movePlaylistItem(
         playlistId: widget.playlist.id,
         positionKey: entry.positionKey,
-        beforeKey: first.first.positionKey,
+        afterKey: first.first.positionKey,
       );
       if (!mounted) return;
       ref.invalidate(playlistEntriesProvider(widget.playlist.id));
@@ -379,10 +457,10 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
     // Position keys are rewritten whenever a row moves, so a selection made
     // before a sort/merge/move may point at keys that no longer exist. Only
     // show and act on keys that are still in the current list.
-    final rowKeys = {for (final entry in rows) entry.positionKey};
     final selectedKeys = {
-      for (final key in _selectedKeys)
-        if (rowKeys.contains(key)) key,
+      for (final entry in rows)
+        if (_selectedKeys[entry.positionKey] == entry.trackUid)
+          entry.positionKey,
     };
 
     final content = CustomScrollView(
@@ -550,6 +628,9 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
     );
 
     if (!_selecting) return content;
+    final allVisibleSelected =
+        visible.isNotEmpty &&
+        visible.every((entry) => selectedKeys.contains(entry.positionKey));
     return Stack(
       children: [
         Positioned.fill(child: content),
@@ -561,6 +642,19 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
             top: false,
             child: _SelectionBar(
               count: selectedKeys.length,
+              visibleCount: visible.length,
+              allVisibleSelected: allVisibleSelected,
+              onToggleVisible: visible.isEmpty
+                  ? null
+                  : () => setState(() {
+                      for (final entry in visible) {
+                        if (allVisibleSelected) {
+                          _selectedKeys.remove(entry.positionKey);
+                        } else {
+                          _selectedKeys[entry.positionKey] = entry.trackUid;
+                        }
+                      }
+                    }),
               onCancel: _clearSelection,
               onRemove: selectedKeys.isEmpty
                   ? null
@@ -936,11 +1030,17 @@ class _PlaylistHeader extends ConsumerWidget {
 class _SelectionBar extends StatelessWidget {
   const _SelectionBar({
     required this.count,
+    required this.visibleCount,
+    required this.allVisibleSelected,
+    required this.onToggleVisible,
     required this.onCancel,
     required this.onRemove,
   });
 
   final int count;
+  final int visibleCount;
+  final bool allVisibleSelected;
+  final VoidCallback? onToggleVisible;
   final VoidCallback onCancel;
   final VoidCallback? onRemove;
 
@@ -966,6 +1066,23 @@ class _SelectionBar extends StatelessWidget {
             Text(
               context.l10n.pick('已选 $count 首', '$count selected'),
               style: theme.textTheme.bodyMedium,
+            ),
+            IconButton(
+              tooltip: allVisibleSelected
+                  ? context.l10n.pick(
+                      '取消选择当前 $visibleCount 项',
+                      'Deselect $visibleCount listed entries',
+                    )
+                  : context.l10n.pick(
+                      '全选当前 $visibleCount 项',
+                      'Select all $visibleCount listed entries',
+                    ),
+              icon: Icon(
+                allVisibleSelected
+                    ? Icons.deselect_rounded
+                    : Icons.select_all_rounded,
+              ),
+              onPressed: onToggleVisible,
             ),
             TextButton(
               onPressed: onCancel,
@@ -1006,7 +1123,7 @@ class _PlaylistEntryList extends StatefulWidget {
   final bool busy;
   final bool selecting;
   final Set<String> selectedKeys;
-  final void Function(String positionKey) onToggleSelect;
+  final ValueChanged<PlaylistEntryDto> onToggleSelect;
   final Future<void> Function(
     List<PlaylistEntryDto> entries,
     int index,
@@ -1100,7 +1217,7 @@ class _PlaylistEntryListState extends State<_PlaylistEntryList>
               index: i,
               selecting: widget.selecting,
               selected: widget.selectedKeys.contains(rows[i].positionKey),
-              onToggleSelect: () => widget.onToggleSelect(rows[i].positionKey),
+              onToggleSelect: () => widget.onToggleSelect(rows[i]),
               canMoveUp: !busy && i > 0,
               canMoveDown: !busy && i < rows.length - 1,
               canMoveToTop: !busy && i > 0,

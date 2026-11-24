@@ -951,6 +951,7 @@ Future<void> removePlaylistDuplicatesFlow(
         await core.removeFromPlaylist(
           playlistId: playlist.id,
           positionKey: entry.positionKey,
+          expectedTrackUid: entry.trackUid,
         );
         removed++;
       } catch (_) {
@@ -1045,6 +1046,7 @@ Future<void> removeMissingPlaylistEntriesFlow(
         await core.removeFromPlaylist(
           playlistId: playlist.id,
           positionKey: entry.positionKey,
+          expectedTrackUid: entry.trackUid,
         );
         removed++;
       } catch (_) {
