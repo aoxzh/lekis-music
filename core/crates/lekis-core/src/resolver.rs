@@ -36,6 +36,8 @@ pub(crate) struct Resolver {
     replaygain_mode: std::sync::RwLock<ReplayGainMode>,
     /// 「在其他设备上播放」推过来的远端曲目（CST-03）。
     connect: Arc<crate::connect::media::RemoteMediaRegistry>,
+    /// NAS / 远端流媒体自动播放缓存（OFF-03）。
+    stream_cache: Option<Arc<crate::stream_cache::StreamCacheManager>>,
 }
 
 /// ReplayGain 补偿方式（PLY-03，设置项 `playback.replaygain`）。
@@ -84,12 +86,22 @@ impl Resolver {
             credentials,
             replaygain_mode: std::sync::RwLock::new(ReplayGainMode::default()),
             connect: Arc::default(),
+            stream_cache: None,
         }
     }
 
     /// Attach source plugins before starting the resolver loop.
     pub(crate) fn with_plugins(mut self, plugins: Arc<crate::plugins::PluginManager>) -> Self {
         self.plugins = Some(plugins);
+        self
+    }
+
+    /// 接入流媒体自动播放缓存管理器（OFF-03）。
+    pub(crate) fn with_stream_cache(
+        mut self,
+        stream_cache: Arc<crate::stream_cache::StreamCacheManager>,
+    ) -> Self {
+        self.stream_cache = Some(stream_cache);
         self
     }
 
@@ -150,6 +162,7 @@ impl Resolver {
                 location,
                 duration_hint_ms: media.track.duration_ms,
                 gain_db: None,
+                range_ms: None,
             });
         }
         // SRC-11：网络电台用负数的合成 TrackId，直接打开保存的流地址。
@@ -164,6 +177,7 @@ impl Resolver {
                 },
                 duration_hint_ms: 0,
                 gain_db: None,
+                range_ms: None,
             });
         }
         // SRC-12：播客单集同样是合成 TrackId，直接打开 enclosure 地址（支持 Range 时可 seek）。
@@ -177,6 +191,7 @@ impl Resolver {
                 },
                 duration_hint_ms: episode.duration_ms,
                 gain_db: None,
+                range_ms: None,
             });
         }
         if let Some(plugins) = &self.plugins {
@@ -197,21 +212,24 @@ impl Resolver {
                     .await
                     .map(|t| t.duration_ms)
                     .unwrap_or(0);
-                // 缓存文件仍然沿用普通播放会话 / 解码链路，ReplayGain 设置也照常生效。
-                let gain_db = match self.library.track_files(track_id).await {
+                // 缓存文件仍然沿用普通播放会话 / 解码链路，ReplayGain 和 CUE 分轨范围也照常生效。
+                let (gain_db, range_ms) = match self.library.track_files(track_id).await {
                     Ok(files) => {
                         let net = self.health.network();
-                        selection::pick_best(&files, &|id| self.health.get(id), net)
-                            .map(|f| f.replaygain)
-                            .and_then(|rg| {
-                                self.replaygain_mode
-                                    .read()
-                                    .ok()
-                                    .map(|m| m.pick(&rg))
-                                    .unwrap_or_default()
-                            })
+                        let picked = selection::pick_best(&files, &|id| self.health.get(id), net);
+                        let gain = picked.map(|f| f.replaygain).and_then(|rg| {
+                            self.replaygain_mode
+                                .read()
+                                .ok()
+                                .map(|m| m.pick(&rg))
+                                .unwrap_or_default()
+                        });
+                        let range = picked
+                            .filter(|f| f.start_ms > 0 || f.end_ms.is_some())
+                            .map(|f| (f.start_ms, f.end_ms));
+                        (gain, range)
                     }
-                    Err(_) => None,
+                    Err(_) => (None, None),
                 };
                 tracing::debug!(target: "core", %track_id, "playing offline cache");
                 return Ok(MediaSource {
@@ -221,6 +239,7 @@ impl Resolver {
                     },
                     duration_hint_ms,
                     gain_db,
+                    range_ms,
                 });
             }
             tracing::warn!(
@@ -232,9 +251,75 @@ impl Resolver {
         }
         let files = self.library.track_files(track_id).await?;
         let net = self.health.network();
-        self.resolve_candidates(track_id, files, net)
-            .await
-            .map(|(_, media)| media)
+        let has_local = files.iter().any(|f| f.source_kind == SourceKind::Local);
+
+        // OFF-03：NAS / 远端曲目如已在流媒体播放缓存里完整落盘，优先直播本机缓存
+        // （断网 / 在外 / NAS 休眠时零延迟起播，也避免反复拉取同一首歌）。
+        if !has_local || net == NetworkContext::Away {
+            if let Some(sc) = &self.stream_cache {
+                if let Some(cache_path) = sc.lookup_ready(track_id).await {
+                    let picked = selection::pick_best(&files, &|id| self.health.get(id), net);
+                    let duration_hint_ms = picked
+                        .map(|f| f.duration_ms)
+                        .filter(|d| *d > 0)
+                        .unwrap_or(0);
+                    let gain_db = match picked {
+                        Some(f) => self.gain_db(f).await,
+                        None => None,
+                    };
+                    let range_ms = picked
+                        .filter(|f| f.start_ms > 0 || f.end_ms.is_some())
+                        .map(|f| (f.start_ms, f.end_ms));
+                    tracing::debug!(target: "core::stream_cache", %track_id, "playing stream cache hit");
+                    return Ok(MediaSource {
+                        track_id,
+                        location: MediaLocation::CachedFile { path: cache_path },
+                        duration_hint_ms,
+                        gain_db,
+                        range_ms,
+                    });
+                }
+            }
+        }
+
+        match self.resolve_candidates(track_id, files.clone(), net).await {
+            Ok((best, media)) => {
+                // 后台把刚起播的 NAS / 远端曲目写入 LRU 播放缓存（OFF-03）。
+                if let Some(sc) = &self.stream_cache {
+                    sc.schedule_cache(track_id, best.source_id, best.source_kind, media.clone());
+                }
+                Ok(media)
+            }
+            Err(err) => {
+                // 全部远端源失败（断网 / NAS 掉线）：最后再兜底检查一次流媒体缓存。
+                if let Some(sc) = &self.stream_cache {
+                    if let Some(cache_path) = sc.lookup_ready(track_id).await {
+                        let picked = files.first();
+                        let duration_hint_ms = picked.map(|f| f.duration_ms).unwrap_or(0);
+                        let gain_db = match picked {
+                            Some(f) => self.gain_db(f).await,
+                            None => None,
+                        };
+                        let range_ms = picked
+                            .filter(|f| f.start_ms > 0 || f.end_ms.is_some())
+                            .map(|f| (f.start_ms, f.end_ms));
+                        tracing::info!(
+                            target: "core::stream_cache",
+                            %track_id,
+                            "remote sources unavailable, falling back to stream cache"
+                        );
+                        return Ok(MediaSource {
+                            track_id,
+                            location: MediaLocation::CachedFile { path: cache_path },
+                            duration_hint_ms,
+                            gain_db,
+                            range_ms,
+                        });
+                    }
+                }
+                Err(err)
+            }
+        }
     }
 
     /// 解析一个"下载用"的源（不优先走缓存）。
@@ -320,6 +405,8 @@ impl Resolver {
     ) -> Result<MediaSource> {
         let gain_db = self.gain_db(file).await;
         let duration_hint_ms = file.duration_ms;
+        let range_ms =
+            (file.start_ms > 0 || file.end_ms.is_some()).then_some((file.start_ms, file.end_ms));
 
         if file.source_kind.is_filesystem() {
             let path = lekis_vfs::VfsPath::parse(&file.path)
@@ -364,6 +451,7 @@ impl Resolver {
                 },
                 duration_hint_ms,
                 gain_db,
+                range_ms,
             });
         }
 
@@ -391,6 +479,7 @@ impl Resolver {
                 },
                 duration_hint_ms,
                 gain_db,
+                range_ms,
             });
         }
         let server = self.server_for(file.source_id).await?;
@@ -406,6 +495,7 @@ impl Resolver {
                     },
                     duration_hint_ms,
                     gain_db,
+                    range_ms,
                 })
             }
             Err(e) => {
@@ -680,6 +770,9 @@ mod tests {
             quality_score: score,
             duration_ms: 1000,
             replaygain: ReplayGain::default(),
+            start_ms: 0,
+            end_ms: None,
+            cue_path: None,
         }
     }
 

@@ -33,6 +33,7 @@ mod search;
 mod settings;
 mod smart;
 mod sources;
+mod stream_cache;
 mod sync;
 mod tag_edit;
 mod tracks;
@@ -57,13 +58,14 @@ pub use playlist_io::{parse_m3u, M3uEntry, PlaylistImportReport};
 pub use playlists::{Playlist, PlaylistEntry, PlaylistItem, PlaylistKind};
 pub use podcast::MAX_EPISODES_PER_FEED;
 pub use remote::{RemoteTrackRow, RemoteUpsertStats};
-pub use scanned::{quality_score, ScannedFile, ScannedTags, UpsertStats};
+pub use scanned::{quality_score, CueTrackSlice, ScannedFile, ScannedTags, UpsertStats};
 pub use smart::{AllowedColumns, Rule, RuleField, RuleGroup, RuleOp, RuleValue, SmartRules};
 pub use sources::SourceInfo;
+pub use stream_cache::{StreamCacheEntry, StreamCacheStats};
 pub use sync::OutboxEntry;
 pub use tag_edit::{
     backup_path_for, write_export_tags, BatchTagWriteItem, TagBackup, TagWriteResult,
     TAG_BACKUP_SUFFIX, TAG_BACKUP_VERSION,
 };
 pub use tracks::{TrackContext, TrackFile, TrackUserState};
-pub use unified::TrackSourceEntry;
+pub use unified::{FingerprintCandidate, TrackSourceEntry, UnifiedAutoMergeStats};

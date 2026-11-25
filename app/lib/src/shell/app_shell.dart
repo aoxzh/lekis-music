@@ -9,17 +9,21 @@
 // kept alive in an IndexedStack, and the whole tab stack sits under one
 // GlobalKey so resizing / folding only re-arranges the chrome around it.
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'package:lekis/src/features/connect/connect_active.dart';
 import 'package:lekis/src/features/connect/connect_runtime_host.dart';
 import 'package:lekis/src/features/desktop_lyrics/desktop_lyrics_controller.dart';
+import 'package:lekis/src/features/now_playing/now_playing_route.dart';
 import 'package:lekis/src/features/player/mini_player.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/player_bar.dart';
 import 'package:lekis/src/features/sources/sources_page.dart';
 import 'package:lekis/src/layout/window_size.dart';
+import 'package:lekis/src/platform/android_home_widget.dart';
 import 'package:lekis/src/theme/tokens.dart';
 
 import 'destinations.dart';
@@ -94,8 +98,20 @@ class _AppShellState extends ConsumerState<AppShell> {
   NavigatorState? get _currentNavigator =>
       _navigatorKeys[_current.index].currentState;
 
+  StreamSubscription<void>? _widgetOpen;
+
+  @override
+  void initState() {
+    super.initState();
+    // 点按 Android 桌面小组件 → 打开正在播放页。
+    _widgetOpen = homeWidgetOpenRequests.listen((_) {
+      if (mounted) unawaited(openNowPlaying(context));
+    });
+  }
+
   @override
   void dispose() {
+    unawaited(_widgetOpen?.cancel());
     for (final c in _heroControllers) {
       c.dispose();
     }

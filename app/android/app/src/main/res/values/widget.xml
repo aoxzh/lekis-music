@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_player_label">Lekis player</string>
+    <string name="widget_player_description">Now playing, with play/pause and skip controls</string>
+    <string name="widget_not_playing">Not playing</string>
+    <string name="widget_tap_to_open">Tap to open Lekis</string>
+    <string name="widget_previous">Previous</string>
+    <string name="widget_play">Play</string>
+    <string name="widget_pause">Pause</string>
+    <string name="widget_next">Next</string>
+    <string name="widget_cover">Album art</string>
+
+    <!-- design/tokens.json · light -->
+    <color name="widget_background">#F2FFFFFF</color>
+    <color name="widget_title">#17151F</color>
+    <color name="widget_subtitle">#615D70</color>
+    <color name="widget_control">#17151F</color>
+    <color name="widget_accent">#4F46C8</color>
+    <color name="widget_on_accent">#FFFFFF</color>
+    <color name="widget_cover_placeholder">#EFEDF7</color>
+</resources>

@@ -5,11 +5,43 @@
 //! 级的合并与拆分操作，且全程不删除任何磁盘文件。
 
 use crate::db::DbResultExt;
+use crate::normalize::norm_key;
 use crate::Library;
 use lekis_types::{
     now_ms, AudioProps, LekisError, Result, SourceId, SourceKind, TrackId, TrackUid,
 };
 use rusqlite::{params, OptionalExtension, Transaction};
+use std::collections::{HashMap, HashSet};
+
+/// 统一资料库自动合并结果统计（SRC-13）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct UnifiedAutoMergeStats {
+    /// 合并的曲目组数。
+    pub groups: u64,
+    /// 被归并吸收掉的冗余曲目条数。
+    pub merged_tracks: u64,
+}
+
+/// 待计算音频指纹的文件条目。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FingerprintCandidate {
+    /// `file.id`。
+    pub file_id: i64,
+    /// 关联曲目 ID。
+    pub track_id: TrackId,
+    /// 音源 ID。
+    pub source_id: SourceId,
+    /// 音源类型。
+    pub source_kind: SourceKind,
+    /// 相对路径。
+    pub path: String,
+    /// 曲目时长（毫秒）。
+    pub duration_ms: u64,
+    /// CUE 分轨起始毫秒。
+    pub start_ms: u64,
+    /// CUE 分轨结束毫秒。
+    pub end_ms: Option<u64>,
+}
 
 /// 一首歌下面的一个可播放来源（本地文件 / NAS 文件 / 媒体服务器曲目）。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -272,6 +304,19 @@ impl Library {
             refresh_best_quality_badge(&tx, track_id.0)?;
             refresh_best_quality_badge(&tx, new_id)?;
             crate::browse::refresh_track_index(&tx, new_id)?;
+            // 记录手动拆分对，防止自动合并再次把用户拆开的两首歌合回去。
+            let old_uid: String = tx
+                .query_row("SELECT uid FROM track WHERE id = ?1", params![track_id.0], |r| {
+                    r.get(0)
+                })
+                .db()?;
+            let (ua, ub) = ordered_uid_pair(&old_uid, &new_uid.0);
+            tx.execute(
+                "INSERT OR IGNORE INTO unified_split_pair (uid_a, uid_b, created_at)
+                 VALUES (?1, ?2, ?3)",
+                params![ua, ub, now],
+            )
+            .db()?;
             tx.commit().db()?;
             Ok(TrackId(new_id))
         })
@@ -332,6 +377,357 @@ impl Library {
         })
         .await
     }
+
+    /// 保存某个文件的音频指纹（十六进制编码的 Chromaprint u32 序列）。
+    pub async fn set_file_fingerprint(&self, file_id: i64, fingerprint: String) -> Result<()> {
+        self.write(move |c| {
+            c.execute(
+                "UPDATE file SET fingerprint = ?2 WHERE id = ?1",
+                params![file_id, fingerprint],
+            )
+            .db()?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// 列出已保存音频指纹的文件（`(track_id, source_id, quality_score, fingerprint)`）。
+    pub async fn track_fingerprints(&self) -> Result<Vec<(TrackId, SourceId, i64, String)>> {
+        self.read(|c| {
+            let mut stmt = c
+                .prepare_cached(
+                    "SELECT tf.track_id, tf.source_id, tf.quality_score, f.fingerprint
+                       FROM track_file tf
+                       JOIN file f ON f.id = tf.file_id
+                      WHERE f.fingerprint IS NOT NULL AND f.fingerprint <> ''",
+                )
+                .db()?;
+            let rows = stmt
+                .query_map([], |r| {
+                    Ok((
+                        TrackId(r.get(0)?),
+                        SourceId(r.get(1)?),
+                        r.get::<_, i64>(2)?,
+                        r.get::<_, String>(3)?,
+                    ))
+                })
+                .db()?;
+            rows.collect::<rusqlite::Result<Vec<_>>>().db()
+        })
+        .await
+    }
+
+    /// 找出跨源但尚未计算音频指纹的本地/文件系统文件（按时长桶分组，仅取有跨源同时长候选的文件）。
+    pub async fn fingerprint_candidates(&self, limit: u32) -> Result<Vec<FingerprintCandidate>> {
+        self.read(move |c| {
+            let mut stmt = c
+                .prepare_cached(
+                    "SELECT f.id, tf.track_id, tf.source_id, s.kind, f.path, t.duration_ms,
+                            tf.start_ms, tf.end_ms
+                       FROM file f
+                       JOIN track_file tf ON tf.file_id = f.id
+                       JOIN track t ON t.id = tf.track_id
+                       JOIN source s ON s.id = tf.source_id
+                      WHERE f.fingerprint IS NULL
+                        AND t.duration_ms >= 15000
+                        AND EXISTS (
+                            SELECT 1
+                              FROM track t2
+                              JOIN track_file tf2 ON tf2.track_id = t2.id
+                             WHERE t2.id <> t.id
+                               AND tf2.source_id <> tf.source_id
+                               AND ABS(t2.duration_ms - t.duration_ms) <= 3000
+                        )
+                      LIMIT ?1",
+                )
+                .db()?;
+            let rows = stmt
+                .query_map(params![limit], |r| {
+                    let kind_raw: String = r.get(3)?;
+                    let source_kind = serde_json::from_value(serde_json::Value::String(kind_raw))
+                        .unwrap_or(SourceKind::Local);
+                    Ok(FingerprintCandidate {
+                        file_id: r.get(0)?,
+                        track_id: TrackId(r.get(1)?),
+                        source_id: SourceId(r.get(2)?),
+                        source_kind,
+                        path: r.get(4)?,
+                        duration_ms: r.get::<_, i64>(5)?.max(0) as u64,
+                        start_ms: r.get::<_, i64>(6)?.max(0) as u64,
+                        end_ms: r.get::<_, Option<i64>>(7)?.map(|v| v.max(0) as u64),
+                    })
+                })
+                .db()?;
+            rows.collect::<rusqlite::Result<Vec<_>>>().db()
+        })
+        .await
+    }
+
+    /// 跨音源自动合并同一首歌（SRC-13）：
+    ///
+    /// 扫描入库时完全一致的 `(artist, title, album, duration)` 已经自动归并；
+    /// 本方法进一步处理跨音源常见的细微差异：
+    /// - 相同 `mbid_recording`；
+    /// - 时长相差 ≤ 3 秒，且规范化标题相似度 ≥ 0.92、规范化艺人相似度 ≥ 0.88（`strsim::jaro_winkler`），
+    ///   同时严格排除版本冲突（Live / Remix / Instrumental / Acoustic / Demo / Acapella）
+    ///   与用户手动拆分记录（`unified_split_pair`）；
+    /// - 仅合并来自**不同音源**的重复曲目，同音源内的重复文件保留给「资料库检查」供用户决策。
+    pub async fn auto_merge_cross_source_tracks(&self) -> Result<UnifiedAutoMergeStats> {
+        #[derive(Clone)]
+        struct Candidate {
+            id: TrackId,
+            uid: String,
+            title_norm: String,
+            artist_norm: String,
+            version_tag: &'static str,
+            duration_ms: i64,
+            mbid: Option<String>,
+            max_quality: i64,
+            sources: HashSet<SourceId>,
+        }
+
+        let (candidates, split_pairs): (Vec<Candidate>, HashSet<(String, String)>) = self
+            .read(|c| {
+                let mut pairs = HashSet::new();
+                {
+                    let mut stmt = c
+                        .prepare_cached("SELECT uid_a, uid_b FROM unified_split_pair")
+                        .db()?;
+                    let rows = stmt
+                        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
+                        .db()?;
+                    for row in rows {
+                        pairs.insert(row.db()?);
+                    }
+                }
+
+                let mut source_map: HashMap<i64, (HashSet<SourceId>, i64)> = HashMap::new();
+                {
+                    let mut stmt = c
+                        .prepare_cached("SELECT track_id, source_id, quality_score FROM track_file")
+                        .db()?;
+                    let rows = stmt
+                        .query_map([], |r| {
+                            Ok((
+                                r.get::<_, i64>(0)?,
+                                SourceId(r.get(1)?),
+                                r.get::<_, i64>(2)?,
+                            ))
+                        })
+                        .db()?;
+                    for row in rows {
+                        let (tid, sid, q) = row.db()?;
+                        let entry = source_map
+                            .entry(tid)
+                            .or_insert_with(|| (HashSet::new(), i64::MIN));
+                        entry.0.insert(sid);
+                        entry.1 = entry.1.max(q);
+                    }
+                }
+
+                let mut stmt = c
+                    .prepare_cached(
+                        "SELECT id, uid, title, artist_line, duration_ms, mbid_recording
+                           FROM track
+                          WHERE duration_ms > 0",
+                    )
+                    .db()?;
+                let rows = stmt
+                    .query_map([], |r| {
+                        let id: i64 = r.get(0)?;
+                        let uid: String = r.get(1)?;
+                        let title: String = r.get(2)?;
+                        let artist: String = r.get(3)?;
+                        let duration_ms: i64 = r.get(4)?;
+                        let mbid: Option<String> = r.get(5)?;
+                        Ok((id, uid, title, artist, duration_ms, mbid))
+                    })
+                    .db()?;
+
+                let mut out = Vec::new();
+                for row in rows {
+                    let (id, uid, title, artist, duration_ms, mbid) = row.db()?;
+                    let Some((sources, max_quality)) = source_map.remove(&id) else {
+                        continue;
+                    };
+                    if sources.is_empty() {
+                        continue;
+                    }
+                    out.push(Candidate {
+                        id: TrackId(id),
+                        uid,
+                        version_tag: extract_version_tag(&title),
+                        title_norm: norm_key(&title),
+                        artist_norm: norm_key(&artist),
+                        duration_ms,
+                        mbid: mbid.filter(|s| !s.trim().is_empty()),
+                        max_quality,
+                        sources,
+                    });
+                }
+                Ok((out, pairs))
+            })
+            .await?;
+
+        if candidates.len() < 2 {
+            return Ok(UnifiedAutoMergeStats::default());
+        }
+
+        // 先按时长排序，用双指针滑动窗口（≤ 3000ms）把比较复杂度从 O(N²) 降到近似 O(N)。
+        let mut sorted = candidates;
+        sorted.sort_by_key(|c| (c.duration_ms, c.id.0));
+
+        // 并查集记录可以合并的下标。
+        let n = sorted.len();
+        let mut parent: Vec<usize> = (0..n).collect();
+        fn find(p: &mut [usize], mut x: usize) -> usize {
+            while p[x] != x {
+                p[x] = p[p[x]];
+                x = p[x];
+            }
+            x
+        }
+        let mut unite = |a: usize, b: usize| {
+            let ra = find(&mut parent, a);
+            let rb = find(&mut parent, b);
+            if ra != rb {
+                parent[rb] = ra;
+            }
+        };
+
+        // 1) 同 MBID 跨源直接合并。
+        let mut by_mbid: HashMap<&str, usize> = HashMap::new();
+        for (i, c) in sorted.iter().enumerate() {
+            if let Some(m) = c.mbid.as_deref() {
+                if let Some(&prev) = by_mbid.get(m) {
+                    if !is_split_blocked(&sorted[prev].uid, &c.uid, &split_pairs)
+                        && has_distinct_sources(&sorted[prev].sources, &c.sources)
+                    {
+                        unite(prev, i);
+                    }
+                } else {
+                    by_mbid.insert(m, i);
+                }
+            }
+        }
+
+        // 2) 3 秒时长窗口内做模糊标题 + 艺人相似度匹配。
+        for i in 0..n {
+            if sorted[i].title_norm.is_empty() || sorted[i].artist_norm.is_empty() {
+                continue;
+            }
+            for j in (i + 1)..n {
+                if sorted[j].duration_ms - sorted[i].duration_ms > 3_000 {
+                    break;
+                }
+                let a = &sorted[i];
+                let b = &sorted[j];
+                if !has_distinct_sources(&a.sources, &b.sources) {
+                    continue;
+                }
+                if a.version_tag != b.version_tag {
+                    continue;
+                }
+                if let (Some(ma), Some(mb)) = (a.mbid.as_deref(), b.mbid.as_deref()) {
+                    if ma != mb {
+                        continue;
+                    }
+                }
+                if is_split_blocked(&a.uid, &b.uid, &split_pairs) {
+                    continue;
+                }
+                if b.title_norm.is_empty() || b.artist_norm.is_empty() {
+                    continue;
+                }
+                let title_sim = strsim::jaro_winkler(&a.title_norm, &b.title_norm);
+                if title_sim < 0.92 {
+                    continue;
+                }
+                let artist_sim = strsim::jaro_winkler(&a.artist_norm, &b.artist_norm);
+                if artist_sim < 0.88 {
+                    continue;
+                }
+                unite(i, j);
+            }
+        }
+
+        let mut clusters: HashMap<usize, Vec<usize>> = HashMap::new();
+        for i in 0..n {
+            let root = find(&mut parent, i);
+            clusters.entry(root).or_default().push(i);
+        }
+
+        let mut stats = UnifiedAutoMergeStats::default();
+        for indices in clusters.into_values() {
+            if indices.len() < 2 {
+                continue;
+            }
+            // 保留音质最高（其次 ID 最小）的那一条。
+            let Some(&keep_idx) = indices
+                .iter()
+                .max_by_key(|&&idx| (sorted[idx].max_quality, std::cmp::Reverse(sorted[idx].id.0)))
+            else {
+                continue;
+            };
+            let keep_id = sorted[keep_idx].id;
+            let absorb: Vec<TrackId> = indices
+                .iter()
+                .filter(|&&idx| idx != keep_idx)
+                .map(|&idx| sorted[idx].id)
+                .collect();
+            if absorb.is_empty() {
+                continue;
+            }
+            let merged = self.merge_tracks(keep_id, absorb).await?;
+            if merged > 0 {
+                stats.groups += 1;
+                stats.merged_tracks += merged;
+            }
+        }
+        Ok(stats)
+    }
+}
+
+fn ordered_uid_pair(a: &str, b: &str) -> (String, String) {
+    if a <= b {
+        (a.to_string(), b.to_string())
+    } else {
+        (b.to_string(), a.to_string())
+    }
+}
+
+fn is_split_blocked(a: &str, b: &str, blocked: &HashSet<(String, String)>) -> bool {
+    blocked.contains(&ordered_uid_pair(a, b))
+}
+
+fn has_distinct_sources(a: &HashSet<SourceId>, b: &HashSet<SourceId>) -> bool {
+    a.iter().any(|s| !b.contains(s)) || b.iter().any(|s| !a.contains(s))
+}
+
+/// 提取会改变录音身份的版本关键词（避免把 Live / 伴奏 / Remix 和录音室版误合并）。
+fn extract_version_tag(title: &str) -> &'static str {
+    let lower = title.to_lowercase();
+    for (kw, tag) in [
+        ("live", "live"),
+        ("现场", "live"),
+        ("演唱會", "live"),
+        ("演唱会", "live"),
+        ("instrumental", "instrumental"),
+        ("伴奏", "instrumental"),
+        ("纯音乐", "instrumental"),
+        ("off vocal", "instrumental"),
+        ("remix", "remix"),
+        ("acoustic", "acoustic"),
+        ("unplugged", "acoustic"),
+        ("acapella", "acapella"),
+        ("a cappella", "acapella"),
+        ("demo", "demo"),
+    ] {
+        if lower.contains(kw) {
+            return tag;
+        }
+    }
+    ""
 }
 
 fn refresh_best_quality_badge(tx: &Transaction<'_>, track_id: i64) -> Result<()> {

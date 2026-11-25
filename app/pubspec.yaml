@@ -54,6 +54,7 @@ dependencies:
   nativeapi: ^0.6.0
   connectivity_plus: ^7.3.2
   desktop_webview_window: ^0.4.3
+  home_widget: ^0.10.0
 
 dev_dependencies:
   flutter_test:

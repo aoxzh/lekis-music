@@ -14,6 +14,10 @@ lekis-vfs.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 symphonia.workspace = true
+ape-decoder.workspace = true
+oxideav-tta.workspace = true
+dsd2pcm.workspace = true
+ebur128.workspace = true
 cpal.workspace = true
 ringbuf.workspace = true
 # PLY-07：设备采样率和内容不一致时在解码线程里做重采样。

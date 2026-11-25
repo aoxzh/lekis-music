@@ -15,6 +15,7 @@
 //! - **LIB-05**：NAS 共享索引读写（见 [`shared_index`]），由 [`Scanner::write_shared_index`] 落盘；
 //!   扫描前可用 [`shared_index::load_previous_scan`] 得出一份 [`PreviousScan`]。
 
+pub mod cue;
 pub mod shared_index;
 pub mod tags;
 #[cfg(test)]
@@ -22,7 +23,7 @@ mod test_support;
 mod walk;
 
 use futures_util::StreamExt;
-use lekis_library::{Library, ScannedFile, ScannedTags};
+use lekis_library::{CueTrackSlice, Library, ScannedFile, ScannedTags};
 use lekis_types::{now_ms, CoreEvent, Result, ScanPhase, SourceId};
 use lekis_vfs::{partial, Vfs};
 use std::collections::HashMap;
@@ -164,7 +165,27 @@ impl Scanner {
         let mut report = ScanReport::default();
         let mut files = outcome.changed;
         let mut outcome_unchanged = outcome.unchanged;
+        let cues = outcome.cues;
         let incomplete = outcome.incomplete;
+
+        // CUE 整轨展开：解析所有 .cue 分轨表，将其引用的同目录音频文件按分轨写入，
+        // 并把已被 CUE 覆盖的整轨音频文件从单曲扫描列表里剔除，避免出现重复的整张专辑单条曲目。
+        if !cues.is_empty() {
+            let covered = self
+                .process_cue_sheets(
+                    source_id,
+                    vfs.as_ref(),
+                    &cues,
+                    &files,
+                    &outcome_unchanged,
+                    &mut report,
+                )
+                .await;
+            if !covered.is_empty() {
+                files.retain(|f| !covered.contains(f.path.as_str()));
+                outcome_unchanged.retain(|f| !covered.contains(f.path.as_str()));
+            }
+        }
 
         // 上次只用文件名兜底的文件（时长 0）不复用，再读一次标签：旧版扫描器
         // 读不了内嵌大封面的文件，升级后要靠这一步自愈。真读不出来的文件每次
@@ -366,6 +387,180 @@ impl Scanner {
         report.added += stats.added;
         report.updated += stats.updated;
         Ok(())
+    }
+
+    /// 扫描并展开所有 `.cue` 分轨表，返回已被 CUE 拆分覆盖的音频文件相对路径集合。
+    async fn process_cue_sheets(
+        &self,
+        source_id: SourceId,
+        vfs: &dyn Vfs,
+        cues: &[FoundFile],
+        changed_audio: &[FoundFile],
+        unchanged_audio: &[FoundFile],
+        report: &mut ScanReport,
+    ) -> std::collections::HashSet<String> {
+        let mut covered = std::collections::HashSet::new();
+        // 按父目录索引所有音频文件，便于 O(1) 查找同目录候选文件。
+        let mut by_dir: HashMap<String, Vec<&FoundFile>> = HashMap::new();
+        for f in changed_audio.iter().chain(unchanged_audio.iter()) {
+            let dir = parent_dir(f.path.as_str()).to_string();
+            by_dir.entry(dir).or_default().push(f);
+        }
+
+        for cue_file in cues {
+            if cue_file.size == 0 || cue_file.size > cue::MAX_CUE_BYTES {
+                continue;
+            }
+            let raw = match vfs.read_range(&cue_file.path, 0..cue_file.size).await {
+                Ok(bytes) => bytes,
+                Err(e) => {
+                    tracing::warn!(target: "scanner::cue", path = %cue_file.path, error = %e, "cannot read cue file");
+                    continue;
+                }
+            };
+            let parsed = match cue::parse_cue_bytes(&raw) {
+                Ok(p) if !p.tracks.is_empty() => p,
+                Ok(_) => continue,
+                Err(e) => {
+                    tracing::debug!(target: "scanner::cue", path = %cue_file.path, error = %e, "skipping invalid cue sheet");
+                    continue;
+                }
+            };
+
+            let dir = parent_dir(cue_file.path.as_str());
+            let Some(candidates) = by_dir.get(dir) else {
+                continue;
+            };
+            let candidate_paths: Vec<lekis_vfs::VfsPath> =
+                candidates.iter().map(|f| f.path.clone()).collect();
+            let unique_refs: std::collections::HashSet<&str> = parsed
+                .tracks
+                .iter()
+                .map(|t| t.audio_file_ref.as_str())
+                .collect();
+            let cue_file_count = unique_refs.len();
+
+            // 按解析出的实际音频文件分组
+            let mut grouped: HashMap<String, (&FoundFile, Vec<&cue::CueTrackEntry>)> =
+                HashMap::new();
+            for entry in &parsed.tracks {
+                let Some(resolved) = cue::resolve_cue_audio_path(
+                    &cue_file.path,
+                    &entry.audio_file_ref,
+                    &candidate_paths,
+                    cue_file_count,
+                ) else {
+                    continue;
+                };
+                if let Some(&found) = candidates.iter().find(|f| f.path == *resolved) {
+                    grouped
+                        .entry(found.path.as_str().to_string())
+                        .or_insert_with(|| (found, Vec::new()))
+                        .1
+                        .push(entry);
+                }
+            }
+
+            for (audio_path_str, (audio_file, entries)) in grouped {
+                // 只有该音频文件被拆成多首（或明确由 CUE 声明），才覆盖原整轨。
+                let base_tags = self.read_tags(vfs, audio_file).await.ok();
+                let total_duration_ms = base_tags.as_ref().map(|t| t.duration_ms).unwrap_or(0);
+                let audio_props = base_tags.as_ref().and_then(|t| t.audio.clone());
+                let replaygain = base_tags.as_ref().map(|t| t.replaygain).unwrap_or_default();
+
+                let mut slices = Vec::with_capacity(entries.len());
+                for entry in entries {
+                    let duration_ms = match entry.end_ms {
+                        Some(end) => end.saturating_sub(entry.start_ms),
+                        None if total_duration_ms > entry.start_ms => {
+                            total_duration_ms - entry.start_ms
+                        }
+                        None => 0,
+                    };
+                    let artists = entry
+                        .artist
+                        .as_ref()
+                        .map(|a| vec![a.clone()])
+                        .or_else(|| {
+                            base_tags
+                                .as_ref()
+                                .filter(|t| !t.artists.is_empty())
+                                .map(|t| t.artists.clone())
+                        })
+                        .unwrap_or_default();
+                    let album_artists = entry
+                        .album_artist
+                        .as_ref()
+                        .map(|a| vec![a.clone()])
+                        .unwrap_or_default();
+                    let genres = entry
+                        .genre
+                        .as_ref()
+                        .map(|g| vec![g.clone()])
+                        .unwrap_or_default();
+                    slices.push(CueTrackSlice {
+                        start_ms: entry.start_ms,
+                        end_ms: entry.end_ms,
+                        tags: ScannedTags {
+                            title: entry.title.clone(),
+                            artists,
+                            album: entry
+                                .album
+                                .clone()
+                                .or_else(|| base_tags.as_ref().and_then(|t| t.album.clone())),
+                            album_artists,
+                            track_no: Some(entry.track_no),
+                            disc_no: entry.disc_no,
+                            year: entry
+                                .year
+                                .or_else(|| base_tags.as_ref().and_then(|t| t.year)),
+                            genres,
+                            duration_ms,
+                            mbid_recording: None,
+                            audio: audio_props.clone(),
+                            replaygain,
+                        },
+                    });
+                }
+
+                match self
+                    .library
+                    .upsert_cue_file(
+                        source_id,
+                        audio_path_str.clone(),
+                        audio_file.size,
+                        audio_file.mtime_ms,
+                        audio_props,
+                        cue_file.path.as_str().to_string(),
+                        slices,
+                    )
+                    .await
+                {
+                    Ok(stats) => {
+                        report.added += stats.added;
+                        report.updated += stats.updated;
+                        covered.insert(audio_path_str);
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            target: "scanner::cue",
+                            cue = %cue_file.path,
+                            audio = %audio_path_str,
+                            error = %e,
+                            "failed to upsert cue tracks"
+                        );
+                    }
+                }
+            }
+        }
+        covered
+    }
+}
+
+fn parent_dir(path: &str) -> &str {
+    match path.rsplit_once('/') {
+        Some((dir, _)) => dir,
+        None => "",
     }
 }
 

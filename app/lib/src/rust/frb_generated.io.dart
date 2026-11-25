@@ -4,6 +4,7 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api/alternate_source.dart';
+import 'api/cast.dart';
 import 'api/connect.dart';
 import 'api/core.dart';
 import 'api/desktop_lyrics.dart';
@@ -14,6 +15,7 @@ import 'api/media_controls.dart';
 import 'api/music_export.dart';
 import 'api/podcast.dart';
 import 'api/ruby.dart';
+import 'api/storage.dart';
 import 'api/usb_output.dart';
 
 import 'dart:async';
@@ -93,6 +95,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   bool dco_decode_box_autoadd_bool(dynamic raw);
+
+  @protected
+  CastDeviceDto dco_decode_box_autoadd_cast_device_dto(dynamic raw);
+
+  @protected
+  CastPlaybackStateDto dco_decode_box_autoadd_cast_playback_state_dto(
+    dynamic raw,
+  );
 
   @protected
   ControlActionDto dco_decode_box_autoadd_control_action_dto(dynamic raw);
@@ -201,6 +211,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_box_autoadd_u_8(dynamic raw);
+
+  @protected
+  CastDeviceDto dco_decode_cast_device_dto(dynamic raw);
+
+  @protected
+  CastKindDto dco_decode_cast_kind_dto(dynamic raw);
+
+  @protected
+  CastPlaybackStateDto dco_decode_cast_playback_state_dto(dynamic raw);
 
   @protected
   ConnectDeviceDto dco_decode_connect_device_dto(dynamic raw);
@@ -346,6 +365,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<BatchTagWriteItemDto> dco_decode_list_batch_tag_write_item_dto(
     dynamic raw,
   );
+
+  @protected
+  List<CastDeviceDto> dco_decode_list_cast_device_dto(dynamic raw);
 
   @protected
   List<ConnectDeviceDto> dco_decode_list_connect_device_dto(dynamic raw);
@@ -565,6 +587,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
+
+  @protected
+  CastPlaybackStateDto? dco_decode_opt_box_autoadd_cast_playback_state_dto(
+    dynamic raw,
+  );
 
   @protected
   ErrorKind? dco_decode_opt_box_autoadd_error_kind(dynamic raw);
@@ -809,6 +836,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SpotifyAlbumDto dco_decode_spotify_album_dto(dynamic raw);
 
   @protected
+  StorageCategoryDto dco_decode_storage_category_dto(dynamic raw);
+
+  @protected
+  StorageUsageDto dco_decode_storage_usage_dto(dynamic raw);
+
+  @protected
   SyncReportDto dco_decode_sync_report_dto(dynamic raw);
 
   @protected
@@ -852,6 +885,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_u_8(dynamic raw);
+
+  @protected
+  UnifiedMergeReportDto dco_decode_unified_merge_report_dto(dynamic raw);
 
   @protected
   void dco_decode_unit(dynamic raw);
@@ -942,6 +978,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
+
+  @protected
+  CastDeviceDto sse_decode_box_autoadd_cast_device_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CastPlaybackStateDto sse_decode_box_autoadd_cast_playback_state_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ControlActionDto sse_decode_box_autoadd_control_action_dto(
@@ -1082,6 +1128,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_box_autoadd_u_8(SseDeserializer deserializer);
+
+  @protected
+  CastDeviceDto sse_decode_cast_device_dto(SseDeserializer deserializer);
+
+  @protected
+  CastKindDto sse_decode_cast_kind_dto(SseDeserializer deserializer);
+
+  @protected
+  CastPlaybackStateDto sse_decode_cast_playback_state_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ConnectDeviceDto sse_decode_connect_device_dto(SseDeserializer deserializer);
@@ -1271,6 +1328,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<BatchTagWriteItemDto> sse_decode_list_batch_tag_write_item_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<CastDeviceDto> sse_decode_list_cast_device_dto(
     SseDeserializer deserializer,
   );
 
@@ -1570,6 +1632,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
+  CastPlaybackStateDto? sse_decode_opt_box_autoadd_cast_playback_state_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ErrorKind? sse_decode_opt_box_autoadd_error_kind(
     SseDeserializer deserializer,
   );
@@ -1862,6 +1929,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SpotifyAlbumDto sse_decode_spotify_album_dto(SseDeserializer deserializer);
 
   @protected
+  StorageCategoryDto sse_decode_storage_category_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StorageUsageDto sse_decode_storage_usage_dto(SseDeserializer deserializer);
+
+  @protected
   SyncReportDto sse_decode_sync_report_dto(SseDeserializer deserializer);
 
   @protected
@@ -1915,6 +1990,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
+
+  @protected
+  UnifiedMergeReportDto sse_decode_unified_merge_report_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   void sse_decode_unit(SseDeserializer deserializer);
@@ -2027,6 +2107,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_cast_device_dto(
+    CastDeviceDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_cast_playback_state_dto(
+    CastPlaybackStateDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_control_action_dto(
@@ -2201,6 +2293,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_u_8(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_cast_device_dto(CastDeviceDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_cast_kind_dto(CastKindDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_cast_playback_state_dto(
+    CastPlaybackStateDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_connect_device_dto(
@@ -2442,6 +2546,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_batch_tag_write_item_dto(
     List<BatchTagWriteItemDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_cast_device_dto(
+    List<CastDeviceDto> self,
     SseSerializer serializer,
   );
 
@@ -2825,6 +2935,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_cast_playback_state_dto(
+    CastPlaybackStateDto? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_box_autoadd_error_kind(
@@ -3211,6 +3327,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_storage_category_dto(
+    StorageCategoryDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_storage_usage_dto(
+    StorageUsageDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_sync_report_dto(SyncReportDto self, SseSerializer serializer);
 
   @protected
@@ -3272,6 +3400,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_u_8(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_unified_merge_report_dto(
+    UnifiedMergeReportDto self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);

@@ -1,4 +1,5 @@
 pub mod alternate_source;
+pub mod cast;
 pub mod connect;
 pub mod core;
 pub mod desktop_lyrics;
@@ -9,4 +10,5 @@ pub mod media_controls;
 pub mod music_export;
 pub mod podcast;
 pub mod ruby;
+pub mod storage;
 pub mod usb_output;

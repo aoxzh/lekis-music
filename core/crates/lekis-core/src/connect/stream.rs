@@ -246,7 +246,14 @@ async fn write_head(
     };
     let len = if total == 0 { 0 } else { end - start + 1 };
     let mut head = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nAccept-Ranges: bytes\r\nContent-Length: {len}\r\nConnection: close\r\n"
+        "HTTP/1.1 {status}\r\n\
+         Content-Type: {ctype}\r\n\
+         Accept-Ranges: bytes\r\n\
+         Content-Length: {len}\r\n\
+         Access-Control-Allow-Origin: *\r\n\
+         transferMode.dlna.org: Streaming\r\n\
+         contentFeatures.dlna.org: DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000\r\n\
+         Connection: close\r\n"
     );
     if status.starts_with("206") {
         head.push_str(&format!("Content-Range: bytes {start}-{end}/{total}\r\n"));

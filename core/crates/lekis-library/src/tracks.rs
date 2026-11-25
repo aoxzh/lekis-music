@@ -25,6 +25,12 @@ pub struct TrackFile {
     pub duration_ms: u64,
     /// ReplayGain。
     pub replaygain: ReplayGain,
+    /// CUE 分轨起始毫秒（普通单曲文件为 0）。
+    pub start_ms: u64,
+    /// CUE 分轨结束毫秒（普通单曲或整轨最后一首为 `None`）。
+    pub end_ms: Option<u64>,
+    /// 来源 `.cue` 文件相对路径（非 CUE 分轨为 `None`）。
+    pub cue_path: Option<String>,
 }
 
 /// 一个可以"整体播放"的浏览上下文（列表页的数据来源）。
@@ -390,7 +396,8 @@ impl Library {
             let mut stmt = c
                 .prepare_cached(
                     "SELECT tf.source_id, s.kind, COALESCE(f.path, ''), NULLIF(tf.external_id, ''),
-                            tf.quality_score, t.duration_ms, t.replaygain_json
+                            tf.quality_score, t.duration_ms, t.replaygain_json,
+                            tf.start_ms, tf.end_ms, tf.cue_path
                      FROM track_file tf
                      JOIN track t ON t.id = tf.track_id
                      JOIN source s ON s.id = tf.source_id
@@ -414,6 +421,9 @@ impl Library {
                         replaygain: rg
                             .and_then(|s| serde_json::from_str::<ReplayGain>(&s).ok())
                             .unwrap_or_default(),
+                        start_ms: r.get::<_, i64>(7)?.max(0) as u64,
+                        end_ms: r.get::<_, Option<i64>>(8)?.map(|v| v.max(0) as u64),
+                        cue_path: r.get(9)?,
                     })
                 })
                 .db()?;

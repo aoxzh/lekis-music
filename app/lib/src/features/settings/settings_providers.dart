@@ -12,6 +12,18 @@ abstract final class SettingKeys {
   // TODO(core-gapless): 核心目前总是无缝播放、并不读取这个键；先存下用户的选择。
   static const gapless = 'playback.gapless';
 
+  /// 交叉淡入淡出时长（毫秒，0 表示关闭，最大 12000）。
+  static const crossfadeMs = 'playback.crossfade_ms';
+
+  /// 交叉淡入淡出智能跳过尾声静音：`true`（默认）/ `false`。
+  static const crossfadeSmartSilence = 'playback.crossfade_smart_silence';
+
+  /// NAS / 远端流媒体播放缓存上限（MB，默认 2048，0 表示关闭）。
+  static const streamCacheLimitMb = 'cache.stream_limit_mb';
+
+  /// 扫描完成后自动合并跨源同一首歌：`true`（默认）/ `false`。
+  static const unifiedAutoMerge = 'library.unified_auto_merge';
+
   /// `true` / `false`，默认开启。控制曲目菜单里的“观看视频”入口。
   static const video = 'video.enabled';
 

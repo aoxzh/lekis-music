@@ -84,6 +84,18 @@
                 <action android:name="android.intent.action.MEDIA_BUTTON"/>
             </intent-filter>
         </receiver>
+        <!-- 桌面播放小组件（LekisPlayerWidget.kt；数据由 home_widget 从 Dart 写入） -->
+        <receiver
+            android:name=".LekisPlayerWidget"
+            android:exported="false"
+            android:label="@string/widget_player_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/lekis_player_widget_info" />
+        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

@@ -204,6 +204,9 @@ mod tests {
             quality_score: quality,
             duration_ms: 200_000,
             replaygain: ReplayGain::default(),
+            start_ms: 0,
+            end_ms: None,
+            cue_path: None,
         }
     }
 

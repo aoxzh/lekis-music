@@ -460,6 +460,7 @@ fn media(i: usize, path: &Path) -> MediaSource {
         },
         duration_hint_ms: 0,
         gain_db: None,
+        range_ms: None,
     }
 }
 

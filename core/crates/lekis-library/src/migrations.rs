@@ -30,6 +30,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (13, include_str!("../migrations/0013_perf_indexes.sql")),
     (14, include_str!("../migrations/0014_source_indexes.sql")),
     (15, include_str!("../migrations/0015_lyric_search.sql")),
+    (16, include_str!("../migrations/0016_cue_cache_unified.sql")),
 ];
 
 pub(crate) fn run(conn: &mut Connection) -> Result<bool> {
@@ -91,7 +92,7 @@ mod tests {
                 row.get(0)
             })
             .db()?;
-        assert_eq!(version, 15);
+        assert_eq!(version, 16);
         let selected: i64 = conn
             .query_row("SELECT id FROM lyrics WHERE selected_by_user=1", [], |r| {
                 r.get(0)
@@ -103,6 +104,14 @@ mod tests {
             [],
         )
         .db()?;
+        let has_stream_cache: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='stream_cache'",
+                [],
+                |r| r.get(0),
+            )
+            .db()?;
+        assert_eq!(has_stream_cache, 1);
         Ok(())
     }
 }

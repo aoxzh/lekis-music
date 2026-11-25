@@ -16,6 +16,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 
+import 'android_home_widget.dart';
+
 /// 启动 Android 媒体会话。只能调用一次（由 `initSystemMediaSession` 保证）。
 Future<void> initAndroidMediaSession() async {
   // Android 13+ 发通知需要运行时权限；更低版本 permission_handler 直接返回 granted。
@@ -201,6 +203,7 @@ class LekisAudioHandler extends BaseAudioHandler with SeekHandler {
     _wasPlaying = playing;
 
     _pushPlaybackState();
+    AndroidPlayerWidget.instance.setPlaying(playing);
   }
 
   /// audio_service 会按 updateTime + speed 自己外推进度，所以平时不用推；
@@ -284,6 +287,7 @@ class LekisAudioHandler extends BaseAudioHandler with SeekHandler {
     final seq = ++_metadataSeq;
     if (trackId == null) {
       mediaItem.add(null);
+      AndroidPlayerWidget.instance.clearTrack();
       return;
     }
     try {
@@ -314,12 +318,20 @@ class LekisAudioHandler extends BaseAudioHandler with SeekHandler {
         (ShuffleModeDto.off, _) => 1, // LOOP_MODE_LIST
         _ => 3, // LOOP_MODE_RANDOM
       };
+      final title = overlay?.title ?? track.title;
+      final album = overlay?.albumTitle ?? track.albumTitle;
+      AndroidPlayerWidget.instance.setTrack(
+        title: title,
+        artist: artists.join(', '),
+        album: album ?? '',
+        artPath: artUri?.toFilePath(),
+      );
       mediaItem.add(
         MediaItem(
           id: 'track:$trackId',
-          title: overlay?.title ?? track.title,
+          title: title,
           artist: artists.isEmpty ? null : artists.join(', '),
-          album: overlay?.albumTitle ?? track.albumTitle,
+          album: album,
           duration: ms > 0 ? Duration(milliseconds: ms) : null,
           artUri: artUri,
           rating: const Rating.newHeartRating(false),
@@ -349,6 +361,8 @@ class LekisAudioHandler extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> stop() async {
     _safe(core.pause);
+    AndroidPlayerWidget.instance.setPlaying(false);
+    await AndroidPlayerWidget.instance.flushNow();
     await _session?.setActive(false);
     await super.stop();
   }

@@ -38,6 +38,8 @@ pub struct WalkOutcome {
     pub changed: Vec<FoundFile>,
     /// 和上一次扫描完全一致、可以直接复用的文件。
     pub unchanged: Vec<FoundFile>,
+    /// 发现的 `.cue` 分轨表文件（与音频文件分开处理，用于拆分整轨专辑）。
+    pub cues: Vec<FoundFile>,
     /// 这次遍历看到的目录 mtime（键是 [`VfsPath::as_str`]），下一轮增量扫描用。
     ///
     /// 只在 `VfsCapabilities::reliable_dir_mtime` 为真时收集，否则为空。
@@ -126,6 +128,13 @@ pub async fn walk_source(vfs: &dyn Vfs, previous: Option<&PreviousScan>) -> Resu
                         let name = entry.path.file_name().unwrap_or_default();
                         match entry.meta.kind {
                             EntryKind::Dir if !should_skip_dir(name) => next_level.push(entry.path),
+                            EntryKind::File if is_cue_file(&entry.path) => {
+                                outcome.cues.push(FoundFile {
+                                    path: entry.path,
+                                    size: entry.meta.size,
+                                    mtime_ms: entry.meta.mtime_ms,
+                                });
+                            }
                             EntryKind::File if is_audio_file(&entry.path) => {
                                 let found = FoundFile {
                                     path: entry.path,
@@ -150,6 +159,7 @@ pub async fn walk_source(vfs: &dyn Vfs, previous: Option<&PreviousScan>) -> Resu
     // 并发完成顺序不确定，排序保证行为可复现（也便于测试和日志比对）。
     outcome.changed.sort_by(|a, b| a.path.cmp(&b.path));
     outcome.unchanged.sort_by(|a, b| a.path.cmp(&b.path));
+    outcome.cues.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(outcome)
 }
 
@@ -271,6 +281,11 @@ fn clamp_concurrency(suggested: usize) -> usize {
         suggested
     };
     n.clamp(1, MAX_CONCURRENCY)
+}
+
+fn is_cue_file(path: &VfsPath) -> bool {
+    path.extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("cue"))
 }
 
 fn should_skip_dir(name: &str) -> bool {

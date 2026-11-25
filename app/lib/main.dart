@@ -16,6 +16,7 @@ import 'package:lekis/src/features/settings/settings_providers.dart';
 import 'package:lekis/src/features/settings/theme_preference.dart';
 import 'package:lekis/src/l10n/app_locale.dart';
 import 'package:lekis/src/platform/desktop_tray/desktop_tray_controller.dart';
+import 'package:lekis/src/platform/android_home_widget.dart';
 import 'package:lekis/src/platform/media_session.dart';
 import 'package:lekis/src/rust/frb_generated.dart';
 import 'package:lekis/src/shell/nav_bar_position.dart';
@@ -103,6 +104,9 @@ Future<void> _startBackgroundServices(
   // 首帧之后再恢复上次的播放会话（输出设备/模式已就绪）。恢复是暂停状态，
   // 不会自动出声；没有保存过会话时什么也不做。
   await container.read(playbackSessionProvider).restore();
+
+  // 从桌面小组件打开时（「播放」或点按主体），会话恢复后再处理。
+  await startHomeWidgetLaunchHandling();
 
   // 桌面端启动后静默检查一次新版本，不阻塞首帧。
   scheduleStartupUpdateCheck(container);

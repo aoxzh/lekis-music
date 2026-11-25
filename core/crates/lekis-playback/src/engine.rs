@@ -16,6 +16,7 @@
 //! 队列游标在「可听边界」到达时才推进（解码线程领先输出约 300 ms），UI 不会提前跳歌，
 //! 重复 / 随机 / 列表循环的语义完全复用 [`Queue::advance`]。
 
+use crate::crossfade::CrossfadeControl;
 use crate::eq::EqControl;
 use crate::gapless::AudibleTrack;
 use crate::output::{AudioOutput, CpalOutput, OutputDevice, OutputMode};
@@ -123,6 +124,13 @@ pub enum EngineCommand {
     /// 开启时提前解析并预装下一首，自然播完直接在同一输出流里接上；
     /// 关掉后每次换曲都重建会话（会有几十毫秒的间隔）。
     SetGapless(bool),
+    /// 设置交叉淡入淡出时长和智能静音检测（PLY-02）。
+    SetCrossfade {
+        /// 交叉淡入淡出时长（毫秒，0 = 关闭）。
+        duration_ms: u32,
+        /// 是否启用 EBU R128 尾段静音检测提前过渡。
+        smart_silence: bool,
+    },
     /// 停止并退出引擎任务。
     Shutdown,
 }
@@ -199,6 +207,7 @@ impl PlaybackEngine {
         Self::spawn_with_output(
             resolver,
             Arc::new(EqControl::default()),
+            Arc::new(CrossfadeControl::default()),
             Arc::new(CpalOutputFactory),
         )
     }
@@ -207,18 +216,40 @@ impl PlaybackEngine {
     ///
     /// lekis-core 保存设置后直接改 [`EqControl`]，正在播放的音频在下一个解码块生效。
     pub fn spawn_with_eq(resolver: mpsc::Sender<ResolveRequest>, eq: Arc<EqControl>) -> Self {
-        Self::spawn_with_output(resolver, eq, Arc::new(CpalOutputFactory))
+        Self::spawn_with_output(
+            resolver,
+            eq,
+            Arc::new(CrossfadeControl::default()),
+            Arc::new(CpalOutputFactory),
+        )
+    }
+
+    /// 同时接入共享均衡器与交叉淡入淡出控制句柄。
+    pub fn spawn_with_controls(
+        resolver: mpsc::Sender<ResolveRequest>,
+        eq: Arc<EqControl>,
+        crossfade: Arc<CrossfadeControl>,
+    ) -> Self {
+        Self::spawn_with_output(resolver, eq, crossfade, Arc::new(CpalOutputFactory))
     }
 
     /// 和 [`Self::spawn`] 一样，但使用指定的输出后端工厂（测试注入空输出）。
     fn spawn_with_output(
         resolver: mpsc::Sender<ResolveRequest>,
         eq: Arc<EqControl>,
+        crossfade: Arc<CrossfadeControl>,
         output_factory: Arc<dyn OutputFactory>,
     ) -> Self {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let (snap_tx, snap_rx) = watch::channel(PlaybackSnapshot::default());
-        tokio::spawn(run(cmd_rx, snap_tx, resolver, eq, output_factory));
+        tokio::spawn(run(
+            cmd_rx,
+            snap_tx,
+            resolver,
+            eq,
+            crossfade,
+            output_factory,
+        ));
         Self {
             commands: cmd_tx,
             snapshot: snap_rx,
@@ -231,7 +262,12 @@ impl PlaybackEngine {
         resolver: mpsc::Sender<ResolveRequest>,
         output_factory: Arc<dyn OutputFactory>,
     ) -> Self {
-        Self::spawn_with_output(resolver, Arc::new(EqControl::default()), output_factory)
+        Self::spawn_with_output(
+            resolver,
+            Arc::new(EqControl::default()),
+            Arc::new(CrossfadeControl::default()),
+            output_factory,
+        )
     }
 
     /// 发送命令。
@@ -285,6 +321,8 @@ struct State {
     output_factory: Arc<dyn OutputFactory>,
     /// 10 段均衡器参数（所有会话共享，运行中修改立即生效）。
     eq: Arc<EqControl>,
+    /// 交叉淡入淡出参数（所有会话共享，运行中修改对下一首切歌立即生效）。
+    crossfade: Arc<CrossfadeControl>,
     /// 用户选定的输出设备（PLY-05），`None` = 跟随系统默认。
     device_id: Option<String>,
     /// 输出模式（PLY-12）。
@@ -315,11 +353,13 @@ struct SourcePreview {
 }
 
 impl State {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         resolver: mpsc::Sender<ResolveRequest>,
         handle: Handle,
         snap: PlaybackSnapshot,
         eq: Arc<EqControl>,
+        crossfade: Arc<CrossfadeControl>,
         output_factory: Arc<dyn OutputFactory>,
         inbox: mpsc::UnboundedReceiver<EngineCommand>,
         snapshot_tx: watch::Sender<PlaybackSnapshot>,
@@ -343,6 +383,7 @@ impl State {
             last_decoded_splice_count: 0,
             output_factory,
             eq,
+            crossfade,
             device_id: None,
             mode: OutputMode::Shared,
             gapless: true,
@@ -563,8 +604,22 @@ impl State {
             EngineCommand::SetGapless(enabled) => {
                 self.gapless = enabled;
                 self.snap.gapless = enabled;
-                if enabled {
+                if self.needs_preopen() {
                     self.spawn_prefetch();
+                } else {
+                    self.prefetched.clear();
+                    self.invalidate_gapless_next();
+                }
+            }
+            EngineCommand::SetCrossfade {
+                duration_ms,
+                smart_silence,
+            } => {
+                self.crossfade.set_duration_ms(duration_ms);
+                self.crossfade.set_smart_silence(smart_silence);
+                if self.needs_preopen() {
+                    self.spawn_prefetch();
+                    self.pump_gapless();
                 } else {
                     self.prefetched.clear();
                     self.invalidate_gapless_next();
@@ -958,13 +1013,14 @@ impl State {
         // 快照立刻更新，会话开好后再补上；其余命令排队等加载结束。
         let device_id = self.device_id.clone();
         let start_media = media.clone();
-        let start = Session::start_with_factory_and_eq(
+        let start = Session::start_with_controls(
             &start_media,
             device_id.as_deref(),
             self.mode,
             self.effective_volume(),
             self.handle.clone(),
             self.eq.clone(),
+            self.crossfade.clone(),
             self.output_factory.clone(),
         );
         tokio::pin!(start);
@@ -1118,9 +1174,14 @@ impl State {
         }
     }
 
+    /// 是否需要预装下一首（开启无缝播放或交叉淡入淡出时都需要）。
+    fn needs_preopen(&self) -> bool {
+        self.gapless || self.crossfade.duration_ms() > 0
+    }
+
     /// 后台解析下一首，结果进 `prefetch_rx`。
     fn spawn_prefetch(&mut self) {
-        if !self.gapless {
+        if !self.needs_preopen() {
             return;
         }
         let Some(next) = self.gapless_lookahead() else {
@@ -1150,7 +1211,7 @@ impl State {
     ///
     /// 只预装一首，样本不会整首缓存；解码线程解多少写多少，环形缓冲仍然只有 300 ms。
     fn pump_gapless(&mut self) {
-        if !self.gapless || self.session.is_none() {
+        if !self.needs_preopen() || self.session.is_none() {
             return;
         }
         // 独占 / 比特完美会话暂不支持样本级拼接：预装没有意义，让引擎在 EOF 时
@@ -1216,7 +1277,7 @@ impl State {
 
     /// 无缝播放当前应该预装的曲目（考虑已经拼接、但还没可听的那一首）。
     fn gapless_lookahead(&self) -> Option<TrackId> {
-        if !self.gapless || self.session.is_none() {
+        if !self.needs_preopen() || self.session.is_none() {
             return None;
         }
         let decoded_ahead = self
@@ -1278,6 +1339,7 @@ async fn run(
     snapshot: watch::Sender<PlaybackSnapshot>,
     resolver: mpsc::Sender<ResolveRequest>,
     eq: Arc<EqControl>,
+    crossfade: Arc<CrossfadeControl>,
     output_factory: Arc<dyn OutputFactory>,
 ) {
     let mut state = State::new(
@@ -1285,6 +1347,7 @@ async fn run(
         Handle::current(),
         PlaybackSnapshot::default(),
         eq,
+        crossfade,
         output_factory,
         commands,
         snapshot,
@@ -1392,6 +1455,7 @@ mod tests {
                     },
                     duration_hint_ms: 200_000,
                     gain_db: None,
+                    range_ms: None,
                 }));
             }
         });
@@ -1485,6 +1549,7 @@ mod tests {
                     },
                     duration_hint_ms: 1_000,
                     gain_db: None,
+                    range_ms: None,
                 }));
             }
         });
@@ -1588,6 +1653,7 @@ mod tests {
                     },
                     duration_hint_ms: 1_000,
                     gain_db: None,
+                    range_ms: None,
                 }));
             }
         });
@@ -1618,6 +1684,7 @@ mod tests {
             },
             duration_hint_ms,
             gain_db: None,
+            range_ms: None,
         }
     }
 
@@ -1669,6 +1736,7 @@ mod tests {
             wav_resolver(original.clone(), original),
             Handle::current(),
             PlaybackSnapshot::default(),
+            Arc::default(),
             Arc::default(),
             factory.clone(),
             inbox,

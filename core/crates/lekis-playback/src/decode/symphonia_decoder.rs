@@ -546,7 +546,7 @@ fn is_pcm(id: symphonia::core::codecs::audio::AudioCodecId) -> bool {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::decode::Decoder;
 

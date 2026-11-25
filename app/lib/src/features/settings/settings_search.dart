@@ -132,9 +132,19 @@ List<SettingsSearchItem> searchSettings(WidgetRef ref, String query) {
       '输出设备 device speaker',
     ),
     _Group.playback.item(
+      'audio.crossfade',
+      SettingsStrings.crossfade,
+      '交叉淡入淡出 淡入淡出 crossfade fade silence ebu',
+    ),
+    _Group.playback.item(
       'audio.normalize',
       SettingsStrings.normalize,
       '音量平衡 volume normalization ReplayGain',
+    ),
+    _Group.extensions.item(
+      'settings.storage',
+      SettingsStrings.storage,
+      '存储管理 缓存 清理 流媒体缓存 NAS cache storage clear',
     ),
     if (ref.watch(usbBitPerfectSupportedProvider))
       audio(

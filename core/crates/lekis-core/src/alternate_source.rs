@@ -67,6 +67,7 @@ impl AlternateSource {
             track_id: track,
             duration_hint_ms: self.duration_ms,
             gain_db: None,
+            range_ms: None,
             location: MediaLocation::Url {
                 url: stream.url,
                 headers: stream.headers.into_iter().collect(),

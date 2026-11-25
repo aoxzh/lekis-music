@@ -33,6 +33,7 @@
 //! 播放位置由「已播放样本数 ÷ 每毫秒样本数」算出，再加上 seek 后的基准位置 —— 所以进度条
 //! 跟的是真正从缓冲里被设备取走的样本，而不是解码线程解到哪儿了（解码总是领先几百毫秒）。
 
+use crate::crossfade::{CrossfadeControl, CrossfadeMixer, LoudnessDetector};
 use crate::decode::{open_decoder, Decoder, NativeSampleFormat, PcmFormat};
 use crate::dsp::{db_to_linear, DspNode, FadeControl, SoftClipper, DEFAULT_FADE_MS};
 use crate::eq::{EqControl, ParametricEq};
@@ -264,6 +265,31 @@ impl Session {
         eq: Arc<EqControl>,
         output_factory: Arc<dyn OutputFactory>,
     ) -> Result<Self> {
+        Self::start_with_controls(
+            media,
+            device_id,
+            mode,
+            volume,
+            handle,
+            eq,
+            Arc::new(CrossfadeControl::default()),
+            output_factory,
+        )
+        .await
+    }
+
+    /// 完整装配入口：接进共享的均衡器（`eq`）和交叉淡入淡出（`crossfade`）控制句柄。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn start_with_controls(
+        media: &MediaSource,
+        device_id: Option<&str>,
+        mode: OutputMode,
+        volume: f32,
+        handle: Handle,
+        eq: Arc<EqControl>,
+        crossfade: Arc<CrossfadeControl>,
+        output_factory: Arc<dyn OutputFactory>,
+    ) -> Result<Self> {
         let stop = Arc::new(AtomicBool::new(false));
         let volume_atom = Arc::new(AtomicU32::new(volume.clamp(0.0, 1.0).to_bits()));
         let eof = Arc::new(AtomicBool::new(false));
@@ -297,6 +323,7 @@ impl Session {
         let t_splices = splices.clone();
         let t_next_token = next_token.clone();
         let t_eq = eq.clone();
+        let t_crossfade = crossfade.clone();
         let join = std::thread::Builder::new()
             .name("lekis-decode".to_string())
             .spawn(move || {
@@ -373,6 +400,7 @@ impl Session {
                             prepare_tx,
                             prepare_rx,
                             &mut equalizer,
+                            &t_crossfade,
                         );
                     }
                     WorkerWire::Native {
@@ -1019,6 +1047,20 @@ enum PreparedConverter {
 /// 输出流和会话都不重建（PLY-01）。只有拿不到预装（关闭无缝、解析失败、坏文件、
 /// 队列被改）时才把 EOF 报给引擎，退回「重建会话」的有缝路径。
 // 这里是内部装配函数，参数多但都是解码线程必须的上下文；拆结构体反而更吵。
+/// 正在进行中的交叉淡入淡出状态（解码线程独占，无锁）。
+struct ActiveCrossfade {
+    next: ActiveTrack,
+    mixer: CrossfadeMixer,
+    /// 预留给下一首的设备格式样本暂存区。
+    incoming_buf: Vec<f32>,
+    incoming_converted: Vec<f32>,
+    incoming_queue: Vec<f32>,
+    outgoing_eof: bool,
+    incoming_eof: bool,
+    /// 已经向 `TrackTimeline` 推送了下一首的可听边界。
+    boundary_pushed: bool,
+}
+
 #[allow(clippy::too_many_arguments)]
 fn decode_loop(
     mut active: ActiveTrack,
@@ -1029,15 +1071,22 @@ fn decode_loop(
     prepare_tx: Sender<PreparedResult>,
     prepare_rx: Receiver<PreparedResult>,
     equalizer: &mut ParametricEq,
+    crossfade: &CrossfadeControl,
 ) {
     let device_channels = usize::from(device_format.channels.max(1));
     let mut buffer: Vec<f32> = Vec::with_capacity(device_channels * 4_096);
     let mut converted: Vec<f32> = Vec::with_capacity(device_channels * 8_192);
+    let mut mixed: Vec<f32> = Vec::with_capacity(device_channels * 8_192);
     let mut clipper = SoftClipper;
+    let mut loudness = LoudnessDetector::new(device_format.sample_rate, device_format.channels);
     let pump_threshold = device_channels * 1_024;
 
-    // 已经预装好、等当前曲目 EOF 的下一首。
+    // 已经预装好、等当前曲目进入尾段或 EOF 的下一首。
     let mut prepared: Option<PreparedTrack> = None;
+    // 当前正在进行的交叉淡入淡出混音（PLY-02）。
+    let mut xfade: Option<ActiveCrossfade> = None;
+    // 当前曲目已输出的设备帧数（用于估算距结尾的剩余时长，seek 时同步重置）。
+    let mut active_device_frames: u64 = 0;
 
     loop {
         if ctx.stop.load(Ordering::Relaxed) {
@@ -1060,7 +1109,7 @@ fn decode_loop(
                         content_channels = track.format.channels,
                         device_rate = device_format.sample_rate,
                         device_channels = device_format.channels,
-                        "next track pre-opened for gapless splice"
+                        "next track pre-opened for gapless/crossfade"
                     );
                     prepared = Some(track);
                 }
@@ -1078,6 +1127,7 @@ fn decode_loop(
         loop {
             match commands.try_recv() {
                 Ok(WorkerCmd::Seek(ms)) => {
+                    xfade = None;
                     apply_seek(
                         &mut *active.decoder,
                         ctx,
@@ -1086,12 +1136,15 @@ fn decode_loop(
                         active.duration_ms,
                         active.format,
                     );
+                    active_device_frames =
+                        ms.saturating_mul(u64::from(device_format.sample_rate)) / 1_000;
                     // seek 后重采样器里的 overlap 和残留样本都是上一段的，必须清掉。
                     if let Some(converter) = active.converter.as_mut() {
                         converter.reset();
                     }
                     // 滤波器历史同样属于上一段音频，清掉避免 seek 后的爆音。
                     equalizer.reset();
+                    loudness.reset();
                 }
                 Ok(WorkerCmd::QueueNext { media, token }) => {
                     prepared = None;
@@ -1122,6 +1175,7 @@ fn decode_loop(
                 }
                 Ok(WorkerCmd::ClearNext) => {
                     prepared = None;
+                    xfade = None;
                     tracing::debug!(target: "playback::gapless", "gapless next track cleared");
                 }
                 Ok(WorkerCmd::Stop) | Err(TryRecvError::Disconnected) => return,
@@ -1132,6 +1186,148 @@ fn decode_loop(
         // 2) 缓冲快满了就等消费者腾地方。
         if ctx.writer.vacant_len() < pump_threshold {
             std::thread::sleep(PUMP_INTERVAL);
+            continue;
+        }
+
+        // 2.5) PLY-02：如果正在交叉淡入淡出，同时解码当前曲目与下一首并按等功率曲线混音。
+        if let Some(mut cf) = xfade.take() {
+            let vol_bits = ctx.volume.load(Ordering::Acquire);
+            // 解出一块 outgoing（如果还没 EOF）。
+            let outgoing_slice: &[f32] = if !cf.outgoing_eof {
+                buffer.clear();
+                match active.decoder.decode_next(&mut buffer) {
+                    Ok(true) if !buffer.is_empty() => {
+                        apply_gain(
+                            &mut buffer,
+                            active.gain_linear,
+                            vol_bits,
+                            active.format.channels.max(1),
+                        );
+                        match active.converter.as_mut() {
+                            Some(conv) => {
+                                converted.clear();
+                                conv.process(&buffer, &mut converted);
+                                &converted
+                            }
+                            None => &buffer,
+                        }
+                    }
+                    Ok(true) => &[],
+                    Ok(false) | Err(_) => {
+                        cf.outgoing_eof = true;
+                        &[]
+                    }
+                }
+            } else {
+                &[]
+            };
+
+            let target_samples = if !outgoing_slice.is_empty() {
+                outgoing_slice.len()
+            } else {
+                (cf.mixer.remaining_frames().min(2_048)) * device_channels
+            };
+
+            // 补足 incoming_queue 到至少 target_samples（除非下一首也 EOF）。
+            while !cf.incoming_eof && cf.incoming_queue.len() < target_samples {
+                cf.incoming_buf.clear();
+                match cf.next.decoder.decode_next(&mut cf.incoming_buf) {
+                    Ok(true) if !cf.incoming_buf.is_empty() => {
+                        apply_gain(
+                            &mut cf.incoming_buf,
+                            cf.next.gain_linear,
+                            vol_bits,
+                            cf.next.format.channels.max(1),
+                        );
+                        match cf.next.converter.as_mut() {
+                            Some(conv) => {
+                                cf.incoming_converted.clear();
+                                conv.process(&cf.incoming_buf, &mut cf.incoming_converted);
+                                cf.incoming_queue.extend_from_slice(&cf.incoming_converted);
+                            }
+                            None => cf.incoming_queue.extend_from_slice(&cf.incoming_buf),
+                        }
+                    }
+                    Ok(true) => {}
+                    Ok(false) | Err(_) => {
+                        cf.incoming_eof = true;
+                        break;
+                    }
+                }
+            }
+
+            let in_take = cf.incoming_queue.len().min(target_samples);
+            mixed.clear();
+            let consumed_frames =
+                cf.mixer
+                    .mix_chunk(outgoing_slice, &cf.incoming_queue[..in_take], &mut mixed);
+            let consumed_samples = consumed_frames * device_channels;
+            let drain_in = consumed_samples.min(cf.incoming_queue.len());
+            cf.incoming_queue.drain(..drain_in);
+
+            if !mixed.is_empty() {
+                // 在交叉淡入淡出到达中点（50%）时登记下一首的可听边界，UI 同步切到下一首。
+                if !cf.boundary_pushed && cf.mixer.progress() >= 0.5 {
+                    let start_pushed = ctx.progress.pushed_samples();
+                    let splice_count = ctx.splices.fetch_add(1, Ordering::AcqRel) + 1;
+                    ctx.timeline.push_boundary(
+                        start_pushed,
+                        cf.next.track_id,
+                        cf.next.duration_ms,
+                        cf.next.format,
+                        splice_count,
+                    );
+                    ctx.base_ms.store(0, Ordering::Release);
+                    ctx.eof.store(false, Ordering::Release);
+                    cf.boundary_pushed = true;
+                }
+                process_output(&mut mixed, device_format.channels, equalizer, &mut clipper);
+                let written = ctx.writer.push_blocking(&mixed, &ctx.stop);
+                ctx.progress.add_pushed(written as u64);
+                if ctx.stop.load(Ordering::Relaxed) {
+                    return;
+                }
+            }
+
+            if cf.mixer.is_finished() || (cf.outgoing_eof && cf.incoming_eof) {
+                // 过渡结束：确保边界已经推入，再无缝把 active 切到 next。
+                if !cf.boundary_pushed {
+                    let start_pushed = ctx.progress.pushed_samples();
+                    let splice_count = ctx.splices.fetch_add(1, Ordering::AcqRel) + 1;
+                    ctx.timeline.push_boundary(
+                        start_pushed,
+                        cf.next.track_id,
+                        cf.next.duration_ms,
+                        cf.next.format,
+                        splice_count,
+                    );
+                    ctx.base_ms.store(0, Ordering::Release);
+                    ctx.eof.store(false, Ordering::Release);
+                }
+                // 把 incoming_queue 里已经多解出来的部分原样推出去，保证下一首逐样本连续。
+                if !cf.incoming_queue.is_empty() {
+                    let mut rem = std::mem::take(&mut cf.incoming_queue);
+                    process_output(&mut rem, device_format.channels, equalizer, &mut clipper);
+                    let written = ctx.writer.push_blocking(&rem, &ctx.stop);
+                    ctx.progress.add_pushed(written as u64);
+                    if ctx.stop.load(Ordering::Relaxed) {
+                        return;
+                    }
+                }
+                active = cf.next;
+                // 下一首从 0 开始，已播时长大约等于交叉淡变持续时间。
+                active_device_frames = u64::from(device_format.sample_rate)
+                    .saturating_mul(u64::from(crossfade.duration_ms()))
+                    / 1_000;
+                loudness.reset();
+                tracing::info!(
+                    target: "playback::crossfade",
+                    track = %active.track_id,
+                    "crossfade completed"
+                );
+            } else {
+                xfade = Some(cf);
+            }
             continue;
         }
 
@@ -1163,6 +1359,8 @@ fn decode_loop(
                         equalizer,
                         &mut clipper,
                     ) {
+                        active_device_frames = 0;
+                        loudness.reset();
                         continue;
                     }
                     // 停止标志在拼接过程中被置位：直接收尾。
@@ -1203,6 +1401,80 @@ fn decode_loop(
         if to_push.is_empty() {
             continue;
         }
+        let pushed_frames = (to_push.len() / device_channels) as u64;
+        active_device_frames = active_device_frames.saturating_add(pushed_frames);
+
+        // PLY-02：检查是否到达交叉淡入淡出触发点。
+        let cf_ms = crossfade.duration_ms();
+        let smart_silence = crossfade.smart_silence();
+        if cf_ms > 0 {
+            if smart_silence {
+                loudness.feed(to_push);
+            }
+            let token_now = ctx.next_token.load(Ordering::Acquire);
+            let has_fresh_next = prepared
+                .as_ref()
+                .is_some_and(|track| track.token == token_now);
+            if has_fresh_next {
+                if let Some(dur_ms) = active.duration_ms {
+                    // 短于 2 倍过渡时长的曲目不做交叉淡变，避免整首歌被吞掉。
+                    if dur_ms > u64::from(cf_ms).saturating_mul(2) {
+                        let elapsed_ms = active_device_frames.saturating_mul(1_000)
+                            / u64::from(device_format.sample_rate.max(1));
+                        let remaining_ms = dur_ms.saturating_sub(elapsed_ms);
+                        let trigger_by_time = remaining_ms <= u64::from(cf_ms);
+                        let trigger_by_silence = smart_silence
+                            && remaining_ms <= u64::from(cf_ms).saturating_add(3_000)
+                            && loudness.is_trailing_silence(150);
+                        if trigger_by_time || trigger_by_silence {
+                            if let Some(next_prep) = prepared.take() {
+                                let next_conv = match next_prep.converter {
+                                    PreparedConverter::Reuse => {
+                                        FormatConverter::new(next_prep.format, device_format)
+                                            .ok()
+                                            .flatten()
+                                    }
+                                    PreparedConverter::Direct => None,
+                                    PreparedConverter::Convert(c) => Some(*c),
+                                };
+                                let next_active = ActiveTrack {
+                                    track_id: next_prep.track_id,
+                                    decoder: next_prep.decoder,
+                                    converter: next_conv,
+                                    format: next_prep.format,
+                                    duration_ms: next_prep.duration_ms,
+                                    gain_linear: next_prep.gain_linear,
+                                };
+                                let eff_ms = (remaining_ms as u32).min(cf_ms).max(100);
+                                tracing::info!(
+                                    target: "playback::crossfade",
+                                    from = %active.track_id,
+                                    to = %next_active.track_id,
+                                    duration_ms = eff_ms,
+                                    trigger_by_silence,
+                                    "starting equal-power crossfade"
+                                );
+                                xfade = Some(ActiveCrossfade {
+                                    next: next_active,
+                                    mixer: CrossfadeMixer::new(
+                                        device_format.sample_rate,
+                                        device_format.channels,
+                                        eff_ms,
+                                    ),
+                                    incoming_buf: Vec::with_capacity(device_channels * 4_096),
+                                    incoming_converted: Vec::with_capacity(device_channels * 8_192),
+                                    incoming_queue: Vec::with_capacity(device_channels * 8_192),
+                                    outgoing_eof: false,
+                                    incoming_eof: false,
+                                    boundary_pushed: false,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // EQ 必须按设备采样率运行，所以放在重采样 / 声道映射之后；
         // 限幅也放在 EQ 之后，才能拦住均衡器带来的正增益削波。
         process_output(to_push, device_format.channels, equalizer, &mut clipper);
@@ -1736,6 +2008,7 @@ mod tests {
             },
             duration_hint_ms,
             gain_db,
+            range_ms: None,
         }
     }
 

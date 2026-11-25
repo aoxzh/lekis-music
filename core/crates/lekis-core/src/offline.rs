@@ -685,6 +685,9 @@ mod tests {
             quality_score: 100,
             duration_ms: 1000,
             replaygain: Default::default(),
+            start_ms: 0,
+            end_ms: None,
+            cue_path: None,
         };
         let media = MediaSource {
             track_id: TrackId(1),
@@ -694,6 +697,7 @@ mod tests {
             },
             duration_hint_ms: 1000,
             gain_db: None,
+            range_ms: None,
         };
         assert_eq!(extension_for(&file, &media), "flac");
 
@@ -705,6 +709,7 @@ mod tests {
             },
             duration_hint_ms: 0,
             gain_db: None,
+            range_ms: None,
         };
         let file = TrackFile {
             path: String::new(),

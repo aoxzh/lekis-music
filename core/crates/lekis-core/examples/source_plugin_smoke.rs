@@ -73,6 +73,7 @@ async fn main() -> Result<()> {
         },
         duration_hint_ms: track.duration_ms,
         gain_db: None,
+        range_ms: None,
     };
     let handle = tokio::runtime::Handle::current();
     let (format, samples) = tokio::task::spawn_blocking(move || -> Result<_> {

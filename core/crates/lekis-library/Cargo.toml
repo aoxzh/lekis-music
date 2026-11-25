@@ -18,6 +18,7 @@ tracing.workspace = true
 pinyin.workspace = true
 ferrous-opencc.workspace = true
 lofty.workspace = true
+strsim.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

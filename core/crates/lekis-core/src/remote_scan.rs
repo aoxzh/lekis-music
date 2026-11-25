@@ -68,6 +68,18 @@ pub(crate) async fn sync_source(
     let total = all.len() as u64;
     let stats = library.upsert_remote_tracks(source_id, all).await?;
     library.mark_scanned(source_id).await?;
+    let auto_merge = library
+        .get_setting(crate::settings::UNIFIED_AUTO_MERGE)
+        .await
+        .ok()
+        .flatten()
+        .map(|v| v.trim() != "false" && v.trim() != "0")
+        .unwrap_or(true);
+    if auto_merge {
+        if let Err(e) = library.auto_merge_cross_source_tracks().await {
+            tracing::warn!(target: "core::unified", %source_id, error = %e, "unified auto-merge after remote sync failed");
+        }
+    }
     events.emit(CoreEvent::ScanFinished {
         source_id,
         added: stats.added,

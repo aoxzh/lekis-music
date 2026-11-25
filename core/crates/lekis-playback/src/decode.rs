@@ -1,18 +1,28 @@
 //! 解码。
 //!
 //! 主解码器：symphonia（纯 Rust：MP3、AAC、ALAC、FLAC、WAV、AIFF、Vorbis……）。
-//! 长尾格式（APE、TTA、DSD、WMA）：可选的 FFmpeg 组件（LGPL，动态链接）。
+//! 长尾无损格式（APE、TTA、DSD）：纯 Rust 解码器（`ape-decoder`、`oxideav-tta`、`dsd2pcm`），
+//! 无需动态链接 FFmpeg。
+//! CUE 整轨分轨播放：[`BoundedDecoder`] 把任意底层解码器裁剪到 `[start_ms, end_ms)` 区间。
 //!
 //! 无缝播放（PLY-01）要求：解码器必须去掉 MP3 / AAC 的编码器延迟（encoder delay）和尾部填充（padding），
 //! 信息来自 LAME/Xing 头或 iTunSMPB。symphonia 的 `AudioDecoderOptions::gapless`（默认开启）
 //! 会按 demuxer 给出的 `Packet::trim_start` / `trim_end` 自动裁掉这些帧，所以这里不用再手算。
 
+pub mod ape_decoder;
+pub mod bounded_decoder;
+pub mod dsd_decoder;
 pub mod media_source;
 pub mod symphonia_decoder;
+pub mod tta_decoder;
 pub mod url_source;
 
+pub use ape_decoder::ApeAudioDecoder;
+pub use bounded_decoder::BoundedDecoder;
+pub use dsd_decoder::DsdAudioDecoder;
 pub use media_source::VfsMediaSource;
 pub use symphonia_decoder::SymphoniaDecoder;
+pub use tta_decoder::TtaAudioDecoder;
 pub use url_source::HttpRangeSource;
 
 use crate::vfs_access;
@@ -90,12 +100,12 @@ pub trait Decoder: Send {
 /// 这里用 `Handle::block_on` 同步等待；HTTP 用的是 reqwest 的 blocking 客户端。
 /// 在 tokio worker 线程上这两者都会出问题，所以引擎总是把解码器开在专用的解码线程里。
 pub fn open_decoder(media: &MediaSource, handle: &Handle) -> Result<Box<dyn Decoder>> {
-    match &media.location {
+    let inner: Box<dyn Decoder> = match &media.location {
         MediaLocation::CachedFile { path } => {
             let file = std::fs::File::open(path)
                 .map_err(|e| LekisError::new(ErrorCode::Io, format!("cannot open {path}: {e}")))?;
             let ext = extension_of(path);
-            Ok(Box::new(SymphoniaDecoder::open_file(file, ext.as_deref())?))
+            open_for_source(Box::new(file), ext.as_deref())?
         }
         MediaLocation::Vfs { source_id, path } => {
             let Some(vfs) = vfs_access::resolve(*source_id) else {
@@ -125,10 +135,7 @@ pub fn open_decoder(media: &MediaSource, handle: &Handle) -> Result<Box<dyn Deco
                 }
             };
             let source = VfsMediaSource::new(vfs, vfs_path, len, handle.clone());
-            Ok(Box::new(SymphoniaDecoder::open_source(
-                Box::new(source),
-                ext.as_deref(),
-            )?))
+            open_for_source(Box::new(source), ext.as_deref())?
         }
         MediaLocation::Url { url, headers } => {
             let ext = extension_of_url(url);
@@ -141,12 +148,44 @@ pub fn open_decoder(media: &MediaSource, handle: &Handle) -> Result<Box<dyn Deco
                 headers = headers.len(),
                 "opened http range source"
             );
-            Ok(Box::new(SymphoniaDecoder::open_source(
-                Box::new(source),
-                ext.as_deref(),
-            )?))
+            open_for_source(Box::new(source), ext.as_deref())?
+        }
+    };
+    if let Some((start_ms, end_ms)) = media.range_ms {
+        if start_ms > 0 || end_ms.is_some() {
+            return Ok(Box::new(BoundedDecoder::new(inner, start_ms, end_ms)?));
         }
     }
+    Ok(inner)
+}
+
+/// 根据扩展名和文件魔数路由到对应的解码器（APE / TTA / DSD 走纯 Rust 专用解码器，其余走 symphonia）。
+fn open_for_source(
+    mut source: Box<dyn symphonia::core::io::MediaSource + Send + Sync>,
+    ext: Option<&str>,
+) -> Result<Box<dyn Decoder>> {
+    let ext_lower = ext.map(str::to_ascii_lowercase);
+    match ext_lower.as_deref() {
+        Some("ape") => return Ok(Box::new(ApeAudioDecoder::open(source)?)),
+        Some("tta") => return Ok(Box::new(TtaAudioDecoder::open(source)?)),
+        Some("dsf" | "dff") => return Ok(Box::new(DsdAudioDecoder::open(source)?)),
+        _ => {}
+    }
+    // 无扩展名（如服务器流地址）时，如果可 seek，按前 4 字节魔数探测 APE / TTA / DSD。
+    if source.is_seekable() {
+        let mut magic = [0u8; 4];
+        let peeked = source.read_exact(&mut magic).is_ok();
+        let _ = source.seek(std::io::SeekFrom::Start(0));
+        if peeked {
+            match &magic {
+                b"MAC " => return Ok(Box::new(ApeAudioDecoder::open(source)?)),
+                b"TTA1" => return Ok(Box::new(TtaAudioDecoder::open(source)?)),
+                b"DSD " | b"FRM8" => return Ok(Box::new(DsdAudioDecoder::open(source)?)),
+                _ => {}
+            }
+        }
+    }
+    Ok(Box::new(SymphoniaDecoder::open_source(source, ext)?))
 }
 
 /// 从路径里取小写扩展名（symphonia 用它猜容器格式）。

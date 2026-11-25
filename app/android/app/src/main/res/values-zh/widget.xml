@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_player_label">月兔音乐播放器</string>
+    <string name="widget_player_description">正在播放的歌曲，可暂停、切换上一首和下一首</string>
+    <string name="widget_not_playing">未在播放</string>
+    <string name="widget_tap_to_open">点按打开月兔音乐</string>
+    <string name="widget_previous">上一首</string>
+    <string name="widget_play">播放</string>
+    <string name="widget_pause">暂停</string>
+    <string name="widget_next">下一首</string>
+    <string name="widget_cover">专辑封面</string>
+</resources>

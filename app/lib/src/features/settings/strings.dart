@@ -133,6 +133,19 @@ abstract final class SettingsStrings {
     '去掉曲目之间的静音间隙，现场专辑和古典乐更连贯',
     'Remove silence between consecutive tracks for live and classical albums',
   );
+  static String get crossfade => L10n.tr('交叉淡入淡出', 'Crossfade');
+  static String get crossfadeHint => L10n.tr(
+    '切歌时用等功率混音平滑过渡；同一张专辑连续播放时自动保持无缝',
+    'Blend between tracks with equal-power crossfade; consecutive album tracks stay gapless',
+  );
+  static String get crossfadeOff => L10n.tr('关闭', 'Off');
+  static String crossfadeSeconds(int s) => L10n.tr('$s 秒', '${s}s');
+  static String get crossfadeSmartSilence =>
+      L10n.tr('智能跳过尾声静音', 'Smart Trailing Silence');
+  static String get crossfadeSmartSilenceHint => L10n.tr(
+    '用 EBU R128 响度检测曲目末尾的长时间静音，提前触发淡入下一首',
+    'Use EBU R128 loudness detection to trigger crossfade early over trailing silence',
+  );
   static String get replayGain => L10n.tr('ReplayGain 模式', 'ReplayGain Mode');
   static String get replayGainHint => L10n.tr(
     '按文件里的 ReplayGain 信息统一响度：按曲目让每首一样响，按专辑保留专辑内的起伏',
@@ -288,6 +301,96 @@ abstract final class SettingsStrings {
     '查找重复歌曲、缺失标签 / 封面 / 歌词和不可读文件',
     'Find duplicates, missing tags / artwork / lyrics, and unreadable files',
   );
+  static String get unifiedAutoMerge =>
+      L10n.tr('统一资料库自动合并', 'Auto-Merge Unified Library');
+  static String get unifiedAutoMergeHint => L10n.tr(
+    '扫描完成后自动合并多个音源里的同一首歌，播放时优先选无损/本地源',
+    'Automatically merge matching songs across sources after scans and prefer the best source',
+  );
+  static String get unifiedMergeNow =>
+      L10n.tr('立即合并重复音源', 'Merge Duplicate Sources Now');
+  static String get unifiedMergeNowHint => L10n.tr(
+    '按标签或 Chromaprint 音频指纹扫描跨音源的同一首歌',
+    'Match identical songs across sources by metadata or Chromaprint audio fingerprint',
+  );
+  static String get unifiedMergeDialogTitle =>
+      L10n.tr('统一资料库合并', 'Unified Library Merge');
+  static String get unifiedMergeDialogBody => L10n.tr(
+    '将不同音源里的同一首歌合并为一条记录（已手动拆分的曲目不会被重新合并）。',
+    'Combine identical songs from different sources into one entry (manually split tracks stay separate).',
+  );
+  static String get unifiedMergeQuick => L10n.tr('快速标签合并', 'Quick Metadata Merge');
+  static String get unifiedMergeQuickHint => L10n.tr(
+    '按歌名、艺人、时长与 MusicBrainz ID 匹配，数秒内完成',
+    'Matches by title, artist, duration, and MusicBrainz ID in seconds',
+  );
+  static String get unifiedMergeFingerprint =>
+      L10n.tr('深度音频指纹合并', 'Deep Audio Fingerprint Merge');
+  static String get unifiedMergeFingerprintHint => L10n.tr(
+    '计算本地/已缓存文件的 Chromaprint 声学指纹，识别标签不一致的同一录音',
+    'Computes Chromaprint acoustic fingerprints to match recordings even with different tags',
+  );
+  static String get unifiedMergeRunning =>
+      L10n.tr('正在扫描并合并…', 'Scanning and merging…');
+  static String unifiedMergeDone(int groups, int tracks, int fingerprinted) =>
+      L10n.tr(
+        fingerprinted > 0
+            ? '已合并 $groups 组（$tracks 条冗余记录），计算 $fingerprinted 个音频指纹'
+            : '已合并 $groups 组（$tracks 条冗余记录）',
+        fingerprinted > 0
+            ? 'Merged $groups groups ($tracks duplicates), fingerprinted $fingerprinted files'
+            : 'Merged $groups groups ($tracks duplicates)',
+      );
+  static String get unifiedMergeNone =>
+      L10n.tr('未发现可合并的跨源重复曲目', 'No cross-source duplicates found to merge');
+
+  static String get storageSection => L10n.tr('存储与缓存', 'Storage & Cache');
+  static String get storage => L10n.tr('存储管理', 'Storage Management');
+  static String get storageHint => L10n.tr(
+    '按类别查看空间占用、设置 NAS 流媒体缓存上限并一键清理',
+    'View space by category, set NAS streaming cache limit, and clear caches',
+  );
+  static String get storageTotalUsed => L10n.tr('总占用空间', 'Total Storage Used');
+  static String get storageBreakdown => L10n.tr('空间分布', 'Breakdown');
+  static String get storageStreamCacheSection =>
+      L10n.tr('NAS 流媒体播放缓存', 'NAS Streaming Cache');
+  static String get storageStreamCacheLimit =>
+      L10n.tr('播放缓存上限', 'Streaming Cache Limit');
+  static String get storageStreamCacheLimitHint => L10n.tr(
+    '播放 NAS / 媒体服务器曲目时自动缓存到本地，断网时优先播已缓存的歌，超出上限按最近使用自动淘汰',
+    'Cache remote/NAS tracks as you play and prefer cached copies offline; oldest entries evict automatically',
+  );
+  static String get storageLimitOff => L10n.tr('关闭缓存', 'Off');
+  static String get storageCategoryArtwork => L10n.tr('封面与图片缓存', 'Artwork & Image Cache');
+  static String get storageCategoryStreamCache =>
+      L10n.tr('流媒体播放缓存', 'Streaming Playback Cache');
+  static String get storageCategoryOffline => L10n.tr('离线下载', 'Offline Downloads');
+  static String get storageCategoryOther => L10n.tr('其他临时缓存', 'Other Temporary Cache');
+  static String get storageCategoryDatabase => L10n.tr('资料库数据库', 'Library Database');
+  static String get storageDatabaseHint =>
+      L10n.tr('保存曲库索引、歌单与设置，不支持清理', 'Stores library index, playlists, and settings');
+  static String get storageClear => L10n.tr('清理', 'Clear');
+  static String get storageClearAllCaches =>
+      L10n.tr('一键清理全部缓存', 'Clear All Caches');
+  static String get storageClearAllCachesHint => L10n.tr(
+    '清理封面缓存、流媒体播放缓存与临时文件，保留离线下载和资料库',
+    'Clears artwork, streaming cache, and temporary files; keeps offline downloads and library',
+  );
+  static String storageCleared(String size) =>
+      L10n.tr('已释放 $size 空间', 'Freed $size');
+  static String get storageConfirmOfflineTitle =>
+      L10n.tr('清理全部离线下载？', 'Clear All Offline Downloads?');
+  static String get storageConfirmOfflineBody => L10n.tr(
+    '这会删除所有手动离线下载的本地音频副本，之后可在联网时重新下载。',
+    'This deletes all manually downloaded offline audio copies. You can re-download them while online.',
+  );
+  static String storageTracksCount(int n) =>
+      L10n.tr('$n 首曲目', n == 1 ? '1 track' : '$n tracks');
+  static String storageFilesCount(int n) =>
+      L10n.tr('$n 个文件', n == 1 ? '1 file' : '$n files');
+  static String storageMemoryCacheHint(String mem) =>
+      L10n.tr('含内存图片缓存 $mem', 'Includes $mem in-memory images');
+  static String get storageRefresh => L10n.tr('刷新占用统计', 'Refresh storage usage');
   static String get writeEnrichSidecars =>
       L10n.tr('补全结果写入音源目录', 'Save Enrichment to Source Folders');
   static String get writeEnrichSidecarsHint => L10n.tr(

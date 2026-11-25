@@ -126,4 +126,23 @@ abstract final class ConnectStrings {
     MediaViaDto.sameSource => L10n.tr('来自同一个音源', 'From shared source'),
     MediaViaDto.stream => L10n.tr('由本机局域网串流', 'Streamed over LAN'),
   };
+
+  // Chromecast / DLNA 投放
+  static String get castSectionTitle =>
+      L10n.tr('Chromecast / DLNA 音箱', 'Chromecast & DLNA Speakers');
+  static String get castRefresh => L10n.tr('重新扫描投放设备', 'Scan cast devices');
+  static String get castScanning =>
+      L10n.tr('正在搜索局域网内的 Chromecast 与 DLNA 设备…', 'Scanning LAN for Chromecast & DLNA devices…');
+  static String get castEmpty => L10n.tr(
+    '未发现 Chromecast 或 DLNA 音箱/功放，请确认在同一局域网内并点右上角刷新。',
+    'No Chromecast or DLNA speakers found on your LAN. Tap refresh to scan again.',
+  );
+  static String get castChromecast => 'Chromecast';
+  static String get castDlna => 'DLNA / UPnP';
+  static String castActiveOn(String name) =>
+      L10n.tr('正在投放到 $name', 'Casting to $name');
+  static String get castStop => L10n.tr('停止投放', 'Stop Casting');
+  static String get castNothingPlaying =>
+      L10n.tr('请先选择一首歌曲开始播放，再投放到音箱', 'Start playing a track before casting');
+  static String get castFailed => L10n.tr('投放失败', 'Casting failed');
 }

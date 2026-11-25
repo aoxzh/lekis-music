@@ -79,13 +79,24 @@ russh-sftp = "3.0"
 
 # ---- 音频 ----
 symphonia = { version = "0.6", features = ["all"] }
+ape-decoder = "=0.3.2"
+oxideav-tta = { version = "=0.0.4", default-features = false }
+dsd2pcm = { version = "=0.2.0", default-features = false }
 cpal = "0.18"
 rubato = "0.16"
 ebur128 = "0.1"
 ringbuf = "0.4"
+rusty-chromaprint = "0.3.0"
 
 # ---- 其他 ----
 lofty = "0.25"
+cue-rw = "0.3.0"
+chardetng = "1.0.0"
+encoding_rs = "0.8"
+strsim = "0.11.1"
+rupnp = { version = "3.0.0", features = ["full_device_spec"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "logging", "tls12"] }
 pinyin = "0.11"
 # 日语注音：假名 → 罗马音（Hepburn）。MIT，纯 Rust，只用到转换表。
 wana_kana = { version = "5", default-features = false }

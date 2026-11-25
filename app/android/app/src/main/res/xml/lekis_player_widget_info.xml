@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 桌面播放小组件。4×1 紧凑条，拉高到两行以上换成大封面布局（见 LekisPlayerWidget）。 -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="40dp"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="40dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen|keyguard"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_player_compact"
+    android:previewLayout="@layout/widget_player_compact"
+    android:previewImage="@mipmap/ic_launcher"
+    android:description="@string/widget_player_description" />

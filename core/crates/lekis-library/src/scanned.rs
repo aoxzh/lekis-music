@@ -98,6 +98,17 @@ pub struct UpsertStats {
     pub updated: u64,
 }
 
+/// 一张 CUE 分轨表拆出来的单首分轨。
+#[derive(Debug, Clone)]
+pub struct CueTrackSlice {
+    /// 分轨起始毫秒（`INDEX 01`）。
+    pub start_ms: u64,
+    /// 分轨结束毫秒（最后一首为 `None`，播放到整轨文件末尾）。
+    pub end_ms: Option<u64>,
+    /// 该分轨的元数据标签（已带分轨时长和整轨音频属性）。
+    pub tags: ScannedTags,
+}
+
 impl Library {
     /// 批量写入扫描结果（一个事务）。
     pub async fn upsert_scanned(&self, batch: Vec<ScannedFile>) -> Result<UpsertStats> {
@@ -118,6 +129,199 @@ impl Library {
             if relinked {
                 sweep_orphans(&tx)?;
             }
+            tx.commit().db()?;
+            Ok(stats)
+        })
+        .await
+    }
+
+    /// 将一个整轨音频文件按 `.cue` 拆成多首曲目写入（原子事务）。
+    ///
+    /// - 同一个底层 `file` 行会被所有分轨共享；
+    /// - 之前挂在这个 `file_id` 下的旧整轨行或旧分轨行会被清理，孤儿曲目自动清扫；
+    /// - 每条 `track_file` 写入 `start_ms` / `end_ms` / `cue_path`，播放时由 `BoundedDecoder` 精准裁剪。
+    #[allow(clippy::too_many_arguments)]
+    pub async fn upsert_cue_file(
+        &self,
+        source_id: SourceId,
+        audio_path: String,
+        size: u64,
+        mtime_ms: i64,
+        audio: Option<AudioProps>,
+        cue_path: String,
+        slices: Vec<CueTrackSlice>,
+    ) -> Result<UpsertStats> {
+        if slices.is_empty() {
+            return Ok(UpsertStats::default());
+        }
+        self.write(move |conn| {
+            let tx = conn.transaction().db()?;
+            let now = now_ms();
+            let audio_json = audio
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()
+                .map_err(json_err)?;
+
+            let existing: Option<i64> = tx
+                .query_row(
+                    "SELECT id FROM file WHERE source_id = ?1 AND path = ?2",
+                    params![source_id.0, audio_path],
+                    |r| r.get(0),
+                )
+                .optional()
+                .db()?;
+            let is_new = existing.is_none();
+
+            let file_id: i64 = tx
+                .query_row(
+                    "INSERT INTO file (source_id, path, size, mtime_ms, scan_state, audio_json, last_seen_at)
+                     VALUES (?1, ?2, ?3, ?4, 'tagged', ?5, ?6)
+                     ON CONFLICT (source_id, path) DO UPDATE SET
+                       size = excluded.size, mtime_ms = excluded.mtime_ms, scan_state = 'tagged',
+                       scan_error = NULL, audio_json = excluded.audio_json, last_seen_at = excluded.last_seen_at
+                     RETURNING id",
+                    params![source_id.0, audio_path, size as i64, mtime_ms, audio_json, now],
+                    |r| r.get(0),
+                )
+                .db()?;
+
+            // 先清掉该底层文件先前的关联（无论是旧的未拆分整轨还是旧版 CUE 分轨）。
+            tx.execute(
+                "DELETE FROM track_file WHERE file_id = ?1",
+                params![file_id],
+            )
+            .db()?;
+
+            let mut stats = UpsertStats::default();
+            for slice in &slices {
+                let t = &slice.tags;
+                let artist_line = t.artists.join(" / ");
+                let album_artist_line = if t.album_artists.is_empty() {
+                    artist_line.clone()
+                } else {
+                    t.album_artists.join(" / ")
+                };
+                let album_id = match &t.album {
+                    Some(title) if !title.trim().is_empty() => {
+                        Some(upsert_album(&tx, title, &album_artist_line, t.year, now)?)
+                    }
+                    _ => None,
+                };
+                let uid = match &t.mbid_recording {
+                    Some(mbid) => TrackUid::from_mbid(mbid),
+                    None => TrackUid::from_metadata(
+                        &artist_line,
+                        &t.title,
+                        t.album.as_deref().unwrap_or(""),
+                        t.duration_ms,
+                    ),
+                };
+                let replaygain_json = serde_json::to_string(&t.replaygain).map_err(json_err)?;
+                let quality_badge = t
+                    .audio
+                    .as_ref()
+                    .or(audio.as_ref())
+                    .map(AudioProps::quality_badge);
+
+                let track_id: i64 = tx
+                    .query_row(
+                        "INSERT INTO track (uid, title, title_sort_key, artist_line, album_id, track_no, disc_no,
+                                            year, duration_ms, mbid_recording, replaygain_json, quality_badge,
+                                            created_at, updated_at)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?13)
+                         ON CONFLICT (uid) DO UPDATE SET
+                           title = excluded.title, title_sort_key = excluded.title_sort_key,
+                           artist_line = excluded.artist_line, album_id = excluded.album_id,
+                           track_no = excluded.track_no, disc_no = excluded.disc_no, year = excluded.year,
+                           duration_ms = excluded.duration_ms, replaygain_json = excluded.replaygain_json,
+                           quality_badge = excluded.quality_badge, updated_at = excluded.updated_at
+                         RETURNING id",
+                        params![
+                            uid.0,
+                            t.title,
+                            sort_key(&t.title),
+                            artist_line,
+                            album_id,
+                            t.track_no,
+                            t.disc_no,
+                            t.year,
+                            t.duration_ms as i64,
+                            t.mbid_recording,
+                            replaygain_json,
+                            quality_badge,
+                            now
+                        ],
+                        |r| r.get(0),
+                    )
+                    .db()?;
+
+                let score = quality_score(t.audio.as_ref().or(audio.as_ref()));
+                tx.execute(
+                    "INSERT INTO track_file (track_id, file_id, source_id, external_id, quality_score, start_ms, end_ms, cue_path)
+                     VALUES (?1, ?2, ?3, '', ?4, ?5, ?6, ?7)
+                     ON CONFLICT (track_id, source_id, file_id, external_id)
+                     DO UPDATE SET quality_score = excluded.quality_score,
+                                   start_ms = excluded.start_ms,
+                                   end_ms = excluded.end_ms,
+                                   cue_path = excluded.cue_path",
+                    params![
+                        track_id,
+                        file_id,
+                        source_id.0,
+                        score,
+                        slice.start_ms as i64,
+                        slice.end_ms.map(|v| v as i64),
+                        cue_path,
+                    ],
+                )
+                .db()?;
+
+                for (pos, name) in t.artists.iter().enumerate() {
+                    let artist_id = upsert_artist(&tx, name)?;
+                    tx.execute(
+                        "INSERT OR IGNORE INTO track_artist (track_id, artist_id, role, position)
+                         VALUES (?1, ?2, 'main', ?3)",
+                        params![track_id, artist_id, pos as i64],
+                    )
+                    .db()?;
+                    crate::browse::ensure_artist_index(&tx, artist_id)?;
+                }
+                crate::browse::ensure_album_index(&tx, album_id)?;
+                tx.execute(
+                    "DELETE FROM track_genre WHERE track_id = ?1",
+                    params![track_id],
+                )
+                .db()?;
+                for name in &t.genres {
+                    let name = name.trim();
+                    if name.is_empty() {
+                        continue;
+                    }
+                    let genre_id: i64 = tx
+                        .query_row(
+                            "INSERT INTO genre (name) VALUES (?1)
+                             ON CONFLICT (name) DO UPDATE SET name = genre.name
+                             RETURNING id",
+                            params![name],
+                            |r| r.get(0),
+                        )
+                        .db()?;
+                    tx.execute(
+                        "INSERT OR IGNORE INTO track_genre (track_id, genre_id) VALUES (?1, ?2)",
+                        params![track_id, genre_id],
+                    )
+                    .db()?;
+                }
+                crate::browse::refresh_track_index(&tx, track_id)?;
+                if is_new {
+                    stats.added += 1;
+                } else {
+                    stats.updated += 1;
+                }
+            }
+
+            sweep_orphans(&tx)?;
             tx.commit().db()?;
             Ok(stats)
         })

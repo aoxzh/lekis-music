@@ -3,6 +3,7 @@
 // 每个分类只给出若干 [SettingsSection]；手机上包成推入的子页面，
 // 宽窗口里直接放进右栏（见 settings_page.dart）。
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/widgets/adaptive_panel.dart';
@@ -13,6 +14,7 @@ import '../../l10n/app_locale.dart';
 import '../../platform/external_url.dart';
 import '../../platform/ui_profile.dart';
 import '../../rust/api/dto.dart';
+import '../../rust/api/storage.dart' as storage_api;
 import '../../shell/app_shell.dart';
 import '../../shell/nav_bar_position.dart';
 import '../../shell/tab_bar_style.dart';
@@ -30,6 +32,7 @@ import 'app_updater_provider.dart';
 import 'update_dialog.dart';
 import 'desktop_tray_settings_section.dart';
 import 'equalizer_page.dart';
+import 'home_widget_tile.dart';
 import 'logs_page.dart';
 import 'lyrics_presets.dart';
 import 'scrobble_page.dart';
@@ -44,6 +47,7 @@ import '../sync/sync_settings_section.dart';
 import '../sync/sync_strings.dart';
 import 'app_updater.dart';
 import 'connect_settings_section.dart';
+import 'storage_management_page.dart';
 import 'strings.dart';
 import 'tab_bar_style_picker.dart';
 import 'theme_preference.dart';
@@ -131,6 +135,8 @@ enum SettingsCategory {
     SettingsCategory.organize => [
       SettingsStrings.libraryHealth,
       SettingsStrings.enrichReview,
+      SettingsStrings.unifiedAutoMerge,
+      SettingsStrings.unifiedMergeNow,
     ],
     SettingsCategory.sync => [
       SyncStrings.sectionChannel,
@@ -146,6 +152,8 @@ enum SettingsCategory {
     SettingsCategory.playback => [
       SettingsStrings.outputDevice,
       SettingsStrings.gapless,
+      SettingsStrings.crossfade,
+      SettingsStrings.crossfadeSmartSilence,
       SettingsStrings.video,
       SettingsStrings.normalize,
       SettingsStrings.sleepTimer,
@@ -176,6 +184,8 @@ enum SettingsCategory {
       SettingsStrings.plugins,
       SettingsStrings.desktopTrayEnabled,
       SettingsStrings.backup,
+      SettingsStrings.storage,
+      SettingsStrings.storageCategoryStreamCache,
       SettingsStrings.diagnosticLogs,
     ],
     SettingsCategory.about => [
@@ -241,7 +251,7 @@ List<Widget> _advancedSections() => [
   if (DesktopTraySettingsSection.isSupported)
     const DesktopTraySettingsSection(),
   const SettingsBackupSection(),
-  const _ImageCacheSection(),
+  const _StorageSection(),
   if (UiProfile.current.pointerFirst) const _ShortcutsSection(),
   const _DiagnosticsSection(),
 ];
@@ -272,16 +282,83 @@ class SettingsCategoryPage extends StatelessWidget {
 // 整理资料库
 // ---------------------------------------------------------------------------
 
-class _OrganizeSection extends ConsumerWidget {
+class _OrganizeSection extends ConsumerStatefulWidget {
   const _OrganizeSection();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_OrganizeSection> createState() => _OrganizeSectionState();
+}
+
+class _OrganizeSectionState extends ConsumerState<_OrganizeSection> {
+  bool _merging = false;
+
+  Future<void> _showMergeDialog() async {
+    if (_merging) return;
+    final useFingerprints = await showLekisPanel<bool>(
+      context,
+      builder: (dialog) => LekisPanel(
+        title: SettingsStrings.unifiedMergeDialogTitle,
+        body: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(SettingsStrings.unifiedMergeDialogBody),
+            const SizedBox(height: LekisSpacing.md),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.merge_type_rounded),
+              title: Text(SettingsStrings.unifiedMergeQuick),
+              subtitle: Text(SettingsStrings.unifiedMergeQuickHint),
+              onTap: () => Navigator.of(dialog).pop(false),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.graphic_eq_rounded),
+              title: Text(SettingsStrings.unifiedMergeFingerprint),
+              subtitle: Text(SettingsStrings.unifiedMergeFingerprintHint),
+              onTap: () => Navigator.of(dialog).pop(true),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(),
+            child: Text(SettingsStrings.cancel),
+          ),
+        ],
+      ),
+    );
+    if (useFingerprints == null || !mounted) return;
+    setState(() => _merging = true);
+    try {
+      final report = await storage_api.autoMergeUnifiedLibrary(
+        useFingerprints: useFingerprints,
+      );
+      if (!mounted) return;
+      final groups = report.mergedGroups.toInt();
+      final tracks = report.mergedTracks.toInt();
+      final fingerprinted = report.fingerprintedFiles.toInt();
+      showFeatureSnack(
+        context,
+        tracks > 0 || fingerprinted > 0
+            ? SettingsStrings.unifiedMergeDone(groups, tracks, fingerprinted)
+            : SettingsStrings.unifiedMergeNone,
+      );
+    } catch (e) {
+      if (mounted) showFeatureSnack(context, describeCoreError(e));
+    } finally {
+      if (mounted) setState(() => _merging = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final pending = ref.watch(enrichPendingCountProvider);
     final writeSidecars = ref.watch(
       settingProvider(SettingKeys.writeEnrichSidecars),
     );
     final backfill = ref.watch(settingProvider(SettingKeys.sidecarBackfill));
+    final autoMerge = ref.watch(settingProvider(SettingKeys.unifiedAutoMerge));
     final sidecarEnabled = writeSidecars.value != 'false';
     final sidecarHint = !sidecarEnabled
         ? SettingsStrings.writeEnrichSidecarsHint
@@ -297,6 +374,42 @@ class _OrganizeSection extends ConsumerWidget {
           subtitle: Text(SettingsStrings.libraryHealthHint),
           chevron: true,
           onTap: () => Navigator.of(context).push(LibraryHealthPage.route()),
+        ),
+        SettingsSwitchTile(
+          key: const ValueKey('library.unified-auto-merge'),
+          icon: Icons.merge_rounded,
+          title: SettingsStrings.unifiedAutoMerge,
+          subtitle: SettingsStrings.unifiedAutoMergeHint,
+          value: autoMerge.value != 'false',
+          onChanged: autoMerge.isLoading
+              ? null
+              : (v) => settingsGuard(
+                  context,
+                  () => ref
+                      .read(
+                        settingProvider(SettingKeys.unifiedAutoMerge).notifier,
+                      )
+                      .set(v ? 'true' : 'false'),
+                ),
+        ),
+        SettingsTile(
+          key: const ValueKey('library.unified-merge-now'),
+          icon: Icons.compare_arrows_rounded,
+          title: SettingsStrings.unifiedMergeNow,
+          subtitle: Text(
+            _merging
+                ? SettingsStrings.unifiedMergeRunning
+                : SettingsStrings.unifiedMergeNowHint,
+          ),
+          trailing: _merging
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : null,
+          chevron: !_merging,
+          onTap: _merging ? null : _showMergeDialog,
         ),
         SettingsSwitchTile(
           icon: Icons.save_alt_rounded,
@@ -346,6 +459,20 @@ class _PlaybackSection extends ConsumerWidget {
     final output = ref.watch(playbackOutputProvider);
     final notifier = ref.read(playbackOutputProvider.notifier);
     final gapless = ref.watch(settingProvider(SettingKeys.gapless));
+    final crossfadeSetting = ref.watch(
+      settingProvider(SettingKeys.crossfadeMs),
+    );
+    final smartSilenceSetting = ref.watch(
+      settingProvider(SettingKeys.crossfadeSmartSilence),
+    );
+    const crossfadeOptionsMs = [0, 1000, 2000, 3000, 5000, 8000, 12000];
+    final rawCrossfadeMs = int.tryParse(crossfadeSetting.value ?? '') ?? 0;
+    final crossfadeMs = crossfadeOptionsMs.contains(rawCrossfadeMs)
+        ? rawCrossfadeMs
+        : (rawCrossfadeMs > 0 ? 3000 : 0);
+    String crossfadeLabel(int ms) => ms <= 0
+        ? SettingsStrings.crossfadeOff
+        : SettingsStrings.crossfadeSeconds(ms ~/ 1000);
     final video = ref.watch(settingProvider(SettingKeys.video));
     final replayGain = ref.watch(settingProvider(SettingKeys.replayGain));
     final rgMode = ReplayGainMode.fromStorage(replayGain.value);
@@ -433,6 +560,70 @@ class _PlaybackSection extends ConsumerWidget {
                       .set(v ? 'true' : 'false'),
                 ),
         ),
+        if (desktop)
+          SettingsDropdownTile<int>(
+            key: const ValueKey('audio.crossfade'),
+            icon: Icons.shuffle_on_outlined,
+            title: SettingsStrings.crossfade,
+            subtitle: SettingsStrings.crossfadeHint,
+            value: crossfadeMs,
+            choices: [
+              for (final ms in crossfadeOptionsMs)
+                SettingsChoice(ms, crossfadeLabel(ms)),
+            ],
+            onChanged: (ms) => settingsGuard(
+              context,
+              () => ref
+                  .read(settingProvider(SettingKeys.crossfadeMs).notifier)
+                  .set(ms.toString()),
+            ),
+          )
+        else
+          SettingsBlockTile(
+            key: const ValueKey('audio.crossfade'),
+            icon: Icons.shuffle_on_outlined,
+            title: SettingsStrings.crossfade,
+            hint: SettingsStrings.crossfadeHint,
+            child: Wrap(
+              spacing: LekisSpacing.sm,
+              runSpacing: LekisSpacing.xs,
+              children: [
+                for (final ms in crossfadeOptionsMs)
+                  ChoiceChip(
+                    label: Text(crossfadeLabel(ms)),
+                    selected: crossfadeMs == ms,
+                    onSelected: (_) => settingsGuard(
+                      context,
+                      () => ref
+                          .read(
+                            settingProvider(SettingKeys.crossfadeMs).notifier,
+                          )
+                          .set(ms.toString()),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        if (crossfadeMs > 0)
+          SettingsSwitchTile(
+            key: const ValueKey('audio.crossfade-smart-silence'),
+            icon: Icons.auto_awesome_rounded,
+            title: SettingsStrings.crossfadeSmartSilence,
+            subtitle: SettingsStrings.crossfadeSmartSilenceHint,
+            value: smartSilenceSetting.value != 'false',
+            onChanged: smartSilenceSetting.isLoading
+                ? null
+                : (v) => settingsGuard(
+                    context,
+                    () => ref
+                        .read(
+                          settingProvider(
+                            SettingKeys.crossfadeSmartSilence,
+                          ).notifier,
+                        )
+                        .set(v ? 'true' : 'false'),
+                  ),
+          ),
         SettingsSwitchTile(
           key: const ValueKey('video.enabled'),
           icon: Icons.ondemand_video_rounded,
@@ -772,6 +963,8 @@ class _AppearanceSection extends ConsumerWidget {
             ),
           ),
         ],
+        if (defaultTargetPlatform == TargetPlatform.android && !kIsWeb)
+          const HomeWidgetSettingsTile(key: ValueKey('settings-home-widget')),
       ],
     );
   }
@@ -1133,63 +1326,14 @@ class PluginsSettingsTile extends ConsumerWidget {
   }
 }
 
-String _formatCacheBytes(int bytes) {
-  if (bytes < 1000) return '$bytes B';
-  const units = ['KB', 'MB', 'GB'];
-  var value = bytes / 1000;
-  var unit = 0;
-  while (value >= 1000 && unit < units.length - 1) {
-    value /= 1000;
-    unit++;
-  }
-  final digits = value >= 100 ? 0 : (value >= 10 ? 1 : 2);
-  return '${value.toStringAsFixed(digits)} ${units[unit]}';
-}
-
-class _ImageCacheSection extends StatefulWidget {
-  const _ImageCacheSection();
+class _StorageSection extends StatelessWidget {
+  const _StorageSection();
 
   @override
-  State<_ImageCacheSection> createState() => _ImageCacheSectionState();
-}
-
-class _ImageCacheSectionState extends State<_ImageCacheSection> {
-  void _clear() {
-    final cache = PaintingBinding.instance.imageCache;
-    cache.clear();
-    cache.clearLiveImages();
-    setState(() {});
-    showFeatureSnack(
-      context,
-      context.l10n.pick('已清除图片缓存', 'Image cache cleared'),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cache = PaintingBinding.instance.imageCache;
-    final used = _formatCacheBytes(cache.currentSizeBytes);
-    final max = _formatCacheBytes(cache.maximumSizeBytes);
-    return SettingsSection(
-      title: context.l10n.pick('性能', 'Performance'),
-      children: [
-        SettingsTile(
-          icon: Icons.image_outlined,
-          title: context.l10n.pick('图片缓存', 'Image cache'),
-          subtitle: Text(
-            context.l10n.pick(
-              '$used / $max · ${cache.currentSize} 张',
-              '$used / $max · ${cache.currentSize} images',
-            ),
-          ),
-          trailing: TextButton(
-            onPressed: cache.currentSize == 0 ? null : _clear,
-            child: Text(context.l10n.pick('清除', 'Clear')),
-          ),
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => SettingsSection(
+    title: SettingsStrings.storageSection,
+    children: const [StorageSettingsTile()],
+  );
 }
 
 class _ShortcutsSection extends StatelessWidget {

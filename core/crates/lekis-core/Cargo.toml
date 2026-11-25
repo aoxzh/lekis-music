@@ -37,7 +37,12 @@ futures-util.workspace = true
 url.workspace = true
 # 播客 RSS / Atom / OPML 解析（SRC-12）。
 quick-xml.workspace = true
-encoding_rs = "0.8"
+encoding_rs.workspace = true
+rusty-chromaprint.workspace = true
+rupnp.workspace = true
+rustls.workspace = true
+tokio-rustls.workspace = true
+strsim.workspace = true
 miniz_oxide = "0.8"
 regex = "1"
 # 插件 .zip 安装。

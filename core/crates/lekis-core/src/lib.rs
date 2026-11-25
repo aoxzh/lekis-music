@@ -22,6 +22,7 @@
 
 pub mod alternate_source;
 mod artwork_local;
+pub mod cast;
 pub mod config;
 pub mod connect;
 pub mod discovery;
@@ -46,8 +47,12 @@ pub mod scrobble;
 pub mod selection;
 mod sidecars;
 mod source_browse;
+pub mod storage;
+mod stream_cache;
 mod sync_engine;
+pub mod unified;
 
+pub use cast::{CastDevice, CastKind, CastPlaybackState};
 pub use config::{CoreConfig, PlatformKind};
 pub use enrich::EnrichReport;
 pub use equalizer::EqualizerSettings;
@@ -72,7 +77,10 @@ pub use radio::{
 pub use scrobble::{ScrobbleSettings, ScrobbleSettingsInput, ScrobbleStatus};
 pub use selection::{NetworkContext, Reachability, SourceHealth};
 pub use source_browse::SourceListing;
+pub use storage::{StorageCategory, StorageUsage};
+pub use stream_cache::DEFAULT_STREAM_CACHE_LIMIT_MB;
 pub use sync_engine::SyncReport;
+pub use unified::UnifiedMergeReport;
 
 use events::EventBus;
 pub use lekis_library::ListeningSummary;
@@ -82,7 +90,9 @@ pub use lekis_library::{
     SourceInfo, TagWriteResult, TrackContext, TrackUserState,
 };
 use lekis_library::{EnrichCandidateRow, Library, LyricsRow, PlaylistEntry};
-use lekis_playback::{EngineCommand, EqControl, OutputDevice, OutputMode, PlaybackEngine};
+use lekis_playback::{
+    CrossfadeControl, EngineCommand, EqControl, OutputDevice, OutputMode, PlaybackEngine,
+};
 use lekis_scanner::{tags::LoftyTagReader, Scanner};
 use lekis_types::*;
 use std::future::Future;
@@ -157,12 +167,18 @@ struct Services {
     /// 正在进行的离线下载（曲目 → 取消标记）。
     downloads:
         std::sync::Mutex<std::collections::HashMap<TrackId, Arc<std::sync::atomic::AtomicBool>>>,
+    /// NAS / 远端流媒体自动播放缓存（OFF-03）。
+    stream_cache: Arc<stream_cache::StreamCacheManager>,
     /// 本地插件管理（PLG-01~07）。
     plugins: Arc<plugins::PluginManager>,
     /// 10 段均衡器参数（PLY-04）；和播放引擎共享，设置后立即生效。
     eq: Arc<EqControl>,
+    /// 交叉淡入淡出控制（PLY-02）；和播放引擎共享，设置后下一首切歌立即生效。
+    crossfade: Arc<CrossfadeControl>,
     /// 「在其他设备上播放」/ 遥控（CST-01~06）。
     connect: connect::ConnectHub,
+    /// 媒体投放：Chromecast 与 DLNA 音箱/功放。
+    cast: cast::CastHub,
 }
 
 impl Services {
@@ -247,6 +263,33 @@ impl Services {
                 self.eq.set(current);
             }
             settings::EQ_PRESET => {}
+            settings::CROSSFADE_MS => {
+                let ms = value
+                    .and_then(|v| v.trim().parse::<u32>().ok())
+                    .unwrap_or(0)
+                    .min(lekis_playback::MAX_CROSSFADE_MS);
+                self.crossfade.set_duration_ms(ms);
+                let _ = self.engine.send(EngineCommand::SetCrossfade {
+                    duration_ms: ms,
+                    smart_silence: self.crossfade.smart_silence(),
+                });
+            }
+            settings::CROSSFADE_SMART_SILENCE => {
+                let enabled = value
+                    .map(|v| v.trim() != "false" && v.trim() != "0")
+                    .unwrap_or(true);
+                self.crossfade.set_smart_silence(enabled);
+                let _ = self.engine.send(EngineCommand::SetCrossfade {
+                    duration_ms: self.crossfade.duration_ms(),
+                    smart_silence: enabled,
+                });
+            }
+            settings::STREAM_CACHE_LIMIT_MB => {
+                let mb = value
+                    .and_then(|v| v.trim().parse::<u64>().ok())
+                    .unwrap_or(stream_cache::DEFAULT_STREAM_CACHE_LIMIT_MB);
+                self.stream_cache.set_limit_mb(mb);
+            }
             _ => {}
         }
     }
@@ -282,6 +325,14 @@ pub mod settings {
     pub const EQ_BANDS: &str = "playback.eq.bands";
     /// 均衡器当前预设 ID（可选）。
     pub const EQ_PRESET: &str = "playback.eq.preset";
+    /// 交叉淡入淡出时长（毫秒，0 = 关闭，最大 12000，PLY-02）。
+    pub const CROSSFADE_MS: &str = "playback.crossfade_ms";
+    /// 交叉淡入淡出智能尾段静音检测（`"true"` / `"false"`，默认开，PLY-02）。
+    pub const CROSSFADE_SMART_SILENCE: &str = "playback.crossfade_smart_silence";
+    /// 流媒体播放缓存上限（MB，0 = 关闭缓存，默认 2048 MB，OFF-03）。
+    pub const STREAM_CACHE_LIMIT_MB: &str = "cache.stream_limit_mb";
+    /// 自动统一资料库合并开关（`"true"` / `"false"`，默认开，SRC-13）。
+    pub const UNIFIED_AUTO_MERGE: &str = "library.unified_auto_merge";
 }
 
 /// `test_source` 的整体超时。
@@ -366,20 +417,26 @@ impl LekisCore {
         let _guard = handle.enter();
         let (resolve_tx, resolve_rx) = tokio::sync::mpsc::channel(16);
         let eq = Arc::new(EqControl::default());
-        let engine = PlaybackEngine::spawn_with_eq(resolve_tx, eq.clone());
+        let crossfade = Arc::new(CrossfadeControl::default());
+        let engine = PlaybackEngine::spawn_with_controls(resolve_tx, eq.clone(), crossfade.clone());
         plugins::PluginManager::recover_interrupted_installs(&config.data_dir)?;
         let plugins = Arc::new(
             plugins::PluginManager::new(&config.data_dir, library.clone())
                 .with_artwork_cache(&config.cache_dir)
                 .with_artwork_events(events.clone()),
         );
+        let stream_cache = Arc::new(stream_cache::StreamCacheManager::new(
+            library.clone(),
+            &config.cache_dir,
+        ));
         let resolver = Arc::new(
             resolver::Resolver::new(
                 library.clone(),
                 health.clone(),
                 platform.credentials.clone(),
             )
-            .with_plugins(plugins.clone()),
+            .with_plugins(plugins.clone())
+            .with_stream_cache(stream_cache.clone()),
         );
         handle.spawn(resolver.clone().run(resolve_rx));
         handle.spawn(events::forward_playback(engine.subscribe(), events.clone()));
@@ -391,6 +448,7 @@ impl LekisCore {
         let radio = radio::RadioBrowser::new()?;
         let podcast = podcast::PodcastClient::new()?;
         let connect = connect::ConnectHub::new(&config.data_dir, platform.credentials.clone());
+        let cast = cast::CastHub::new();
 
         let services = Arc::new(Services {
             config,
@@ -412,9 +470,12 @@ impl LekisCore {
             radio,
             podcast,
             downloads: std::sync::Mutex::new(std::collections::HashMap::new()),
+            stream_cache,
             plugins,
             eq,
+            crossfade,
             connect,
+            cast,
         });
 
         // 启动时：让播放相关设置生效，并给文件系统源预先登记 VFS（不发网络请求）。
@@ -427,6 +488,9 @@ impl LekisCore {
                     settings::EQ_BANDS,
                     settings::EQ_PREAMP,
                     settings::EQ_ENABLED,
+                    settings::CROSSFADE_SMART_SILENCE,
+                    settings::CROSSFADE_MS,
+                    settings::STREAM_CACHE_LIMIT_MB,
                 ] {
                     let value = s.library.get_setting(key).await.ok().flatten();
                     s.apply_setting(key, value.as_deref());
@@ -888,6 +952,7 @@ impl LekisCore {
             match report {
                 Ok(report) => {
                     tracing::info!(target: "core", %source_id, ?report, incremental, "scan finished");
+                    unified::run_auto_merge_if_enabled(&s).await;
                     // LIB-05：写回共享索引，供别的设备下次扫描时复用。
                     // 默认开着；用户可在设置里用 `scan.write_shared_index = "false"` 关掉
                     // （只读共享、或不想让别的设备看到本机的标签解析结果时）。

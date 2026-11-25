@@ -251,14 +251,14 @@ async fn opensubsonic_and_jellyfin_unify_merge_split_and_respect_network_context
         jf_id
     );
 
-    // 4. 手动合并《以父之名》的两条重复曲目，再拆回一个来源。
+    // 4. 《以父之名》两台服务器时长差 1 秒且无 MBID → SRC-13 扫描后已自动归并成 1 条 track（2 个来源）。
+    //    验证手动拆分后自动合并不会再强行合回，并且仍可手动重新合并。
     let yifu: Vec<_> = rows.iter().filter(|r| r.title == "以父之名").collect();
-    assert_eq!(yifu.len(), 2);
-    let merged = core
-        .merge_tracks(yifu[0].id, vec![yifu[1].id])
-        .await
-        .unwrap();
-    assert_eq!(merged, 1);
+    assert_eq!(
+        yifu.len(),
+        1,
+        "无 MBID 但歌名/艺人一致且时长差 1 秒的曲目应跨源自动合并"
+    );
     let yifu_sources = core.track_sources(yifu[0].id).await.unwrap();
     assert_eq!(yifu_sources.len(), 2);
 
@@ -275,6 +275,17 @@ async fn opensubsonic_and_jellyfin_unify_merge_split_and_respect_network_context
     assert_ne!(split_id, yifu[0].id);
     assert_eq!(core.track_sources(yifu[0].id).await.unwrap().len(), 1);
     assert_eq!(core.track_sources(split_id).await.unwrap().len(), 1);
+
+    // 手动拆分过的曲目对不会被自动合并重新合回。
+    let report = core.auto_merge_unified_library(false).await.unwrap();
+    assert_eq!(report.merged_tracks, 0);
+    assert_eq!(core.track_sources(yifu[0].id).await.unwrap().len(), 1);
+    assert_eq!(core.track_sources(split_id).await.unwrap().len(), 1);
+
+    // 手动合并仍可把两条重新合并成一条。
+    let merged = core.merge_tracks(yifu[0].id, vec![split_id]).await.unwrap();
+    assert_eq!(merged, 1);
+    assert_eq!(core.track_sources(yifu[0].id).await.unwrap().len(), 2);
 
     let _ = std::fs::remove_dir_all(&tmp);
 }

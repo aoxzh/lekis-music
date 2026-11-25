@@ -12,6 +12,7 @@
 //!
 //! 引擎不决定"播哪个文件"：lekis-core 把曲目解析成 [`MediaSource`] 之后再交给引擎。
 
+pub mod crossfade;
 pub mod decode;
 pub mod dsp;
 pub mod engine;
@@ -26,9 +27,13 @@ pub mod vfs_access;
 #[cfg(test)]
 pub(crate) mod test_support;
 
+pub use crossfade::{
+    measure_integrated_lufs, CrossfadeControl, CrossfadeMixer, CrossfadeSettings, LoudnessDetector,
+    DEFAULT_SILENCE_THRESHOLD_LUFS, MAX_CROSSFADE_MS,
+};
 pub use decode::{
-    open_decoder, Decoder, HttpRangeSource, NativeSampleFormat, PcmFormat, SymphoniaDecoder,
-    VfsMediaSource,
+    open_decoder, ApeAudioDecoder, BoundedDecoder, Decoder, DsdAudioDecoder, HttpRangeSource,
+    NativeSampleFormat, PcmFormat, SymphoniaDecoder, TtaAudioDecoder, VfsMediaSource,
 };
 pub use engine::{list_output_devices, EngineCommand, PlaybackEngine, PlaybackSnapshot};
 pub use eq::{
@@ -57,6 +62,8 @@ pub struct MediaSource {
     pub duration_hint_ms: u64,
     /// ReplayGain（dB），由 core 根据用户设置选好"曲目增益"还是"专辑增益"。
     pub gain_db: Option<f32>,
+    /// CUE 整轨分轨区间 `(start_ms, end_ms)`；普通单曲文件为 `None`。
+    pub range_ms: Option<(u64, Option<u64>)>,
 }
 
 /// 媒体位置。
