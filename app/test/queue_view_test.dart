@@ -228,9 +228,8 @@ void main() {
       await tester.tap(find.byTooltip('队列操作').at(1));
       await tester.pumpAndSettle();
       await tester.tap(find.text('从队列移除'));
-      await tester.pump();
-      expect(actions.removed, [5]);
       await tester.pumpAndSettle();
+      expect(actions.removed, [5]);
 
       // Drag handles are present for touch reordering.
       expect(find.byIcon(Icons.drag_handle_rounded), findsNWidgets(4));

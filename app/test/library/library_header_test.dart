@@ -153,7 +153,15 @@ void main() {
       );
       await tester.tap(find.byIcon(Icons.sort_rounded));
       await tester.pumpAndSettle();
-      expect(find.byType(PopupMenuItem<TrackSortDto>), findsNWidgets(5));
+      for (final label in [
+        'Title',
+        'Artist',
+        'Album',
+        'Recently Added',
+        'Most Played',
+      ]) {
+        expect(find.text(label), findsWidgets);
+      }
       await tester.tap(find.text('Most Played'));
       await tester.pumpAndSettle();
       expect(container.read(songSortProvider), TrackSortDto.mostPlayed);

@@ -5,9 +5,9 @@
 // 所以这里只负责选设备和报告结果。
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../theme/theme.dart';
 import 'connect_ui.dart' show connectErrorText;
 import 'connect_gateway.dart';
 import 'connect_providers.dart';
@@ -33,53 +33,21 @@ Future<void> showPlayOnDeviceSheet(BuildContext context, WidgetRef ref) async {
     return;
   }
 
-  final picked = await showModalBottomSheet<ConnectDeviceInfo>(
-    context: context,
-    showDragHandle: true,
-    builder: (context) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              LekisSpacing.lg,
-              0,
-              LekisSpacing.lg,
-              LekisSpacing.sm,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  ConnectStrings.transferTitle,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: LekisSpacing.xxs),
-                Text(
-                  ConnectStrings.transferBody,
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: context.lekisColors.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
-          for (final device in candidates)
-            ListTile(
-              leading: Icon(
-                device.connected
-                    ? Icons.cast_connected_rounded
-                    : Icons.cast_rounded,
-              ),
-              title: Text(device.name),
-              subtitle: Text(device.platform),
-              onTap: () => Navigator.of(context).pop(device),
-            ),
-        ],
-      ),
-    ),
+  final picked = await showLekisActionList(
+    context,
+    title: ConnectStrings.transferTitle,
+    subtitle: ConnectStrings.transferBody,
+    actions: [
+      for (final device in candidates)
+        LekisMenuAction(
+          device,
+          device.connected ? Icons.cast_connected_rounded : Icons.cast_rounded,
+          device.name,
+          description: device.platform,
+        ),
+    ],
   );
-  if (picked == null) return;
+  if (picked == null || !context.mounted) return;
 
   try {
     final report = await ref

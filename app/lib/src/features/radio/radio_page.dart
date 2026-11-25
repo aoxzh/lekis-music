@@ -13,6 +13,8 @@ import 'package:lekis/src/features/sources/common.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 enum _RadioTab { popular, favorites, custom, recent }
@@ -121,11 +123,11 @@ class _RadioPageState extends ConsumerState<RadioPage> {
   }
 
   Future<void> _deleteCustom(RadioStationDto station) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(RadioStrings.deleteTitle),
-        content: Text(RadioStrings.deleteBody(station.name)),
+    final ok = await showLekisPanel<bool>(
+      context,
+      builder: (context) => LekisPanel(
+        title: RadioStrings.deleteTitle,
+        body: Text(RadioStrings.deleteBody(station.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -563,26 +565,29 @@ class _RadioPageState extends ConsumerState<RadioPage> {
                   ),
                   if (list.length >= 2) ...[
                     const SizedBox(width: LekisSpacing.sm),
-                    PopupMenuButton<_LocalSort>(
+                    LekisActionMenuButton<_LocalSort>(
+                      title: RadioStrings.sortBy,
                       tooltip: RadioStrings.sortBy,
-                      icon: const Icon(Icons.sort_rounded),
-                      initialValue: _localSort,
+                      icon: Icons.sort_rounded,
                       onSelected: (value) => setState(() => _localSort = value),
-                      itemBuilder: (_) => [
-                        CheckedPopupMenuItem(
-                          value: _LocalSort.defaultOrder,
-                          checked: _localSort == _LocalSort.defaultOrder,
-                          child: Text(RadioStrings.sortDefault),
+                      actions: () => [
+                        LekisMenuAction(
+                          _LocalSort.defaultOrder,
+                          Icons.format_list_bulleted_rounded,
+                          RadioStrings.sortDefault,
+                          selected: _localSort == _LocalSort.defaultOrder,
                         ),
-                        CheckedPopupMenuItem(
-                          value: _LocalSort.nameAsc,
-                          checked: _localSort == _LocalSort.nameAsc,
-                          child: Text(RadioStrings.sortNameAsc),
+                        LekisMenuAction(
+                          _LocalSort.nameAsc,
+                          Icons.sort_by_alpha_rounded,
+                          RadioStrings.sortNameAsc,
+                          selected: _localSort == _LocalSort.nameAsc,
                         ),
-                        CheckedPopupMenuItem(
-                          value: _LocalSort.nameDesc,
-                          checked: _localSort == _LocalSort.nameDesc,
-                          child: Text(RadioStrings.sortNameDesc),
+                        LekisMenuAction(
+                          _LocalSort.nameDesc,
+                          Icons.sort_by_alpha_rounded,
+                          RadioStrings.sortNameDesc,
+                          selected: _localSort == _LocalSort.nameDesc,
                         ),
                       ],
                     ),
@@ -662,25 +667,45 @@ class _FilterDropdown extends StatelessWidget {
             vertical: LekisSpacing.sm,
           ),
         ),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
-            isExpanded: true,
-            value: value,
-            hint: Text(allLabel),
-            items: [
-              DropdownMenuItem(value: '', child: Text(allLabel)),
-              for (final option in options)
-                DropdownMenuItem(
-                  value: option.value,
+        child: LekisActionMenuButton<String>(
+          title: label,
+          tooltip: label,
+          onSelected: (next) => onChanged(next.isEmpty ? null : next),
+          actions: () => [
+            LekisMenuAction(
+              '',
+              Icons.list_rounded,
+              allLabel,
+              selected: value == null,
+            ),
+            for (final option in options)
+              LekisMenuAction(
+                option.value,
+                Icons.radio_rounded,
+                option.name,
+                selected: value == option.value,
+              ),
+          ],
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              minHeight: LekisSizes.touchTargetMin,
+            ),
+            child: Row(
+              children: [
+                Expanded(
                   child: Text(
-                    option.name,
+                    options
+                            .where((option) => option.value == value)
+                            .firstOrNull
+                            ?.name ??
+                        allLabel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-            ],
-            onChanged: (next) =>
-                onChanged(next == null || next.isEmpty ? null : next),
+                const Icon(Icons.arrow_drop_down_rounded),
+              ],
+            ),
           ),
         ),
       ),

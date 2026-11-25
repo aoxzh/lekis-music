@@ -21,7 +21,8 @@ import '../platform/ui_profile.dart';
 import '../theme/tokens.dart';
 import 'glass.dart';
 
-AnimationStyle _sheetMotion(BuildContext context) =>
+/// Timing shared by menus, sheets and their follow-up dialogs.
+AnimationStyle lekisPanelMotion(BuildContext context) =>
     MediaQuery.disableAnimationsOf(context) ||
         MediaQuery.reduceMotionOf(context)
     ? AnimationStyle.noAnimation
@@ -29,6 +30,20 @@ AnimationStyle _sheetMotion(BuildContext context) =>
         duration: LekisMotion.normal,
         reverseDuration: LekisMotion.fast,
       );
+
+// A selection may open another surface or dispose an editor's controller.
+Future<T?> _presentSurface<T>(
+  WidgetBuilder builder,
+  Future<T?> Function(WidgetBuilder) present,
+) async {
+  Future<Object?>? dismissed;
+  final result = await present((context) {
+    dismissed = ModalRoute.of(context)?.completed;
+    return builder(context);
+  });
+  await dismissed;
+  return result;
+}
 
 /// Widest an editor dialog gets.
 const double lekisPanelMaxWidth = 620;
@@ -40,7 +55,7 @@ Future<T?> showLekisPanel<T>(
   BuildContext context, {
   required WidgetBuilder builder,
   bool dismissible = true,
-}) {
+}) => _presentSurface<T>(builder, (builder) {
   // The calling subtree's theme: on-media when this panel was opened from
   // Now Playing. Nothing here may force the app theme back on.
   final theme = Theme.of(context);
@@ -58,7 +73,7 @@ Future<T?> showLekisPanel<T>(
     return showModalBottomSheet<T>(
       context: context,
       useRootNavigator: true,
-      sheetAnimationStyle: _sheetMotion(context),
+      sheetAnimationStyle: lekisPanelMotion(context),
       isScrollControlled: true,
       useSafeArea: true,
       // On media the handle is drawn inside the glass (see [LekisPanel]): the
@@ -78,12 +93,13 @@ Future<T?> showLekisPanel<T>(
   }
   return showDialog<T>(
     context: context,
+    animationStyle: lekisPanelMotion(context),
     useRootNavigator: true,
     barrierDismissible: dismissible,
     barrierColor: theme.dialogTheme.barrierColor,
     builder: (context) => themed(context, false),
   );
-}
+});
 
 /// Opens [builder] as a modal bottom sheet that always stays a sheet on
 /// mobile, for the surfaces that belong at the bottom of the window on every
@@ -99,7 +115,7 @@ Future<T?> showLekisSheet<T>(
   double? heightFactor = 0.62,
   bool isDismissible = true,
   bool showDragHandle = true,
-}) {
+}) => _presentSurface<T>(builder, (builder) {
   if (!UiProfile.current.prefersSheets) {
     return _showSheetAsDialog<T>(
       context,
@@ -143,7 +159,7 @@ Future<T?> showLekisSheet<T>(
   return showModalBottomSheet<T>(
     context: context,
     useRootNavigator: true,
-    sheetAnimationStyle: _sheetMotion(context),
+    sheetAnimationStyle: lekisPanelMotion(context),
     isScrollControlled: true,
     useSafeArea: true,
     showDragHandle: showDragHandle && !glass,
@@ -155,7 +171,7 @@ Future<T?> showLekisSheet<T>(
     barrierColor: theme.bottomSheetTheme.modalBarrierColor,
     builder: (context) => Theme(data: theme, child: framed(context)),
   );
-}
+});
 
 /// Width of a sheet's content when it opens as a desktop dialog.
 const double lekisSheetDialogWidth = 480;
@@ -172,6 +188,7 @@ Future<T?> _showSheetAsDialog<T>(
   final theme = Theme.of(context);
   return showDialog<T>(
     context: context,
+    animationStyle: lekisPanelMotion(context),
     useRootNavigator: true,
     barrierDismissible: isDismissible,
     barrierColor: theme.dialogTheme.barrierColor,

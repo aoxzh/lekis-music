@@ -1,10 +1,10 @@
 import '../../l10n/app_l10n.dart';
 // 插件详情 / 设置面板。设置项由清单声明，密码值永远不回显。
 
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../platform/ui_profile.dart';
 import '../../rust/api/core.dart' as core;
 import '../../rust/api/dto.dart';
 import '../../theme/tokens.dart';
@@ -18,33 +18,11 @@ import 'strings.dart';
 Future<void> showPluginDetailSheet(
   BuildContext context,
   PluginInfoDto plugin,
-) => UiProfile.current.prefersSheets
-    ? showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        showDragHandle: true,
-        builder: (_) => FractionallySizedBox(
-          heightFactor: 0.92,
-          child: _PluginDetailSheet(plugin: plugin),
-        ),
-      )
-    : showDialog<void>(
-        context: context,
-        builder: (context) => Dialog(
-          clipBehavior: Clip.antiAlias,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: 560,
-              maxHeight: MediaQuery.sizeOf(context).height * 0.8,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.only(top: LekisSpacing.lg),
-              child: _PluginDetailSheet(plugin: plugin),
-            ),
-          ),
-        ),
-      );
+) => showLekisSheet<void>(
+  context,
+  heightFactor: 0.92,
+  builder: (_) => _PluginDetailSheet(plugin: plugin),
+);
 
 class _PluginDetailSheet extends StatefulWidget {
   const _PluginDetailSheet({required this.plugin});

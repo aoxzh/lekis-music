@@ -5,9 +5,10 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../platform/ui_profile.dart';
 import '../../rust/api/core.dart' as core;
 import '../../rust/api/dto.dart';
 import '../../rust/api/error.dart';
@@ -96,69 +97,28 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
   }
 
   Future<void> _chooseInstall() async {
-    // Mobile: a bottom sheet. Desktop: the same two choices in a dialog.
-    Widget chooser(BuildContext context) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              LekisSpacing.lg,
-              LekisSpacing.lg,
-              LekisSpacing.lg,
-              LekisSpacing.sm,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  PluginStrings.install,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: LekisSpacing.xs),
-                Text(
-                  PluginStrings.installHint,
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: context.lekisColors.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
-          SettingsTile(
-            icon: Icons.link_rounded,
-            title: PluginStrings.installLink,
-            onTap: () => Navigator.of(context).pop(_InstallChoice.link),
-          ),
-          SettingsTile(
-            icon: Icons.folder_open_outlined,
-            title: PluginStrings.installFolder,
-            onTap: () => Navigator.of(context).pop(_InstallChoice.folder),
-          ),
-          SettingsTile(
-            icon: Icons.folder_zip_outlined,
-            title: PluginStrings.installZip,
-            onTap: () => Navigator.of(context).pop(_InstallChoice.zip),
-          ),
-          const SizedBox(height: LekisSpacing.sm),
-        ],
-      ),
+    final choice = await showLekisActionList(
+      context,
+      title: PluginStrings.install,
+      subtitle: PluginStrings.installHint,
+      actions: [
+        LekisMenuAction(
+          _InstallChoice.link,
+          Icons.link_rounded,
+          PluginStrings.installLink,
+        ),
+        LekisMenuAction(
+          _InstallChoice.folder,
+          Icons.folder_open_outlined,
+          PluginStrings.installFolder,
+        ),
+        LekisMenuAction(
+          _InstallChoice.zip,
+          Icons.folder_zip_outlined,
+          PluginStrings.installZip,
+        ),
+      ],
     );
-    final choice = UiProfile.current.prefersSheets
-        ? await showModalBottomSheet<_InstallChoice>(
-            context: context,
-            useSafeArea: true,
-            builder: chooser,
-          )
-        : await showDialog<_InstallChoice>(
-            context: context,
-            builder: (context) => Dialog(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: chooser(context),
-              ),
-            ),
-          );
     if (!mounted) return;
     switch (choice) {
       case _InstallChoice.folder:
@@ -174,12 +134,12 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
 
   Future<void> _installLink() async {
     Uri? address;
-    final uri = await showDialog<Uri>(
-      context: context,
+    final uri = await showLekisPanel<Uri>(
+      context,
       builder: (dialog) => StatefulBuilder(
-        builder: (context, update) => AlertDialog(
-          title: Text(PluginStrings.installLink),
-          content: TextField(
+        builder: (context, update) => LekisPanel(
+          title: PluginStrings.installLink,
+          body: TextField(
             autofocus: true,
             keyboardType: TextInputType.url,
             autocorrect: false,
@@ -344,11 +304,11 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
       return;
     }
     if (!mounted) return;
-    final action = await showDialog<_DirectoryAction>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(PluginStrings.pluginDir),
-        content: Column(
+    final action = await showLekisPanel<_DirectoryAction>(
+      context,
+      builder: (context) => LekisPanel(
+        title: PluginStrings.pluginDir,
+        body: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

@@ -17,6 +17,8 @@ import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/features/playlists/playlist_strings.dart';
 
@@ -127,30 +129,23 @@ Future<void> exportPlaylistM3uFlow(
     return;
   }
 
-  final format = await showDialog<_PlaylistExportFormat>(
-    context: context,
-    builder: (context) => SimpleDialog(
-      title: Text(PlaylistStrings.exportPlaylist),
-      children: [
-        SimpleDialogOption(
-          onPressed: () => Navigator.of(context).pop(_PlaylistExportFormat.m3u),
-          child: ListTile(
-            leading: const Icon(Icons.playlist_play_rounded),
-            title: const Text('M3U8'),
-            subtitle: Text(PlaylistStrings.m3uSubtitle),
-          ),
-        ),
-        SimpleDialogOption(
-          onPressed: () =>
-              Navigator.of(context).pop(_PlaylistExportFormat.xspf),
-          child: ListTile(
-            leading: const Icon(Icons.code_rounded),
-            title: const Text('XSPF'),
-            subtitle: Text(PlaylistStrings.xspfSubtitle),
-          ),
-        ),
-      ],
-    ),
+  final format = await showLekisActionList(
+    context,
+    title: PlaylistStrings.exportPlaylist,
+    actions: [
+      LekisMenuAction(
+        _PlaylistExportFormat.m3u,
+        Icons.playlist_play_rounded,
+        'M3U8',
+        description: PlaylistStrings.m3uSubtitle,
+      ),
+      LekisMenuAction(
+        _PlaylistExportFormat.xspf,
+        Icons.code_rounded,
+        'XSPF',
+        description: PlaylistStrings.xspfSubtitle,
+      ),
+    ],
   );
   if (format == null || !context.mounted) return;
 
@@ -173,11 +168,11 @@ Future<void> exportPlaylistM3uFlow(
   final isM3u = format == _PlaylistExportFormat.m3u;
   final count = isM3u ? countM3uEntries(text) : countXspfTracks(text);
   final formatName = isM3u ? 'M3U8' : 'XSPF';
-  final action = await showDialog<_M3uExportAction>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(PlaylistStrings.exportFormat(formatName)),
-      content: Column(
+  final action = await showLekisPanel<_M3uExportAction>(
+    context,
+    builder: (context) => LekisPanel(
+      title: PlaylistStrings.exportFormat(formatName),
+      body: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

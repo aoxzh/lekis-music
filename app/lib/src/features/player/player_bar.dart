@@ -23,6 +23,7 @@ import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/shell/routes.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/lekis_slider.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// What the desktop right-hand context panel shows (Spotify's "lyrics" /
@@ -327,51 +328,28 @@ class _OutputDeviceButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.lekisColors;
-    return PopupMenuButton<String>(
+    return LekisActionMenuButton<String>(
+      title: context.l10n.outputDevice,
       tooltip: context.l10n.outputDevice,
-      icon: const Icon(Icons.speaker_group_outlined),
-      constraints: const BoxConstraints(
-        minWidth: LekisSizes.desktopSidebarWidth,
-      ),
-      itemBuilder: (context) {
+      icon: Icons.speaker_group_outlined,
+      actions: () {
         ref.read(playbackOutputProvider.notifier).refresh();
         final state = ref.read(playbackOutputProvider);
-        final selected = state.selectedDeviceId;
-        PopupMenuItem<String> item(String value, String label, bool on) =>
-            PopupMenuItem<String>(
-              value: value,
-              child: Row(
-                children: [
-                  SizedBox.square(
-                    dimension: LekisSpacing.xl,
-                    child: on
-                        ? Icon(
-                            Icons.check_rounded,
-                            size: LekisSpacing.lg + LekisSpacing.xxs,
-                            color: colors.accent,
-                          )
-                        : null,
-                  ),
-                  const SizedBox(width: LekisSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            );
         return [
-          item(
+          LekisMenuAction(
             _systemDefault,
+            Icons.speaker_group_outlined,
             context.l10n.pick('跟随系统默认', 'System default'),
-            selected == null,
+            selected: state.selectedDeviceId == null,
           ),
-          if (state.devices.isNotEmpty) const PopupMenuDivider(),
-          for (final d in state.devices) item(d.id, d.name, selected == d.id),
+          for (final (index, device) in state.devices.indexed)
+            LekisMenuAction(
+              device.id,
+              Icons.speaker_outlined,
+              device.name,
+              selected: state.selectedDeviceId == device.id,
+              startsGroup: index == 0,
+            ),
         ];
       },
       onSelected: (id) async {

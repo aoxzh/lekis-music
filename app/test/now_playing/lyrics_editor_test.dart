@@ -273,7 +273,7 @@ void main() {
           await tester.tap(find.text('Scope'));
           await tester.pumpAndSettle();
           final hint = find.descendant(
-            of: find.byType(SimpleDialog),
+            of: find.byType(BottomSheet),
             matching: find.textContaining(label),
           );
           expect(hint, findsOneWidget);

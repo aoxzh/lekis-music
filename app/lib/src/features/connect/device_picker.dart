@@ -5,12 +5,12 @@
 //     之后迷你播放器 / 播放条改成显示和控制它；
 //   * 点右侧的遥控按钮 → 只遥控它正在播的东西，不转移；
 //   * 点"这台设备" → 回到本机。
-// 手机上是底部面板，桌面上是对话框（[UiProfile.prefersSheets]）。
+// 手机上是底部面板，桌面上是对话框。
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../platform/ui_profile.dart';
 import '../../theme/theme.dart';
 import '../player/player_providers.dart';
 import 'connect_active.dart';
@@ -74,28 +74,11 @@ Future<void> showConnectDevicePicker(
   BuildContext context,
   WidgetRef ref,
 ) async {
-  final content = const _DeviceList();
-  final _Pick? pick = UiProfile.current.prefersSheets
-      ? await showModalBottomSheet<_Pick>(
-          context: context,
-          showDragHandle: true,
-          isScrollControlled: true,
-          builder: (context) => SafeArea(child: content),
-        )
-      : await showDialog<_Pick>(
-          context: context,
-          builder: (context) => Dialog(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: LekisSizes.desktopSidebarWidth * 2,
-              ),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(vertical: LekisSpacing.md),
-                child: _DeviceList(),
-              ),
-            ),
-          ),
-        );
+  final pick = await showLekisSheet<_Pick>(
+    context,
+    heightFactor: null,
+    builder: (_) => const _DeviceList(),
+  );
   if (pick == null || !context.mounted) return;
   switch (pick) {
     case _PickThisDevice():

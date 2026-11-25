@@ -292,16 +292,7 @@ class TrackTile extends ConsumerWidget {
     // Right-click (mouse, trackpad, stylus button) opens the same menu at
     // the pointer, like every desktop music app.
     Future<void> openContextMenu(Offset position) async {
-      final overlay =
-          Overlay.of(context).context.findRenderObject()! as RenderBox;
-      final action = await showMenu<_TrackMenuAction>(
-        context: context,
-        position: RelativeRect.fromRect(
-          position & Size.zero,
-          Offset.zero & overlay.size,
-        ),
-        items: lekisPopupActions(context, menuItems()),
-      );
+      final action = await showLekisPointerMenu(context, position, menuItems());
       if (action != null && context.mounted) onMenu(action);
     }
 

@@ -14,6 +14,7 @@ import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/sleep_timer.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
+import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/rust/frb_generated.dart';
 import 'package:lekis/src/theme/theme.dart';
@@ -162,6 +163,8 @@ void main() {
     bool artwork = false,
     _Window? window,
   }) async {
+    UiProfile.debugOverride = UiProfile.desktop;
+    addTearDown(() => UiProfile.debugOverride = null);
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
     addTearDown(tester.view.reset);
@@ -313,10 +316,7 @@ void main() {
       final container = await mount(tester, window: window);
       await tester.tap(find.byKey(const ValueKey('mini-player.sleep-timer')));
       await tester.pumpAndSettle();
-      final item = find.widgetWithText(
-        CheckedPopupMenuItem<Object>,
-        'End of Track',
-      );
+      final item = find.text('End of Track');
       await tester.ensureVisible(item);
       await tester.pumpAndSettle();
       await tester.tap(item);
@@ -375,10 +375,10 @@ void main() {
         expect(actions.calls, ['pause', 'next', 90000, isA<double>()]);
         await tester.tap(find.byKey(const ValueKey('mini-player.sleep-timer')));
         await tester.pumpAndSettle();
-        expect(find.byType(CheckedPopupMenuItem<Object>), findsWidgets);
+        expect(find.text('End of Track'), findsWidgets);
         await tester.sendKeyEvent(LogicalKeyboardKey.escape);
         await tester.pumpAndSettle();
-        expect(find.byType(CheckedPopupMenuItem<Object>), findsNothing);
+        expect(find.text('End of Track'), findsNothing);
         await tester.tap(toggle);
         await tester.pump();
         expect(find.byTooltip('Show panoramic cover'), findsOneWidget);

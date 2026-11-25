@@ -19,6 +19,8 @@ import 'package:lekis/src/features/settings/widgets/settings_widgets.dart';
 import 'package:lekis/src/features/sources/common.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 enum PodcastTab { subscriptions, discover }
@@ -77,8 +79,8 @@ class _PodcastsPageState extends ConsumerState<PodcastsPage> {
   }
 
   Future<void> _addByUrl() async {
-    final address = await showDialog<String>(
-      context: context,
+    final address = await showLekisPanel<String>(
+      context,
       builder: (_) => const _AddFeedDialog(),
     );
     if (address == null || address.trim().isEmpty || !mounted) return;
@@ -161,7 +163,8 @@ class _PodcastsPageState extends ConsumerState<PodcastsPage> {
           onPressed: _busy ? null : _addByUrl,
           icon: const Icon(Icons.add_link_rounded),
         ),
-        PopupMenuButton<String>(
+        LekisActionMenuButton<String>(
+          title: PodcastStrings.title,
           tooltip: PodcastStrings.more,
           onSelected: (value) {
             switch (value) {
@@ -173,28 +176,22 @@ class _PodcastsPageState extends ConsumerState<PodcastsPage> {
                 Navigator.of(context).push<void>(RadioPage.route());
             }
           },
-          itemBuilder: (_) => [
-            PopupMenuItem(
-              value: 'import',
-              child: ListTile(
-                leading: Icon(Icons.file_download_outlined),
-                title: Text(PodcastStrings.importOpml),
-              ),
+          actions: () => [
+            LekisMenuAction(
+              'import',
+              Icons.file_download_outlined,
+              PodcastStrings.importOpml,
             ),
-            PopupMenuItem(
-              value: 'export',
-              child: ListTile(
-                leading: Icon(Icons.file_upload_outlined),
-                title: Text(PodcastStrings.exportOpml),
-              ),
+            LekisMenuAction(
+              'export',
+              Icons.file_upload_outlined,
+              PodcastStrings.exportOpml,
             ),
-            PopupMenuDivider(),
-            PopupMenuItem(
-              value: 'radio',
-              child: ListTile(
-                leading: Icon(Icons.radio_rounded),
-                title: Text(PodcastStrings.radio),
-              ),
+            LekisMenuAction(
+              'radio',
+              Icons.radio_rounded,
+              PodcastStrings.radio,
+              startsGroup: true,
             ),
           ],
         ),
@@ -590,13 +587,19 @@ class _RegionPicker extends StatelessWidget {
     final label = podcastRegions
         .firstWhere((r) => r.$1 == value, orElse: () => (value, value))
         .$2;
-    return PopupMenuButton<String>(
+    return LekisActionMenuButton<String>(
+      title: PodcastStrings.region,
       tooltip: PodcastStrings.region,
-      initialValue: value,
+
       onSelected: onChanged,
-      itemBuilder: (_) => [
+      actions: () => [
         for (final (code, name) in podcastRegions)
-          PopupMenuItem(value: code, child: Text(name)),
+          LekisMenuAction(
+            code,
+            Icons.public_rounded,
+            name,
+            selected: code == value,
+          ),
       ],
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: LekisSizes.touchTargetMin),
@@ -634,9 +637,9 @@ class _AddFeedDialogState extends State<_AddFeedDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(PodcastStrings.addByUrl),
-    content: Column(
+  Widget build(BuildContext context) => LekisPanel(
+    title: PodcastStrings.addByUrl,
+    body: Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -646,7 +649,6 @@ class _AddFeedDialogState extends State<_AddFeedDialog> {
           keyboardType: TextInputType.url,
           decoration: const InputDecoration(
             hintText: PodcastStrings.addByUrlHint,
-            border: OutlineInputBorder(),
           ),
           onSubmitted: (v) => Navigator.of(context).pop(v),
         ),

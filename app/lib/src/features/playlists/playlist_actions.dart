@@ -9,9 +9,9 @@ import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/rust/api/error.dart';
 import 'package:lekis/src/theme/tokens.dart';
-import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:lekis/src/widgets/progress_dialog.dart';
 import 'package:lekis/src/widgets/action_menu.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/features/playlists/playlist_strings.dart';
 
@@ -308,45 +308,20 @@ Future<void> mergePlaylistFlow(
     return;
   }
 
-  final source = await showDialog<PlaylistDto>(
-    context: context,
-    builder: (dialog) => AlertDialog(
-      title: Text(PlaylistStrings.mergePickTitle),
-      contentPadding: const EdgeInsets.symmetric(vertical: LekisSpacing.sm),
-      content: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 420),
-        child: SizedBox(
-          width: 420,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: others.length,
-            itemBuilder: (_, i) {
-              final playlist = others[i];
-              return ListTile(
-                leading: Icon(
-                  playlist.kind == PlaylistKindDto.smart
-                      ? Icons.auto_awesome_rounded
-                      : Icons.queue_music_rounded,
-                ),
-                title: Text(
-                  playlist.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(PlaylistStrings.songCount(playlist.trackCount)),
-                onTap: () => Navigator.of(dialog).pop(playlist),
-              );
-            },
-          ),
+  final source = await showLekisActionList(
+    context,
+    title: PlaylistStrings.mergePickTitle,
+    actions: [
+      for (final playlist in others)
+        LekisMenuAction(
+          playlist,
+          playlist.kind == PlaylistKindDto.smart
+              ? Icons.auto_awesome_rounded
+              : Icons.queue_music_rounded,
+          playlist.name,
+          description: PlaylistStrings.songCount(playlist.trackCount),
         ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(dialog).pop(),
-          child: Text(PlaylistStrings.cancel),
-        ),
-      ],
-    ),
+    ],
   );
   if (source == null || !context.mounted) return;
 

@@ -808,46 +808,42 @@ class _DownloadTile extends ConsumerWidget {
   Future<void> _showActions(BuildContext context, WidgetRef ref) async {
     final l10n = context.l10n;
     final track = entry.track;
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheet) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (entry.download.cachePath.isNotEmpty)
-              ListTile(
-                leading: const Icon(Icons.copy_rounded),
-                title: Text(l10n.pick('复制文件路径', 'Copy File Path')),
-                onTap: () => Navigator.of(sheet).pop('copy-path'),
-              ),
-            if (entry.download.cachePath.isNotEmpty && canRevealFiles)
-              ListTile(
-                leading: const Icon(Icons.folder_open_rounded),
-                title: Text(l10n.pick('在文件夹中显示', 'Show in Folder')),
-                onTap: () => Navigator.of(sheet).pop('reveal'),
-              ),
-            if (entry.download.cachePath.isNotEmpty && canRevealFiles)
-              ListTile(
-                leading: const Icon(Icons.open_in_new_rounded),
-                title: Text(l10n.pick('用其他应用打开', 'Open with Default App')),
-                onTap: () => Navigator.of(sheet).pop('open-file'),
-              ),
-            if (track?.albumId != null)
-              ListTile(
-                leading: const Icon(Icons.album_outlined),
-                title: Text(l10n.pick('查看专辑', 'View Album')),
-                onTap: () => Navigator.of(sheet).pop('album'),
-              ),
-            if (track != null && track.artists.isNotEmpty)
-              ListTile(
-                leading: const Icon(Icons.person_outline_rounded),
-                title: Text(l10n.pick('查看艺人', 'View Artist')),
-                onTap: () => Navigator.of(sheet).pop('artist'),
-              ),
-          ],
-        ),
-      ),
+    final action = await showLekisActionList(
+      context,
+      title: entry.title,
+      subtitle: entry.subtitle,
+      actions: [
+        if (entry.download.cachePath.isNotEmpty)
+          LekisMenuAction(
+            'copy-path',
+            Icons.copy_rounded,
+            l10n.pick('复制文件路径', 'Copy File Path'),
+          ),
+        if (entry.download.cachePath.isNotEmpty && canRevealFiles)
+          LekisMenuAction(
+            'reveal',
+            Icons.folder_open_rounded,
+            l10n.pick('在文件夹中显示', 'Show in Folder'),
+          ),
+        if (entry.download.cachePath.isNotEmpty && canRevealFiles)
+          LekisMenuAction(
+            'open-file',
+            Icons.open_in_new_rounded,
+            l10n.pick('用其他应用打开', 'Open with Default App'),
+          ),
+        if (track?.albumId != null)
+          LekisMenuAction(
+            'album',
+            Icons.album_outlined,
+            l10n.pick('查看专辑', 'View Album'),
+          ),
+        if (track != null && track.artists.isNotEmpty)
+          LekisMenuAction(
+            'artist',
+            Icons.person_outline_rounded,
+            l10n.pick('查看艺人', 'View Artist'),
+          ),
+      ],
     );
     if (action == null || !context.mounted) return;
     switch (action) {

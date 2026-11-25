@@ -1,6 +1,7 @@
 // 「选择文件夹」：添加 NAS 音源时逐级浏览远端目录，点一下选中子文件夹，
 // 不用手打路径。目录内容由调用方给的 `load` 从核心取（`browse_source`）。
 
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../rust/api/dto.dart';
@@ -16,18 +17,13 @@ Future<String?> showRemoteFolderPicker(
   BuildContext context, {
   required RemoteFolderLoader load,
   String initialPath = '',
-}) => showModalBottomSheet<String>(
-  context: context,
-  isScrollControlled: true,
-  useSafeArea: true,
-  showDragHandle: true,
-  builder: (context) => FractionallySizedBox(
-    heightFactor: 0.85,
-    child: RemoteFolderBrowser(
-      load: load,
-      initialPath: initialPath,
-      onPick: (path) => Navigator.of(context).pop(path),
-    ),
+}) => showLekisSheet<String>(
+  context,
+  heightFactor: 0.85,
+  builder: (context) => RemoteFolderBrowser(
+    load: load,
+    initialPath: initialPath,
+    onPick: (path) => Navigator.of(context).pop(path),
   ),
 );
 

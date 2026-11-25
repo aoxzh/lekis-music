@@ -12,6 +12,7 @@ import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/routes.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'enrich_progress.dart';
@@ -59,10 +60,14 @@ enum EnrichScope {
 abstract final class EnrichActionStrings {
   static String get action => L10n.tr('补全封面和歌词', 'Fetch Artwork & Lyrics');
   static String get chooseTitle => L10n.tr('选择补全内容', 'Choose What to Fetch');
-  static String get runningAll => L10n.tr('正在查找封面和歌词…', 'Fetching artwork & lyrics…');
-  static String get runningArtwork => L10n.tr('正在查找缺失封面…', 'Fetching missing artwork…');
-  static String get runningLyrics => L10n.tr('正在查找缺失歌词…', 'Fetching missing lyrics…');
-  static String get nothing => L10n.tr('没有找到新的封面或歌词', 'No new artwork or lyrics found');
+  static String get runningAll =>
+      L10n.tr('正在查找封面和歌词…', 'Fetching artwork & lyrics…');
+  static String get runningArtwork =>
+      L10n.tr('正在查找缺失封面…', 'Fetching missing artwork…');
+  static String get runningLyrics =>
+      L10n.tr('正在查找缺失歌词…', 'Fetching missing lyrics…');
+  static String get nothing =>
+      L10n.tr('没有找到新的封面或歌词', 'No new artwork or lyrics found');
   static String get review => L10n.tr('去确认', 'Review');
   static String get failed => L10n.tr('补全失败', 'Enrichment failed');
   static String get cancel => L10n.tr('取消', 'Cancel');
@@ -87,20 +92,18 @@ abstract final class EnrichActionStrings {
 
 /// 弹窗让用户选择补全范围（封面 + 歌词 / 仅封面 / 仅歌词）。
 Future<EnrichScope?> showEnrichScopeDialog(BuildContext context) {
-  return showDialog<EnrichScope>(
-    context: context,
-    builder: (context) => SimpleDialog(
-      title: Text(EnrichActionStrings.chooseTitle),
-      children: [
-        for (final scope in EnrichScope.values)
-          ListTile(
-            leading: Icon(scope.icon),
-            title: Text(scope.label),
-            subtitle: Text(scope.hint),
-            onTap: () => Navigator.of(context).pop(scope),
-          ),
-      ],
-    ),
+  return showLekisActionList(
+    context,
+    title: EnrichActionStrings.chooseTitle,
+    actions: [
+      for (final scope in EnrichScope.values)
+        LekisMenuAction(
+          scope,
+          scope.icon,
+          scope.label,
+          description: scope.hint,
+        ),
+    ],
   );
 }
 
@@ -248,9 +251,7 @@ Future<void> enrichMissingFromLibraryFlow(
       if (rows.isEmpty) return;
       for (final row in rows) {
         final albumId = row.albumId?.toInt();
-        if (albumDedupe &&
-            albumId != null &&
-            !seenAlbums.add(albumId)) {
+        if (albumDedupe && albumId != null && !seenAlbums.add(albumId)) {
           continue;
         }
         targets.putIfAbsent(

@@ -125,6 +125,8 @@ void main() {
     // "settles": pump a fixed time instead.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
 
     expect(gateway.calls, isNot(contains('transfer:pc')));
     expect(find.byKey(const ValueKey('connect.remote.title')), findsOneWidget);
@@ -155,6 +157,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('connect.pick.pc')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
 
     expect(gateway.calls, isNot(contains('transfer:pc')));
     expect(find.byKey(const ValueKey('connect.remote.title')), findsOneWidget);
@@ -202,6 +206,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('connect.pick.pc.remote')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
 
     final controls = tester.getCenter(
       find.byKey(const ValueKey('connect.remote.controls')),

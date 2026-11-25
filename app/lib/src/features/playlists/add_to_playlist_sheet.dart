@@ -4,13 +4,12 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
-import 'package:lekis/src/features/playlists/playlist_actions.dart';
 import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
-import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:lekis/src/widgets/progress_dialog.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/features/playlists/playlist_strings.dart';
 
@@ -35,9 +34,10 @@ Future<void> showAddToPlaylistSheet(
   final messenger = ScaffoldMessenger.of(context);
   final result = await showLekisSheet<_AddResult>(
     context,
-    heightFactor: 0.72,
-    builder: (_) =>
-        AddToPlaylistSheet(trackId: trackId, trackTitle: trackTitle),
+    heightFactor: null,
+    builder: (sheet) => _PlaylistPickerFrame(
+      child: AddToPlaylistSheet(trackId: trackId, trackTitle: trackTitle),
+    ),
   );
   if (result == null) return;
   messenger
@@ -70,8 +70,9 @@ Future<bool> showAddTracksToPlaylistSheet(
   final total = uniqueIds.length;
   final playlist = await showLekisSheet<PlaylistDto>(
     context,
-    heightFactor: 0.72,
-    builder: (_) => _AddTracksPlaylistPicker(count: total),
+    heightFactor: null,
+    builder: (_) =>
+        _PlaylistPickerFrame(child: _AddTracksPlaylistPicker(count: total)),
   );
   if (playlist == null || !context.mounted) return false;
 
@@ -180,6 +181,22 @@ Future<bool> showAddTracksToPlaylistSheet(
   }
 }
 
+class _PlaylistPickerFrame extends StatelessWidget {
+  const _PlaylistPickerFrame({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+    child: LayoutBuilder(
+      builder: (_, bounds) => ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: bounds.maxHeight * 0.78),
+        child: child,
+      ),
+    ),
+  );
+}
+
 class _AddTracksPlaylistPicker extends StatefulWidget {
   const _AddTracksPlaylistPicker({required this.count});
 
@@ -201,6 +218,7 @@ class _AddTracksPlaylistPickerState extends State<_AddTracksPlaylistPicker> {
       future: _future,
       builder: (context, snapshot) {
         return Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
@@ -227,12 +245,14 @@ class _AddTracksPlaylistPickerState extends State<_AddTracksPlaylistPicker> {
               ),
             ),
             const Divider(height: 1),
-            Expanded(
+            Flexible(
               child: switch (snapshot.connectionState) {
                 ConnectionState.waiting => const Center(
+                  heightFactor: 2,
                   child: CircularProgressIndicator(),
                 ),
                 _ when snapshot.hasError => Center(
+                  heightFactor: 1,
                   child: Padding(
                     padding: const EdgeInsets.all(LekisSpacing.xl),
                     child: Text(
@@ -274,6 +294,31 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
   late Future<_PickerData> _future;
   String? _notice;
   int? _busyPlaylist;
+  final _name = TextEditingController();
+  bool _editingName = false;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  void _openNameField() {
+    if (_busyPlaylist != null) return;
+    _name.clear();
+    setState(() {
+      _editingName = true;
+      _notice = null;
+    });
+  }
+
+  void _cancelName() {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _editingName = false;
+      _notice = null;
+    });
+  }
 
   @override
   void initState() {
@@ -313,7 +358,7 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
         playlistId: playlist.id,
         trackUid: data.track.uid,
       );
-      if (!mounted) return;
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
       Navigator.of(context).pop(_AddResult(playlist.name, created: false));
     } catch (e) {
       if (!mounted) return;
@@ -325,26 +370,30 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
   }
 
   Future<void> _createAndAdd(_PickerData data) async {
-    final name = await askPlaylistName(
-      context,
-      title: PlaylistStrings.newPlaylist,
-      confirm: PlaylistStrings.createAndAdd,
-    );
-    if (name == null) return;
-    if (!mounted) return;
+    if (_busyPlaylist != null) return;
+    final name = _name.text.trim();
+    if (name.isEmpty) {
+      setState(() => _notice = PlaylistStrings.nameEmpty);
+      return;
+    }
     setState(() {
       _busyPlaylist = -1;
       _notice = null;
     });
+    int? id;
     try {
-      final id = await core.createPlaylist(name: name);
+      id = await core.createPlaylist(name: name);
       await core.addToPlaylist(playlistId: id, trackUid: data.track.uid);
-      if (!mounted) return;
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
       Navigator.of(context).pop(_AddResult(name, created: true));
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _busyPlaylist = null;
+        if (id != null) {
+          _editingName = false;
+          _future = _load();
+        }
         _notice = PlaylistStrings.createFailed(describeCoreError(e));
       });
     }
@@ -358,7 +407,8 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
       future: _future,
       builder: (context, snapshot) {
         final data = snapshot.data;
-        return Column(
+        final picker = Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
@@ -391,7 +441,9 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
                     ),
                   ),
                   TextButton.icon(
-                    onPressed: data == null ? null : () => _createAndAdd(data),
+                    onPressed: data == null || _busyPlaylist != null
+                        ? null
+                        : _openNameField,
                     icon: const Icon(Icons.add_rounded),
                     label: Text(PlaylistStrings.newShort),
                   ),
@@ -414,12 +466,14 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
                 ),
               ),
             const Divider(height: 1),
-            Expanded(
+            Flexible(
               child: switch (snapshot.connectionState) {
                 ConnectionState.waiting => const Center(
+                  heightFactor: 2,
                   child: CircularProgressIndicator(),
                 ),
                 _ when snapshot.hasError => Center(
+                  heightFactor: 1,
                   child: Padding(
                     padding: const EdgeInsets.all(LekisSpacing.xl),
                     child: Text(
@@ -441,6 +495,75 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
               },
             ),
           ],
+        );
+        final editing = _editingName && data != null;
+        return PopScope<_AddResult>(
+          canPop: !editing,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop && editing && _busyPlaylist == null) _cancelName();
+          },
+          child: AnimatedSwitcher(
+            duration:
+                MediaQuery.disableAnimationsOf(context) ||
+                    MediaQuery.reduceMotionOf(context)
+                ? Duration.zero
+                : LekisMotion.fast,
+            child: editing
+                ? ListView(
+                    key: const ValueKey('playlist-name'),
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(
+                      LekisSpacing.xl,
+                      0,
+                      LekisSpacing.xl,
+                      LekisSpacing.lg,
+                    ),
+                    children: [
+                      Text(
+                        PlaylistStrings.newPlaylist,
+                        style: theme.textTheme.titleLarge,
+                      ),
+                      if (widget.trackTitle != null)
+                        Text(
+                          widget.trackTitle!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      const SizedBox(height: LekisSpacing.lg),
+                      TextField(
+                        controller: _name,
+                        autofocus: true,
+                        enabled: _busyPlaylist == null,
+                        textInputAction: TextInputAction.done,
+                        decoration: InputDecoration(
+                          labelText: PlaylistStrings.nameLabel,
+                          errorText: _notice,
+                        ),
+                        onSubmitted: (_) => _createAndAdd(data),
+                      ),
+                      const SizedBox(height: LekisSpacing.md),
+                      OverflowBar(
+                        alignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: _busyPlaylist == null
+                                ? _cancelName
+                                : null,
+                            child: Text(PlaylistStrings.cancel),
+                          ),
+                          FilledButton(
+                            onPressed: _busyPlaylist == null
+                                ? () => _createAndAdd(data)
+                                : null,
+                            child: Text(PlaylistStrings.createAndAdd),
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                : picker,
+          ),
         );
       },
     );
@@ -464,6 +587,7 @@ class _PlaylistPickerList extends StatelessWidget {
     final colors = context.lekisColors;
     if (playlists.isEmpty) {
       return Center(
+        heightFactor: 1,
         child: Padding(
           padding: const EdgeInsets.all(LekisSpacing.xl),
           child: Text(
@@ -476,6 +600,8 @@ class _PlaylistPickerList extends StatelessWidget {
       );
     }
     return ListView.builder(
+      key: const PageStorageKey('add-playlist-options'),
+      shrinkWrap: true,
       padding: const EdgeInsets.symmetric(vertical: LekisSpacing.sm),
       itemCount: playlists.length,
       itemBuilder: (context, i) {

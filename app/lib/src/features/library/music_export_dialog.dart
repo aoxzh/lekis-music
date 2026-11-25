@@ -4,6 +4,7 @@ import 'package:lekis/src/features/library/library_actions.dart'
 import 'package:lekis/src/features/library/music_export_destination.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/music_export.dart' as api;
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 Future<void> showMusicExport(
@@ -11,9 +12,9 @@ Future<void> showMusicExport(
   int? trackId,
   int? albumId,
   List<int>? albumTrackIds,
-}) => showDialog<void>(
-  context: context,
-  barrierDismissible: false,
+}) => showLekisPanel<void>(
+  context,
+  dismissible: false,
   builder: (_) => _ExportDialog(
     trackId: trackId,
     albumId: albumId,
@@ -85,13 +86,12 @@ class _ExportDialogState extends State<_ExportDialog> {
     final successful = rows?.where((row) => row.outputPath != null).length ?? 0;
     return PopScope(
       canPop: !busy,
-      child: AlertDialog(
-        title: Text(
-          widget.isAlbum
-              ? pick('导出整张专辑', 'Export album')
-              : pick('导出音乐文件', 'Export music file'),
-        ),
-        content: SizedBox(
+      child: LekisPanel(
+        title: widget.isAlbum
+            ? pick('导出整张专辑', 'Export album')
+            : pick('导出音乐文件', 'Export music file'),
+        scrollBody: false,
+        body: SizedBox(
           width: 440,
           height: rows == null
               ? null

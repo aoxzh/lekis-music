@@ -19,6 +19,7 @@ import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:lekis/src/widgets/route_entrance.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Album detail as its own page (compact windows).
@@ -325,7 +326,8 @@ class _AlbumHeader extends ConsumerWidget {
                 trailing: [
                   IconButton(
                     tooltip: context.l10n.pick('导出整张专辑', 'Export album'),
-                    onPressed: () => showMusicExport(context, albumId: album.id),
+                    onPressed: () =>
+                        showMusicExport(context, albumId: album.id),
                     icon: const Icon(Icons.drive_file_move_outline),
                   ),
                   if (downloadableTrackIds.isNotEmpty)
@@ -432,10 +434,10 @@ class PlayShuffleButtons extends StatelessWidget {
           label: Text(context.l10n.pick('随机播放', 'Shuffle')),
         ),
         if (queueTrackIds.isNotEmpty)
-          PopupMenuButton<String>(
+          LekisActionMenuButton<String>(
+            title: context.l10n.pick('更多操作', 'More Actions'),
             key: const ValueKey('play-shuffle.queue-menu'),
             tooltip: context.l10n.pick('更多操作', 'More Actions'),
-            icon: const Icon(Icons.more_horiz_rounded),
             onSelected: (value) => switch (value) {
               'next' => queueTracks(
                 context,
@@ -450,46 +452,30 @@ class PlayShuffleButtons extends StatelessWidget {
               'artwork' => onChangeArtwork?.call(),
               _ => onEnrich?.call(),
             },
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'next',
-                child: ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.queue_play_next_rounded),
-                  title: Text(QueueStrings.playNext),
-                ),
+            actions: () => [
+              LekisMenuAction(
+                'next',
+                Icons.queue_play_next_rounded,
+                QueueStrings.playNext,
               ),
-              PopupMenuItem(
-                value: 'end',
-                child: ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.add_to_queue_rounded),
-                  title: Text(QueueStrings.addToQueue),
-                ),
+              LekisMenuAction(
+                'end',
+                Icons.add_to_queue_rounded,
+                QueueStrings.addToQueue,
               ),
-              if (onEnrich != null) ...[
-                const PopupMenuDivider(),
-                PopupMenuItem(
-                  value: 'enrich',
-                  child: ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.auto_fix_high_rounded),
-                    title: Text(EnrichActionStrings.action),
-                  ),
+              if (onEnrich != null)
+                LekisMenuAction(
+                  'enrich',
+                  Icons.auto_fix_high_rounded,
+                  EnrichActionStrings.action,
+                  startsGroup: true,
                 ),
-              ],
               if (onChangeArtwork != null)
-                PopupMenuItem(
-                  value: 'artwork',
-                  child: ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.image_outlined),
-                    title: Text(ArtworkActionStrings.change),
-                  ),
+                LekisMenuAction(
+                  'artwork',
+                  Icons.image_outlined,
+                  ArtworkActionStrings.change,
+                  startsGroup: onEnrich == null,
                 ),
             ],
           ),

@@ -1,8 +1,10 @@
 // Sleep timer (PLY-11): pause playback after a chosen wall-clock duration
 // or at the end of the current track ("放完这首").
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../l10n/app_l10n.dart';
@@ -357,11 +359,11 @@ class _SleepTimerButtonState extends ConsumerState<SleepTimerButton> {
                   'Sleep timer: ${timer.kind.label} (about $minutes min left)',
                 )
         : L10n.tr('睡眠定时', 'Sleep timer');
-    return PopupMenuButton<Object>(
+    return LekisActionMenuButton<Object>(
       tooltip: tooltip,
-      iconSize: widget.compact ? 20 : null,
-      padding: widget.compact ? EdgeInsets.zero : const EdgeInsets.all(8),
-      icon: buttonIcon,
+      title: L10n.tr('睡眠定时', 'Sleep timer'),
+      compact: widget.compact,
+      triggerIcon: buttonIcon,
       onSelected: (value) {
         final notifier = ref.read(sleepTimerProvider.notifier);
         if (value is SleepTimerKind) {
@@ -370,20 +372,25 @@ class _SleepTimerButtonState extends ConsumerState<SleepTimerButton> {
           notifier.extend(const Duration(minutes: 15));
         }
       },
-      itemBuilder: (context) => [
+      actions: () => [
         for (final kind in SleepTimerKind.values)
-          CheckedPopupMenuItem<Object>(
-            value: kind,
-            checked: kind == timer.kind,
-            child: Text(kind.label),
+          LekisMenuAction<Object>(
+            kind,
+            switch (kind) {
+              SleepTimerKind.off => Icons.timer_off_outlined,
+              SleepTimerKind.endOfTrack => Icons.skip_next_rounded,
+              _ => Icons.timer_outlined,
+            },
+            kind.label,
+            selected: kind == timer.kind,
           ),
-        if (timer.endsAt != null) ...[
-          const PopupMenuDivider(),
-          PopupMenuItem<Object>(
-            value: _SleepMenuAction.extend,
-            child: Text(L10n.tr('再延长 15 分钟', 'Extend 15 min')),
+        if (timer.endsAt != null)
+          LekisMenuAction<Object>(
+            _SleepMenuAction.extend,
+            Icons.more_time_rounded,
+            L10n.tr('再延长 15 分钟', 'Extend 15 min'),
+            startsGroup: true,
           ),
-        ],
       ],
     );
   }
