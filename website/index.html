@@ -80,6 +80,13 @@
     }
 
     a { color: inherit; text-decoration: none; }
+    a:focus-visible,
+    button:focus-visible,
+    summary:focus-visible {
+      outline: 2px solid var(--gold);
+      outline-offset: 3px;
+      border-radius: 6px;
+    }
     .container { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
 
     /* Nav */
@@ -178,6 +185,9 @@
       position: relative;
       z-index: 1;
       width: min(100%, 420px);
+      /* width/height attributes only carry the aspect ratio; let the box
+         scale with the column instead of stretching to 560 px. */
+      height: auto;
       border-radius: 22%;
       box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08);
       transform: rotate(1.5deg);
@@ -589,6 +599,18 @@
         height: 84px;
       }
     }
+
+    /* Respect the OS "reduce motion" setting: no smooth scrolling, no
+       decorative transitions. Content is identical, it just holds still. */
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
   </style>
 </head>
 <body data-lang="en">
@@ -613,7 +635,7 @@
         <a class="hide-sm" href="#download"><span class="en">Download</span><span class="zh">下载</span></a>
         <a class="hide-sm" href="#faq"><span class="en">FAQ</span><span class="zh">常见问题</span></a>
         <a href="https://github.com/aoxzh/lekis-music" target="_blank" rel="noopener">GitHub</a>
-        <button class="lang-btn" id="langToggle" type="button">中文 / EN</button>
+        <button class="lang-btn" id="langToggle" type="button" aria-label="Switch language · 中文 / EN">中文 / EN</button>
       </nav>
     </div>
   </header>
@@ -651,7 +673,11 @@
         </div>
         </div>
         <div class="hero-art">
-          <img class="hero-mascot" src="assets/kit/standing.jpg" alt="Lekis rabbit mascot wearing headphones" fetchpriority="high" />
+          <img class="hero-mascot" src="assets/kit/standing.jpg"
+               srcset="assets/kit/standing.jpg 560w, assets/kit/standing@2x.jpg 900w"
+               sizes="(max-width: 900px) 68vw, 420px"
+               width="560" height="560"
+               alt="Lekis rabbit mascot wearing headphones" fetchpriority="high" />
           <img class="hero-sticker" src="assets/kit/jumping.jpg" alt="" loading="lazy" />
         </div>
       </div>
@@ -665,17 +691,17 @@
 
       <div class="container">
         <div class="showcase-wrap">
-          <div class="shot-tabs" id="shotTabs">
-            <button class="shot-tab active" data-src="screenshots/desktop-now-playing-vinyl.png"><span class="en">Desktop Vinyl + Lyrics</span><span class="zh">桌面黑胶 + 歌词</span></button>
-            <button class="shot-tab" data-src="screenshots/desktop-home.png"><span class="en">Desktop Home</span><span class="zh">桌面首页</span></button>
-            <button class="shot-tab" data-src="screenshots/desktop-now-playing-lyrics.png"><span class="en">Dual-Column Lyrics</span><span class="zh">宽屏双栏歌词</span></button>
-            <button class="shot-tab" data-src="screenshots/foldable-home-light.png"><span class="en">Foldable Light Glass</span><span class="zh">折叠屏浅色玻璃</span></button>
-            <button class="shot-tab" data-src="screenshots/mobile-home.png"><span class="en">Mobile Liquid Glass</span><span class="zh">手机液态玻璃</span></button>
-            <button class="shot-tab" data-src="screenshots/mobile-now-playing.png"><span class="en">Mobile Now Playing</span><span class="zh">手机播放页</span></button>
-            <button class="shot-tab" data-src="screenshots/mobile-vinyl.png"><span class="en">Mobile Vinyl</span><span class="zh">手机黑胶</span></button>
+          <div class="shot-tabs" id="shotTabs" role="tablist" aria-label="Interface previews">
+            <button type="button" class="shot-tab active" role="tab" aria-selected="true" aria-controls="shotImg" data-src="screenshots/desktop-now-playing-vinyl.png"><span class="en">Desktop Vinyl + Lyrics</span><span class="zh">桌面黑胶 + 歌词</span></button>
+            <button type="button" class="shot-tab" role="tab" aria-selected="false" aria-controls="shotImg" data-src="screenshots/desktop-home.png"><span class="en">Desktop Home</span><span class="zh">桌面首页</span></button>
+            <button type="button" class="shot-tab" role="tab" aria-selected="false" aria-controls="shotImg" data-src="screenshots/desktop-now-playing-lyrics.png"><span class="en">Dual-Column Lyrics</span><span class="zh">宽屏双栏歌词</span></button>
+            <button type="button" class="shot-tab" role="tab" aria-selected="false" aria-controls="shotImg" data-src="screenshots/foldable-home-light.png"><span class="en">Foldable Light Glass</span><span class="zh">折叠屏浅色玻璃</span></button>
+            <button type="button" class="shot-tab" role="tab" aria-selected="false" aria-controls="shotImg" data-src="screenshots/mobile-home.png"><span class="en">Mobile Liquid Glass</span><span class="zh">手机液态玻璃</span></button>
+            <button type="button" class="shot-tab" role="tab" aria-selected="false" aria-controls="shotImg" data-src="screenshots/mobile-now-playing.png"><span class="en">Mobile Now Playing</span><span class="zh">手机播放页</span></button>
+            <button type="button" class="shot-tab" role="tab" aria-selected="false" aria-controls="shotImg" data-src="screenshots/mobile-vinyl.png"><span class="en">Mobile Vinyl</span><span class="zh">手机黑胶</span></button>
           </div>
           <div class="shot-stage">
-            <img id="shotImg" src="screenshots/desktop-now-playing-vinyl.png" alt="Lekis Music UI Preview" loading="eager" />
+            <img id="shotImg" role="tabpanel" src="screenshots/desktop-now-playing-vinyl.png" alt="Lekis Music UI Preview" loading="eager" />
           </div>
         </div>
       </div>
@@ -872,20 +898,90 @@
 
   <script>
     (function () {
-      const isZh = (navigator.language || '').toLowerCase().startsWith('zh');
-      document.body.setAttribute('data-lang', isZh ? 'zh' : 'en');
-      document.getElementById('langToggle').addEventListener('click', () => {
-        const cur = document.body.getAttribute('data-lang');
-        document.body.setAttribute('data-lang', cur === 'zh' ? 'en' : 'zh');
-      });
+      const STORAGE_KEY = 'lekis-lang';
+      const tabs = Array.from(document.querySelectorAll('.shot-tab'));
+      const shotImg = document.getElementById('shotImg');
+      const langToggle = document.getElementById('langToggle');
 
-      const img = document.getElementById('shotImg');
-      document.querySelectorAll('.shot-tab').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.shot-tab').forEach((b) => b.classList.remove('active'));
-          btn.classList.add('active');
-          img.src = btn.dataset.src;
+      function storedLang() {
+        try {
+          return localStorage.getItem(STORAGE_KEY);
+        } catch (_) {
+          return null;
+        }
+      }
+
+      function persistLang(lang) {
+        try {
+          localStorage.setItem(STORAGE_KEY, lang);
+        } catch (_) {
+          /* Private mode: the choice just does not survive a reload. */
+        }
+      }
+
+      function activeTab() {
+        return tabs.find((tab) => tab.classList.contains('active')) || tabs[0];
+      }
+
+      // The screenshot alt follows the visible label of the selected tab, so
+      // screen-reader users hear which preview is on screen (not a stale
+      // generic "UI Preview").
+      function syncShotAlt() {
+        if (!shotImg) return;
+        const label = activeTab()
+          .querySelector('.en')
+          ?.textContent.trim();
+        if (label) shotImg.alt = `Lekis Music — ${label}`;
+      }
+
+      function applyLang(lang) {
+        document.body.setAttribute('data-lang', lang);
+        document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+        langToggle.setAttribute('aria-pressed', lang === 'zh' ? 'true' : 'false');
+        syncShotAlt();
+      }
+
+      function selectTab(tab, { focus = false } = {}) {
+        tabs.forEach((candidate) => {
+          const selected = candidate === tab;
+          candidate.classList.toggle('active', selected);
+          candidate.setAttribute('aria-selected', selected ? 'true' : 'false');
+          candidate.tabIndex = selected ? 0 : -1;
         });
+        shotImg.src = tab.dataset.src;
+        shotImg.setAttribute('aria-labelledby', tab.id || '');
+        syncShotAlt();
+        if (focus) tab.focus();
+      }
+
+      tabs.forEach((tab, index) => {
+        tab.id = tab.id || `shot-tab-${index}`;
+        tab.tabIndex = tab.classList.contains('active') ? 0 : -1;
+        tab.addEventListener('click', () => selectTab(tab));
+        tab.addEventListener('keydown', (event) => {
+          const step =
+            event.key === 'ArrowRight' || event.key === 'ArrowDown'
+              ? 1
+              : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+              ? -1
+              : 0;
+          if (step === 0) return;
+          event.preventDefault();
+          const next = tabs[(index + step + tabs.length) % tabs.length];
+          selectTab(next, { focus: true });
+        });
+      });
+      const initialTab = activeTab();
+      if (initialTab) selectTab(initialTab);
+
+      const initialLang =
+        storedLang() || ((navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en');
+      applyLang(initialLang);
+      langToggle.addEventListener('click', () => {
+        const next =
+          document.body.getAttribute('data-lang') === 'zh' ? 'en' : 'zh';
+        applyLang(next);
+        persistLang(next);
       });
     })();
   </script>
