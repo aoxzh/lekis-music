@@ -13,11 +13,13 @@ class ScopedAlbumPanes extends StatefulWidget {
     required this.albums,
     required this.empty,
     required this.openRoute,
+    required this.menuBuilder,
     required this.detailBuilder,
   });
 
   final PagedList<AlbumDto> albums;
   final Widget empty;
+  final AlbumMenuBuilder menuBuilder;
   final Route<void> Function(AlbumDto album) openRoute;
   final Widget Function(AlbumDto album, VoidCallback close) detailBuilder;
 
@@ -38,6 +40,7 @@ class _ScopedAlbumPanesState extends State<ScopedAlbumPanes> {
       primary: AlbumGrid(
         key: ObjectKey(widget.albums),
         list: widget.albums,
+        menuBuilder: widget.menuBuilder,
         empty: widget.empty,
         selectedId: twoPane ? selected?.id : null,
         onOpen: (album) {

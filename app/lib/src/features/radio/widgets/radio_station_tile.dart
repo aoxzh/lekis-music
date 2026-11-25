@@ -3,6 +3,7 @@
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
 
 class RadioStationTile extends StatelessWidget {
@@ -117,25 +118,22 @@ class RadioStationTile extends StatelessWidget {
               onPressed: onToggleFavorite,
             ),
             if (onDelete != null)
-              PopupMenuButton<String>(
+              LekisActionMenuButton<String>(
+                title: station.name,
+                compact: true,
+
                 tooltip: context.l10n.pick('更多', 'More'),
                 onSelected: (value) {
                   if (value == 'delete') onDelete!();
                 },
-                padding: EdgeInsets.zero,
-                itemBuilder: (_) => [
-                  PopupMenuItem(
-                    value: 'delete',
-                    child: Text(
-                      context.l10n.pick('删除自定义电台', 'Delete custom station'),
-                    ),
+                actions: () => [
+                  LekisMenuAction(
+                    'delete',
+                    Icons.delete_outline_rounded,
+                    context.l10n.pick('删除自定义电台', 'Delete custom station'),
+                    destructive: true,
                   ),
                 ],
-                child: const SizedBox(
-                  width: 36,
-                  height: 36,
-                  child: Icon(Icons.more_vert),
-                ),
               ),
           ],
         ),

@@ -227,8 +227,56 @@ void main() {
       await tester.pumpAndSettle();
       expect(fixture.player.ids, [for (var id = 501; id > 0; id--) id]);
       expect(fixture.player.index, 1);
-      expect(find.byTooltip('导出整张专辑'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('play-shuffle.queue-menu')));
+      await tester.pumpAndSettle();
+      expect(find.text('导出整张专辑'), findsOneWidget);
+      expect(find.text('复制曲目列表'), findsOneWidget);
       expect(fixture.metadataCalls, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'album menu plays every scoped page and artist back restores the list offset',
+    (tester) async {
+      final rows = [for (var i = 1; i <= 80; i++) _row(i)];
+      final albumRows = [for (var i = 1; i <= 501; i++) _row(i)];
+      final fixture = _Fixture(
+        rows: {_nas: rows},
+        metadata: {
+          for (final row in rows) row.id: _credit(row.id, artist: row.id),
+        },
+        albums: [_album],
+        albumTracks: {(_nas, _album.id): albumRows},
+      );
+      await fixture.show(
+        tester,
+        const ScopedLibraryView(scope: _nas, segment: LibrarySegment.albums),
+      );
+      await tester.tap(find.byTooltip('更多操作：Untitled'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('播放'));
+      await tester.pumpAndSettle();
+      expect(fixture.player.ids, [for (final row in albumRows) row.id]);
+      expect(fixture.albumTrackCalls, [
+        ((_nas, _album.id), 0),
+        ((_nas, _album.id), 500),
+      ]);
+      await fixture.show(
+        tester,
+        const ScopedLibraryView(scope: _nas, segment: LibrarySegment.artists),
+      );
+      final menu = find.byTooltip('更多操作：Band / 50');
+      await tester.scrollUntilVisible(menu, 260);
+      await tester.pumpAndSettle();
+      final before = tester.getCenter(menu);
+      await tester.tap(menu);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('查看艺人'));
+      await tester.pumpAndSettle();
+      expect(find.text('Track 50'), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(tester.getCenter(menu), before);
     },
   );
 

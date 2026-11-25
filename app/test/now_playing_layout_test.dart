@@ -203,8 +203,8 @@ void main() {
 
     await tester.tap(find.text('月兔 / 星海'));
     await tester.pumpAndSettle();
-    expect(find.widgetWithText(SimpleDialogOption, '月兔'), findsOneWidget);
-    expect(find.widgetWithText(SimpleDialogOption, '星海'), findsOneWidget);
+    expect(find.text('月兔'), findsOneWidget);
+    expect(find.text('星海'), findsOneWidget);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(lookups, isEmpty);
@@ -212,7 +212,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('查看艺人'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(SimpleDialogOption, '星海'));
+    await tester.tap(find.text('星海'));
     await tester.pumpAndSettle();
     expect(lookups, ['星海']);
     expect(

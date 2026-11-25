@@ -5,9 +5,9 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../platform/ui_profile.dart';
 import '../../rust/api/core.dart' as core;
 import '../../rust/api/dto.dart';
 import '../../rust/api/error.dart';
@@ -46,11 +46,11 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
   );
 
   Future<void> _remove(PluginInfoDto plugin) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(PluginStrings.removeTitle),
-        content: Text(PluginStrings.removeBody(plugin.name)),
+    final confirmed = await showLekisPanel<bool>(
+      context,
+      builder: (context) => LekisPanel(
+        title: PluginStrings.removeTitle,
+        body: Text(PluginStrings.removeBody(plugin.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -95,70 +95,104 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
     }
   }
 
-  Future<void> _chooseInstall() async {
-    // Mobile: a bottom sheet. Desktop: the same two choices in a dialog.
-    Widget chooser(BuildContext context) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              LekisSpacing.lg,
-              LekisSpacing.lg,
-              LekisSpacing.lg,
-              LekisSpacing.sm,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  PluginStrings.install,
-                  style: Theme.of(context).textTheme.titleLarge,
+  Future<void> _chooseInstall({bool linkOnly = false}) async {
+    var enteringLink = linkOnly;
+    Uri? address;
+    final choice = await showLekisPanel<_InstallChoice>(
+      context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (context, update) {
+          void editLink(bool editing) {
+            FocusScope.of(context).unfocus();
+            update(() {
+              enteringLink = editing;
+              address = null;
+            });
+          }
+
+          void back() {
+            if (enteringLink && !linkOnly) {
+              editLink(false);
+            } else {
+              Navigator.pop(dialog);
+            }
+          }
+
+          void submit() {
+            if (address != null) Navigator.pop(dialog, _InstallChoice.link);
+          }
+
+          return PopScope<_InstallChoice>(
+            canPop: !enteringLink || linkOnly,
+            onPopInvokedWithResult: (didPop, _) {
+              if (!didPop && enteringLink && !linkOnly) editLink(false);
+            },
+            child: LekisPanel(
+              title: enteringLink
+                  ? PluginStrings.installLink
+                  : PluginStrings.install,
+              subtitle: enteringLink ? null : PluginStrings.installHint,
+              body: AnimatedSize(
+                alignment: Alignment.topCenter,
+                curve: Curves.easeOutCubic,
+                duration:
+                    lekisPanelMotion(context).reverseDuration ?? Duration.zero,
+                child: enteringLink
+                    ? TextField(
+                        autofocus: true,
+                        keyboardType: TextInputType.url,
+                        autocorrect: false,
+                        decoration: const InputDecoration(
+                          labelText: 'HTTPS ZIP URL',
+                        ),
+                        onChanged: (value) =>
+                            update(() => address = pluginPackageUri(value)),
+                        onSubmitted: (_) => submit(),
+                      )
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SettingsTile(
+                            icon: Icons.link_rounded,
+                            title: PluginStrings.installLink,
+                            chevron: true,
+                            onTap: () => editLink(true),
+                          ),
+                          SettingsTile(
+                            icon: Icons.folder_open_outlined,
+                            title: PluginStrings.installFolder,
+                            onTap: () =>
+                                Navigator.pop(dialog, _InstallChoice.folder),
+                          ),
+                          SettingsTile(
+                            icon: Icons.folder_zip_outlined,
+                            title: PluginStrings.installZip,
+                            onTap: () =>
+                                Navigator.pop(dialog, _InstallChoice.zip),
+                          ),
+                        ],
+                      ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: back,
+                  child: Text(
+                    enteringLink && !linkOnly
+                        ? MaterialLocalizations.of(context).backButtonTooltip
+                        : PluginStrings.cancel,
+                  ),
                 ),
-                const SizedBox(height: LekisSpacing.xs),
-                Text(
-                  PluginStrings.installHint,
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: context.lekisColors.onSurfaceVariant),
-                ),
+                if (enteringLink)
+                  FilledButton(
+                    onPressed: address == null ? null : submit,
+                    child: Text(PluginStrings.install),
+                  ),
               ],
             ),
-          ),
-          SettingsTile(
-            icon: Icons.link_rounded,
-            title: PluginStrings.installLink,
-            onTap: () => Navigator.of(context).pop(_InstallChoice.link),
-          ),
-          SettingsTile(
-            icon: Icons.folder_open_outlined,
-            title: PluginStrings.installFolder,
-            onTap: () => Navigator.of(context).pop(_InstallChoice.folder),
-          ),
-          SettingsTile(
-            icon: Icons.folder_zip_outlined,
-            title: PluginStrings.installZip,
-            onTap: () => Navigator.of(context).pop(_InstallChoice.zip),
-          ),
-          const SizedBox(height: LekisSpacing.sm),
-        ],
+          );
+        },
       ),
     );
-    final choice = UiProfile.current.prefersSheets
-        ? await showModalBottomSheet<_InstallChoice>(
-            context: context,
-            useSafeArea: true,
-            builder: chooser,
-          )
-        : await showDialog<_InstallChoice>(
-            context: context,
-            builder: (context) => Dialog(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: chooser(context),
-              ),
-            ),
-          );
     if (!mounted) return;
     switch (choice) {
       case _InstallChoice.folder:
@@ -166,56 +200,18 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
       case _InstallChoice.zip:
         await _installZip();
       case _InstallChoice.link:
-        await _installLink();
+        await _installRemote(address!);
       case null:
         break;
     }
   }
 
-  Future<void> _installLink() async {
-    Uri? address;
-    final uri = await showDialog<Uri>(
-      context: context,
-      builder: (dialog) => StatefulBuilder(
-        builder: (context, update) => AlertDialog(
-          title: Text(PluginStrings.installLink),
-          content: TextField(
-            autofocus: true,
-            keyboardType: TextInputType.url,
-            autocorrect: false,
-            decoration: const InputDecoration(labelText: 'HTTPS ZIP URL'),
-            onChanged: (value) =>
-                update(() => address = pluginPackageUri(value)),
-            onSubmitted: (_) {
-              if (address != null) Navigator.pop(dialog, address);
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialog),
-              child: Text(PluginStrings.cancel),
-            ),
-            FilledButton(
-              onPressed: address == null
-                  ? null
-                  : () => Navigator.pop(dialog, address),
-              child: Text(PluginStrings.install),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (uri == null || !mounted) return;
-    await _installRemote(uri);
-  }
-
   Future<void> _confirmCatalogInstall(RegistryPlugin plugin) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        scrollable: true,
-        title: Text(PluginStrings.downloadInstall),
-        content: Column(
+    final confirmed = await showLekisPanel<bool>(
+      context,
+      builder: (dialog) => LekisPanel(
+        title: PluginStrings.downloadInstall,
+        body: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -344,11 +340,11 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
       return;
     }
     if (!mounted) return;
-    final action = await showDialog<_DirectoryAction>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(PluginStrings.pluginDir),
-        content: Column(
+    final action = await showLekisPanel<_DirectoryAction>(
+      context,
+      builder: (context) => LekisPanel(
+        title: PluginStrings.pluginDir,
+        body: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -405,32 +401,50 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
 
   Future<void> _addSource() async {
     final controller = TextEditingController();
-    final raw = await showDialog<String>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: Text(PluginStrings.addSource),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: TextInputType.url,
-          autocorrect: false,
-          decoration: InputDecoration(
-            labelText: PluginStrings.sourceUrlLabel,
-            hintText: PluginStrings.sourceUrlHint,
+    final field = GlobalKey<FormFieldState<String>>();
+    final raw = await showLekisPanel<String>(
+      context,
+      builder: (dialog) {
+        void submit() {
+          if (field.currentState!.validate()) {
+            Navigator.of(dialog).pop(controller.text);
+          }
+        }
+
+        return LekisPanel(
+          title: PluginStrings.addSource,
+          body: TextFormField(
+            key: field,
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            autovalidateMode: AutovalidateMode.onUserInteractionIfError,
+            validator: (value) {
+              final url = normalizePluginSourceUrl(value ?? '');
+              final sources = ref.read(pluginSourcesProvider).value ?? [];
+              return url == null || sources.any((s) => s.url == url)
+                  ? PluginStrings.sourceInvalid
+                  : null;
+            },
+            decoration: InputDecoration(
+              labelText: PluginStrings.sourceUrlLabel,
+              hintText: PluginStrings.sourceUrlHint,
+            ),
+            onFieldSubmitted: (_) => submit(),
           ),
-          onSubmitted: (value) => Navigator.of(dialog).pop(value),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialog).pop(),
-            child: Text(PluginStrings.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialog).pop(controller.text),
-            child: Text(PluginStrings.addSource),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialog).pop(),
+              child: Text(PluginStrings.cancel),
+            ),
+            FilledButton(
+              onPressed: submit,
+              child: Text(PluginStrings.addSource),
+            ),
+          ],
+        );
+      },
     );
     controller.dispose();
     if (raw == null || !mounted) return;
@@ -458,24 +472,33 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
     return catalog.when(
       skipLoadingOnRefresh: false,
       loading: () => [
-        ListTile(title: Text(PluginStrings.catalogLoading)),
-        const LinearProgressIndicator(),
+        SettingsTile(
+          icon: Icons.extension_outlined,
+          title: PluginStrings.catalogLoading,
+          trailing: const SizedBox.square(
+            dimension: LekisSpacing.lg,
+            child: CircularProgressIndicator(strokeWidth: LekisSpacing.xxs),
+          ),
+        ),
       ],
       error: (error, _) => [
-        Padding(
-          padding: const EdgeInsets.all(LekisSpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('${errorLabel ?? PluginStrings.catalogFailed} ($error)'),
-              TextButton(onPressed: retry, child: Text(PluginStrings.retry)),
-            ],
+        SettingsTile(
+          icon: Icons.error_outline_rounded,
+          title: errorLabel ?? PluginStrings.catalogFailed,
+          subtitle: Text(error.toString()),
+          trailing: IconButton(
+            tooltip: PluginStrings.retry,
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: retry,
           ),
         ),
       ],
       data: (entries) => [
         if (entries.isEmpty)
-          ListTile(title: Text(emptyLabel ?? PluginStrings.catalogEmpty)),
+          SettingsTile(
+            icon: Icons.extension_outlined,
+            title: emptyLabel ?? PluginStrings.catalogEmpty,
+          ),
         for (final entry in entries)
           _catalogRow(
             entry,
@@ -532,15 +555,6 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
         ),
         SettingsReveal.control(
           context,
-          IconButton(
-            key: const ValueKey('plugins.directory'),
-            tooltip: PluginStrings.pluginDir,
-            onPressed: _showDirectory,
-            icon: const Icon(Icons.folder_outlined),
-          ),
-        ),
-        SettingsReveal.control(
-          context,
           IconButton.filledTonal(
             key: const ValueKey('plugins.install'),
             tooltip: PluginStrings.install,
@@ -557,51 +571,62 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
           Expanded(
             child: SettingsListView(
               children: [
-                Text(PluginStrings.providerNotice),
-                const SizedBox(height: LekisSpacing.sm),
-                if (!_browsing)
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: SettingsReveal.control(
-                      context,
-                      OutlinedButton.icon(
+                SettingsGroup(
+                  children: [
+                    if (!_browsing)
+                      SettingsTile(
                         key: const ValueKey('plugins.browse'),
-                        icon: const Icon(Icons.extension_outlined),
-                        label: Text(PluginStrings.browse),
-                        onPressed: () => setState(() => _browsing = true),
+                        icon: Icons.extension_outlined,
+                        title: PluginStrings.browse,
+                        chevron: true,
+                        onTap: () => setState(() => _browsing = true),
                       ),
+                    SettingsTile(
+                      key: const ValueKey('plugins.directory'),
+                      icon: Icons.folder_outlined,
+                      title: PluginStrings.pluginDir,
+                      chevron: true,
+                      onTap: _showDirectory,
                     ),
-                  )
-                else
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SettingsSection(
-                        title: PluginStrings.defaultSource,
-                        children: _catalogRows(
-                          ref.watch(pluginRegistryProvider),
-                          plugins,
-                          retry: () => ref.invalidate(pluginRegistryProvider),
-                        ),
-                      ),
-                      ..._customSourceSections(plugins),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: LekisSpacing.xl),
-                        child: Align(
-                          alignment: AlignmentDirectional.centerStart,
-                          child: SettingsReveal.control(
-                            context,
-                            OutlinedButton.icon(
-                              key: const ValueKey('plugins.add-source'),
-                              icon: const Icon(Icons.add_link_rounded),
-                              label: Text(PluginStrings.addSource),
-                              onPressed: _installing ? null : _addSource,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    settingsRowInset,
+                    LekisSpacing.sm,
+                    settingsRowInset,
+                    LekisSpacing.xl,
                   ),
+                  child: Text(
+                    PluginStrings.providerNotice,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                if (_browsing) ...[
+                  SettingsSection(
+                    title: PluginStrings.defaultSource,
+                    children: _catalogRows(
+                      ref.watch(pluginRegistryProvider),
+                      plugins,
+                      retry: () => ref.invalidate(pluginRegistryProvider),
+                    ),
+                  ),
+                  ..._customSourceSections(plugins),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: LekisSpacing.xl),
+                    child: SettingsGroup(
+                      children: [
+                        SettingsTile(
+                          key: const ValueKey('plugins.add-source'),
+                          icon: Icons.add_link_rounded,
+                          title: PluginStrings.addSource,
+                          chevron: true,
+                          onTap: _installing ? null : _addSource,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 plugins.when(
                   skipLoadingOnReload: true,
                   loading: () =>
@@ -617,31 +642,45 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
                     ),
                   ),
                   data: (list) => list.isEmpty
-                      ? LekisEmptyState(
-                          title: PluginStrings.emptyTitle,
-                          message: PluginStrings.sourceHint,
-                          action: Wrap(
-                            spacing: LekisSpacing.sm,
-                            runSpacing: LekisSpacing.sm,
-                            alignment: WrapAlignment.center,
-                            children: [
-                              FilledButton.icon(
-                                onPressed: _installing ? null : _installZip,
-                                icon: const Icon(Icons.folder_zip_outlined),
-                                label: Text(PluginStrings.installZip),
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SettingsSectionHeader(PluginStrings.emptyTitle),
+                            SettingsGroup(
+                              children: [
+                                SettingsTile(
+                                  icon: Icons.folder_zip_outlined,
+                                  title: PluginStrings.installZip,
+                                  chevron: true,
+                                  onTap: _installing ? null : _installZip,
+                                ),
+                                SettingsTile(
+                                  icon: Icons.link_rounded,
+                                  title: PluginStrings.installLink,
+                                  chevron: true,
+                                  onTap: _installing
+                                      ? null
+                                      : () => _chooseInstall(linkOnly: true),
+                                ),
+                                SettingsTile(
+                                  icon: Icons.folder_open_outlined,
+                                  title: PluginStrings.installFolder,
+                                  chevron: true,
+                                  onTap: _installing ? null : _installFolder,
+                                ),
+                              ],
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: settingsRowInset,
+                                vertical: LekisSpacing.sm,
                               ),
-                              OutlinedButton.icon(
-                                onPressed: _installing ? null : _installLink,
-                                icon: const Icon(Icons.link_rounded),
-                                label: Text(PluginStrings.installLink),
+                              child: Text(
+                                PluginStrings.sourceHint,
+                                style: Theme.of(context).textTheme.bodySmall,
                               ),
-                              OutlinedButton.icon(
-                                onPressed: _installing ? null : _installFolder,
-                                icon: const Icon(Icons.folder_open_outlined),
-                                label: Text(PluginStrings.installFolder),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         )
                       : SettingsSection(
                           title: PluginStrings.manageTitle,
@@ -678,25 +717,30 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
     required bool installed,
     required bool available,
   }) {
-    return Padding(
-      padding: const EdgeInsets.all(LekisSpacing.md),
-      child: Column(
+    return SettingsTile(
+      icon: Icons.extension_outlined,
+      title: plugin.name,
+      annotation: installed ? PluginStrings.installed : null,
+      subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${plugin.name} · v${plugin.version}',
-            style: Theme.of(context).textTheme.titleMedium,
+            'v${plugin.version}',
+            style: Theme.of(context).textTheme.bodySmall,
           ),
-          Text(plugin.description),
-          if (installed)
-            Text(PluginStrings.installed)
-          else
+          if (plugin.description.isNotEmpty) ...[
+            const SizedBox(height: LekisSpacing.xs),
+            Text(plugin.description),
+          ],
+          if (!installed) ...[
+            const SizedBox(height: LekisSpacing.sm),
             OutlinedButton(
               onPressed: available
                   ? () => _confirmCatalogInstall(plugin)
                   : null,
               child: Text(PluginStrings.downloadInstall),
             ),
+          ],
         ],
       ),
     );

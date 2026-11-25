@@ -6,6 +6,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
+import 'package:lekis/src/features/library/widgets/library_browse_menu.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/paged_track_list.dart';
 import 'package:lekis/src/features/library/widgets/press_feedback.dart';
@@ -30,15 +31,17 @@ class FoldersView extends ConsumerWidget {
     final twoPane = isWideLayout(context) || context.fold.isSeparating;
 
     if (!twoPane) {
-      if (selected == null) {
-        return FolderRootsList(
-          scope: scope,
-          onOpen: (root) => _openRoot(ref, root),
-        );
-      }
-      return _SingleFolderView(
-        key: ValueKey('${selected.sourceId}:${selected.path}'),
-        location: selected,
+      return FolderRootsList(
+        scope: scope,
+        onOpen: (root) => _openFolderPage(
+          context,
+          FolderLocation(
+            sourceId: root.sourceId,
+            sourceName: root.name,
+            path: '',
+          ),
+          ModalRoute.of(context)!,
+        ),
       );
     }
 
@@ -52,18 +55,6 @@ class FoldersView extends ConsumerWidget {
               location: selected,
             ),
     );
-  }
-
-  static void _openRoot(WidgetRef ref, core.FolderRootDto root) {
-    ref
-        .read(selectedFolderProvider.notifier)
-        .set(
-          FolderLocation(
-            sourceId: root.sourceId,
-            sourceName: root.name,
-            path: '',
-          ),
-        );
   }
 }
 
@@ -132,7 +123,11 @@ class FolderRootsList extends ConsumerWidget {
           itemBuilder: (context, i) {
             final root = roots[i];
             return _FolderRow(
-              icon: Icons.lan_outlined,
+              icon: scope.kind == LibraryScopeKind.local
+                  ? Icons.folder_outlined
+                  : Icons.storage_rounded,
+              sourceId: root.sourceId,
+              path: '',
               name: root.name,
               count: root.trackCount,
               onTap: () => onOpen(root),
@@ -274,6 +269,8 @@ class _FolderChildren extends StatelessWidget {
           for (final entry in listing.folders)
             _FolderRow(
               icon: Icons.folder_outlined,
+              sourceId: location.sourceId,
+              path: entry.path,
               name: entry.name,
               count: entry.trackCount,
               onTap: () => onOpen(entry),
@@ -375,28 +372,58 @@ class FolderBreadcrumb extends StatelessWidget {
   }
 }
 
-class _SingleFolderView extends ConsumerWidget {
-  const _SingleFolderView({super.key, required this.location});
+void _openFolderPage(
+  BuildContext context,
+  FolderLocation location,
+  ModalRoute<dynamic> origin,
+) {
+  Navigator.of(context).push<void>(
+    MaterialPageRoute<void>(
+      settings: RouteSettings(arguments: location),
+      builder: (_) => _FolderPage(location: location, origin: origin),
+    ),
+  );
+}
+
+class _FolderPage extends ConsumerWidget {
+  const _FolderPage({required this.location, required this.origin});
 
   final FolderLocation location;
+  final ModalRoute<dynamic> origin;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final key = folderKeyOf(location);
-    final list = ref.watch(folderTracksListProvider(key));
-    return PagedTrackList(
-      list: list,
-      showHeaderWhenEmpty: true,
-      playContext: PlayContextDto.folder(
-        sourceId: location.sourceId,
-        path: location.path,
+    FolderLocation at(String path) => FolderLocation(
+      sourceId: location.sourceId,
+      sourceName: location.sourceName,
+      path: path,
+    );
+    void backTo(String? path) {
+      final target = path == null ? null : at(path);
+      Navigator.of(context).popUntil(
+        (route) =>
+            route == origin ||
+            (target != null && route.settings.arguments == target) ||
+            route.isFirst,
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: Text(location.name)),
+      body: PagedTrackList(
+        list: ref.watch(folderTracksListProvider(folderKeyOf(location))),
+        showHeaderWhenEmpty: true,
+        playContext: PlayContextDto.folder(
+          sourceId: location.sourceId,
+          path: location.path,
+        ),
+        header: _FolderHeader(
+          location: location,
+          onBackTo: backTo,
+          onOpen: (path) => _openFolderPage(context, at(path), origin),
+        ),
+        empty: const _NoDirectTracks(),
       ),
-      header: _FolderHeader(
-        location: location,
-        showBreadcrumb: true,
-        showFolders: true,
-      ),
-      empty: const _NoDirectTracks(),
     );
   }
 }
@@ -417,11 +444,7 @@ class _FolderTracksView extends ConsumerWidget {
         sourceId: location.sourceId,
         path: location.path,
       ),
-      header: _FolderHeader(
-        location: location,
-        showBreadcrumb: false,
-        showFolders: false,
-      ),
+      header: _FolderHeader(location: location),
       empty: const _NoDirectTracks(),
     );
   }
@@ -429,15 +452,11 @@ class _FolderTracksView extends ConsumerWidget {
 
 /// 目录头部：面包屑 + 目录名 + 播放按钮 + 计数 +（窄窗口的）子文件夹列表。
 class _FolderHeader extends ConsumerWidget {
-  const _FolderHeader({
-    required this.location,
-    required this.showBreadcrumb,
-    required this.showFolders,
-  });
+  const _FolderHeader({required this.location, this.onBackTo, this.onOpen});
 
   final FolderLocation location;
-  final bool showBreadcrumb;
-  final bool showFolders;
+  final ValueChanged<String?>? onBackTo;
+  final ValueChanged<String>? onOpen;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -452,26 +471,27 @@ class _FolderHeader extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (showBreadcrumb)
+          if (onBackTo != null)
             FolderBreadcrumb(
               location: location,
-              onRoots: () =>
-                  ref.read(selectedFolderProvider.notifier).set(null),
-              onSourceRoot: () => _enter(ref, ''),
-              onPath: (path) => _enter(ref, path),
+              onRoots: () => onBackTo!(null),
+              onSourceRoot: () => onBackTo!(''),
+              onPath: onBackTo!,
             ),
           const SizedBox(height: LekisSpacing.xs),
           Row(
             children: [
-              Expanded(
-                child: Text(
-                  location.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleLarge,
+              if (onOpen == null) ...[
+                Expanded(
+                  child: Text(
+                    location.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleLarge,
+                  ),
                 ),
-              ),
-              const SizedBox(width: LekisSpacing.sm),
+                const SizedBox(width: LekisSpacing.sm),
+              ],
               listing.when(
                 loading: () => const SizedBox.shrink(),
                 error: (_, _) => const SizedBox.shrink(),
@@ -494,12 +514,12 @@ class _FolderHeader extends ConsumerWidget {
               onRetry: () => ref.invalidate(folderListingProvider(key)),
             ),
             data: (listing) {
-              final folders = showFolders ? listing.folders : const [];
+              final folders = onOpen != null ? listing.folders : const [];
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    showFolders
+                    onOpen != null
                         ? context.l10n.pick(
                             '${listing.folders.length} 个文件夹 · 本目录 ${listing.trackCount} 首',
                             '${listing.folders.length} folders · ${listing.trackCount} songs here',
@@ -513,17 +533,19 @@ class _FolderHeader extends ConsumerWidget {
                       fontFeatures: LekisText.tabularFigures,
                     ),
                   ),
-                  if (showFolders && folders.isNotEmpty) ...[
+                  if (onOpen != null && folders.isNotEmpty) ...[
                     const SizedBox(height: LekisSpacing.sm),
                     for (final entry in folders)
                       _FolderRow(
                         icon: Icons.folder_outlined,
                         name: entry.name,
                         count: entry.trackCount,
-                        onTap: () => _enter(ref, entry.path),
+                        sourceId: location.sourceId,
+                        path: entry.path,
+                        onTap: () => onOpen!(entry.path),
                       ),
                     const Divider(height: LekisSpacing.xl),
-                  ] else if (showFolders) ...[
+                  ] else if (onOpen != null) ...[
                     const SizedBox(height: LekisSpacing.xs),
                     Text(
                       context.l10n.pick('没有子文件夹', 'No subfolders'),
@@ -539,18 +561,6 @@ class _FolderHeader extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  void _enter(WidgetRef ref, String path) {
-    ref
-        .read(selectedFolderProvider.notifier)
-        .set(
-          FolderLocation(
-            sourceId: location.sourceId,
-            sourceName: location.sourceName,
-            path: path,
-          ),
-        );
   }
 }
 
@@ -568,41 +578,80 @@ class _PlayFolderButton extends ConsumerWidget {
       ),
       onPressed: trackCount == 0
           ? null
-          : () async {
-              final ok = await ref
-                  .read(playerActionsProvider)
-                  .playFolder(location.sourceId, location.path);
-              if (!ok && context.mounted) {
-                ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      context.l10n.pick('无法播放这个文件夹', 'Cannot play this folder'),
-                    ),
-                  ),
-                );
-              }
-            },
+          : () => _playFolder(context, ref, location.sourceId, location.path),
       icon: const Icon(Icons.play_arrow_rounded),
       label: Text(context.l10n.pick('播放文件夹', 'Play Folder')),
     );
   }
 }
 
-class _FolderRow extends StatelessWidget {
+Future<void> _playFolder(
+  BuildContext context,
+  WidgetRef ref,
+  int sourceId,
+  String path, {
+  bool checkContents = false,
+}) async {
+  // Row counts include descendants. Folder playback only includes direct tracks.
+  if (checkContents) {
+    try {
+      final listing = await ref.read(
+        folderListingProvider((sourceId: sourceId, path: path)).future,
+      );
+      if (!context.mounted) return;
+      if (listing.trackCount == 0) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(
+              context.l10n.pick(
+                '这个文件夹没有直属曲目',
+                'No songs directly in this folder',
+              ),
+            ),
+          ),
+        );
+        return;
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)
+            ?.showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+      return;
+    }
+  }
+  if (!context.mounted) return;
+  final ok = await ref.read(playerActionsProvider).playFolder(sourceId, path);
+  if (!ok && context.mounted) {
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        content: Text(
+          context.l10n.pick('无法播放这个文件夹', 'Cannot play this folder'),
+        ),
+      ),
+    );
+  }
+}
+
+class _FolderRow extends ConsumerWidget {
   const _FolderRow({
     required this.icon,
+    required this.sourceId,
+    required this.path,
     required this.name,
     required this.count,
     required this.onTap,
   });
 
   final IconData icon;
+  final int sourceId;
+  final String path;
   final String name;
   final int count;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
     return PressFeedback(
@@ -632,9 +681,25 @@ class _FolderRow extends StatelessWidget {
                     fontFeatures: LekisText.tabularFigures,
                   ),
                 ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: colors.onSurfaceVariant,
+                LibraryBrowseMenu(
+                  title: name,
+                  subtitle: context.l10n.pick('$count 首歌曲', '$count songs'),
+                  openLabel: context.l10n.pick('打开文件夹', 'Open folder'),
+                  icon: Icons.folder_open_rounded,
+                  onOpen: onTap,
+                  playLabel: context.l10n.pick(
+                    '播放本层歌曲',
+                    'Play songs in this folder',
+                  ),
+                  onPlay: count == 0
+                      ? null
+                      : () => _playFolder(
+                          context,
+                          ref,
+                          sourceId,
+                          path,
+                          checkContents: true,
+                        ),
                 ),
               ],
             ),

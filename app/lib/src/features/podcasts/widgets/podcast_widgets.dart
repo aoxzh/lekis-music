@@ -4,6 +4,7 @@ import 'package:lekis/src/features/podcasts/podcast_providers.dart';
 import 'package:lekis/src/features/podcasts/podcast_strings.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// 网络封面；没有地址或加载失败时显示占位。
@@ -322,19 +323,22 @@ class PodcastEpisodeTile extends StatelessWidget {
               ),
           ],
         ),
-        trailing: PopupMenuButton<String>(
+        trailing: LekisActionMenuButton<String>(
+          title: episode.title,
+          subtitle: episode.podcastTitle,
           tooltip: PodcastStrings.more,
           onSelected: (value) {
             if (value == 'played') onTogglePlayed();
           },
-          itemBuilder: (_) => [
-            PopupMenuItem(
-              value: 'played',
-              child: Text(
-                episode.played
-                    ? PodcastStrings.markUnplayed
-                    : PodcastStrings.markPlayed,
-              ),
+          actions: () => [
+            LekisMenuAction(
+              'played',
+              episode.played
+                  ? Icons.replay_rounded
+                  : Icons.check_circle_outline_rounded,
+              episode.played
+                  ? PodcastStrings.markUnplayed
+                  : PodcastStrings.markPlayed,
             ),
           ],
         ),

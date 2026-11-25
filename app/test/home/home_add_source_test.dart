@@ -58,12 +58,17 @@ void main() {
       await tester.tap(find.text(SourcesStrings.kindLocal));
       await tester.pumpAndSettle();
       expect(find.byType(SourceForm), findsOneWidget);
-      await tester.tap(
-        find.descendant(
-          of: find.byType(SourceForm),
-          matching: find.byTooltip(SourcesStrings.back),
-        ),
-      );
+      if (wide) {
+        await tester.tap(
+          find.descendant(
+            of: find.byType(SourceForm),
+            matching: find.byTooltip(SourcesStrings.back),
+          ),
+        );
+      } else {
+        expect(find.byType(BackButton), findsOneWidget);
+        await tester.binding.handlePopRoute();
+      }
       await tester.pumpAndSettle();
       expect(find.byType(SourceKindChooser), findsOneWidget);
       if (wide) {

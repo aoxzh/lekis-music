@@ -273,7 +273,7 @@ void main() {
           await tester.tap(find.text('Scope'));
           await tester.pumpAndSettle();
           final hint = find.descendant(
-            of: find.byType(SimpleDialog),
+            of: find.byType(BottomSheet),
             matching: find.textContaining(label),
           );
           expect(hint, findsOneWidget);
@@ -323,16 +323,25 @@ void main() {
       confidence: .7,
     );
     await mount(tester);
+    final editor = find.byKey(const ValueKey('lyrics-editor.content'));
+    await tester.ensureVisible(editor);
+    await tester.enterText(editor, 'Unsaved rehearsal lyrics');
     final preview = find.byKey(const ValueKey('lyrics-editor.preview.20'));
     await tester.ensureVisible(preview);
+    final offset = Scrollable.of(tester.element(preview)).position.pixels;
     await tester.tap(preview);
     await tester.pumpAndSettle();
     expect(find.text('Preview line'), findsOneWidget);
     expect(find.textContaining('<tt>'), findsNothing);
     expect(api.activations, isEmpty);
-    expect(content(tester), embedded.content);
-    await tester.tap(find.text('关闭'));
+    expect(find.byKey(const ValueKey('lyrics-editor.save')), findsNothing);
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
+    expect(content(tester), 'Unsaved rehearsal lyrics');
+    expect(
+      Scrollable.of(tester.element(preview)).position.pixels,
+      closeTo(offset, 1),
+    );
     await tester.tap(find.byKey(const ValueKey('lyrics-editor.version.20')));
     await tester.pumpAndSettle();
     expect(api.activations, [20]);

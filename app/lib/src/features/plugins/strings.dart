@@ -127,7 +127,7 @@ abstract final class PluginStrings {
   static String get settingKey => L10n.tr('设置键', 'Key');
   static String get help => L10n.tr('帮助', 'Help');
 
-  static String get pluginDir => L10n.tr('插件目录', 'Plugins Folder');
+  static String get pluginDir => L10n.tr('本地插件文件夹', 'Local plugins folder');
   static String get pluginDirHint => L10n.tr(
     '把插件文件夹或 .zip 放到这里也可以在下次启动时被扫描到。',
     'You can also drop plugin folders or .zip files here for next launch.',

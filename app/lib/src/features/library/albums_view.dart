@@ -23,12 +23,19 @@ int albumGridColumns(double width) => math.max(
   ((width + LekisSpacing.lg) / (albumGridMaxExtent + LekisSpacing.lg)).ceil(),
 );
 
+typedef AlbumMenuBuilder = Widget Function(
+  BuildContext context,
+  AlbumDto album,
+  VoidCallback open,
+);
+
 /// Paged album grid.
 class AlbumGrid extends ConsumerStatefulWidget {
   const AlbumGrid({
     super.key,
     required this.onOpen,
     this.selectedId,
+    this.menuBuilder,
     this.list,
     this.empty = const LibraryEmptyState(),
   });
@@ -39,6 +46,7 @@ class AlbumGrid extends ConsumerStatefulWidget {
 
   final void Function(AlbumDto album) onOpen;
   final int? selectedId;
+  final AlbumMenuBuilder? menuBuilder;
   final PagedList<AlbumDto>? list;
   final Widget empty;
 
@@ -101,12 +109,14 @@ class _AlbumGridState extends ConsumerState<AlbumGrid> {
           itemBuilder: (context, i) {
             final album = list.itemAt(i);
             if (album == null) return SkeletonAlbumCard(index: i);
+            void open() => widget.onOpen(album);
             return AlbumCard(
               album: album,
               useListedArtwork: widget.list != null,
               selected: album.id == widget.selectedId,
               heroTag: AlbumHeroTag(album.id, AlbumGrid.heroScope),
-              onTap: () => widget.onOpen(album),
+              onTap: open,
+              menu: widget.menuBuilder?.call(context, album, open),
             );
           },
         ),

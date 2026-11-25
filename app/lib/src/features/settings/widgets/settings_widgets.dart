@@ -15,6 +15,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../../l10n/app_l10n.dart';
 import '../../../platform/ui_profile.dart';
 import '../../../theme/theme.dart';
+import '../../../widgets/action_menu.dart';
 import '../../library/widgets/page_gutter.dart';
 import '../../sources/common.dart';
 import 'settings_reveal.dart';
@@ -65,13 +66,14 @@ class SettingsPageHeader extends StatelessWidget {
     final gutter = pageGutterOf(context);
     final canPop = ModalRoute.of(context)?.impliesAppBarDismissal ?? false;
     final theme = Theme.of(context);
+    final compactHeader = canPop && !_desktop;
     return Padding(
       padding: EdgeInsets.fromLTRB(
         // 返回按钮的图标和下方内容的左边缘对齐。
         canPop ? gutter - LekisSpacing.md : gutter,
-        LekisSpacing.lg,
+        compactHeader ? LekisSpacing.xs : LekisSpacing.lg,
         gutter - LekisSpacing.sm,
-        LekisSpacing.md,
+        compactHeader ? LekisSpacing.xs : LekisSpacing.md,
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: LekisSizes.touchTargetMin),
@@ -90,6 +92,8 @@ class SettingsPageHeader extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: _desktop
                       ? LekisDesktopText.of(context).pageTitle
+                      : compactHeader
+                      ? theme.textTheme.titleLarge
                       : theme.textTheme.headlineMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
@@ -254,8 +258,7 @@ class SettingsSectionHeader extends StatelessWidget {
                 style: _desktop
                     ? LekisDesktopText.of(context).sectionHeader
                     : text.labelLarge?.copyWith(
-                        color: context.lekisColors.onSurfaceVariant,
-                        letterSpacing: 0.4,
+                        color: context.lekisColors.accent,
                       ),
               ),
             ),
@@ -429,6 +432,7 @@ class SettingsTile extends StatelessWidget {
     super.key,
     required this.icon,
     required this.title,
+    this.annotation,
     this.subtitle,
     this.trailing,
     this.onTap,
@@ -438,6 +442,9 @@ class SettingsTile extends StatelessWidget {
 
   final IconData icon;
   final String title;
+
+  /// Short status beside the title. Wraps without narrowing the subtitle.
+  final String? annotation;
 
   /// 说明文字；默认用 bodySmall（元信息色），可以覆盖颜色。
   final Widget? subtitle;
@@ -454,20 +461,27 @@ class SettingsTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
-    if (selected) {
-      return Semantics(
-        selected: true,
-        child: DecoratedBox(
-          decoration: settingsPanelDecoration(context),
-          child: _build(context, theme, colors),
-        ),
-      );
-    }
-    return _build(context, theme, colors);
+    final row = _build(context, theme, colors);
+    if (onTap == null && !selected) return row;
+    return Semantics(
+      container: true,
+      button: onTap == null ? null : true,
+      selected: selected ? true : null,
+      child: selected
+          ? DecoratedBox(
+              decoration: settingsPanelDecoration(context),
+              child: row,
+            )
+          : row,
+    );
   }
 
   Widget _build(BuildContext context, ThemeData theme, LekisColors colors) {
     final desktop = _desktop ? LekisDesktopText.of(context) : null;
+    final label = Text(
+      title,
+      style: desktop?.rowTitle ?? theme.textTheme.bodyLarge,
+    );
     final end = chevron
         ? Row(
             mainAxisSize: MainAxisSize.min,
@@ -505,10 +519,22 @@ class SettingsTile extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: desktop?.rowTitle ?? theme.textTheme.bodyLarge,
-                    ),
+                    if (annotation == null)
+                      label
+                    else
+                      Wrap(
+                        spacing: LekisSpacing.sm,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          label,
+                          Text(
+                            annotation!,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: colors.accent,
+                            ),
+                          ),
+                        ],
+                      ),
                     if (subtitle != null) ...[
                       const SizedBox(height: LekisSpacing.xxs),
                       DefaultTextStyle.merge(
@@ -686,6 +712,88 @@ class SettingsChoice<T> {
   final bool enabled;
 }
 
+/// A settings value that opens a choice list. Wrapping the result in
+/// SettingsChoice keeps a nullable value (system default) distinct from Cancel.
+class SettingsSelectField<T> extends StatelessWidget {
+  const SettingsSelectField({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.value,
+    required this.choices,
+    required this.onChanged,
+  });
+
+  final String title;
+  final IconData icon;
+  final T value;
+  final List<SettingsChoice<T>> choices;
+  final ValueChanged<T>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final select = onChanged;
+    if (_desktop) {
+      return SettingsComboBox<T>(
+        value: value,
+        choices: choices,
+        onChanged: choices.isEmpty ? null : select,
+      );
+    }
+    final selected = choices
+        .where((choice) => choice.value == value)
+        .firstOrNull;
+    final colors = context.lekisColors;
+    return Semantics(
+      label: title,
+      child: OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, LekisSizes.touchTargetMin),
+          backgroundColor: colors.surfaceVariant,
+          foregroundColor: Theme.of(context).colorScheme.onSurface,
+          side: BorderSide.none,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(LekisRadius.md),
+          ),
+        ),
+        onPressed: select == null || !choices.any((item) => item.enabled)
+            ? null
+            : () async {
+                FocusManager.instance.primaryFocus?.unfocus();
+                final result = await showLekisActionList<SettingsChoice<T>>(
+                  context,
+                  title: title,
+                  actions: [
+                    for (final choice in choices)
+                      LekisMenuAction(
+                        choice,
+                        icon,
+                        choice.label,
+                        enabled: choice.enabled,
+                        selected: value == choice.value,
+                      ),
+                  ],
+                );
+                if (context.mounted && result != null) select(result.value);
+              },
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                selected?.label ?? '—',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: LekisSpacing.sm),
+            Icon(Icons.expand_more_rounded, color: colors.onSurfaceVariant),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// 桌面的下拉框（Windows 的 ComboBox）：当前值 + 向下箭头，点开是菜单，
 /// 当前项前面打勾。支持键盘（方向键 / Enter / Esc）和鼠标悬停。
 class SettingsComboBox<T> extends StatelessWidget {
@@ -825,22 +933,41 @@ class _SettingsDropdownTileState<T> extends State<SettingsDropdownTile<T>> {
   final _menu = MenuController();
 
   @override
-  Widget build(BuildContext context) => SettingsTile(
-    icon: widget.icon,
-    title: widget.title,
-    subtitle: widget.subtitle == null ? null : Text(widget.subtitle!),
-    onTap: widget.onChanged == null ? null : _menu.open,
-    trailing: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ...widget.leading,
-        SettingsComboBox<T>(
-          controller: _menu,
+  Widget build(BuildContext context) {
+    if (!_desktop) {
+      return SettingsBlockTile(
+        icon: widget.icon,
+        title: widget.title,
+        hint: widget.subtitle,
+        trailing: widget.leading.isEmpty
+            ? null
+            : Row(mainAxisSize: MainAxisSize.min, children: widget.leading),
+        child: SettingsSelectField<T>(
+          icon: widget.icon,
+          title: widget.title,
           value: widget.value,
           choices: widget.choices,
           onChanged: widget.onChanged,
         ),
-      ],
-    ),
-  );
+      );
+    }
+    return SettingsTile(
+      icon: widget.icon,
+      title: widget.title,
+      subtitle: widget.subtitle == null ? null : Text(widget.subtitle!),
+      onTap: widget.onChanged == null ? null : _menu.open,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ...widget.leading,
+          SettingsComboBox<T>(
+            controller: _menu,
+            value: widget.value,
+            choices: widget.choices,
+            onChanged: widget.onChanged,
+          ),
+        ],
+      ),
+    );
+  }
 }

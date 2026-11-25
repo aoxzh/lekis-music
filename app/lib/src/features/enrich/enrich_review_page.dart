@@ -1,6 +1,7 @@
 // 补全确认页：自动找到但把握不大的封面 / 歌词 / 标签，在这里逐条确认；
 // 同时提供「补全封面 / 歌词」入口，支持选择仅补全封面、仅补全歌词或全部补全。
 
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -97,11 +98,11 @@ class EnrichReviewPage extends ConsumerWidget {
   }
 
   Future<void> _acceptAll(BuildContext context, WidgetRef ref, int n) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(EnrichStrings.acceptAllConfirmTitle),
-        content: Text(EnrichStrings.acceptAllConfirmBody(n)),
+    final ok = await showLekisPanel<bool>(
+      context,
+      builder: (context) => LekisPanel(
+        title: EnrichStrings.acceptAllConfirmTitle,
+        body: Text(EnrichStrings.acceptAllConfirmBody(n)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),

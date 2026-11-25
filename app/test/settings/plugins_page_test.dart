@@ -10,6 +10,7 @@ import 'package:lekis/src/features/plugins/strings.dart';
 import 'package:lekis/src/features/settings/settings_page.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 PluginInfoDto _plugin({
@@ -169,7 +170,7 @@ void main() {
       first.completeError(const FormatException('test catalog'));
       await tester.pumpAndSettle();
       expect(find.textContaining(PluginStrings.catalogFailed), findsOneWidget);
-      await tester.tap(find.text(PluginStrings.retry));
+      await tester.tap(find.byTooltip(PluginStrings.retry));
       await tester.pumpAndSettle();
       expect(reads, 2);
       expect(find.text(PluginStrings.installed), findsOneWidget);
@@ -181,7 +182,7 @@ void main() {
       await tester.ensureVisible(install);
       await tester.tap(install);
       await tester.pumpAndSettle();
-      final dialog = find.byType(AlertDialog);
+      final dialog = find.byType(LekisPanel);
       expect(
         find.descendant(
           of: dialog,
@@ -223,6 +224,38 @@ void main() {
       await tester.tap(find.text('取消'));
       await tester.pumpAndSettle();
       expect(find.text('还没有安装插件'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'back from an install link restores the install options in the same panel',
+    (tester) async {
+      await tester.pumpWidget(_page(const []));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip(PluginStrings.install));
+      await tester.pumpAndSettle();
+      final panel = tester.element(find.byType(LekisPanel));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(LekisPanel),
+          matching: find.text(PluginStrings.installLink),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.element(find.byType(LekisPanel)), same(panel));
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(tester.element(find.byType(LekisPanel)), same(panel));
+      expect(
+        find.descendant(
+          of: find.byType(LekisPanel),
+          matching: find.text(PluginStrings.installZip),
+        ),
+        findsOneWidget,
+      );
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byType(LekisPanel), findsNothing);
     },
   );
 

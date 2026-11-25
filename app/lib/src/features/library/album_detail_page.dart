@@ -19,6 +19,7 @@ import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:lekis/src/widgets/route_entrance.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Album detail as its own page (compact windows).
@@ -322,22 +323,27 @@ class _AlbumHeader extends ConsumerWidget {
                   trackIds: trackIds,
                   albumId: album.id.toInt(),
                 ),
-                trailing: [
-                  IconButton(
-                    tooltip: context.l10n.pick('导出整张专辑', 'Export album'),
-                    onPressed: () => showMusicExport(context, albumId: album.id),
-                    icon: const Icon(Icons.drive_file_move_outline),
+                menuTitle: album.title,
+                menuSubtitle: meta,
+                moreActions: [
+                  LekisMenuAction(
+                    () => showMusicExport(context, albumId: album.id),
+                    Icons.drive_file_move_outline,
+                    context.l10n.pick('导出整张专辑', 'Export album'),
+                    startsGroup: true,
                   ),
+                  if (onCopy != null)
+                    LekisMenuAction(
+                      onCopy!,
+                      Icons.content_copy_rounded,
+                      context.l10n.pick('复制曲目列表', 'Copy Track List'),
+                    ),
+                ],
+                trailing: [
                   if (downloadableTrackIds.isNotEmpty)
                     BatchDownloadButton(
                       trackIds: downloadableTrackIds,
                       tooltip: context.l10n.pick('下载整张专辑', 'Download Album'),
-                    ),
-                  if (onCopy != null)
-                    IconButton(
-                      tooltip: context.l10n.pick('复制曲目列表', 'Copy Track List'),
-                      onPressed: onCopy,
-                      icon: const Icon(Icons.content_copy_rounded),
                     ),
                 ],
               ),
@@ -386,6 +392,9 @@ class PlayShuffleButtons extends StatelessWidget {
     this.queueTrackIds = const [],
     this.onEnrich,
     this.onChangeArtwork,
+    this.menuTitle,
+    this.menuSubtitle,
+    this.moreActions = const [],
     this.alignment = WrapAlignment.center,
     this.trailing = const [],
   });
@@ -401,6 +410,10 @@ class PlayShuffleButtons extends StatelessWidget {
 
   /// 非空时"更多"菜单里多一项"更换封面…"。
   final VoidCallback? onChangeArtwork;
+
+  final String? menuTitle;
+  final String? menuSubtitle;
+  final List<LekisMenuAction<VoidCallback>> moreActions;
 
   final WrapAlignment alignment;
 
@@ -431,66 +444,49 @@ class PlayShuffleButtons extends StatelessWidget {
           icon: const Icon(Icons.shuffle_rounded),
           label: Text(context.l10n.pick('随机播放', 'Shuffle')),
         ),
-        if (queueTrackIds.isNotEmpty)
-          PopupMenuButton<String>(
+        if (queueTrackIds.isNotEmpty || moreActions.isNotEmpty)
+          LekisActionMenuButton<VoidCallback>(
+            title: menuTitle ?? context.l10n.pick('更多操作', 'More Actions'),
+            subtitle: menuSubtitle,
             key: const ValueKey('play-shuffle.queue-menu'),
             tooltip: context.l10n.pick('更多操作', 'More Actions'),
-            icon: const Icon(Icons.more_horiz_rounded),
-            onSelected: (value) => switch (value) {
-              'next' => queueTracks(
-                context,
-                queueTrackIds,
-                where: QueuePlacement.next,
-              ),
-              'end' => queueTracks(
-                context,
-                queueTrackIds,
-                where: QueuePlacement.end,
-              ),
-              'artwork' => onChangeArtwork?.call(),
-              _ => onEnrich?.call(),
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'next',
-                child: ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.queue_play_next_rounded),
-                  title: Text(QueueStrings.playNext),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'end',
-                child: ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.add_to_queue_rounded),
-                  title: Text(QueueStrings.addToQueue),
-                ),
-              ),
-              if (onEnrich != null) ...[
-                const PopupMenuDivider(),
-                PopupMenuItem(
-                  value: 'enrich',
-                  child: ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.auto_fix_high_rounded),
-                    title: Text(EnrichActionStrings.action),
+            onSelected: (run) => run(),
+            actions: () => [
+              if (queueTrackIds.isNotEmpty) ...[
+                LekisMenuAction(
+                  () => queueTracks(
+                    context,
+                    queueTrackIds,
+                    where: QueuePlacement.next,
                   ),
+                  Icons.queue_play_next_rounded,
+                  QueueStrings.playNext,
+                ),
+                LekisMenuAction(
+                  () => queueTracks(
+                    context,
+                    queueTrackIds,
+                    where: QueuePlacement.end,
+                  ),
+                  Icons.add_to_queue_rounded,
+                  QueueStrings.addToQueue,
                 ),
               ],
-              if (onChangeArtwork != null)
-                PopupMenuItem(
-                  value: 'artwork',
-                  child: ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.image_outlined),
-                    title: Text(ArtworkActionStrings.change),
-                  ),
+              if (onEnrich != null)
+                LekisMenuAction(
+                  onEnrich!,
+                  Icons.auto_fix_high_rounded,
+                  EnrichActionStrings.action,
+                  startsGroup: true,
                 ),
+              if (onChangeArtwork != null)
+                LekisMenuAction(
+                  onChangeArtwork!,
+                  Icons.image_outlined,
+                  ArtworkActionStrings.change,
+                  startsGroup: onEnrich == null,
+                ),
+              ...moreActions,
             ],
           ),
         ...trailing,

@@ -3,6 +3,7 @@
 import 'dart:io' show Platform;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../rust/api/core.dart' as core;
@@ -250,11 +251,11 @@ class _SourceDetailState extends ConsumerState<SourceDetail> {
   }
 
   Future<void> _delete(BuildContext context, SourceConfigDto source) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(SourcesStrings.deleteTitle),
-        content: Text(SourcesStrings.deleteBody(source.name)),
+    final confirmed = await showLekisPanel<bool>(
+      context,
+      builder: (dialogContext) => LekisPanel(
+        title: SourcesStrings.deleteTitle,
+        body: Text(SourcesStrings.deleteBody(source.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -333,12 +334,11 @@ class _SourceDetailState extends ConsumerState<SourceDetail> {
 
 /// 解释 Android 上为什么需要“音乐和音频”权限。
 Future<void> showAndroidPermissionDialog(BuildContext context) =>
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        icon: const Icon(Icons.folder_off_outlined),
-        title: Text(SourcesStrings.androidPermissionTitle),
-        content: Text(SourcesStrings.androidPermissionBody),
+    showLekisPanel<void>(
+      context,
+      builder: (context) => LekisPanel(
+        title: SourcesStrings.androidPermissionTitle,
+        body: Text(SourcesStrings.androidPermissionBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),

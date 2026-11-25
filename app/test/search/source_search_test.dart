@@ -79,8 +79,8 @@ final results = SearchResultsDto(
 void main() {
   final boundaryKey = GlobalKey();
   Finder sourcePicker() =>
-      find.byType(DropdownButton<String>).evaluate().isNotEmpty
-      ? find.byType(DropdownButton<String>)
+      find.byKey(const ValueKey('search-source-picker')).evaluate().isNotEmpty
+      ? find.byKey(const ValueKey('search-source-picker'))
       : find.descendant(
           of: find.byType(SettingsComboBox<String>),
           matching: find.byType(OutlinedButton),
@@ -395,6 +395,34 @@ void main() {
     });
   }
 
+  for (final profile in [UiProfile.mobile, UiProfile.desktop]) {
+    testWidgets(
+      'result menu closes before the playlist editor on ${profile.formFactor.name}',
+      (tester) async {
+        UiProfile.debugOverride = profile;
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(390, 844);
+        addTearDown(tester.view.reset);
+        await mount(tester);
+        await tester.tap(find.byTooltip('More Actions').first);
+        await tester.pumpAndSettle();
+        final action = find.text('Save as Playlist');
+        final menu = ModalRoute.of(tester.element(action))!;
+        await tester.tap(action);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(find.widgetWithText(TextField, 'Playlist name'), findsNothing);
+        await tester.pumpAndSettle();
+        expect(menu.overlayEntries, isEmpty);
+        expect(find.widgetWithText(TextField, 'Playlist name'), findsOneWidget);
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect(find.text('Evening light'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('source picker switches between installed source and library', (
     tester,
   ) async {
@@ -546,10 +574,6 @@ void main() {
       if (desktop) {
         await tester.tap(find.byType(OutlinedButton));
       } else {
-        final picker = tester.widget<DropdownButton<String>>(
-          find.byType(DropdownButton<String>),
-        );
-        expect(picker.underline, isA<SizedBox>());
         await tester.tap(sourcePicker());
       }
       await tester.pumpAndSettle();

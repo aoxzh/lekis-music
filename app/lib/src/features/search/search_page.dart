@@ -27,6 +27,7 @@ import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Which search result group is shown. The chips only appear when more than
@@ -489,28 +490,46 @@ class _SearchTools extends StatelessWidget {
                                 0,
                                 source == null ? 104 : 154,
                               ),
-                              child: DropdownButton<String>(
-                                value: source ?? '',
-                                isExpanded: true,
-                                underline: const SizedBox.shrink(),
-                                borderRadius: BorderRadius.circular(
-                                  LekisRadius.md,
-                                ),
-                                style: theme.textTheme.bodyMedium,
-                                items: [
+                              child: LekisActionMenuButton<String>(
+                                key: const ValueKey('search-source-picker'),
+                                title: scope,
+                                tooltip: scope,
+                                onSelected: onSelect,
+                                actions: () => [
                                   for (final choice in choices)
-                                    DropdownMenuItem(
-                                      value: choice.value,
-                                      child: Text(
-                                        choice.label,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
+                                    LekisMenuAction(
+                                      choice.value,
+                                      choice.value.isEmpty
+                                          ? Icons.library_music_outlined
+                                          : Icons.extension_outlined,
+                                      choice.label,
+                                      selected: choice.value == (source ?? ''),
                                     ),
                                 ],
-                                onChanged: (value) {
-                                  if (value != null) onSelect(value);
-                                },
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    minHeight: LekisSizes.touchTargetMin,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          choices
+                                              .firstWhere(
+                                                (choice) =>
+                                                    choice.value ==
+                                                    (source ?? ''),
+                                              )
+                                              .label,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: theme.textTheme.bodyMedium,
+                                        ),
+                                      ),
+                                      const Icon(Icons.arrow_drop_down_rounded),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
                     )
@@ -677,7 +696,8 @@ class _Results extends ConsumerWidget {
                       .playRows(tracks, shuffle: true),
                   icon: const Icon(Icons.shuffle_rounded),
                 ),
-                PopupMenuButton<String>(
+                LekisActionMenuButton<String>(
+                  title: context.l10n.pick('搜索结果', 'Search Results'),
                   tooltip: l10n.pick('更多操作', 'More Actions'),
                   onSelected: (value) {
                     switch (value) {
@@ -718,26 +738,16 @@ class _Results extends ConsumerWidget {
                         unawaited(startDownloads(context, ref, ids));
                     }
                   },
-                  itemBuilder: (_) => [
-                    PopupMenuItem(
-                      value: 'save',
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.playlist_add_rounded),
-                        title: Text(l10n.pick('保存为歌单', 'Save as Playlist')),
-                      ),
+                  actions: () => [
+                    LekisMenuAction(
+                      'save',
+                      Icons.playlist_add_rounded,
+                      context.l10n.pick('保存为歌单', 'Save as Playlist'),
                     ),
-                    PopupMenuItem(
-                      value: 'download',
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(
-                          Icons.download_for_offline_outlined,
-                        ),
-                        title: Text(l10n.pick('下载全部', 'Download All')),
-                      ),
+                    LekisMenuAction(
+                      'download',
+                      Icons.download_for_offline_outlined,
+                      context.l10n.pick('下载全部', 'Download All'),
                     ),
                   ],
                 ),

@@ -21,6 +21,30 @@ import '../platform/ui_profile.dart';
 import '../theme/tokens.dart';
 import 'glass.dart';
 
+/// Timing shared by menus, sheets and their follow-up dialogs.
+AnimationStyle lekisPanelMotion(BuildContext context) =>
+    MediaQuery.disableAnimationsOf(context) ||
+        MediaQuery.reduceMotionOf(context)
+    ? AnimationStyle.noAnimation
+    : const AnimationStyle(
+        duration: LekisMotion.normal,
+        reverseDuration: LekisMotion.fast,
+      );
+
+// A selection may open another surface or dispose an editor's controller.
+Future<T?> _presentSurface<T>(
+  WidgetBuilder builder,
+  Future<T?> Function(WidgetBuilder) present,
+) async {
+  Future<Object?>? dismissed;
+  final result = await present((context) {
+    dismissed = ModalRoute.of(context)?.completed;
+    return builder(context);
+  });
+  await dismissed;
+  return result;
+}
+
 /// Widest an editor dialog gets.
 const double lekisPanelMaxWidth = 620;
 
@@ -31,30 +55,32 @@ Future<T?> showLekisPanel<T>(
   BuildContext context, {
   required WidgetBuilder builder,
   bool dismissible = true,
-}) {
+}) => _presentSurface<T>(builder, (builder) {
   // The calling subtree's theme: on-media when this panel was opened from
   // Now Playing. Nothing here may force the app theme back on.
   final theme = Theme.of(context);
+  final glass = theme.extension<LekisSurfaceStyle>()?.onMedia ?? false;
   Widget themed(BuildContext context, bool sheet) => Theme(
     data: theme,
     child: _LekisPanelMode(
       sheet: sheet,
+      showHandle: sheet && (dismissible || glass),
       child: Builder(builder: builder),
     ),
   );
-  final glass = theme.extension<LekisSurfaceStyle>()?.onMedia ?? false;
 
   if (context.widthClass == WindowWidthClass.compact &&
       UiProfile.current.prefersSheets) {
     return showModalBottomSheet<T>(
       context: context,
       useRootNavigator: true,
+      sheetAnimationStyle: lekisPanelMotion(context),
       isScrollControlled: true,
       useSafeArea: true,
       // On media the handle is drawn inside the glass (see [LekisPanel]): the
       // framework's handle sits above the sheet's own background, which is
       // transparent there, so it floated over an unblurred band of artwork.
-      showDragHandle: !glass,
+      showDragHandle: dismissible && !glass,
       isDismissible: dismissible,
       enableDrag: dismissible,
       // The panel paints its own glass on media; a bar of opaque colour
@@ -68,12 +94,13 @@ Future<T?> showLekisPanel<T>(
   }
   return showDialog<T>(
     context: context,
+    animationStyle: lekisPanelMotion(context),
     useRootNavigator: true,
     barrierDismissible: dismissible,
     barrierColor: theme.dialogTheme.barrierColor,
     builder: (context) => themed(context, false),
   );
-}
+});
 
 /// Opens [builder] as a modal bottom sheet that always stays a sheet on
 /// mobile, for the surfaces that belong at the bottom of the window on every
@@ -89,7 +116,7 @@ Future<T?> showLekisSheet<T>(
   double? heightFactor = 0.62,
   bool isDismissible = true,
   bool showDragHandle = true,
-}) {
+}) => _presentSurface<T>(builder, (builder) {
   if (!UiProfile.current.prefersSheets) {
     return _showSheetAsDialog<T>(
       context,
@@ -133,6 +160,7 @@ Future<T?> showLekisSheet<T>(
   return showModalBottomSheet<T>(
     context: context,
     useRootNavigator: true,
+    sheetAnimationStyle: lekisPanelMotion(context),
     isScrollControlled: true,
     useSafeArea: true,
     showDragHandle: showDragHandle && !glass,
@@ -144,7 +172,7 @@ Future<T?> showLekisSheet<T>(
     barrierColor: theme.bottomSheetTheme.modalBarrierColor,
     builder: (context) => Theme(data: theme, child: framed(context)),
   );
-}
+});
 
 /// Width of a sheet's content when it opens as a desktop dialog.
 const double lekisSheetDialogWidth = 480;
@@ -161,6 +189,7 @@ Future<T?> _showSheetAsDialog<T>(
   final theme = Theme.of(context);
   return showDialog<T>(
     context: context,
+    animationStyle: lekisPanelMotion(context),
     useRootNavigator: true,
     barrierDismissible: isDismissible,
     barrierColor: theme.dialogTheme.barrierColor,
@@ -265,12 +294,36 @@ class _PanelGlass extends StatelessWidget {
 }
 
 class _LekisPanelMode extends InheritedWidget {
-  const _LekisPanelMode({required this.sheet, required super.child});
+  const _LekisPanelMode({
+    required this.sheet,
+    required this.showHandle,
+    required super.child,
+  });
 
   final bool sheet;
+  final bool showHandle;
 
   @override
-  bool updateShouldNotify(_LekisPanelMode old) => old.sheet != sheet;
+  bool updateShouldNotify(_LekisPanelMode old) =>
+      old.sheet != sheet || old.showHandle != showHandle;
+}
+
+// The outer scroll view stores its position for each step. Form controls such
+// as ExpansionTile and EditableText keep their own, differently typed state.
+class _StepFormStorage extends StatefulWidget {
+  const _StepFormStorage({required this.child});
+  final Widget child;
+
+  @override
+  State<_StepFormStorage> createState() => _StepFormStorageState();
+}
+
+class _StepFormStorageState extends State<_StepFormStorage> {
+  final _bucket = PageStorageBucket();
+
+  @override
+  Widget build(BuildContext context) =>
+      PageStorage(bucket: _bucket, child: widget.child);
 }
 
 /// Header (title, subtitle, close), scrolling body, footer (error + actions).
@@ -287,6 +340,7 @@ class LekisPanel extends StatelessWidget {
     this.error,
     this.onClose,
     this.scrollBody = true,
+    this.step,
   });
 
   final String title;
@@ -305,27 +359,28 @@ class LekisPanel extends StatelessWidget {
   /// `false` when [body] scrolls (or sizes) itself.
   final bool scrollBody;
 
+  /// Identifies a step within this route. Returning to a step restores its scroll offset.
+  final String? step;
+
   /// Vertical gap between form fields.
   static const double fieldGap = LekisSpacing.md;
 
   /// Horizontal padding of header, body and footer.
   static const double gutter = LekisSpacing.xl;
 
-  static bool _isSheet(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<_LekisPanelMode>()?.sheet ??
-      false;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
-    final sheet = _isSheet(context);
+    final mode = context.dependOnInheritedWidgetOfExactType<_LekisPanelMode>();
+    final sheet = mode?.sheet ?? false;
+    final hasHandle = mode?.showHandle ?? false;
     final media = MediaQuery.of(context);
 
     final header = Padding(
       padding: EdgeInsets.fromLTRB(
         gutter,
-        sheet ? 0 : LekisSpacing.xl,
+        hasHandle ? 0 : LekisSpacing.xl,
         onClose == null ? gutter : LekisSpacing.md,
         LekisSpacing.md,
       ),
@@ -371,9 +426,21 @@ class LekisPanel extends StatelessWidget {
       gutter,
       LekisSpacing.lg,
     );
-    final content = scrollBody
-        ? SingleChildScrollView(padding: bodyPadding, child: body)
-        : Padding(padding: bodyPadding, child: body);
+    final scrollChild = step == null ? body : _StepFormStorage(child: body);
+    Widget content = scrollBody
+        ? SingleChildScrollView(padding: bodyPadding, child: scrollChild)
+        : Padding(padding: bodyPadding, child: scrollChild);
+
+    if (step != null) {
+      content = TweenAnimationBuilder<double>(
+        key: PageStorageKey(step),
+        duration: lekisPanelMotion(context).reverseDuration ?? Duration.zero,
+        tween: Tween(begin: 0, end: 1),
+        curve: Curves.easeOutCubic,
+        builder: (_, opacity, child) => Opacity(opacity: opacity, child: child),
+        child: content,
+      );
+    }
 
     final footer = (actions.isEmpty && error == null)
         ? null
@@ -426,6 +493,16 @@ class LekisPanel extends StatelessWidget {
       ],
     );
 
+    final frameContent = step == null
+        ? column
+        : AnimatedSize(
+            alignment: Alignment.topCenter,
+            duration:
+                lekisPanelMotion(context).reverseDuration ?? Duration.zero,
+            curve: Curves.easeOutCubic,
+            child: column,
+          );
+
     final onMedia = context.onMedia;
     // On artwork the panel paints its own dark glass; on regular pages the
     // theme's dialog / sheet surface does the job.
@@ -453,15 +530,15 @@ class LekisPanel extends StatelessWidget {
           child: SafeArea(
             top: false,
             child: frame(
-              onMedia
+              onMedia && hasHandle
                   ? Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const SheetGrabber(),
-                        Flexible(child: column),
+                        Flexible(child: frameContent),
                       ],
                     )
-                  : column,
+                  : frameContent,
               sheet: true,
             ),
           ),
@@ -480,7 +557,7 @@ class LekisPanel extends StatelessWidget {
           maxWidth: lekisPanelMaxWidth,
           maxHeight: media.size.height * 0.88,
         ),
-        child: frame(column, sheet: false),
+        child: frame(frameContent, sheet: false),
       ),
     );
   }

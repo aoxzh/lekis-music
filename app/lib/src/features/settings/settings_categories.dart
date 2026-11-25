@@ -5,6 +5,7 @@
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../l10n/app_l10n.dart';
@@ -400,27 +401,20 @@ class _PlaybackSection extends ConsumerWidget {
                   )
                 : output.devices.isEmpty
                 ? Text(SettingsStrings.noDevices, style: text.bodySmall)
-                : DropdownButton<String?>(
+                : SettingsSelectField<String?>(
+                    title: SettingsStrings.outputDevice,
+                    icon: Icons.speaker_outlined,
                     value: output.selectedDeviceId,
-                    isExpanded: true,
-                    underline: const SizedBox.shrink(),
-                    borderRadius: BorderRadius.circular(LekisRadius.md),
                     onChanged: (id) =>
                         settingsGuard(context, () => notifier.selectDevice(id)),
-                    items: [
-                      DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text(SettingsStrings.systemDefault),
-                      ),
+                    choices: [
+                      SettingsChoice(null, SettingsStrings.systemDefault),
                       for (final d in output.devices)
-                        DropdownMenuItem<String?>(
-                          value: d.id,
-                          child: Text(
-                            d.isDefault
-                                ? SettingsStrings.defaultSuffix(d.name)
-                                : d.name,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                        SettingsChoice(
+                          d.id,
+                          d.isDefault
+                              ? SettingsStrings.defaultSuffix(d.name)
+                              : d.name,
                         ),
                     ],
                   ),
@@ -1203,8 +1197,8 @@ class _ShortcutsSection extends StatelessWidget {
 
   Future<void> _showShortcuts(BuildContext context) async {
     final l10n = context.l10n;
-    await showDialog<void>(
-      context: context,
+    await showLekisPanel<void>(
+      context,
       builder: (dialog) {
         final theme = Theme.of(dialog);
         Widget row(String keys, String label) => Padding(
@@ -1212,8 +1206,7 @@ class _ShortcutsSection extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                width: 160,
+              Expanded(
                 child: Text(
                   keys,
                   style: theme.textTheme.labelLarge?.copyWith(
@@ -1225,31 +1218,29 @@ class _ShortcutsSection extends StatelessWidget {
             ],
           ),
         );
-        return AlertDialog(
-          title: Text(l10n.pick('播放快捷键', 'Playback Shortcuts')),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                row('Space', l10n.pick('播放 / 暂停', 'Play / pause')),
-                row(
-                  'Ctrl/Cmd + ← / →',
-                  l10n.pick('上一首 / 下一首', 'Previous / next'),
-                ),
-                row(
-                  'Ctrl/Cmd + ↑ / ↓',
-                  l10n.pick('音量 +5% / -5%', 'Volume +5% / -5%'),
-                ),
-                row(
-                  'Shift + ← / →',
-                  l10n.pick('后退 / 前进 10 秒', 'Seek -10s / +10s'),
-                ),
-                row(
-                  'Media keys',
-                  l10n.pick('播放/暂停、上一首、下一首', 'Play/pause, previous, next'),
-                ),
-              ],
-            ),
+        return LekisPanel(
+          title: l10n.pick('播放快捷键', 'Playback Shortcuts'),
+          body: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              row('Space', l10n.pick('播放 / 暂停', 'Play / pause')),
+              row(
+                'Ctrl/Cmd + ← / →',
+                l10n.pick('上一首 / 下一首', 'Previous / next'),
+              ),
+              row(
+                'Ctrl/Cmd + ↑ / ↓',
+                l10n.pick('音量 +5% / -5%', 'Volume +5% / -5%'),
+              ),
+              row(
+                'Shift + ← / →',
+                l10n.pick('后退 / 前进 10 秒', 'Seek -10s / +10s'),
+              ),
+              row(
+                'Media keys',
+                l10n.pick('播放/暂停、上一首、下一首', 'Play/pause, previous, next'),
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -1359,9 +1350,8 @@ class _AboutSectionState extends ConsumerState<_AboutSection> {
   Future<void> _showUpdateDialog() async {
     // The manual dialog replaces the proactive prompt for this session.
     ref.read(appUpdaterProvider.notifier).clearPromptPending();
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: true,
+    await showLekisPanel<void>(
+      context,
       builder: (dialogContext) =>
           AppUpdateDialog(onOpenLink: (url) => _openLink(context, url)),
     );

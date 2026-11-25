@@ -16,8 +16,9 @@ import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/nav_icon.dart' show lekisReduceMotion;
 import 'package:lekis/src/theme/tokens.dart';
-import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:lekis/src/widgets/list_motion.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 class QueueList extends ConsumerStatefulWidget {
@@ -282,11 +283,16 @@ class _QueueListState extends ConsumerState<QueueList>
                             initialLoved: row.loved,
                             size: 18,
                           ),
-                        PopupMenuButton<String>(
+                        LekisActionMenuButton<String>(
+                          title: row.title,
+                          subtitle: row.artistLine,
+                          compact: true,
+
                           tooltip: context.l10n.pick('队列操作', 'Queue actions'),
-                          padding: EdgeInsets.zero,
                           onSelected: (value) {
                             switch (value) {
+                              case 'next':
+                                moveToNext?.call();
                               case 'playlist':
                                 showAddToPlaylistSheet(
                                   context,
@@ -303,36 +309,26 @@ class _QueueListState extends ConsumerState<QueueList>
                                 }
                             }
                           },
-                          itemBuilder: (_) => [
+                          actions: () => [
                             if (moveToNext != null)
-                              PopupMenuItem(
-                                value: 'next',
-                                onTap: moveToNext,
-                                child: Text(moveToNextLabel(context)),
+                              LekisMenuAction(
+                                'next',
+                                Icons.queue_play_next_rounded,
+                                moveToNextLabel(context),
                               ),
-                            PopupMenuItem(
-                              value: 'playlist',
-                              child: Text(
-                                context.l10n.pick('添加到歌单', 'Add to Playlist'),
-                              ),
+                            LekisMenuAction(
+                              'playlist',
+                              Icons.playlist_add_rounded,
+                              context.l10n.pick('添加到歌单', 'Add to Playlist'),
                             ),
-                            PopupMenuItem(
-                              value: 'remove',
-                              child: Text(
-                                context.l10n.pick('从队列移除', 'Remove from Queue'),
-                              ),
+                            LekisMenuAction(
+                              'remove',
+                              Icons.close_rounded,
+                              context.l10n.pick('从队列移除', 'Remove from Queue'),
+                              destructive: true,
+                              startsGroup: true,
                             ),
                           ],
-                          // A 36 dp row action, matching the heart.
-                          child: SizedBox(
-                            width: 36,
-                            height: 36,
-                            child: Icon(
-                              Icons.more_horiz_rounded,
-                              size: 18,
-                              color: colors.onSurfaceVariant,
-                            ),
-                          ),
                         ),
                         ReorderableDragStartListener(
                           index: i,
@@ -378,7 +374,12 @@ Future<void> _showQueueBottomSheet(BuildContext context) {
     context,
     heightFactor: null,
     builder: (context) => Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      // Keep the queue still while a covering editor raises its keyboard.
+      padding: EdgeInsets.only(
+        bottom: ModalRoute.isCurrentOf(context) == true
+            ? MediaQuery.viewInsetsOf(context).bottom
+            : 0,
+      ),
       child: FractionallySizedBox(
         heightFactor: 0.62,
         child: Column(

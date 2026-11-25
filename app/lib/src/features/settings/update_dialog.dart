@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'app_updater_provider.dart';
@@ -32,9 +33,10 @@ class AppUpdateDialog extends ConsumerWidget {
     final canInApp = state.canInAppUpdate;
     final progress = state.progress;
 
-    return AlertDialog(
-      title: Text(SettingsStrings.updateAvailableTitle(info.version)),
-      content: ConstrainedBox(
+    return LekisPanel(
+      title: SettingsStrings.updateAvailableTitle(info.version),
+      scrollBody: false,
+      body: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 440, maxHeight: 360),
         child: Column(
           mainAxisSize: MainAxisSize.min,

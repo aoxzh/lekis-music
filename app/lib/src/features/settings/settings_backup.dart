@@ -12,6 +12,7 @@ import 'package:lekis/src/l10n/app_locale.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/shell/nav_bar_position.dart';
 import 'package:lekis/src/shell/tab_bar_style.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'strings.dart';
@@ -84,13 +85,11 @@ class SettingsBackupSection extends ConsumerWidget {
     final text = const JsonEncoder.withIndent('  ').convert(map);
     await Clipboard.setData(ClipboardData(text: text));
     if (!context.mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.pick('设置已复制', 'Settings Copied')),
-        content: SingleChildScrollView(
-          child: SelectableText(text, style: _monospace(context)),
-        ),
+    await showLekisPanel<void>(
+      context,
+      builder: (context) => LekisPanel(
+        title: context.l10n.pick('设置已复制', 'Settings Copied'),
+        body: SelectableText(text, style: _monospace(context)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -103,46 +102,64 @@ class SettingsBackupSection extends ConsumerWidget {
 
   Future<void> _import(BuildContext context, WidgetRef ref) async {
     final controller = TextEditingController();
-    final text = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.pick('导入设置', 'Import Settings')),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          minLines: 8,
-          maxLines: 14,
-          style: _monospace(context),
-          decoration: InputDecoration(
-            hintText: context.l10n.pick('粘贴导出的 JSON', 'Paste exported JSON'),
-            border: const OutlineInputBorder(),
+    String? error;
+    final decoded = await showLekisPanel<Map<String, dynamic>>(
+      context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => LekisPanel(
+          title: context.l10n.pick('导入设置', 'Import Settings'),
+          body: TextField(
+            controller: controller,
+            autofocus: true,
+            minLines: 3,
+            maxLines: 14,
+            style: _monospace(context),
+            onChanged: (_) {
+              if (error != null) setState(() => error = null);
+            },
+            decoration: InputDecoration(
+              hintText: context.l10n.pick('粘贴导出的 JSON', 'Paste exported JSON'),
+              errorText: error,
+              errorMaxLines: 2,
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(context.l10n.pick('取消', 'Cancel')),
+            ),
+            FilledButton(
+              onPressed: () {
+                try {
+                  final data = jsonDecode(controller.text);
+                  if (data is Map<String, dynamic>) {
+                    Navigator.of(context).pop(data);
+                  } else {
+                    setState(
+                      () => error = context.l10n.pick(
+                        '顶层必须是 JSON 对象',
+                        'Top-level value must be a JSON object',
+                      ),
+                    );
+                  }
+                } on FormatException {
+                  setState(
+                    () => error = context.l10n.pick(
+                      '无法读取 JSON，请检查格式',
+                      'Check the JSON format',
+                    ),
+                  );
+                }
+              },
+              child: Text(context.l10n.pick('导入', 'Import')),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(context.l10n.pick('取消', 'Cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text),
-            child: Text(context.l10n.pick('导入', 'Import')),
-          ),
-        ],
       ),
     );
     controller.dispose();
-    if (text == null || text.trim().isEmpty || !context.mounted) return;
-
+    if (decoded == null || !context.mounted) return;
     try {
-      final decoded = jsonDecode(text);
-      if (decoded is! Map<String, dynamic>) {
-        throw FormatException(
-          L10n.tr(
-            '顶层必须是 JSON 对象',
-            'Top-level value must be a JSON object',
-          ),
-        );
-      }
       var applied = 0;
       for (final entry in decoded.entries) {
         if (!_backupKeys.contains(entry.key)) continue;
@@ -192,9 +209,7 @@ class SettingsBackupSection extends ConsumerWidget {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            context.l10n.pick('导入失败：$e', 'Import failed: $e'),
-          ),
+          content: Text(context.l10n.pick('导入失败：$e', 'Import failed: $e')),
         ),
       );
     }

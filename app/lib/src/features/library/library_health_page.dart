@@ -3,6 +3,7 @@
 // 页面只读 SQLite 的分页结果；唯一会主动读源文件的是"扫描损坏文件"。
 // 和其它设置子页面一样用共用的页头 / 平铺行，不用卡片。
 
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/downloads_models.dart';
 import 'package:lekis/src/features/enrich/enrich_actions.dart';
@@ -193,7 +194,9 @@ class _DuplicatesHeader extends StatelessWidget {
             if (tracks != null)
               L10n.tr(
                 '资料库共 $tracks 首曲目。',
-                tracks == 1 ? '1 track in library.' : '$tracks tracks in library.',
+                tracks == 1
+                    ? '1 track in library.'
+                    : '$tracks tracks in library.',
               ),
             L10n.tr(
               '按规范化后的标题、艺人、专辑和 ±2 秒时长匹配；同一组出现多个 '
@@ -249,83 +252,78 @@ class _DuplicateGroupRowState extends ConsumerState<_DuplicateGroupRow> {
       (sum, t) => sum + t.sizeBytes.toInt(),
     );
     var deleteDisk = true;
-    final confirmed = await showDialog<bool>(
-      context: context,
+    final confirmed = await showLekisPanel<bool>(
+      context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           final l10n = context.l10n;
           final colors = context.lekisColors;
           final text = Theme.of(context).textTheme;
-          return AlertDialog(
-            title: Text(UnifiedStrings.deleteConfirmTitle),
-            content: SizedBox(
-              width: 440,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (keep != null) ...[
-                      Text(
-                        l10n.pick('保留版本：', 'Keeping:'),
-                        style: text.labelMedium?.copyWith(
-                          color: colors.accent,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: LekisSpacing.xxs),
-                      Text(
-                        '${keep.format ?? ''} · ${_displayPath(keep.path)}',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: text.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: LekisSpacing.md),
-                    ],
-                    Text(
-                      l10n.pick(
-                        '将移除以下 ${targets.length} 个低音质版本（约 ${formatBytes(totalBytes)}）：',
-                        'Will remove ${targets.length} lower-quality copies (~${formatBytes(totalBytes)}):',
-                      ),
-                      style: text.labelMedium?.copyWith(
-                        color: colors.danger,
-                        fontWeight: FontWeight.w600,
-                      ),
+          return LekisPanel(
+            title: UnifiedStrings.deleteConfirmTitle,
+            body: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (keep != null) ...[
+                  Text(
+                    l10n.pick('保留版本：', 'Keeping:'),
+                    style: text.labelMedium?.copyWith(
+                      color: colors.accent,
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(height: LekisSpacing.xs),
-                    for (final t in targets)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: LekisSpacing.xs),
-                        child: Text(
-                          '• ${t.format ?? t.codec ?? ''} · ${_displayPath(t.path)}',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: text.bodySmall,
-                        ),
-                      ),
-                    const SizedBox(height: LekisSpacing.sm),
-                    CheckboxListTile(
-                      key: const ValueKey('duplicate.delete-disk-toggle'),
-                      contentPadding: EdgeInsets.zero,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      value: deleteDisk,
-                      onChanged: (v) =>
-                          setDialogState(() => deleteDisk = v ?? true),
-                      title: Text(UnifiedStrings.deleteDiskToggle),
-                      subtitle: Text(
-                        UnifiedStrings.deleteDiskHint,
-                        style: text.bodySmall?.copyWith(
-                          color: deleteDisk
-                              ? colors.danger
-                              : colors.onSurfaceVariant,
-                        ),
-                      ),
+                  ),
+                  const SizedBox(height: LekisSpacing.xxs),
+                  Text(
+                    '${keep.format ?? ''} · ${_displayPath(keep.path)}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: text.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
                     ),
-                  ],
+                  ),
+                  const SizedBox(height: LekisSpacing.md),
+                ],
+                Text(
+                  l10n.pick(
+                    '将移除以下 ${targets.length} 个低音质版本（约 ${formatBytes(totalBytes)}）：',
+                    'Will remove ${targets.length} lower-quality copies (~${formatBytes(totalBytes)}):',
+                  ),
+                  style: text.labelMedium?.copyWith(
+                    color: colors.danger,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
+                const SizedBox(height: LekisSpacing.xs),
+                for (final t in targets)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: LekisSpacing.xs),
+                    child: Text(
+                      '• ${t.format ?? t.codec ?? ''} · ${_displayPath(t.path)}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: text.bodySmall,
+                    ),
+                  ),
+                const SizedBox(height: LekisSpacing.sm),
+                CheckboxListTile(
+                  key: const ValueKey('duplicate.delete-disk-toggle'),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: deleteDisk,
+                  onChanged: (v) =>
+                      setDialogState(() => deleteDisk = v ?? true),
+                  title: Text(UnifiedStrings.deleteDiskToggle),
+                  subtitle: Text(
+                    UnifiedStrings.deleteDiskHint,
+                    style: text.bodySmall?.copyWith(
+                      color: deleteDisk
+                          ? colors.danger
+                          : colors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
             ),
             actions: [
               TextButton(
@@ -543,7 +541,9 @@ class _DuplicateGroupRowState extends ConsumerState<_DuplicateGroupRow> {
                   ),
                 if (_lowerQualityCopies(group).isNotEmpty)
                   OutlinedButton.icon(
-                    key: ValueKey('duplicate.delete-lower.${group.keepTrackId}'),
+                    key: ValueKey(
+                      'duplicate.delete-lower.${group.keepTrackId}',
+                    ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: colors.danger,
                       side: BorderSide(
@@ -552,10 +552,7 @@ class _DuplicateGroupRowState extends ConsumerState<_DuplicateGroupRow> {
                     ),
                     onPressed: _deleting || _merging
                         ? null
-                        : () => _deleteCopies(
-                              _lowerQualityCopies(group),
-                              keep,
-                            ),
+                        : () => _deleteCopies(_lowerQualityCopies(group), keep),
                     icon: _deleting
                         ? const SizedBox.square(
                             dimension: 16,
@@ -673,10 +670,7 @@ class _DuplicateVersionRow extends ConsumerWidget {
               IconButton(
                 tooltip: UnifiedStrings.deleteThisCopy,
                 onPressed: onDelete,
-                icon: Icon(
-                  Icons.delete_outline_rounded,
-                  color: colors.danger,
-                ),
+                icon: Icon(Icons.delete_outline_rounded, color: colors.danger),
               ),
             IconButton(
               tooltip: context.l10n.pick('播放这个版本', 'Play this copy'),
@@ -835,6 +829,7 @@ class _HealthHeader extends ConsumerWidget {
       ref.invalidate(libraryHealthSummaryProvider);
       ref.invalidate(healthEntriesProvider);
     }
+
     BigInt? countOf(HealthTabKind kind) => switch (kind) {
       HealthTabKind.missingCover => summary?.missingCover,
       HealthTabKind.missingLyrics => summary?.missingLyrics,
@@ -852,7 +847,10 @@ class _HealthHeader extends ConsumerWidget {
               icon: Icons.health_and_safety_outlined,
               title: tracks == null
                   ? context.l10n.pick('正在读取资料库…', 'Loading library…')
-                  : context.l10n.pick('资料库共 $tracks 首曲目', '$tracks tracks in library'),
+                  : context.l10n.pick(
+                      '资料库共 $tracks 首曲目',
+                      '$tracks tracks in library',
+                    ),
               subtitle: Text(
                 context.l10n.pick(
                   '扫描只检查每个文件能否打开并读取 1 个字节；不做频谱分析，也不会修改文件。'
@@ -915,10 +913,10 @@ class _HealthHeader extends ConsumerWidget {
                   onPressed: enriching
                       ? null
                       : () => enrichMissingFromLibraryFlow(
-                            context,
-                            scope: EnrichScope.artwork,
-                            onCompleted: refreshAfterEnrich,
-                          ),
+                          context,
+                          scope: EnrichScope.artwork,
+                          onCompleted: refreshAfterEnrich,
+                        ),
                   icon: const Icon(Icons.image_search_outlined, size: 18),
                   label: Text(
                     context.l10n.pick('补全缺失封面', 'Fetch Missing Covers'),
@@ -934,10 +932,10 @@ class _HealthHeader extends ConsumerWidget {
                   onPressed: enriching
                       ? null
                       : () => enrichMissingFromLibraryFlow(
-                            context,
-                            scope: EnrichScope.lyrics,
-                            onCompleted: refreshAfterEnrich,
-                          ),
+                          context,
+                          scope: EnrichScope.lyrics,
+                          onCompleted: refreshAfterEnrich,
+                        ),
                   icon: const Icon(Icons.lyrics_outlined, size: 18),
                   label: Text(
                     context.l10n.pick('补全缺失歌词', 'Fetch Missing Lyrics'),
@@ -1020,21 +1018,17 @@ class _HealthEntryRow extends ConsumerWidget {
                 if (entry.kind == HealthIssueKindDto.missingCover)
                   IconButton(
                     tooltip: context.l10n.pick('补全封面', 'Fetch Cover'),
-                    onPressed: () => enrichTracksFlow(
-                      context,
-                      [entry.trackId.toInt()],
-                      scope: EnrichScope.artwork,
-                    ),
+                    onPressed: () => enrichTracksFlow(context, [
+                      entry.trackId.toInt(),
+                    ], scope: EnrichScope.artwork),
                     icon: const Icon(Icons.image_search_outlined),
                   )
                 else if (entry.kind == HealthIssueKindDto.missingLyrics)
                   IconButton(
                     tooltip: context.l10n.pick('补全歌词', 'Fetch Lyrics'),
-                    onPressed: () => enrichTracksFlow(
-                      context,
-                      [entry.trackId.toInt()],
-                      scope: EnrichScope.lyrics,
-                    ),
+                    onPressed: () => enrichTracksFlow(context, [
+                      entry.trackId.toInt(),
+                    ], scope: EnrichScope.lyrics),
                     icon: const Icon(Icons.lyrics_outlined),
                   ),
                 IconButton(
@@ -1186,9 +1180,8 @@ IconData _healthIcon(HealthIssueKindDto kind) => switch (kind) {
   HealthIssueKindDto.unreadable => Icons.broken_image_outlined,
 };
 
-String _displayPath(String path) => path.trim().isEmpty
-    ? L10n.tr('（没有文件路径）', '(No file path)')
-    : path;
+String _displayPath(String path) =>
+    path.trim().isEmpty ? L10n.tr('（没有文件路径）', '(No file path)') : path;
 
 String _trackTech({
   required String? format,

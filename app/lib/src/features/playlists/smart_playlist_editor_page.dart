@@ -6,6 +6,7 @@
 import 'dart:async';
 
 import 'package:flutter/services.dart';
+import 'package:lekis/src/features/settings/widgets/settings_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/playlists/playlist_providers.dart';
@@ -167,42 +168,25 @@ class _SmartPlaylistEditorPageState
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = context.lekisColors;
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(PlaylistStrings.smartRulesTitle),
-            Text(
-              widget.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
+    return SettingsScaffold(
+      title: PlaylistStrings.smartRulesTitle,
+      actions: [
+        if (_saving)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: LekisSpacing.lg),
+            child: Center(
+              child: SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
               ),
             ),
-          ],
-        ),
-        actions: [
-          if (_saving)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: LekisSpacing.lg),
-              child: Center(
-                child: SizedBox.square(
-                  dimension: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            )
-          else
-            TextButton(
-              onPressed: _loading || _loadError != null ? null : _save,
-              child: Text(PlaylistStrings.save),
-            ),
-        ],
-      ),
+          )
+        else
+          TextButton(
+            onPressed: _loading || _loadError != null ? null : _save,
+            child: Text(PlaylistStrings.save),
+          ),
+      ],
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _loadError != null
@@ -223,6 +207,8 @@ class _SmartPlaylistEditorPageState
         LekisSpacing.xxxl + MediaQuery.paddingOf(context).bottom,
       ),
       children: [
+        Text(widget.name, style: theme.textTheme.titleMedium),
+        const SizedBox(height: LekisSpacing.xs),
         Text(
           PlaylistStrings.rulesIntro,
           style: theme.textTheme.bodySmall?.copyWith(
@@ -482,84 +468,119 @@ class _RuleEditor extends StatelessWidget {
   Widget build(BuildContext context) {
     final ops = smartOpsForField(rule.field);
     final op = ops.contains(rule.op) ? rule.op : ops.first;
-    return Wrap(
-      spacing: LekisSpacing.sm,
-      runSpacing: LekisSpacing.sm,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        SizedBox(
-          width: 150,
-          child: DropdownButtonFormField<RuleFieldDto>(
-            key: ValueKey('field-${rule.field.name}'),
-            initialValue: rule.field,
-            decoration: InputDecoration(
-              labelText: PlaylistStrings.field,
-              isDense: true,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final half = (width - LekisSpacing.sm) / 2;
+        final choiceWidth = half < 124
+            ? width
+            : half.clamp(124.0, 190.0).toDouble();
+        return Wrap(
+          spacing: LekisSpacing.sm,
+          runSpacing: LekisSpacing.sm,
+          crossAxisAlignment: WrapCrossAlignment.end,
+          children: [
+            SizedBox(
+              width: choiceWidth,
+              child: _RuleSelect<RuleFieldDto>(
+                title: PlaylistStrings.field,
+                icon: Icons.tune_rounded,
+                value: rule.field,
+                choices: [
+                  for (final field in RuleFieldDto.values)
+                    SettingsChoice(
+                      field,
+                      smartFieldLabels[field] ?? field.name,
+                    ),
+                ],
+                onChanged: (field) {
+                  if (field != rule.field) onChanged(smartNewRule(field));
+                },
+              ),
             ),
-            items: [
-              for (final field in RuleFieldDto.values)
-                DropdownMenuItem(
-                  value: field,
-                  child: Text(smartFieldLabels[field] ?? field.name),
-                ),
-            ],
-            onChanged: (field) {
-              if (field == null) return;
-              final next = smartNewRule(field);
-              onChanged(next);
-            },
-          ),
-        ),
-        SizedBox(
-          width: 140,
-          child: DropdownButtonFormField<RuleOpDto>(
-            key: ValueKey('op-${rule.field.name}-${rule.op.name}'),
-            initialValue: op,
-            decoration: InputDecoration(
-              labelText: PlaylistStrings.condition,
-              isDense: true,
+            SizedBox(
+              width: choiceWidth,
+              child: _RuleSelect<RuleOpDto>(
+                title: PlaylistStrings.condition,
+                icon: Icons.filter_list_rounded,
+                value: op,
+                choices: [
+                  for (final value in ops)
+                    SettingsChoice(value, smartOpLabels[value] ?? value.name),
+                ],
+                onChanged: (next) {
+                  if (next == op) return;
+                  onChanged(
+                    RuleDto(
+                      field: rule.field,
+                      op: next,
+                      value: smartCoerceValue(rule.field, next, rule.value),
+                    ),
+                  );
+                },
+              ),
             ),
-            items: [
-              for (final value in ops)
-                DropdownMenuItem(
-                  value: value,
-                  child: Text(smartOpLabels[value] ?? value.name),
+            SizedBox(
+              width:
+                  (width -
+                          (onRemove == null
+                              ? 0
+                              : LekisSizes.touchTargetMin + LekisSpacing.sm))
+                      .clamp(0.0, 236.0)
+                      .toDouble(),
+              child: _RuleValueEditor(
+                key: ValueKey('${rule.field.name}-${rule.op.name}'),
+                field: rule.field,
+                op: rule.op,
+                value: rule.value,
+                onChanged: (value) => onChanged(
+                  RuleDto(field: rule.field, op: rule.op, value: value),
                 ),
-            ],
-            onChanged: (next) {
-              if (next == null) return;
-              onChanged(
-                RuleDto(
-                  field: rule.field,
-                  op: next,
-                  value: smartCoerceValue(rule.field, next, rule.value),
-                ),
-              );
-            },
-          ),
-        ),
-        SizedBox(
-          width: 210,
-          child: _RuleValueEditor(
-            key: ValueKey('${rule.field.name}-${rule.op.name}'),
-            field: rule.field,
-            op: rule.op,
-            value: rule.value,
-            onChanged: (value) => onChanged(
-              RuleDto(field: rule.field, op: rule.op, value: value),
+              ),
             ),
-          ),
-        ),
-        if (onRemove != null)
-          IconButton(
-            tooltip: PlaylistStrings.deleteCondition,
-            visualDensity: VisualDensity.compact,
-            onPressed: onRemove,
-            icon: const Icon(Icons.close_rounded, size: 20),
-          ),
-      ],
+            if (onRemove != null)
+              IconButton(
+                tooltip: PlaylistStrings.deleteCondition,
+                visualDensity: VisualDensity.compact,
+                onPressed: onRemove,
+                icon: const Icon(Icons.close_rounded, size: 20),
+              ),
+          ],
+        );
+      },
     );
   }
+}
+
+class _RuleSelect<T> extends StatelessWidget {
+  const _RuleSelect({
+    required this.title,
+    required this.icon,
+    required this.value,
+    required this.choices,
+    required this.onChanged,
+  });
+  final String title;
+  final IconData icon;
+  final T value;
+  final List<SettingsChoice<T>> choices;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(title, style: Theme.of(context).textTheme.bodySmall),
+      const SizedBox(height: LekisSpacing.xs),
+      SettingsSelectField<T>(
+        title: title,
+        icon: icon,
+        value: value,
+        choices: choices,
+        onChanged: onChanged,
+      ),
+    ],
+  );
 }
 
 class _RuleValueEditor extends StatefulWidget {
@@ -595,13 +616,34 @@ class _RuleValueEditorState extends State<_RuleValueEditor> {
     RuleValueDto_Text(:final field0) => field0,
     RuleValueDto_Codec(:final field0) => field0,
     RuleValueDto_Number(:final field0) => '$field0',
-    RuleValueDto_TextList(:final field0) => field0.isEmpty ? '' : field0.first,
+    RuleValueDto_TextList(:final field0) =>
+      widget.op == RuleOpDto.between
+          ? (field0.firstOrNull ?? '')
+          : field0.join(', '),
     _ => '',
   };
 
   String _initialHigh() {
     final list = smartListValue(widget.value);
     return list != null && list.length >= 2 ? list[1] : '';
+  }
+
+  RuleValueDto? _emitted;
+
+  @override
+  void didUpdateWidget(_RuleValueEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // An earlier row can be removed while this field and operator stay the same.
+    if (!identical(widget.value, oldWidget.value) &&
+        !identical(widget.value, _emitted)) {
+      _text.text = _initialText();
+      _high.text = _initialHigh();
+    }
+  }
+
+  void _emit(RuleValueDto value) {
+    _emitted = value;
+    widget.onChanged(value);
   }
 
   @override
@@ -617,19 +659,15 @@ class _RuleValueEditorState extends State<_RuleValueEditor> {
       final current = widget.value is RuleValueDto_Bool
           ? (widget.value as RuleValueDto_Bool).field0
           : true;
-      return DropdownButtonFormField<bool>(
-        initialValue: current,
-        decoration: InputDecoration(
-          labelText: PlaylistStrings.value,
-          isDense: true,
-        ),
-        items: [
-          DropdownMenuItem(value: true, child: Text(PlaylistStrings.yes)),
-          DropdownMenuItem(value: false, child: Text(PlaylistStrings.no)),
+      return _RuleSelect<bool>(
+        title: PlaylistStrings.value,
+        icon: Icons.check_rounded,
+        value: current,
+        choices: [
+          SettingsChoice(true, PlaylistStrings.yes),
+          SettingsChoice(false, PlaylistStrings.no),
         ],
-        onChanged: (value) {
-          if (value != null) widget.onChanged(RuleValueDto.bool(value));
-        },
+        onChanged: (value) => _emit(RuleValueDto.bool(value)),
       );
     }
 
@@ -690,13 +728,13 @@ class _RuleValueEditorState extends State<_RuleValueEditor> {
         if (numeric) {
           final number = int.tryParse(_text.text.trim());
           if (number != null) {
-            widget.onChanged(RuleValueDto.number(number));
+            _emit(RuleValueDto.number(number));
           }
         } else if (widget.field == RuleFieldDto.codec &&
             (widget.op == RuleOpDto.eq || widget.op == RuleOpDto.ne)) {
-          widget.onChanged(RuleValueDto.codec(_text.text.trim()));
+          _emit(RuleValueDto.codec(_text.text.trim()));
         } else {
-          widget.onChanged(RuleValueDto.text(_text.text));
+          _emit(RuleValueDto.text(_text.text));
         }
       },
     );
@@ -704,7 +742,7 @@ class _RuleValueEditorState extends State<_RuleValueEditor> {
 
   void _emitList() {
     if (widget.op == RuleOpDto.between) {
-      widget.onChanged(
+      _emit(
         RuleValueDto.textList([
           _text.text.trim().isEmpty ? '0' : _text.text.trim(),
           _high.text.trim().isEmpty ? '0' : _high.text.trim(),
@@ -717,7 +755,7 @@ class _RuleValueEditorState extends State<_RuleValueEditor> {
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty)
         .toList();
-    widget.onChanged(RuleValueDto.textList(values));
+    _emit(RuleValueDto.textList(values));
   }
 }
 
@@ -769,24 +807,16 @@ class _SettingsCard extends StatelessWidget {
             onChanged: onLimitChanged,
           ),
           const SizedBox(height: LekisSpacing.md),
-          Text(PlaylistStrings.sort, style: theme.textTheme.bodySmall),
-          const SizedBox(height: LekisSpacing.xs),
-          Wrap(
-            spacing: LekisSpacing.xs,
-            runSpacing: LekisSpacing.xs,
-            children: [
-              ChoiceChip(
-                label: Text(PlaylistStrings.sortDefault),
-                selected: sort == null,
-                onSelected: (_) => onSortChanged(null),
-              ),
+          _RuleSelect<TrackSortDto?>(
+            title: PlaylistStrings.sort,
+            icon: Icons.sort_rounded,
+            value: sort,
+            choices: [
+              SettingsChoice(null, PlaylistStrings.sortDefault),
               for (final option in TrackSortDto.values)
-                ChoiceChip(
-                  label: Text(smartSortLabels[option] ?? option.name),
-                  selected: sort == option,
-                  onSelected: (_) => onSortChanged(option),
-                ),
+                SettingsChoice(option, smartSortLabels[option] ?? option.name),
             ],
+            onChanged: onSortChanged,
           ),
           if (sort != null)
             SwitchListTile(

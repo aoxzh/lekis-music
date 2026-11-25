@@ -21,6 +21,7 @@ import 'package:lekis/src/features/player/queue_filter.dart';
 import 'package:lekis/src/features/player/queue_move_next.dart';
 import 'package:lekis/src/features/player/queue_removals.dart';
 import 'package:lekis/src/features/playlists/add_to_playlist_sheet.dart';
+import 'package:lekis/src/features/playlists/playlist_actions.dart';
 import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/l10n/duration_text.dart';
@@ -32,6 +33,8 @@ import 'package:lekis/src/shell/nav_icon.dart' show lekisReduceMotion;
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:lekis/src/widgets/list_motion.dart';
 import 'package:lekis/src/widgets/progress_dialog.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Paged queue list with current-item highlight and explicit row actions.
@@ -154,11 +157,11 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
       return;
     }
     final count = length - current - 1;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: Text(context.l10n.pick('清除未播放曲目？', 'Clear upcoming tracks?')),
-        content: Text(
+    final confirmed = await showLekisPanel<bool>(
+      context,
+      builder: (dialog) => LekisPanel(
+        title: context.l10n.pick('清除未播放曲目？', 'Clear upcoming tracks?'),
+        body: Text(
           context.l10n.pick(
             '将移除当前曲目之后的 $count 首，当前播放不会停止。',
             'This removes the $count tracks after the current one; playback keeps going.',
@@ -235,11 +238,11 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
       return;
     }
     final count = length - current - 1;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: Text(context.l10n.pick('打乱未播放曲目？', 'Shuffle upcoming tracks?')),
-        content: Text(
+    final confirmed = await showLekisPanel<bool>(
+      context,
+      builder: (dialog) => LekisPanel(
+        title: context.l10n.pick('打乱未播放曲目？', 'Shuffle upcoming tracks?'),
+        body: Text(
           context.l10n.pick(
             '将随机重排当前曲目之后的 $count 首，当前播放不会中断。',
             'This randomly reorders the $count tracks after the current one; playback keeps going.',
@@ -312,25 +315,17 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
     if (length < 2) return;
 
     final progress = ValueNotifier<int>(0);
-    final navigator = Navigator.of(context, rootNavigator: true);
-    unawaited(
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => nonDismissibleProgressDialog(
-          title: Text(context.l10n.pick('正在检查队列', 'Checking Queue')),
-          content: ValueListenableBuilder<int>(
-            valueListenable: progress,
-            builder: (_, done, _) => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LinearProgressIndicator(value: length == 0 ? 0 : done / length),
-                const SizedBox(height: LekisSpacing.md),
-                Text('$done / $length'),
-              ],
-            ),
-          ),
-        ),
+    final closeProgress = showProgressPanel(
+      context,
+      title: context.l10n.pick('正在检查队列', 'Checking Queue'),
+      progress: progress,
+      builder: (done) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          LinearProgressIndicator(value: length == 0 ? 0 : done / length),
+          const SizedBox(height: LekisSpacing.md),
+          Text('$done / $length'),
+        ],
       ),
     );
 
@@ -359,8 +354,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
         if (page.length < 500) break;
       }
     } catch (e) {
-      if (navigator.mounted && navigator.canPop()) navigator.pop();
-      progress.dispose();
+      await closeProgress();
       if (context.mounted) {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
@@ -374,8 +368,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
       }
       return;
     }
-    if (navigator.mounted && navigator.canPop()) navigator.pop();
-    progress.dispose();
+    await closeProgress();
     if (!context.mounted) return;
 
     if (duplicates.isEmpty) {
@@ -391,11 +384,11 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
       return;
     }
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: Text(context.l10n.pick('移除重复曲目？', 'Remove duplicate tracks?')),
-        content: Text(
+    final confirmed = await showLekisPanel<bool>(
+      context,
+      builder: (dialog) => LekisPanel(
+        title: context.l10n.pick('移除重复曲目？', 'Remove duplicate tracks?'),
+        body: Text(
           context.l10n.pick(
             '将移除 ${duplicates.length} 个重复条目，每个曲目保留第一次出现；正在播放的曲目不会移除。',
             'This removes ${duplicates.length} duplicate entries, keeping the first occurrence of each track; the currently playing track is never removed.',
@@ -450,9 +443,9 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
   Future<void> _showQueueInfo(BuildContext context) async {
     final playback = ref.read(playbackProvider);
     if (playback.queueLength == 0) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
+    await showLekisSheet<void>(
+      context,
+      heightFactor: null,
       builder: (_) => _QueueInfoSheet(
         length: playback.queueLength,
         currentIndex: playback.queueIndex,
@@ -466,187 +459,156 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
     int index,
     VoidCallback? moveToNext,
     VoidCallback remove,
+    int shownVersion,
+    Offset? pointer,
   ) async {
     final length = ref.read(playbackProvider).queueLength;
     final loved = ref.read(lovedOverridesProvider)[row.id] ?? row.loved;
     final downloadState = ref.read(downloadStateProvider(row.id));
     final messenger = ScaffoldMessenger.of(context);
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheet) {
-        final l10n = sheet.l10n;
-        final errorColor = Theme.of(sheet).colorScheme.error;
-        void close() => Navigator.of(sheet).pop();
-        return SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (moveToNext != null)
-                  ListTile(
-                    leading: const Icon(Icons.queue_play_next_rounded),
-                    title: Text(moveToNextLabel(sheet)),
-                    onTap: () {
-                      close();
-                      moveToNext();
-                    },
+    final l10n = context.l10n;
+    final actions = [
+      if (moveToNext != null)
+        LekisMenuAction(
+          _QueueRowAction.next,
+          Icons.queue_play_next_rounded,
+          moveToNextLabel(context),
+        ),
+      if (row.albumTitle?.isNotEmpty == true)
+        LekisMenuAction(
+          _QueueRowAction.album,
+          Icons.album_outlined,
+          l10n.pick('查看专辑', 'View Album'),
+        ),
+      if (row.artistLine.isNotEmpty)
+        LekisMenuAction(
+          _QueueRowAction.artist,
+          Icons.person_outline_rounded,
+          l10n.pick('查看艺人', 'View Artist'),
+        ),
+      LekisMenuAction(
+        _QueueRowAction.love,
+        loved ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+        loved ? l10n.pick('取消喜欢', 'Unlike') : l10n.pick('喜欢', 'Like'),
+        startsGroup: true,
+      ),
+      LekisMenuAction(
+        _QueueRowAction.playlist,
+        Icons.playlist_add_rounded,
+        l10n.pick('添加到歌单', 'Add to Playlist'),
+      ),
+      if (!row.isLocal || downloadState != null)
+        LekisMenuAction(_QueueRowAction.download, switch (downloadState) {
+          null => Icons.download_for_offline_outlined,
+          OfflineStateDto.ready => Icons.delete_outline_rounded,
+          OfflineStateDto.failed => Icons.refresh_rounded,
+          OfflineStateDto.downloading => Icons.close_rounded,
+          OfflineStateDto.queued => Icons.download_rounded,
+        }, downloadMenuLabel(downloadState)),
+      LekisMenuAction(
+        _QueueRowAction.up,
+        Icons.keyboard_arrow_up_rounded,
+        l10n.pick('上移', 'Move up'),
+        enabled: index > 0,
+        startsGroup: true,
+      ),
+      LekisMenuAction(
+        _QueueRowAction.down,
+        Icons.keyboard_arrow_down_rounded,
+        l10n.pick('下移', 'Move down'),
+        enabled: index + 1 < length,
+      ),
+      LekisMenuAction(
+        _QueueRowAction.top,
+        Icons.vertical_align_top_rounded,
+        l10n.pick('移到顶部', 'Move to top'),
+        enabled: index > 0,
+      ),
+      LekisMenuAction(
+        _QueueRowAction.bottom,
+        Icons.vertical_align_bottom_rounded,
+        l10n.pick('移到底部', 'Move to bottom'),
+        enabled: index + 1 < length,
+      ),
+      LekisMenuAction(
+        _QueueRowAction.remove,
+        Icons.close_rounded,
+        l10n.pick('从队列移除', 'Remove from Queue'),
+        destructive: true,
+        startsGroup: true,
+      ),
+    ];
+    final action = pointer == null
+        ? await showLekisActionList(
+            context,
+            title: row.title,
+            subtitle: row.artistLine,
+            actions: actions,
+          )
+        : await showLekisPointerMenu(context, pointer, actions);
+    if (!mounted || !context.mounted || action == null) return;
+    switch (action) {
+      case _QueueRowAction.next:
+        moveToNext?.call();
+      case _QueueRowAction.album:
+        await _openAlbum(context, row, messenger);
+      case _QueueRowAction.artist:
+        await _openArtist(context, row, messenger);
+      case _QueueRowAction.love:
+        final ok = await ref
+            .read(libraryActionsProvider)
+            .setLoved(row.id, !loved);
+        if (!ok && messenger.mounted) {
+          messenger
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(
+                  l10n.pick(
+                    '更新收藏失败，请稍后再试',
+                    'Failed to update favorite, please try again later',
                   ),
-                if (row.albumTitle != null && row.albumTitle!.isNotEmpty)
-                  ListTile(
-                    leading: const Icon(Icons.album_outlined),
-                    title: Text(l10n.pick('查看专辑', 'View Album')),
-                    onTap: () {
-                      close();
-                      unawaited(_openAlbum(context, row, messenger));
-                    },
-                  ),
-                if (row.artistLine.isNotEmpty)
-                  ListTile(
-                    leading: const Icon(Icons.person_outline_rounded),
-                    title: Text(l10n.pick('查看艺人', 'View Artist')),
-                    onTap: () {
-                      close();
-                      unawaited(_openArtist(context, row, messenger));
-                    },
-                  ),
-                ListTile(
-                  leading: Icon(
-                    loved
-                        ? Icons.favorite_rounded
-                        : Icons.favorite_border_rounded,
-                  ),
-                  title: Text(
-                    loved
-                        ? l10n.pick('取消喜欢', 'Unlike')
-                        : l10n.pick('喜欢', 'Like'),
-                  ),
-                  onTap: () async {
-                    close();
-                    final ok = await ref
-                        .read(libraryActionsProvider)
-                        .setLoved(row.id, !loved);
-                    if (!ok) {
-                      messenger
-                        ..hideCurrentSnackBar()
-                        ..showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              l10n.pick(
-                                '更新收藏失败，请稍后再试',
-                                'Failed to update favorite, please try again later',
-                              ),
-                            ),
-                          ),
-                        );
-                    }
-                  },
                 ),
-                ListTile(
-                  leading: const Icon(Icons.playlist_add_rounded),
-                  title: Text(l10n.pick('添加到歌单', 'Add to Playlist')),
-                  onTap: () {
-                    close();
-                    unawaited(
-                      showAddToPlaylistSheet(
-                        context,
-                        trackId: row.id,
-                        trackTitle: row.title,
-                      ),
-                    );
-                  },
-                ),
-                if (!row.isLocal || downloadState != null)
-                  ListTile(
-                    leading: Icon(switch (downloadState) {
-                      null => Icons.download_for_offline_outlined,
-                      OfflineStateDto.ready => Icons.delete_outline_rounded,
-                      OfflineStateDto.failed => Icons.refresh_rounded,
-                      OfflineStateDto.downloading => Icons.close_rounded,
-                      OfflineStateDto.queued => Icons.download_rounded,
-                    }),
-                    title: Text(downloadMenuLabel(downloadState)),
-                    onTap: () {
-                      close();
-                      unawaited(
-                        runDownloadMenuAction(
-                          context,
-                          ref,
-                          row.id,
-                          downloadState,
-                        ),
-                      );
-                    },
-                  ),
-                ListTile(
-                  leading: const Icon(Icons.keyboard_arrow_up_rounded),
-                  title: Text(l10n.pick('上移', 'Move up')),
-                  enabled: index > 0,
-                  onTap: index > 0
-                      ? () {
-                          close();
-                          ref
-                              .read(playerActionsProvider)
-                              .moveQueueItem(index, index - 1);
-                        }
-                      : null,
-                ),
-                ListTile(
-                  leading: const Icon(Icons.keyboard_arrow_down_rounded),
-                  title: Text(l10n.pick('下移', 'Move down')),
-                  enabled: index + 1 < length,
-                  onTap: index + 1 < length
-                      ? () {
-                          close();
-                          ref
-                              .read(playerActionsProvider)
-                              .moveQueueItem(index, index + 1);
-                        }
-                      : null,
-                ),
-                ListTile(
-                  leading: const Icon(Icons.vertical_align_top_rounded),
-                  title: Text(l10n.pick('移到顶部', 'Move to top')),
-                  enabled: index > 0,
-                  onTap: index > 0
-                      ? () {
-                          close();
-                          ref
-                              .read(playerActionsProvider)
-                              .moveQueueItem(index, 0);
-                        }
-                      : null,
-                ),
-                ListTile(
-                  leading: const Icon(Icons.vertical_align_bottom_rounded),
-                  title: Text(l10n.pick('移到底部', 'Move to bottom')),
-                  enabled: index + 1 < length,
-                  onTap: index + 1 < length
-                      ? () {
-                          close();
-                          ref
-                              .read(playerActionsProvider)
-                              .moveQueueItem(index, length - 1);
-                        }
-                      : null,
-                ),
-                ListTile(
-                  leading: Icon(Icons.close_rounded, color: errorColor),
-                  title: Text(
-                    l10n.pick('从队列移除', 'Remove from Queue'),
-                    style: TextStyle(color: errorColor),
-                  ),
-                  onTap: () {
-                    close();
-                    remove();
-                  },
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+        }
+      case _QueueRowAction.playlist:
+        await showAddToPlaylistSheet(
+          context,
+          trackId: row.id,
+          trackTitle: row.title,
         );
-      },
-    );
+      case _QueueRowAction.download:
+        await runDownloadMenuAction(context, ref, row.id, downloadState);
+      case _QueueRowAction.remove:
+        remove();
+      case _QueueRowAction.up ||
+          _QueueRowAction.down ||
+          _QueueRowAction.top ||
+          _QueueRowAction.bottom:
+        final latest = ref.read(playbackProvider);
+        if (latest.queueVersion != shownVersion ||
+            latest.queueLength != length) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                l10n.pick(
+                  '队列已变化，请重新选择曲目',
+                  'Queue changed. Select the track again.',
+                ),
+              ),
+            ),
+          );
+          return;
+        }
+        final to = switch (action) {
+          _QueueRowAction.up => index - 1,
+          _QueueRowAction.down => index + 1,
+          _QueueRowAction.top => 0,
+          _ => length - 1,
+        };
+        ref.read(playerActionsProvider).moveQueueItem(index, to);
+    }
   }
 
   Future<void> _openAlbum(
@@ -717,11 +679,11 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
 
   Future<void> _confirmClear(BuildContext context) async {
     final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: Text(l10n.pick('清空播放队列？', 'Clear the queue?')),
-        content: Text(
+    final confirmed = await showLekisPanel<bool>(
+      context,
+      builder: (dialog) => LekisPanel(
+        title: l10n.pick('清空播放队列？', 'Clear the queue?'),
+        body: Text(
           l10n.pick(
             '队列和当前播放都会停止。',
             'The queue and current playback will stop.',
@@ -748,57 +710,27 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
     final length = ref.read(playbackProvider).queueLength;
     if (length == 0) return;
     final l10n = context.l10n;
-    final controller = TextEditingController(
-      text:
-          '${l10n.pick('播放队列', 'Queue')} '
-          '${DateTime.now().toString().substring(0, 16).replaceAll('T', ' ')}',
+    final name = await askPlaylistName(
+      context,
+      title: l10n.pick('保存为歌单', 'Save as Playlist'),
+      initial:
+          "${l10n.pick('播放队列', 'Queue')} ${DateTime.now().toString().substring(0, 16)}",
+      confirm: l10n.pick('保存', 'Save'),
     );
-    final name = await showDialog<String>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: Text(l10n.pick('保存为歌单', 'Save as Playlist')),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(
-            labelText: l10n.pick('歌单名称', 'Playlist name'),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialog).pop(),
-            child: Text(l10n.pick('取消', 'Cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialog).pop(controller.text.trim()),
-            child: Text(l10n.pick('保存', 'Save')),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
     if (name == null || name.isEmpty || !context.mounted) return;
     if (!mounted) return;
     final progress = ValueNotifier<int>(0);
-    final navigator = Navigator.of(context, rootNavigator: true);
-    unawaited(
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => nonDismissibleProgressDialog(
-          title: Text(l10n.pick('正在保存歌单', 'Saving Playlist')),
-          content: ValueListenableBuilder<int>(
-            valueListenable: progress,
-            builder: (_, done, _) => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LinearProgressIndicator(value: (done / length).clamp(0.0, 1.0)),
-                const SizedBox(height: LekisSpacing.md),
-                Text('$done / $length'),
-              ],
-            ),
-          ),
-        ),
+    final closeProgress = showProgressPanel(
+      context,
+      title: l10n.pick('正在保存歌单', 'Saving Playlist'),
+      progress: progress,
+      builder: (done) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          LinearProgressIndicator(value: (done / length).clamp(0.0, 1.0)),
+          const SizedBox(height: LekisSpacing.md),
+          Text('$done / $length'),
+        ],
       ),
     );
     var saved = 0;
@@ -866,8 +798,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
           );
       }
     } finally {
-      if (navigator.mounted && navigator.canPop()) navigator.pop();
-      progress.dispose();
+      await closeProgress();
     }
   }
 
@@ -1091,12 +1022,14 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
                                   onPlay: () => ref
                                       .read(playerActionsProvider)
                                       .playQueueAt(index),
-                                  onLongPress: () => _showRowMenu(
+                                  onMenu: (pointer) => _showRowMenu(
                                     context,
                                     row,
                                     index,
                                     moveToNext,
                                     remove,
+                                    shownVersion,
+                                    pointer,
                                   ),
                                   onRemove: remove,
                                   onMoveUp: index > 0
@@ -1315,6 +1248,20 @@ class _QueueInfoRow extends StatelessWidget {
   }
 }
 
+enum _QueueRowAction {
+  next,
+  album,
+  artist,
+  love,
+  playlist,
+  download,
+  up,
+  down,
+  top,
+  bottom,
+  remove,
+}
+
 enum _QueueHeaderAction {
   info,
   find,
@@ -1395,10 +1342,11 @@ class _QueueHeader extends StatelessWidget {
                 onClearUpcoming != null ||
                 onDedupe != null ||
                 onClear != null)
-              PopupMenuButton<_QueueHeaderAction>(
+              LekisActionMenuButton<_QueueHeaderAction>(
+                title: context.l10n.queue,
                 key: const ValueKey('queue-panel.more'),
                 tooltip: context.l10n.pick('队列操作', 'Queue actions'),
-                icon: const Icon(Icons.more_horiz_rounded, size: 20),
+
                 onSelected: (action) {
                   switch (action) {
                     case _QueueHeaderAction.info:
@@ -1419,96 +1367,60 @@ class _QueueHeader extends StatelessWidget {
                       onClear?.call();
                   }
                 },
-                itemBuilder: (_) => [
+                actions: () => [
                   if (onInfo != null)
-                    PopupMenuItem(
-                      value: _QueueHeaderAction.info,
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.info_outline_rounded),
-                        title: Text(context.l10n.pick('队列信息', 'Queue Info')),
-                      ),
+                    LekisMenuAction(
+                      _QueueHeaderAction.info,
+                      Icons.info_outline_rounded,
+                      context.l10n.pick('队列信息', 'Queue Info'),
                     ),
                   if (onFind != null)
-                    PopupMenuItem(
-                      value: _QueueHeaderAction.find,
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.search_rounded),
-                        title: Text(
-                          context.l10n.pick('在队列中查找', 'Find in Queue'),
-                        ),
-                      ),
+                    LekisMenuAction(
+                      _QueueHeaderAction.find,
+                      Icons.search_rounded,
+                      context.l10n.pick('在队列中查找', 'Find in Queue'),
                     ),
                   if (onCopy != null)
-                    PopupMenuItem(
-                      value: _QueueHeaderAction.copy,
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.content_copy_rounded),
-                        title: Text(context.l10n.pick('复制队列', 'Copy Queue')),
-                      ),
+                    LekisMenuAction(
+                      _QueueHeaderAction.copy,
+                      Icons.content_copy_rounded,
+                      context.l10n.pick('复制队列', 'Copy Queue'),
+                      startsGroup: true,
                     ),
                   if (onSaveAsPlaylist != null)
-                    PopupMenuItem(
-                      value: _QueueHeaderAction.saveAsPlaylist,
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.playlist_add_rounded),
-                        title: Text(
-                          context.l10n.pick('保存为歌单', 'Save as Playlist'),
-                        ),
-                      ),
+                    LekisMenuAction(
+                      _QueueHeaderAction.saveAsPlaylist,
+                      Icons.playlist_add_rounded,
+                      context.l10n.pick('保存为歌单', 'Save as Playlist'),
                     ),
                   if (onShuffleUpcoming != null)
-                    PopupMenuItem(
-                      value: _QueueHeaderAction.shuffleUpcoming,
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.shuffle_rounded),
-                        title: Text(
-                          context.l10n.pick('打乱未播放曲目', 'Shuffle Upcoming'),
-                        ),
-                      ),
+                    LekisMenuAction(
+                      _QueueHeaderAction.shuffleUpcoming,
+                      Icons.shuffle_rounded,
+                      context.l10n.pick('打乱未播放曲目', 'Shuffle Upcoming'),
+                      startsGroup: true,
                     ),
                   if (onClearUpcoming != null)
-                    PopupMenuItem(
-                      value: _QueueHeaderAction.clearUpcoming,
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.playlist_remove_rounded),
-                        title: Text(
-                          context.l10n.pick('清除未播放曲目', 'Clear Upcoming'),
-                        ),
-                      ),
+                    LekisMenuAction(
+                      _QueueHeaderAction.clearUpcoming,
+                      Icons.playlist_remove_rounded,
+                      context.l10n.pick('清除未播放曲目', 'Clear Upcoming'),
+                      destructive: true,
                     ),
                   if (onDedupe != null)
-                    PopupMenuItem(
-                      value: _QueueHeaderAction.dedupe,
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.filter_alt_off_rounded),
-                        title: Text(
-                          context.l10n.pick('移除重复曲目', 'Remove Duplicates'),
-                        ),
-                      ),
+                    LekisMenuAction(
+                      _QueueHeaderAction.dedupe,
+                      Icons.filter_alt_off_rounded,
+                      context.l10n.pick('移除重复曲目', 'Remove Duplicates'),
+                      destructive: true,
                     ),
                   if (onClear != null)
-                    PopupMenuItem(
-                      value: _QueueHeaderAction.clear,
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.delete_sweep_outlined),
-                        title: Text(context.l10n.pick('清空队列', 'Clear Queue')),
-                      ),
+                    LekisMenuAction(
+                      _QueueHeaderAction.clear,
+                      Icons.delete_sweep_outlined,
+                      context.l10n.pick('清空队列', 'Clear Queue'),
+                      destructive: true,
+                      startsGroup: true,
                     ),
                 ],
               ),
@@ -1562,7 +1474,7 @@ class _QueueRow extends StatelessWidget {
     required this.row,
     required this.current,
     required this.onPlay,
-    required this.onLongPress,
+    required this.onMenu,
     required this.onRemove,
     required this.onMoveUp,
     required this.onMoveDown,
@@ -1571,7 +1483,7 @@ class _QueueRow extends StatelessWidget {
   final TrackRowDto row;
   final bool current;
   final VoidCallback onPlay;
-  final VoidCallback onLongPress;
+  final ValueChanged<Offset?> onMenu;
   final VoidCallback onRemove;
   final VoidCallback? onMoveUp;
   final VoidCallback? onMoveDown;
@@ -1590,7 +1502,8 @@ class _QueueRow extends StatelessWidget {
         type: MaterialType.transparency,
         child: InkWell(
           onTap: onPlay,
-          onLongPress: onLongPress,
+          onLongPress: () => onMenu(null),
+          onSecondaryTapUp: (event) => onMenu(event.globalPosition),
           child: AnimatedContainer(
             duration: MediaQuery.disableAnimationsOf(context)
                 ? Duration.zero
@@ -1795,7 +1708,7 @@ class _QueueEmpty extends StatelessWidget {
 
 /// Slide-in right-hand queue for wide windows (player bar, long press, ...).
 Future<void> showQueueSidePanel(BuildContext context) {
-  final reduceMotion = MediaQuery.disableAnimationsOf(context);
+  final reduceMotion = lekisReduceMotion(context);
   // `showGeneralDialog` does not capture inherited themes, so the panel would
   // fall back to the app's opaque palette over the Now Playing artwork. Keep
   // the caller's theme (on-media glass over artwork) around the page.

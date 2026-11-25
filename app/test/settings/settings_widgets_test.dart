@@ -49,6 +49,40 @@ class _Root extends StatelessWidget {
 }
 
 void main() {
+  testWidgets(
+    'mobile selector distinguishes dismissing from choosing the system default',
+    (tester) async {
+      final values = <String?>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: lekisDarkTheme(),
+          home: Scaffold(
+            body: SettingsSelectField<String?>(
+              title: 'Output',
+              icon: Icons.speaker,
+              value: 'USB',
+              choices: const [
+                SettingsChoice(null, 'System'),
+                SettingsChoice('USB', 'USB'),
+              ],
+              onChanged: values.add,
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('USB'));
+      await tester.pumpAndSettle();
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(values, isEmpty);
+      await tester.tap(find.text('USB'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('System'));
+      await tester.pumpAndSettle();
+      expect(values, [null]);
+    },
+  );
+
   testWidgets('top-level page: title at the page gutter, no back button', (
     tester,
   ) async {
@@ -76,7 +110,7 @@ void main() {
     );
   });
 
-  testWidgets('subpage uses the same header with a back button', (
+  testWidgets('pushed mobile pages use a compact header with a back button', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(400, 800);
@@ -84,13 +118,20 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(_app());
 
-    final topStyle = tester.widget<Text>(find.text('设置')).style;
+    final theme = Theme.of(tester.element(find.text('设置')));
+    expect(
+      tester.widget<Text>(find.text('设置')).style?.fontSize,
+      theme.textTheme.headlineMedium?.fontSize,
+    );
     await tester.tap(find.byKey(_rowKey));
     await tester.pumpAndSettle();
 
     expect(find.byType(BackButton), findsOneWidget);
     expect(find.byType(AppBar), findsNothing);
-    expect(tester.widget<Text>(find.text('诊断日志')).style, topStyle);
+    expect(
+      tester.widget<Text>(find.text('诊断日志')).style,
+      theme.textTheme.titleLarge,
+    );
 
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();

@@ -20,6 +20,7 @@ import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:lekis/src/features/library/widgets/press_feedback.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
 
 String formatDuration(int ms) {
@@ -209,149 +210,89 @@ class TrackTile extends ConsumerWidget {
       }
     }
 
-    List<PopupMenuEntry<_TrackMenuAction>> menuItems() => [
+    List<LekisMenuAction<_TrackMenuAction>> menuItems() => [
       if (showVideo)
-        PopupMenuItem(
-          value: _TrackMenuAction.video,
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.ondemand_video_rounded),
-            title: Text(watchVideoLabel(context)),
-          ),
+        LekisMenuAction(
+          _TrackMenuAction.video,
+          Icons.ondemand_video_rounded,
+          watchVideoLabel(context),
         ),
       if (showVideo)
-        PopupMenuItem(
-          value: _TrackMenuAction.videoExternal,
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.open_in_new_rounded),
-            title: Text(openVideoInBrowserLabel(context)),
-          ),
+        LekisMenuAction(
+          _TrackMenuAction.videoExternal,
+          Icons.open_in_new_rounded,
+          openVideoInBrowserLabel(context),
         ),
-      PopupMenuItem(
-        value: _TrackMenuAction.playNext,
-        child: ListTile(
-          dense: true,
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.queue_play_next_rounded),
-          title: Text(QueueStrings.playNext),
-        ),
+      LekisMenuAction(
+        _TrackMenuAction.playNext,
+        Icons.queue_play_next_rounded,
+        QueueStrings.playNext,
       ),
-      PopupMenuItem(
-        value: _TrackMenuAction.addToQueue,
-        child: ListTile(
-          dense: true,
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.add_to_queue_rounded),
-          title: Text(QueueStrings.addToQueue),
-        ),
+      LekisMenuAction(
+        _TrackMenuAction.addToQueue,
+        Icons.add_to_queue_rounded,
+        QueueStrings.addToQueue,
       ),
-      const PopupMenuDivider(),
-      PopupMenuItem(
-        value: _TrackMenuAction.addToPlaylist,
-        child: ListTile(
-          dense: true,
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.playlist_add_rounded),
-          title: Text(context.l10n.pick('添加到歌单', 'Add to Playlist')),
-        ),
+      LekisMenuAction(
+        _TrackMenuAction.addToPlaylist,
+        Icons.playlist_add_rounded,
+        context.l10n.pick('添加到歌单', 'Add to Playlist'),
+        startsGroup: true,
       ),
-      PopupMenuItem(
-        value: _TrackMenuAction.rate,
-        child: ListTile(
-          dense: true,
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.star_outline_rounded),
-          title: Text(context.l10n.pick('评分', 'Rate')),
-        ),
+      LekisMenuAction(
+        _TrackMenuAction.rate,
+        Icons.star_outline_rounded,
+        context.l10n.pick('评分', 'Rate'),
       ),
       if (track.isLocal)
-        PopupMenuItem(
-          value: _TrackMenuAction.editTags,
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.edit_note_rounded),
-            title: Text(context.l10n.pick('编辑标签', 'Edit Tags')),
-          ),
+        LekisMenuAction(
+          _TrackMenuAction.editTags,
+          Icons.edit_note_rounded,
+          context.l10n.pick('编辑标签', 'Edit Tags'),
         ),
       if (!onlinePlugin && track.id > 0)
-        PopupMenuItem(
-          value: _TrackMenuAction.exportMusic,
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.drive_file_move_outline),
-            title: Text(context.l10n.pick('导出音乐文件', 'Export music file')),
-          ),
+        LekisMenuAction(
+          _TrackMenuAction.exportMusic,
+          Icons.drive_file_move_outline,
+          context.l10n.pick('导出音乐文件', 'Export music file'),
         ),
-      PopupMenuItem(
-        value: _TrackMenuAction.enrich,
-        child: ListTile(
-          dense: true,
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.auto_fix_high_rounded),
-          title: Text(
-            onlinePlugin
-                ? context.l10n.pick('补全歌词', 'Fetch Lyrics')
-                : EnrichActionStrings.action,
-          ),
-        ),
+      LekisMenuAction(
+        _TrackMenuAction.enrich,
+        Icons.auto_fix_high_rounded,
+        onlinePlugin
+            ? context.l10n.pick('补全歌词', 'Fetch Lyrics')
+            : EnrichActionStrings.action,
+        startsGroup: true,
       ),
       if (!onlinePlugin)
-        PopupMenuItem(
-          value: _TrackMenuAction.artwork,
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.image_outlined),
-            title: Text(ArtworkActionStrings.change),
-          ),
+        LekisMenuAction(
+          _TrackMenuAction.artwork,
+          Icons.image_outlined,
+          ArtworkActionStrings.change,
         ),
-      PopupMenuItem(
-        value: _TrackMenuAction.sources,
-        child: ListTile(
-          dense: true,
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.layers_outlined),
-          title: Text(UnifiedStrings.menuTitle),
-        ),
+      LekisMenuAction(
+        _TrackMenuAction.sources,
+        Icons.layers_outlined,
+        UnifiedStrings.menuTitle,
       ),
       if (!track.isLocal || downloadState != null)
-        PopupMenuItem(
-          value: _TrackMenuAction.download,
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(
-              downloadState == null
-                  ? Icons.download_for_offline_outlined
-                  : downloadState == OfflineStateDto.ready
-                  ? Icons.delete_outline_rounded
-                  : downloadState == OfflineStateDto.failed
-                  ? Icons.refresh_rounded
-                  : Icons.download_done_rounded,
-            ),
-            title: Text(downloadMenuLabel(downloadState)),
-          ),
+        LekisMenuAction(
+          _TrackMenuAction.download,
+          downloadState == null
+              ? Icons.download_for_offline_outlined
+              : downloadState == OfflineStateDto.ready
+              ? Icons.delete_outline_rounded
+              : downloadState == OfflineStateDto.failed
+              ? Icons.refresh_rounded
+              : Icons.download_done_rounded,
+          downloadMenuLabel(downloadState),
         ),
     ];
 
     // Right-click (mouse, trackpad, stylus button) opens the same menu at
     // the pointer, like every desktop music app.
     Future<void> openContextMenu(Offset position) async {
-      final overlay =
-          Overlay.of(context).context.findRenderObject()! as RenderBox;
-      final action = await showMenu<_TrackMenuAction>(
-        context: context,
-        position: RelativeRect.fromRect(
-          position & Size.zero,
-          Offset.zero & overlay.size,
-        ),
-        items: menuItems(),
-      );
+      final action = await showLekisPointerMenu(context, position, menuItems());
       if (action != null && context.mounted) onMenu(action);
     }
 
@@ -441,18 +382,19 @@ class TrackTile extends ConsumerWidget {
                             initialLoved: track.loved,
                             size: LekisSpacing.lg,
                           ),
-                          PopupMenuButton<_TrackMenuAction>(
+                          LekisActionMenuButton<_TrackMenuAction>(
                             tooltip: context.l10n.pick('更多操作', 'More Actions'),
-                            padding: EdgeInsets.zero,
-                            onSelected: onMenu,
-                            itemBuilder: (_) => menuItems(),
-                            // A 36 dp row action, matching the heart; the same
-                            // menu still opens from a long press.
-                            child: const SizedBox(
-                              width: 36,
-                              height: 36,
-                              child: Icon(Icons.more_horiz_rounded, size: 20),
+                            title: track.title,
+                            artwork: TrackArtwork(
+                              trackId: track.id,
+                              hasArtwork:
+                                  track.artworkId != null || !track.isLocal,
+                              placeholderLabel: track.title,
                             ),
+                            subtitle: track.artistLine,
+                            compact: true,
+                            actions: menuItems,
+                            onSelected: onMenu,
                           ),
                           const SizedBox(width: LekisSpacing.xs),
                           Text(

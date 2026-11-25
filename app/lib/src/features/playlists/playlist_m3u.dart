@@ -17,6 +17,8 @@ import 'package:lekis/src/features/playlists/playlist_providers.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/features/playlists/playlist_strings.dart';
 
@@ -127,30 +129,23 @@ Future<void> exportPlaylistM3uFlow(
     return;
   }
 
-  final format = await showDialog<_PlaylistExportFormat>(
-    context: context,
-    builder: (context) => SimpleDialog(
-      title: Text(PlaylistStrings.exportPlaylist),
-      children: [
-        SimpleDialogOption(
-          onPressed: () => Navigator.of(context).pop(_PlaylistExportFormat.m3u),
-          child: ListTile(
-            leading: const Icon(Icons.playlist_play_rounded),
-            title: const Text('M3U8'),
-            subtitle: Text(PlaylistStrings.m3uSubtitle),
-          ),
-        ),
-        SimpleDialogOption(
-          onPressed: () =>
-              Navigator.of(context).pop(_PlaylistExportFormat.xspf),
-          child: ListTile(
-            leading: const Icon(Icons.code_rounded),
-            title: const Text('XSPF'),
-            subtitle: Text(PlaylistStrings.xspfSubtitle),
-          ),
-        ),
-      ],
-    ),
+  final format = await showLekisActionList(
+    context,
+    title: PlaylistStrings.exportPlaylist,
+    actions: [
+      LekisMenuAction(
+        _PlaylistExportFormat.m3u,
+        Icons.playlist_play_rounded,
+        'M3U8',
+        description: PlaylistStrings.m3uSubtitle,
+      ),
+      LekisMenuAction(
+        _PlaylistExportFormat.xspf,
+        Icons.code_rounded,
+        'XSPF',
+        description: PlaylistStrings.xspfSubtitle,
+      ),
+    ],
   );
   if (format == null || !context.mounted) return;
 
@@ -173,11 +168,11 @@ Future<void> exportPlaylistM3uFlow(
   final isM3u = format == _PlaylistExportFormat.m3u;
   final count = isM3u ? countM3uEntries(text) : countXspfTracks(text);
   final formatName = isM3u ? 'M3U8' : 'XSPF';
-  final action = await showDialog<_M3uExportAction>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(PlaylistStrings.exportFormat(formatName)),
-      content: Column(
+  final action = await showLekisPanel<_M3uExportAction>(
+    context,
+    builder: (context) => LekisPanel(
+      title: PlaylistStrings.exportFormat(formatName),
+      body: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -239,19 +234,21 @@ Future<void> exportPlaylistM3uFlow(
 }
 
 /// 导入对话框：可以选 .m3u / .m3u8 文件，也可以直接粘贴文本。
-class PlaylistM3uImportDialog extends StatefulWidget {
+class PlaylistM3uImportDialog extends ConsumerStatefulWidget {
   const PlaylistM3uImportDialog({super.key});
 
   @override
-  State<PlaylistM3uImportDialog> createState() =>
+  ConsumerState<PlaylistM3uImportDialog> createState() =>
       _PlaylistM3uImportDialogState();
 }
 
-class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
+class _PlaylistM3uImportDialogState
+    extends ConsumerState<PlaylistM3uImportDialog> {
   static String get _defaultName => PlaylistStrings.importedName;
   final _name = TextEditingController(text: _defaultName);
   final _content = TextEditingController();
   bool _busy = false;
+  PlaylistImportOutcome? _outcome;
   String? _error;
 
   @override
@@ -296,6 +293,10 @@ class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
     });
   }
 
+  void _clearError(String _) {
+    if (_error != null) setState(() => _error = null);
+  }
+
   Future<void> _submit() async {
     final name = _name.text.trim();
     final content = _content.text;
@@ -316,7 +317,12 @@ class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
           ? await core.importPlaylistXspf(name: name, content: content)
           : await core.importPlaylistM3U(name: name, content: content);
       if (!mounted) return;
-      Navigator.of(context).pop(PlaylistImportOutcome.fromReport(report));
+      ref.invalidate(playlistsProvider);
+      FocusScope.of(context).unfocus();
+      setState(() {
+        _busy = false;
+        _outcome = PlaylistImportOutcome.fromReport(report);
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -328,83 +334,85 @@ class _PlaylistM3uImportDialogState extends State<PlaylistM3uImportDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return AlertDialog(
-      title: Text(PlaylistStrings.importPlaylist),
-      content: SizedBox(
-        width: 560,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextField(
-                controller: _name,
-                textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: PlaylistStrings.nameLabel,
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: LekisSpacing.md),
-              Row(
+    final outcome = _outcome;
+    return PopScope<PlaylistImportOutcome>(
+      canPop: !_busy,
+      child: outcome != null
+          ? _importReportPanel(
+              context,
+              outcome: outcome,
+              onClose: () => Navigator.pop(context),
+              onOpen: () => Navigator.pop(context, outcome),
+            )
+          : LekisPanel(
+              step: 'import',
+              title: PlaylistStrings.importPlaylist,
+              error: _error,
+              body: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  OutlinedButton.icon(
-                    onPressed: _busy ? null : _pickFile,
-                    icon: const Icon(Icons.folder_open_rounded),
-                    label: Text(PlaylistStrings.chooseFile),
+                  TextField(
+                    controller: _name,
+                    onChanged: _clearError,
+                    enabled: !_busy,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: PlaylistStrings.nameLabel,
+                    ),
                   ),
-                  const SizedBox(width: LekisSpacing.sm),
-                  TextButton.icon(
-                    onPressed: _busy ? null : _paste,
-                    icon: const Icon(Icons.content_paste_rounded),
-                    label: Text(PlaylistStrings.pasteFromClipboard),
+                  const SizedBox(height: LekisSpacing.md),
+                  Wrap(
+                    spacing: LekisSpacing.sm,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _busy ? null : _pickFile,
+                        icon: const Icon(Icons.folder_open_rounded),
+                        label: Text(PlaylistStrings.chooseFile),
+                      ),
+                      TextButton.icon(
+                        onPressed: _busy ? null : _paste,
+                        icon: const Icon(Icons.content_paste_rounded),
+                        label: Text(PlaylistStrings.pasteFromClipboard),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: LekisSpacing.sm),
+                  TextField(
+                    controller: _content,
+                    onChanged: _clearError,
+                    enabled: !_busy,
+                    minLines: 3,
+                    maxLines: 10,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: PlaylistStrings.importHint,
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: LekisSpacing.sm),
-              TextField(
-                controller: _content,
-                enabled: !_busy,
-                minLines: 6,
-                maxLines: 10,
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-                decoration: InputDecoration(
-                  hintText: PlaylistStrings.importHint,
-                  border: const OutlineInputBorder(),
+              actions: [
+                TextButton(
+                  onPressed: _busy ? null : () => Navigator.of(context).pop(),
+                  child: Text(PlaylistStrings.cancel),
                 ),
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: LekisSpacing.sm),
-                Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.error,
+                FilledButton.icon(
+                  onPressed: _busy ? null : _submit,
+                  icon: _busy
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.playlist_add_check_rounded),
+                  label: Text(
+                    _busy ? PlaylistStrings.importing : PlaylistStrings.import,
                   ),
                 ),
               ],
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _busy ? null : () => Navigator.of(context).pop(),
-          child: Text(PlaylistStrings.cancel),
-        ),
-        FilledButton.icon(
-          onPressed: _busy ? null : _submit,
-          icon: _busy
-              ? const SizedBox.square(
-                  dimension: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.playlist_add_check_rounded),
-          label: Text(
-            _busy ? PlaylistStrings.importing : PlaylistStrings.import,
-          ),
-        ),
-      ],
+            ),
     );
   }
 }
@@ -414,75 +422,74 @@ Future<bool?> showM3uImportReportDialog(
   BuildContext context,
   PlaylistImportOutcome outcome,
 ) {
-  return showDialog<bool>(
-    context: context,
-    builder: (context) {
-      final theme = Theme.of(context);
-      final colors = context.lekisColors;
-      return AlertDialog(
-        title: Text(PlaylistStrings.importDone),
-        content: SizedBox(
-          width: 480,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 360),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(outcome.summary),
-                  const SizedBox(height: LekisSpacing.xs),
-                  Text(
-                    PlaylistStrings.importCounts(
-                      outcome.matched,
-                      outcome.unmatched,
-                    ),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                  if (outcome.hasMissing) ...[
-                    const SizedBox(height: LekisSpacing.md),
-                    Text(
-                      PlaylistStrings.unmatchedPaths,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: LekisSpacing.xs),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(LekisSpacing.sm),
-                      decoration: BoxDecoration(
-                        color: colors.surfaceVariant.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(LekisRadius.sm),
-                      ),
-                      child: SelectableText(
-                        outcome.missing.join('\n'),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          fontFamily: 'monospace',
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
+  return showLekisPanel<bool>(
+    context,
+    builder: (context) => _importReportPanel(
+      context,
+      outcome: outcome,
+      onClose: () => Navigator.pop(context, false),
+      onOpen: () => Navigator.pop(context, true),
+    ),
+  );
+}
+
+LekisPanel _importReportPanel(
+  BuildContext context, {
+  required PlaylistImportOutcome outcome,
+  required VoidCallback onClose,
+  required VoidCallback onOpen,
+}) {
+  final theme = Theme.of(context);
+  final colors = context.lekisColors;
+  return LekisPanel(
+    step: 'report',
+    title: PlaylistStrings.importDone,
+    body: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(outcome.summary),
+        const SizedBox(height: LekisSpacing.xs),
+        Text(
+          PlaylistStrings.importCounts(outcome.matched, outcome.unmatched),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: colors.onSurfaceVariant,
+          ),
+        ),
+        if (outcome.hasMissing) ...[
+          const SizedBox(height: LekisSpacing.md),
+          Text(
+            PlaylistStrings.unmatchedPaths,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: LekisSpacing.xs),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(LekisSpacing.sm),
+            decoration: BoxDecoration(
+              color: colors.surfaceVariant.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(LekisRadius.sm),
+            ),
+            child: SelectableText(
+              outcome.missing.join('\n'),
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontFamily: 'monospace',
+                color: colors.onSurfaceVariant,
               ),
             ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(PlaylistStrings.close),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(PlaylistStrings.openPlaylist),
-          ),
         ],
-      );
-    },
+      ],
+    ),
+    actions: [
+      TextButton(onPressed: onClose, child: Text(PlaylistStrings.close)),
+      FilledButton(
+        onPressed: onOpen,
+        child: Text(PlaylistStrings.openPlaylist),
+      ),
+    ],
   );
 }
 
@@ -492,18 +499,15 @@ Future<void> importPlaylistM3uFlow(
   WidgetRef ref, {
   LibraryScope? scope,
 }) async {
-  final outcome = await showDialog<PlaylistImportOutcome>(
-    context: context,
+  final outcome = await showLekisPanel<PlaylistImportOutcome>(
+    context,
+    dismissible: false,
     builder: (_) => const PlaylistM3uImportDialog(),
   );
   if (outcome == null || !context.mounted) return;
 
-  ref.invalidate(playlistsProvider);
-  final open = await showM3uImportReportDialog(context, outcome);
-  if (open == true && context.mounted) {
-    await Navigator.of(context)
-        .push(PlaylistDetailPage.route(outcome.playlistId, scope: scope));
-  }
+  await Navigator.of(context)
+      .push(PlaylistDetailPage.route(outcome.playlistId, scope: scope));
 }
 
 void _snack(BuildContext context, String message) {

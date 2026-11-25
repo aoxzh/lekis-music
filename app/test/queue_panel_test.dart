@@ -1,5 +1,6 @@
 // Desktop queue: third pane on wide windows, bottom sheet on compact ones.
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lekis/src/features/downloads/downloads_providers.dart';
@@ -242,30 +243,46 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('panel moves an earlier queue entry directly after current', (
-    tester,
-  ) async {
-    final (container, actions, list) = _container();
-    addTearDown(container.dispose);
-    addTearDown(list.dispose);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: lekisDarkTheme(),
-          home: const Scaffold(body: QueuePanel()),
-        ),
-      ),
+  for (final pointer in [false, true]) {
+    testWidgets(
+      'queue row menu moves the chosen occurrence (right-click: $pointer)',
+      (tester) async {
+        final (container, actions, list) = _container();
+        addTearDown(container.dispose);
+        addTearDown(list.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp(
+              theme: lekisDarkTheme(),
+              home: const Scaffold(body: QueuePanel()),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final target = find.text('曲目 39');
+        if (pointer) {
+          await tester.tap(
+            target,
+            buttons: kSecondaryMouseButton,
+            kind: PointerDeviceKind.mouse,
+          );
+        } else {
+          await tester.longPress(target);
+        }
+        await tester.pumpAndSettle();
+        expect(
+          find.byType(BottomSheet),
+          pointer ? findsNothing : findsOneWidget,
+        );
+        await tester.tap(find.text('移到下一首'));
+        await tester.pumpAndSettle();
+        expect(actions.moved, [(39, 40)]);
+        expect(actions.played, isEmpty);
+        expect(actions.removed, 0);
+      },
     );
-    await tester.pumpAndSettle();
-    await tester.longPress(find.text('曲目 39'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('移到下一首'));
-    await tester.pumpAndSettle();
-    expect(actions.moved, [(39, 40)]);
-    expect(actions.played, isEmpty);
-    expect(actions.removed, 0);
-  });
+  }
 
   testWidgets('compact Now Playing keeps the queue bottom sheet', (
     tester,

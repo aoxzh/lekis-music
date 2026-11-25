@@ -224,6 +224,21 @@ void main() {
     );
     await tester.tap(find.text('Open queue'));
     await tester.pumpAndSettle();
+    final queueTitle = find.text('播放队列');
+    final originalTop = tester.getTopLeft(queueTitle);
+    final host = tester.element(queueTitle);
+    unawaited(
+      showDialog<void>(
+        context: host,
+        builder: (_) => const AlertDialog(content: TextField()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(queueTitle), originalTop);
+    Navigator.of(host).pop();
+    await tester.pumpAndSettle();
     tester.view.viewInsets = const FakeViewPadding(bottom: 280);
     await type(tester, 'Track 1199');
     expect(row(1199).hitTestable(), findsOneWidget);

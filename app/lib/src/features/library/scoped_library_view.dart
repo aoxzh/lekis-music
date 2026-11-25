@@ -13,6 +13,8 @@ import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/library/music_export_dialog.dart';
 import 'package:lekis/src/features/library/scoped_album_panes.dart';
 import 'package:lekis/src/features/library/widgets/empty_state.dart';
+import 'package:lekis/src/features/library/widgets/library_browse_menu.dart';
+import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/library/widgets/paged_track_list.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
@@ -25,6 +27,7 @@ import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
 
 final scopedOrderedTracksProvider = FutureProvider.autoDispose
@@ -215,6 +218,8 @@ class ScopedLibraryView extends ConsumerWidget {
         key: ValueKey(scope),
         albums: albums,
         empty: _Empty(scope: scope, segment: segment),
+        menuBuilder: (context, album, open) =>
+            _AlbumMenu(scope: scope, album: album, open: open),
         openRoute: (album) =>
             ScopedLibraryAlbumPage.route(scope: scope, album: album),
         detailBuilder: (album, close) =>
@@ -240,6 +245,9 @@ class ScopedLibraryView extends ConsumerWidget {
             ),
             loading: _loading,
           );
+    }
+    if (segment == LibrarySegment.artists) {
+      return _ScopedArtists(key: ValueKey(scope), scope: scope);
     }
     final catalog = _catalogProvider(scope);
     return ref
@@ -274,6 +282,149 @@ void retryScopedCatalog(
 
 Widget _loading() => const Center(child: CircularProgressIndicator());
 
+class _AlbumMenu extends ConsumerWidget {
+  const _AlbumMenu({
+    required this.scope,
+    required this.album,
+    required this.open,
+  });
+  final LibraryScope scope;
+  final AlbumDto album;
+  final VoidCallback open;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => LibraryBrowseMenu(
+    title: album.title,
+    subtitle: _songCount(context, album.trackCount),
+    openLabel: context.l10n.pick('查看专辑', 'View album'),
+    icon: Icons.album_outlined,
+    onOpen: open,
+    onPlay: album.trackCount == 0
+        ? null
+        : () async {
+            final provider = _albumTracksProvider((scope, album.id));
+            // Keep all pages of this source's album alive until playback starts.
+            final sub = ref.listenManual(provider, (_, _) {});
+            try {
+              final rows = await ref.read(provider.future);
+              if (context.mounted && rows.isNotEmpty) {
+                ref.read(playerActionsProvider).playRows(rows);
+              }
+            } catch (error) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(SnackBar(content: Text(error.toString())));
+              }
+            } finally {
+              sub.close();
+            }
+          },
+  );
+}
+
+typedef _LibraryGroup = ({Object id, String name});
+
+Iterable<_LibraryGroup> _artistCredits(ScopedTrackMetadataDto? metadata) sync* {
+  for (final artist in metadata?.artists ?? const <ScopedArtistCreditDto>[]) {
+    if (artist.name.trim().isNotEmpty) {
+      yield (id: artist.artistId ?? artist.name, name: artist.name);
+    }
+  }
+}
+
+List<TrackRowDto> _artistRows(_Catalog catalog, Object id) => [
+  for (final row in catalog.rows)
+    if (_artistCredits(catalog.metadata[row.id])
+        .any((credit) => credit.id == id))
+      row,
+];
+
+class _ScopedArtists extends ConsumerStatefulWidget {
+  const _ScopedArtists({super.key, required this.scope});
+  final LibraryScope scope;
+
+  @override
+  ConsumerState<_ScopedArtists> createState() => _ScopedArtistsState();
+}
+
+class _ScopedArtistsState extends ConsumerState<_ScopedArtists> {
+  Route<void>? _detail;
+
+  @override
+  void dispose() {
+    // The source can be replaced while its artist page is still on the tab.
+    final route = _detail;
+    if (route != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (route.isActive) route.navigator?.removeRoute(route);
+      });
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = widget.scope;
+    final provider = _catalogProvider(scope);
+    return ref
+        .watch(provider)
+        .when(
+          loading: _loading,
+          error: (error, _) => LoadErrorView(
+            error: error,
+            onRetry: () => retryScopedCatalog(ref, scope),
+          ),
+          data: (catalog) {
+            return ScopedLibraryRowsView(
+              scope: scope,
+              segment: LibrarySegment.artists,
+              rows: catalog.rows,
+              metadata: catalog.metadata,
+              onOpenArtist: (artist) async {
+                if (_detail?.isActive == true) return;
+                final route = MaterialPageRoute<void>(
+                  builder: (_) =>
+                      _ScopedArtistPage(scope: scope, artist: artist),
+                );
+                _detail = route;
+                await Navigator.of(context).push(route);
+                if (_detail == route) _detail = null;
+              },
+            );
+          },
+        );
+  }
+}
+
+class _ScopedArtistPage extends ConsumerWidget {
+  const _ScopedArtistPage({required this.scope, required this.artist});
+  final LibraryScope scope;
+  final _LibraryGroup artist;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+    appBar: AppBar(title: Text(artist.name)),
+    body: ref
+        .watch(_catalogProvider(scope))
+        .when(
+          loading: _loading,
+          error: (error, _) => LoadErrorView(
+            error: error,
+            onRetry: () => retryScopedCatalog(ref, scope),
+          ),
+          data: (catalog) {
+            final rows = _artistRows(catalog, artist.id);
+            return _Songs(
+              scope: scope,
+              rows: rows,
+              albums: _artistAlbums(rows, catalog.metadata),
+              menuTitle: artist.name,
+            );
+          },
+        ),
+  );
+}
+
 class ScopedLibraryAlbumPage extends ConsumerWidget {
   const ScopedLibraryAlbumPage({
     super.key,
@@ -305,7 +456,12 @@ class ScopedLibraryAlbumPage extends ConsumerWidget {
       body: ref
           .watch(provider)
           .when(
-            data: (rows) => _Songs(scope: scope, rows: rows, albumDetail: true),
+            data: (rows) => _Songs(
+              scope: scope,
+              rows: rows,
+              albumDetail: true,
+              menuTitle: album.title,
+            ),
             error: (error, _) => LoadErrorView(
               error: error,
               onRetry: () => ref.invalidate(provider),
@@ -316,25 +472,28 @@ class ScopedLibraryAlbumPage extends ConsumerWidget {
   }
 }
 
-class ScopedLibraryRowsView extends StatefulWidget {
+class ScopedLibraryRowsView extends ConsumerStatefulWidget {
   const ScopedLibraryRowsView({
     super.key,
     required this.scope,
     required this.segment,
     required this.rows,
     this.metadata = const {},
+    this.onOpenArtist,
   });
 
   final LibraryScope scope;
   final LibrarySegment segment;
   final List<TrackRowDto> rows;
   final Map<int, ScopedTrackMetadataDto> metadata;
+  final ValueChanged<({Object id, String name})>? onOpenArtist;
 
   @override
-  State<ScopedLibraryRowsView> createState() => _ScopedLibraryRowsViewState();
+  ConsumerState<ScopedLibraryRowsView> createState() =>
+      _ScopedLibraryRowsViewState();
 }
 
-class _ScopedLibraryRowsViewState extends State<ScopedLibraryRowsView> {
+class _ScopedLibraryRowsViewState extends ConsumerState<ScopedLibraryRowsView> {
   ({Object id, String name})? _group;
 
   @override
@@ -350,13 +509,7 @@ class _ScopedLibraryRowsViewState extends State<ScopedLibraryRowsView> {
 
   Iterable<({Object id, String name})> _labels(TrackRowDto row) =>
       switch (widget.segment) {
-        LibrarySegment.artists => [
-          for (final artist
-              in widget.metadata[row.id]?.artists ??
-                  const <ScopedArtistCreditDto>[])
-            if (artist.name.trim().isNotEmpty)
-              (id: artist.artistId ?? artist.name, name: artist.name),
-        ],
+        LibrarySegment.artists => _artistCredits(widget.metadata[row.id]),
         LibrarySegment.genres => [
           for (final label
               in widget.metadata[row.id]?.genres ?? const <String>[])
@@ -400,11 +553,38 @@ class _ScopedLibraryRowsViewState extends State<ScopedLibraryRowsView> {
         itemCount: names.length,
         itemBuilder: (context, index) {
           final name = names[index];
+          final count = _songCount(context, counts[name]!);
+          final artist = segment == LibrarySegment.artists;
+          void open() {
+            if (artist && widget.onOpenArtist != null) {
+              widget.onOpenArtist!(name);
+            } else {
+              setState(() => _group = name);
+            }
+          }
+
           return ListTile(
+            leading: artist ? ArtistAvatar(name: name.name) : null,
             title: Text(name.name),
-            subtitle: Text(_songCount(context, counts[name]!)),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => setState(() => _group = name),
+            subtitle: Text(count),
+            trailing: artist
+                ? LibraryBrowseMenu(
+                    title: name.name,
+                    subtitle: count,
+                    openLabel: context.l10n.pick('查看艺人', 'View artist'),
+                    icon: Icons.person_outline_rounded,
+                    onOpen: open,
+                    onPlay: () => ref
+                        .read(playerActionsProvider)
+                        .playRows(
+                          _artistRows((
+                            rows: scoped,
+                            metadata: widget.metadata,
+                          ), name.id),
+                        ),
+                  )
+                : const Icon(Icons.chevron_right_rounded),
+            onTap: open,
           );
         },
       );
@@ -500,16 +680,9 @@ class _Empty extends StatelessWidget {
         return;
       }
       if (kind == LibraryScopeKind.local) {
-        Navigator.of(context).push<void>(
+        Navigator.of(context).push<int>(
           MaterialPageRoute(
-            builder: (page) => Scaffold(
-              appBar: AppBar(title: Text(action!)),
-              body: SourceForm(
-                kind: SourceKindDto.local,
-                onBack: () => Navigator.pop(page),
-                onDone: (_) => Navigator.pop(page),
-              ),
-            ),
+            builder: (_) => const SourceFormPage(kind: SourceKindDto.local),
           ),
         );
         return;
@@ -575,12 +748,14 @@ class _Songs extends ConsumerWidget {
     required this.rows,
     this.albums = const [],
     this.albumDetail = false,
+    this.menuTitle,
     this.liked = false,
   });
   final LibraryScope scope;
   final List<TrackRowDto> rows;
   final List<AlbumDto> albums;
   final bool albumDetail;
+  final String? menuTitle;
   final bool liked;
 
   @override
@@ -619,14 +794,27 @@ class _Songs extends ConsumerWidget {
               onChangeArtwork: albumDetail
                   ? () => changeArtworkFlow(context, trackIds: ids)
                   : null,
-              trailing: [
+              menuTitle: menuTitle,
+              menuSubtitle: menuTitle == null
+                  ? null
+                  : _songCount(context, rows.length),
+              moreActions: [
                 if (albumDetail && scope.kind != LibraryScopeKind.plugin)
-                  IconButton(
-                    tooltip: context.l10n.pick('导出整张专辑', 'Export album'),
-                    icon: const Icon(Icons.drive_file_move_outline),
-                    onPressed: () =>
-                        showMusicExport(context, albumTrackIds: ids),
+                  LekisMenuAction(
+                    () => showMusicExport(context, albumTrackIds: ids),
+                    Icons.drive_file_move_outline,
+                    context.l10n.pick('导出整张专辑', 'Export album'),
+                    startsGroup: true,
                   ),
+                if (albumDetail)
+                  LekisMenuAction(
+                    () => copyTrackListAsText(context, rows),
+                    Icons.content_copy_rounded,
+                    context.l10n.pick('复制曲目列表', 'Copy Track List'),
+                    startsGroup: scope.kind == LibraryScopeKind.plugin,
+                  ),
+              ],
+              trailing: [
                 if (liked)
                   IconButton(
                     tooltip: context.l10n.pick('保存为歌单', 'Save as Playlist'),
@@ -638,25 +826,28 @@ class _Songs extends ConsumerWidget {
                       suggestedName: context.l10n.pick('喜欢的歌曲', 'Liked Songs'),
                     ),
                   ),
-                if (albumDetail)
-                  IconButton(
-                    tooltip: context.l10n.pick('复制曲目列表', 'Copy Track List'),
-                    icon: const Icon(Icons.content_copy_rounded),
-                    onPressed: () => copyTrackListAsText(context, rows),
-                  ),
                 if (downloadable.isNotEmpty)
                   BatchDownloadButton(trackIds: downloadable),
               ],
             ),
             for (final album in albums)
-              ListTile(
-                leading: const Icon(Icons.album_rounded),
-                title: Text(album.title),
-                subtitle: Text(_songCount(context, album.trackCount)),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => Navigator.of(context).push(
-                  ScopedLibraryAlbumPage.route(scope: scope, album: album),
-                ),
+              Builder(
+                builder: (context) {
+                  void open() => Navigator.of(context).push(
+                    ScopedLibraryAlbumPage.route(scope: scope, album: album),
+                  );
+                  return ListTile(
+                    leading: const Icon(Icons.album_rounded),
+                    title: Text(album.title),
+                    subtitle: Text(_songCount(context, album.trackCount)),
+                    trailing: _AlbumMenu(
+                      scope: scope,
+                      album: album,
+                      open: open,
+                    ),
+                    onTap: open,
+                  );
+                },
               ),
           ],
         ),

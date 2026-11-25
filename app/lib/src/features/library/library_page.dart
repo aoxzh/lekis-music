@@ -5,10 +5,9 @@ import 'package:lekis/src/features/library/scoped_library_view.dart';
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/search/search_page.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
-import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
-import 'package:lekis/src/widgets/adaptive_panel.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
 
 class LibraryPage extends ConsumerWidget {
@@ -243,76 +242,32 @@ class _SourceTitle extends StatelessWidget {
     return Semantics(
       key: const ValueKey('library-source-select'),
       header: true,
-      child: UiProfile.current.desktopSettings
-          ? PopupMenuButton<LibraryScope>(
-              tooltip: tooltip,
-              initialValue: scope,
-              onSelected: onSelected,
-              itemBuilder: (_) => [
-                for (final entry in labels.entries)
-                  PopupMenuItem(
-                    value: entry.key,
-                    child: _MenuLabel(
-                      label: entry.value,
-                      selected: entry.key == scope,
-                    ),
-                  ),
-              ],
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  minHeight: kMinInteractiveDimension,
-                ),
-                child: title,
-              ),
-            )
-          : TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.onSurface,
-                minimumSize: const Size(0, kMinInteractiveDimension),
-                padding: EdgeInsets.zero,
-              ),
-              onPressed: () async {
-                final selected = await showLekisSheet<LibraryScope>(
-                  context,
-                  heightFactor: null,
-                  builder: (sheet) => ListView(
-                    shrinkWrap: true,
-                    children: [
-                      for (final entry in labels.entries)
-                        ListTile(
-                          selected: entry.key == scope,
-                          title: Text(entry.value),
-                          trailing: entry.key == scope
-                              ? const Icon(Icons.check_rounded)
-                              : null,
-                          onTap: () => Navigator.of(sheet).pop(entry.key),
-                        ),
-                    ],
-                  ),
-                );
-                if (context.mounted && selected != null) onSelected(selected);
+      child: LekisActionMenuButton<LibraryScope>(
+        title: tooltip,
+        tooltip: tooltip,
+        onSelected: onSelected,
+        actions: () => [
+          for (final entry in labels.entries)
+            LekisMenuAction(
+              entry.key,
+              switch (entry.key.kind) {
+                LibraryScopeKind.local => Icons.library_music_outlined,
+                LibraryScopeKind.nas => Icons.dns_outlined,
+                LibraryScopeKind.plugin => Icons.extension_outlined,
               },
-              child: Tooltip(message: tooltip, child: title),
+              entry.value,
+              selected: entry.key == scope,
             ),
+        ],
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minHeight: kMinInteractiveDimension,
+          ),
+          child: title,
+        ),
+      ),
     );
   }
-}
-
-class _MenuLabel extends StatelessWidget {
-  const _MenuLabel({required this.label, required this.selected});
-  final String label;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    selected: selected,
-    child: Row(
-      children: [
-        Expanded(child: Text(label)),
-        if (selected) const Icon(Icons.check_rounded),
-      ],
-    ),
-  );
 }
 
 class _CategoryStrip extends StatefulWidget {
@@ -412,16 +367,24 @@ class _SortMenu extends ConsumerWidget {
             TrackSortDto.recentlyAdded,
           ]
         : TrackSortDto.values;
-    return PopupMenuButton<TrackSortDto>(
+    return LekisActionMenuButton<TrackSortDto>(
+      title: l10n.pick('排序', 'Sort'),
       tooltip: l10n.pick('排序：${label(current)}', 'Sort: ${label(current)}'),
-      icon: const Icon(Icons.sort_rounded),
-      initialValue: current,
+      icon: Icons.sort_rounded,
       onSelected: (value) => ref.read(provider.notifier).set(value),
-      itemBuilder: (_) => [
+      actions: () => [
         for (final sort in options)
-          PopupMenuItem(
-            value: sort,
-            child: _MenuLabel(label: label(sort), selected: sort == current),
+          LekisMenuAction(
+            sort,
+            switch (sort) {
+              TrackSortDto.title => Icons.title_rounded,
+              TrackSortDto.artist => Icons.person_outline_rounded,
+              TrackSortDto.album => Icons.album_outlined,
+              TrackSortDto.recentlyAdded => Icons.schedule_rounded,
+              TrackSortDto.mostPlayed => Icons.play_circle_outline_rounded,
+            },
+            label(sort),
+            selected: sort == current,
           ),
       ],
     );

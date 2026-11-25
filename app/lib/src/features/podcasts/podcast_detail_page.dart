@@ -10,6 +10,7 @@ import 'package:lekis/src/features/podcasts/widgets/podcast_widgets.dart';
 import 'package:lekis/src/features/settings/widgets/settings_widgets.dart';
 import 'package:lekis/src/features/sources/common.dart';
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
 
 class PodcastDetailPage extends ConsumerStatefulWidget {
@@ -101,17 +102,19 @@ class _PodcastDetailPageState extends ConsumerState<PodcastDetailPage> {
                       _run(() => ref.read(podcastActionsProvider).refresh(id)),
             icon: const Icon(Icons.refresh_rounded),
           ),
-          PopupMenuButton<String>(
+          LekisActionMenuButton<String>(
+            title: title,
             tooltip: PodcastStrings.more,
             onSelected: (value) {
               if (value == 'all-played') {
                 _run(() => ref.read(podcastActionsProvider).markAllPlayed(id));
               }
             },
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'all-played',
-                child: Text(PodcastStrings.markAllPlayed),
+            actions: () => [
+              LekisMenuAction(
+                'all-played',
+                Icons.done_all_rounded,
+                PodcastStrings.markAllPlayed,
               ),
             ],
           ),
