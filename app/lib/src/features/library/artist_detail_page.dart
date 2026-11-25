@@ -104,6 +104,7 @@ class _ArtistDetailViewState extends ConsumerState<ArtistDetailView> {
               padding: EdgeInsets.fromLTRB(gutter, LekisSpacing.lg, gutter, 0),
               sliver: SliverToBoxAdapter(
                 child: _ArtistHeader(
+                  artistId: artist.id,
                   name: artist.name,
                   meta: meta,
                   trackIds: [for (final track in tracks) track.id],
@@ -291,6 +292,7 @@ class _ArtistSkeleton extends StatelessWidget {
 /// stays on the first screen.
 class _ArtistHeader extends StatelessWidget {
   const _ArtistHeader({
+    required this.artistId,
     required this.name,
     this.meta,
     required this.trackIds,
@@ -299,6 +301,7 @@ class _ArtistHeader extends StatelessWidget {
     this.onCopy,
   });
 
+  final int artistId;
   final String name;
   final String? meta;
   final List<int> trackIds;
@@ -367,7 +370,11 @@ class _ArtistHeader extends StatelessWidget {
         if (!row) {
           return Column(
             children: [
-              ArtistAvatar(name: name, size: LekisSizes.gridArtworkMin),
+              ArtistAvatar(
+                name: name,
+                artistId: artistId,
+                size: LekisSizes.gridArtworkMin,
+              ),
               const SizedBox(height: LekisSpacing.lg),
               title,
               if (metaText != null) ...[
@@ -381,7 +388,7 @@ class _ArtistHeader extends StatelessWidget {
         }
         return Row(
           children: [
-            ArtistAvatar(name: name, size: _compactAvatar),
+            ArtistAvatar(name: name, artistId: artistId, size: _compactAvatar),
             const SizedBox(width: LekisSpacing.xl),
             Expanded(
               child: Column(

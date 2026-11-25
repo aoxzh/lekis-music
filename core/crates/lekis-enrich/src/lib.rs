@@ -1,4 +1,4 @@
-//! 元数据补全（REQUIREMENTS 3.3 节，ENR-01~12）。
+//! 元数据补全（ENR-01~12）。
 //!
 //! ```text
 //! 内嵌数据 → 同目录 sidecar → 指纹识别（AcoustID → MBID）→ 在线提供方（按优先级）→ 打分
@@ -22,6 +22,7 @@
 //! | `md5` | Last.fm 签名要用的 MD5（RFC 1321），仅供 [`scrobble`] 内部使用 |
 
 pub mod apple_music;
+pub mod artist_image;
 pub mod artwork_ingest;
 pub mod bangumi;
 pub mod cache;

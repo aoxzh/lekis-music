@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1748702667;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 663151207;
 
 // Section: executor
 
@@ -489,6 +489,42 @@ fn wire__crate__api__core__artist_albums_impl(
                         let output_ok =
                             crate::api::core::artist_albums(api_artist_id, api_offset, api_limit)
                                 .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__core__artist_artwork_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "artist_artwork",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_artist_id = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::CoreError>(
+                    (move || async move {
+                        let output_ok = crate::api::core::artist_artwork(api_artist_id).await?;
                         std::result::Result::Ok(output_ok)
                     })()
                     .await,
@@ -13315,390 +13351,391 @@ fn pde_ffi_dispatcher_primary_impl(
             wire__crate__api__core__album_tracks_by_source_impl(port, ptr, rust_vec_len, data_len)
         }
         12 => wire__crate__api__core__artist_albums_impl(port, ptr, rust_vec_len, data_len),
-        13 => wire__crate__api__core__artist_index_offsets_impl(port, ptr, rust_vec_len, data_len),
-        14 => wire__crate__api__dto__artist_listening_dto_default_impl(
+        13 => wire__crate__api__core__artist_artwork_impl(port, ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__core__artist_index_offsets_impl(port, ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__dto__artist_listening_dto_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        15 => wire__crate__api__core__artist_tracks_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__core__artwork_impl(port, ptr, rust_vec_len, data_len),
-        18 => {
+        16 => wire__crate__api__core__artist_tracks_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__core__artwork_impl(port, ptr, rust_vec_len, data_len),
+        19 => {
             wire__crate__api__core__batch_write_track_tags_impl(port, ptr, rust_vec_len, data_len)
         }
-        19 => wire__crate__api__core__browse_plugin_impl(port, ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__core__browse_source_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__core__clear_playback_state_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__core__clear_track_tag_overrides_impl(
+        20 => wire__crate__api__core__browse_plugin_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__core__browse_source_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__core__clear_playback_state_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__core__clear_track_tag_overrides_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => wire__crate__api__connect__connect_add_device_impl(port, ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__connect__connect_control_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__connect__connect_disconnect_impl(port, ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__connect__connect_events_impl(port, ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__connect__connect_forget_impl(port, ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__connect__connect_pair_impl(port, ptr, rust_vec_len, data_len),
-        32 => {
+        25 => wire__crate__api__connect__connect_add_device_impl(port, ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__connect__connect_control_impl(port, ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__connect__connect_disconnect_impl(port, ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__connect__connect_events_impl(port, ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__connect__connect_forget_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__connect__connect_pair_impl(port, ptr, rust_vec_len, data_len),
+        33 => {
             wire__crate__api__connect__connect_pair_confirm_impl(port, ptr, rust_vec_len, data_len)
         }
-        34 => wire__crate__api__connect__connect_play_on_impl(port, ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__connect__connect_remote_artwork_impl(
+        35 => wire__crate__api__connect__connect_play_on_impl(port, ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__connect__connect_remote_artwork_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        37 => {
+        38 => {
             wire__crate__api__connect__connect_remote_queue_impl(port, ptr, rust_vec_len, data_len)
         }
-        38 => {
+        39 => {
             wire__crate__api__connect__connect_remote_state_impl(port, ptr, rust_vec_len, data_len)
         }
-        39 => {
+        40 => {
             wire__crate__api__connect__connect_set_settings_impl(port, ptr, rust_vec_len, data_len)
         }
-        40 => wire__crate__api__connect__connect_settings_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__connect__connect_start_impl(port, ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__connect__connect_stop_impl(port, ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__connect__connect_transfer_impl(port, ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__core__core_events_impl(port, ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__core__count_albums_impl(port, ptr, rust_vec_len, data_len),
-        47 => wire__crate__api__core__count_artists_impl(port, ptr, rust_vec_len, data_len),
-        48 => wire__crate__api__core__count_genre_tracks_impl(port, ptr, rust_vec_len, data_len),
-        49 => wire__crate__api__core__count_loved_impl(port, ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__core__count_smart_rules_impl(port, ptr, rust_vec_len, data_len),
-        51 => wire__crate__api__core__count_tracks_impl(port, ptr, rust_vec_len, data_len),
-        52 => wire__crate__api__core__create_playlist_impl(port, ptr, rust_vec_len, data_len),
-        53 => wire__crate__api__core__delete_credential_impl(port, ptr, rust_vec_len, data_len),
-        54 => wire__crate__api__core__delete_duplicate_file_impl(port, ptr, rust_vec_len, data_len),
-        55 => wire__crate__api__core__delete_playlist_impl(port, ptr, rust_vec_len, data_len),
-        56 => wire__crate__api__desktop_lyrics__desktop_lyrics_events_impl(
+        41 => wire__crate__api__connect__connect_settings_impl(port, ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__connect__connect_start_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__connect__connect_stop_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__connect__connect_transfer_impl(port, ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__core__core_events_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__core__count_albums_impl(port, ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__core__count_artists_impl(port, ptr, rust_vec_len, data_len),
+        49 => wire__crate__api__core__count_genre_tracks_impl(port, ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__core__count_loved_impl(port, ptr, rust_vec_len, data_len),
+        51 => wire__crate__api__core__count_smart_rules_impl(port, ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__core__count_tracks_impl(port, ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__core__create_playlist_impl(port, ptr, rust_vec_len, data_len),
+        54 => wire__crate__api__core__delete_credential_impl(port, ptr, rust_vec_len, data_len),
+        55 => wire__crate__api__core__delete_duplicate_file_impl(port, ptr, rust_vec_len, data_len),
+        56 => wire__crate__api__core__delete_playlist_impl(port, ptr, rust_vec_len, data_len),
+        57 => wire__crate__api__desktop_lyrics__desktop_lyrics_events_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        70 => wire__crate__api__core__discover_lan_impl(port, ptr, rust_vec_len, data_len),
-        71 => wire__crate__api__core__download_track_impl(port, ptr, rust_vec_len, data_len),
-        72 => wire__crate__api__core__download_tracks_impl(port, ptr, rust_vec_len, data_len),
-        73 => wire__crate__api__core__duplicate_group_count_impl(port, ptr, rust_vec_len, data_len),
-        74 => wire__crate__api__core__duplicate_groups_impl(port, ptr, rust_vec_len, data_len),
-        76 => {
+        71 => wire__crate__api__core__discover_lan_impl(port, ptr, rust_vec_len, data_len),
+        72 => wire__crate__api__core__download_track_impl(port, ptr, rust_vec_len, data_len),
+        73 => wire__crate__api__core__download_tracks_impl(port, ptr, rust_vec_len, data_len),
+        74 => wire__crate__api__core__duplicate_group_count_impl(port, ptr, rust_vec_len, data_len),
+        75 => wire__crate__api__core__duplicate_groups_impl(port, ptr, rust_vec_len, data_len),
+        77 => {
             wire__crate__api__dto__enrich_report_dto_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        77 => wire__crate__api__core__enrich_track_impl(port, ptr, rust_vec_len, data_len),
-        78 => wire__crate__api__core__enrich_tracks_impl(port, ptr, rust_vec_len, data_len),
-        79 => wire__crate__api__core__equalizer_impl(port, ptr, rust_vec_len, data_len),
-        81 => wire__crate__api__music_export__export_music_impl(port, ptr, rust_vec_len, data_len),
-        82 => wire__crate__api__core__export_playlist_m3u_impl(port, ptr, rust_vec_len, data_len),
-        83 => wire__crate__api__core__export_playlist_xspf_impl(port, ptr, rust_vec_len, data_len),
-        84 => wire__crate__api__core__filter_track_ids_by_source_impl(
+        78 => wire__crate__api__core__enrich_track_impl(port, ptr, rust_vec_len, data_len),
+        79 => wire__crate__api__core__enrich_tracks_impl(port, ptr, rust_vec_len, data_len),
+        80 => wire__crate__api__core__equalizer_impl(port, ptr, rust_vec_len, data_len),
+        82 => wire__crate__api__music_export__export_music_impl(port, ptr, rust_vec_len, data_len),
+        83 => wire__crate__api__core__export_playlist_m3u_impl(port, ptr, rust_vec_len, data_len),
+        84 => wire__crate__api__core__export_playlist_xspf_impl(port, ptr, rust_vec_len, data_len),
+        85 => wire__crate__api__core__filter_track_ids_by_source_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        85 => wire__crate__api__alternate_source__finish_alternate_source_preview_impl(
+        86 => wire__crate__api__alternate_source__finish_alternate_source_preview_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        86 => wire__crate__api__core__folder_roots_impl(port, ptr, rust_vec_len, data_len),
-        87 => wire__crate__api__core__folder_tracks_impl(port, ptr, rust_vec_len, data_len),
-        88 => wire__crate__api__core__genre_tracks_impl(port, ptr, rust_vec_len, data_len),
-        89 => wire__crate__api__core__get_album_impl(port, ptr, rust_vec_len, data_len),
-        90 => wire__crate__api__alternate_source__get_alternate_source_impl(
+        87 => wire__crate__api__core__folder_roots_impl(port, ptr, rust_vec_len, data_len),
+        88 => wire__crate__api__core__folder_tracks_impl(port, ptr, rust_vec_len, data_len),
+        89 => wire__crate__api__core__genre_tracks_impl(port, ptr, rust_vec_len, data_len),
+        90 => wire__crate__api__core__get_album_impl(port, ptr, rust_vec_len, data_len),
+        91 => wire__crate__api__alternate_source__get_alternate_source_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        91 => wire__crate__api__core__get_artist_impl(port, ptr, rust_vec_len, data_len),
-        92 => wire__crate__api__core__get_artwork_impl(port, ptr, rust_vec_len, data_len),
-        93 => wire__crate__api__core__get_playlist_impl(port, ptr, rust_vec_len, data_len),
-        94 => wire__crate__api__core__get_playlist_rules_impl(port, ptr, rust_vec_len, data_len),
-        95 => wire__crate__api__core__get_setting_impl(port, ptr, rust_vec_len, data_len),
-        96 => wire__crate__api__core__get_track_impl(port, ptr, rust_vec_len, data_len),
-        98 => wire__crate__api__core__import_artwork_impl(port, ptr, rust_vec_len, data_len),
-        99 => wire__crate__api__core__import_playlist_m3u_impl(port, ptr, rust_vec_len, data_len),
-        100 => wire__crate__api__core__import_playlist_xspf_impl(port, ptr, rust_vec_len, data_len),
-        101 => wire__crate__api__core__init_app_impl(port, ptr, rust_vec_len, data_len),
-        102 => wire__crate__api__core__init_core_impl(port, ptr, rust_vec_len, data_len),
-        103 => {
+        92 => wire__crate__api__core__get_artist_impl(port, ptr, rust_vec_len, data_len),
+        93 => wire__crate__api__core__get_artwork_impl(port, ptr, rust_vec_len, data_len),
+        94 => wire__crate__api__core__get_playlist_impl(port, ptr, rust_vec_len, data_len),
+        95 => wire__crate__api__core__get_playlist_rules_impl(port, ptr, rust_vec_len, data_len),
+        96 => wire__crate__api__core__get_setting_impl(port, ptr, rust_vec_len, data_len),
+        97 => wire__crate__api__core__get_track_impl(port, ptr, rust_vec_len, data_len),
+        99 => wire__crate__api__core__import_artwork_impl(port, ptr, rust_vec_len, data_len),
+        100 => wire__crate__api__core__import_playlist_m3u_impl(port, ptr, rust_vec_len, data_len),
+        101 => wire__crate__api__core__import_playlist_xspf_impl(port, ptr, rust_vec_len, data_len),
+        102 => wire__crate__api__core__init_app_impl(port, ptr, rust_vec_len, data_len),
+        103 => wire__crate__api__core__init_core_impl(port, ptr, rust_vec_len, data_len),
+        104 => {
             wire__crate__api__core__install_plugin_from_path_impl(port, ptr, rust_vec_len, data_len)
         }
-        104 => wire__crate__api__core__library_health_count_impl(port, ptr, rust_vec_len, data_len),
-        105 => wire__crate__api__core__library_health_page_impl(port, ptr, rust_vec_len, data_len),
-        106 => wire__crate__api__dto__library_health_scan_report_dto_default_impl(
+        105 => wire__crate__api__core__library_health_count_impl(port, ptr, rust_vec_len, data_len),
+        106 => wire__crate__api__core__library_health_page_impl(port, ptr, rust_vec_len, data_len),
+        107 => wire__crate__api__dto__library_health_scan_report_dto_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        107 => {
+        108 => {
             wire__crate__api__core__library_health_summary_impl(port, ptr, rust_vec_len, data_len)
         }
-        108 => wire__crate__api__dto__library_health_summary_dto_default_impl(
+        109 => wire__crate__api__dto__library_health_summary_dto_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        109 => wire__crate__api__core__list_albums_impl(port, ptr, rust_vec_len, data_len),
-        110 => {
+        110 => wire__crate__api__core__list_albums_impl(port, ptr, rust_vec_len, data_len),
+        111 => {
             wire__crate__api__core__list_albums_by_source_impl(port, ptr, rust_vec_len, data_len)
         }
-        111 => wire__crate__api__core__list_artists_impl(port, ptr, rust_vec_len, data_len),
-        112 => wire__crate__api__core__list_folder_impl(port, ptr, rust_vec_len, data_len),
-        113 => wire__crate__api__core__list_genres_impl(port, ptr, rust_vec_len, data_len),
-        115 => wire__crate__api__core__list_playlists_impl(port, ptr, rust_vec_len, data_len),
-        116 => wire__crate__api__core__list_shares_impl(port, ptr, rust_vec_len, data_len),
-        117 => wire__crate__api__core__list_source_infos_impl(port, ptr, rust_vec_len, data_len),
-        118 => wire__crate__api__core__list_sources_impl(port, ptr, rust_vec_len, data_len),
-        119 => wire__crate__api__core__list_tracks_impl(port, ptr, rust_vec_len, data_len),
-        120 => {
+        112 => wire__crate__api__core__list_artists_impl(port, ptr, rust_vec_len, data_len),
+        113 => wire__crate__api__core__list_folder_impl(port, ptr, rust_vec_len, data_len),
+        114 => wire__crate__api__core__list_genres_impl(port, ptr, rust_vec_len, data_len),
+        116 => wire__crate__api__core__list_playlists_impl(port, ptr, rust_vec_len, data_len),
+        117 => wire__crate__api__core__list_shares_impl(port, ptr, rust_vec_len, data_len),
+        118 => wire__crate__api__core__list_source_infos_impl(port, ptr, rust_vec_len, data_len),
+        119 => wire__crate__api__core__list_sources_impl(port, ptr, rust_vec_len, data_len),
+        120 => wire__crate__api__core__list_tracks_impl(port, ptr, rust_vec_len, data_len),
+        121 => {
             wire__crate__api__core__list_tracks_by_source_impl(port, ptr, rust_vec_len, data_len)
         }
-        121 => wire__crate__api__dto__listening_bucket_dto_default_impl(
+        122 => wire__crate__api__dto__listening_bucket_dto_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        122 => wire__crate__api__core__listening_summary_impl(port, ptr, rust_vec_len, data_len),
-        123 => wire__crate__api__dto__listening_summary_dto_default_impl(
+        123 => wire__crate__api__core__listening_summary_impl(port, ptr, rust_vec_len, data_len),
+        124 => wire__crate__api__dto__listening_summary_dto_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        124 => wire__crate__api__core__listening_years_impl(port, ptr, rust_vec_len, data_len),
-        125 => wire__crate__api__core__loved_tracks_impl(port, ptr, rust_vec_len, data_len),
-        129 => wire__crate__api__core__lyrics_impl(port, ptr, rust_vec_len, data_len),
-        130 => wire__crate__api__core__lyrics_versions_impl(port, ptr, rust_vec_len, data_len),
-        131 => wire__crate__api__core__merge_tracks_impl(port, ptr, rust_vec_len, data_len),
-        132 => wire__crate__api__core__most_played_impl(port, ptr, rust_vec_len, data_len),
-        133 => wire__crate__api__core__move_playlist_item_impl(port, ptr, rust_vec_len, data_len),
-        135 => wire__crate__api__core__offline_downloads_impl(port, ptr, rust_vec_len, data_len),
-        136 => wire__crate__api__core__offline_stats_impl(port, ptr, rust_vec_len, data_len),
-        137 => {
+        125 => wire__crate__api__core__listening_years_impl(port, ptr, rust_vec_len, data_len),
+        126 => wire__crate__api__core__loved_tracks_impl(port, ptr, rust_vec_len, data_len),
+        130 => wire__crate__api__core__lyrics_impl(port, ptr, rust_vec_len, data_len),
+        131 => wire__crate__api__core__lyrics_versions_impl(port, ptr, rust_vec_len, data_len),
+        132 => wire__crate__api__core__merge_tracks_impl(port, ptr, rust_vec_len, data_len),
+        133 => wire__crate__api__core__most_played_impl(port, ptr, rust_vec_len, data_len),
+        134 => wire__crate__api__core__move_playlist_item_impl(port, ptr, rust_vec_len, data_len),
+        136 => wire__crate__api__core__offline_downloads_impl(port, ptr, rust_vec_len, data_len),
+        137 => wire__crate__api__core__offline_stats_impl(port, ptr, rust_vec_len, data_len),
+        138 => {
             wire__crate__api__dto__offline_stats_dto_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        138 => wire__crate__api__core__offline_status_impl(port, ptr, rust_vec_len, data_len),
-        140 => {
+        139 => wire__crate__api__core__offline_status_impl(port, ptr, rust_vec_len, data_len),
+        141 => {
             wire__crate__api__core__pending_candidate_count_impl(port, ptr, rust_vec_len, data_len)
         }
-        141 => wire__crate__api__core__pending_candidates_impl(port, ptr, rust_vec_len, data_len),
-        143 => wire__crate__api__core__play_context_impl(port, ptr, rust_vec_len, data_len),
-        147 => wire__crate__api__core__playback_state_impl(port, ptr, rust_vec_len, data_len),
-        148 => wire__crate__api__core__playlist_items_impl(port, ptr, rust_vec_len, data_len),
-        149 => wire__crate__api__core__plugin_resolve_video_impl(port, ptr, rust_vec_len, data_len),
-        150 => wire__crate__api__core__plugin_settings_impl(port, ptr, rust_vec_len, data_len),
-        151 => wire__crate__api__core__plugin_video_impl(port, ptr, rust_vec_len, data_len),
-        152 => wire__crate__api__core__plugins_impl(port, ptr, rust_vec_len, data_len),
-        154 => wire__crate__api__podcast__podcast_episodes_impl(port, ptr, rust_vec_len, data_len),
-        155 => {
+        142 => wire__crate__api__core__pending_candidates_impl(port, ptr, rust_vec_len, data_len),
+        144 => wire__crate__api__core__play_context_impl(port, ptr, rust_vec_len, data_len),
+        148 => wire__crate__api__core__playback_state_impl(port, ptr, rust_vec_len, data_len),
+        149 => wire__crate__api__core__playlist_items_impl(port, ptr, rust_vec_len, data_len),
+        150 => wire__crate__api__core__plugin_resolve_video_impl(port, ptr, rust_vec_len, data_len),
+        151 => wire__crate__api__core__plugin_settings_impl(port, ptr, rust_vec_len, data_len),
+        152 => wire__crate__api__core__plugin_video_impl(port, ptr, rust_vec_len, data_len),
+        153 => wire__crate__api__core__plugins_impl(port, ptr, rust_vec_len, data_len),
+        155 => wire__crate__api__podcast__podcast_episodes_impl(port, ptr, rust_vec_len, data_len),
+        156 => {
             wire__crate__api__podcast__podcast_export_opml_impl(port, ptr, rust_vec_len, data_len)
         }
-        156 => wire__crate__api__podcast__podcast_get_impl(port, ptr, rust_vec_len, data_len),
-        157 => {
+        157 => wire__crate__api__podcast__podcast_get_impl(port, ptr, rust_vec_len, data_len),
+        158 => {
             wire__crate__api__podcast__podcast_import_opml_impl(port, ptr, rust_vec_len, data_len)
         }
-        158 => {
+        159 => {
             wire__crate__api__podcast__podcast_in_progress_impl(port, ptr, rust_vec_len, data_len)
         }
-        159 => wire__crate__api__podcast__podcast_latest_episodes_impl(
+        160 => wire__crate__api__podcast__podcast_latest_episodes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        160 => wire__crate__api__podcast__podcast_mark_all_played_impl(
+        161 => wire__crate__api__podcast__podcast_mark_all_played_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        161 => wire__crate__api__podcast__podcast_open_directory_impl(
+        162 => wire__crate__api__podcast__podcast_open_directory_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        162 => wire__crate__api__podcast__podcast_open_feed_impl(port, ptr, rust_vec_len, data_len),
-        163 => wire__crate__api__podcast__podcast_play_impl(port, ptr, rust_vec_len, data_len),
-        164 => wire__crate__api__podcast__podcast_refresh_impl(port, ptr, rust_vec_len, data_len),
-        165 => {
+        163 => wire__crate__api__podcast__podcast_open_feed_impl(port, ptr, rust_vec_len, data_len),
+        164 => wire__crate__api__podcast__podcast_play_impl(port, ptr, rust_vec_len, data_len),
+        165 => wire__crate__api__podcast__podcast_refresh_impl(port, ptr, rust_vec_len, data_len),
+        166 => {
             wire__crate__api__podcast__podcast_refresh_all_impl(port, ptr, rust_vec_len, data_len)
         }
-        166 => wire__crate__api__podcast__podcast_search_impl(port, ptr, rust_vec_len, data_len),
-        167 => {
+        167 => wire__crate__api__podcast__podcast_search_impl(port, ptr, rust_vec_len, data_len),
+        168 => {
             wire__crate__api__podcast__podcast_set_played_impl(port, ptr, rust_vec_len, data_len)
         }
-        168 => wire__crate__api__podcast__podcast_set_subscribed_impl(
+        169 => wire__crate__api__podcast__podcast_set_subscribed_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        169 => {
+        170 => {
             wire__crate__api__podcast__podcast_subscriptions_impl(port, ptr, rust_vec_len, data_len)
         }
-        170 => wire__crate__api__podcast__podcast_top_impl(port, ptr, rust_vec_len, data_len),
-        171 => wire__crate__api__alternate_source__preview_alternate_source_impl(
+        171 => wire__crate__api__podcast__podcast_top_impl(port, ptr, rust_vec_len, data_len),
+        172 => wire__crate__api__alternate_source__preview_alternate_source_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        172 => wire__crate__api__core__preview_smart_rules_impl(port, ptr, rust_vec_len, data_len),
-        174 => wire__crate__api__core__queue_items_impl(port, ptr, rust_vec_len, data_len),
-        177 => {
+        173 => wire__crate__api__core__preview_smart_rules_impl(port, ptr, rust_vec_len, data_len),
+        175 => wire__crate__api__core__queue_items_impl(port, ptr, rust_vec_len, data_len),
+        178 => {
             wire__crate__api__dto__queue_report_dto_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        178 => wire__crate__api__core__radio_add_custom_impl(port, ptr, rust_vec_len, data_len),
-        179 => wire__crate__api__core__radio_browse_impl(port, ptr, rust_vec_len, data_len),
-        180 => wire__crate__api__core__radio_custom_impl(port, ptr, rust_vec_len, data_len),
-        181 => wire__crate__api__core__radio_delete_custom_impl(port, ptr, rust_vec_len, data_len),
-        182 => wire__crate__api__core__radio_favorites_impl(port, ptr, rust_vec_len, data_len),
-        183 => wire__crate__api__core__radio_filter_options_impl(port, ptr, rust_vec_len, data_len),
-        184 => wire__crate__api__core__radio_play_impl(port, ptr, rust_vec_len, data_len),
-        185 => wire__crate__api__core__radio_recent_impl(port, ptr, rust_vec_len, data_len),
-        186 => wire__crate__api__core__radio_set_favorite_impl(port, ptr, rust_vec_len, data_len),
-        187 => wire__crate__api__core__read_track_file_tags_impl(port, ptr, rust_vec_len, data_len),
-        189 => wire__crate__api__core__recently_added_impl(port, ptr, rust_vec_len, data_len),
-        190 => wire__crate__api__core__recently_played_impl(port, ptr, rust_vec_len, data_len),
-        191 => wire__crate__api__core__record_play_impl(port, ptr, rust_vec_len, data_len),
-        193 => wire__crate__api__core__reject_candidate_impl(port, ptr, rust_vec_len, data_len),
-        194 => wire__crate__api__core__remove_download_impl(port, ptr, rust_vec_len, data_len),
-        195 => wire__crate__api__core__remove_from_playlist_impl(port, ptr, rust_vec_len, data_len),
-        196 => wire__crate__api__core__remove_plugin_impl(port, ptr, rust_vec_len, data_len),
-        197 => wire__crate__api__core__remove_source_impl(port, ptr, rust_vec_len, data_len),
-        198 => wire__crate__api__core__rename_playlist_impl(port, ptr, rust_vec_len, data_len),
-        200 => wire__crate__api__alternate_source__reset_alternate_source_impl(
+        179 => wire__crate__api__core__radio_add_custom_impl(port, ptr, rust_vec_len, data_len),
+        180 => wire__crate__api__core__radio_browse_impl(port, ptr, rust_vec_len, data_len),
+        181 => wire__crate__api__core__radio_custom_impl(port, ptr, rust_vec_len, data_len),
+        182 => wire__crate__api__core__radio_delete_custom_impl(port, ptr, rust_vec_len, data_len),
+        183 => wire__crate__api__core__radio_favorites_impl(port, ptr, rust_vec_len, data_len),
+        184 => wire__crate__api__core__radio_filter_options_impl(port, ptr, rust_vec_len, data_len),
+        185 => wire__crate__api__core__radio_play_impl(port, ptr, rust_vec_len, data_len),
+        186 => wire__crate__api__core__radio_recent_impl(port, ptr, rust_vec_len, data_len),
+        187 => wire__crate__api__core__radio_set_favorite_impl(port, ptr, rust_vec_len, data_len),
+        188 => wire__crate__api__core__read_track_file_tags_impl(port, ptr, rust_vec_len, data_len),
+        190 => wire__crate__api__core__recently_added_impl(port, ptr, rust_vec_len, data_len),
+        191 => wire__crate__api__core__recently_played_impl(port, ptr, rust_vec_len, data_len),
+        192 => wire__crate__api__core__record_play_impl(port, ptr, rust_vec_len, data_len),
+        194 => wire__crate__api__core__reject_candidate_impl(port, ptr, rust_vec_len, data_len),
+        195 => wire__crate__api__core__remove_download_impl(port, ptr, rust_vec_len, data_len),
+        196 => wire__crate__api__core__remove_from_playlist_impl(port, ptr, rust_vec_len, data_len),
+        197 => wire__crate__api__core__remove_plugin_impl(port, ptr, rust_vec_len, data_len),
+        198 => wire__crate__api__core__remove_source_impl(port, ptr, rust_vec_len, data_len),
+        199 => wire__crate__api__core__rename_playlist_impl(port, ptr, rust_vec_len, data_len),
+        201 => wire__crate__api__alternate_source__reset_alternate_source_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        201 => wire__crate__api__core__restore_artwork_impl(port, ptr, rust_vec_len, data_len),
-        202 => {
+        202 => wire__crate__api__core__restore_artwork_impl(port, ptr, rust_vec_len, data_len),
+        203 => {
             wire__crate__api__core__restore_playback_state_impl(port, ptr, rust_vec_len, data_len)
         }
-        203 => wire__crate__api__core__restore_track_tags_impl(port, ptr, rust_vec_len, data_len),
-        204 => wire__crate__api__core__retry_lyrics_impl(port, ptr, rust_vec_len, data_len),
-        205 => wire__crate__api__core__save_playback_state_impl(port, ptr, rust_vec_len, data_len),
-        206 => wire__crate__api__core__scan_library_health_impl(port, ptr, rust_vec_len, data_len),
-        208 => wire__crate__api__dto__scrobble_settings_input_dto_default_impl(
+        204 => wire__crate__api__core__restore_track_tags_impl(port, ptr, rust_vec_len, data_len),
+        205 => wire__crate__api__core__retry_lyrics_impl(port, ptr, rust_vec_len, data_len),
+        206 => wire__crate__api__core__save_playback_state_impl(port, ptr, rust_vec_len, data_len),
+        207 => wire__crate__api__core__scan_library_health_impl(port, ptr, rust_vec_len, data_len),
+        209 => wire__crate__api__dto__scrobble_settings_input_dto_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        210 => wire__crate__api__core__search_impl(port, ptr, rust_vec_len, data_len),
-        211 => wire__crate__api__alternate_source__search_alternate_sources_impl(
+        211 => wire__crate__api__core__search_impl(port, ptr, rust_vec_len, data_len),
+        212 => wire__crate__api__alternate_source__search_alternate_sources_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        212 => wire__crate__api__core__search_apple_albums_impl(port, ptr, rust_vec_len, data_len),
-        213 => wire__crate__api__core__search_apple_albums_session_impl(
+        213 => wire__crate__api__core__search_apple_albums_impl(port, ptr, rust_vec_len, data_len),
+        214 => wire__crate__api__core__search_apple_albums_session_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        214 => wire__crate__api__lyric_search__search_lyric_versions_impl(
+        215 => wire__crate__api__lyric_search__search_lyric_versions_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        215 => wire__crate__api__core__search_plugin_impl(port, ptr, rust_vec_len, data_len),
-        216 => {
+        216 => wire__crate__api__core__search_plugin_impl(port, ptr, rust_vec_len, data_len),
+        217 => {
             wire__crate__api__core__search_spotify_albums_impl(port, ptr, rust_vec_len, data_len)
         }
-        217 => wire__crate__api__core__search_spotify_albums_session_impl(
+        218 => wire__crate__api__core__search_spotify_albums_session_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        219 => {
+        220 => {
             wire__crate__api__core__set_artwork_from_image_impl(port, ptr, rust_vec_len, data_len)
         }
-        220 => wire__crate__api__core__set_credential_impl(port, ptr, rust_vec_len, data_len),
-        222 => wire__crate__api__core__set_equalizer_impl(port, ptr, rust_vec_len, data_len),
-        223 => wire__crate__api__core__set_loved_impl(port, ptr, rust_vec_len, data_len),
-        224 => wire__crate__api__core__set_lyrics_impl(port, ptr, rust_vec_len, data_len),
-        225 => wire__crate__api__core__set_lyrics_offset_impl(port, ptr, rust_vec_len, data_len),
-        229 => wire__crate__api__core__set_playlist_artwork_impl(port, ptr, rust_vec_len, data_len),
-        230 => wire__crate__api__core__set_playlist_rules_impl(port, ptr, rust_vec_len, data_len),
-        231 => wire__crate__api__core__set_plugin_enabled_impl(port, ptr, rust_vec_len, data_len),
-        232 => wire__crate__api__core__set_plugin_native_android_allowed_impl(
+        221 => wire__crate__api__core__set_credential_impl(port, ptr, rust_vec_len, data_len),
+        223 => wire__crate__api__core__set_equalizer_impl(port, ptr, rust_vec_len, data_len),
+        224 => wire__crate__api__core__set_loved_impl(port, ptr, rust_vec_len, data_len),
+        225 => wire__crate__api__core__set_lyrics_impl(port, ptr, rust_vec_len, data_len),
+        226 => wire__crate__api__core__set_lyrics_offset_impl(port, ptr, rust_vec_len, data_len),
+        230 => wire__crate__api__core__set_playlist_artwork_impl(port, ptr, rust_vec_len, data_len),
+        231 => wire__crate__api__core__set_playlist_rules_impl(port, ptr, rust_vec_len, data_len),
+        232 => wire__crate__api__core__set_plugin_enabled_impl(port, ptr, rust_vec_len, data_len),
+        233 => wire__crate__api__core__set_plugin_native_android_allowed_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        233 => wire__crate__api__core__set_plugin_setting_impl(port, ptr, rust_vec_len, data_len),
-        234 => wire__crate__api__core__set_rating_impl(port, ptr, rust_vec_len, data_len),
-        236 => {
+        234 => wire__crate__api__core__set_plugin_setting_impl(port, ptr, rust_vec_len, data_len),
+        235 => wire__crate__api__core__set_rating_impl(port, ptr, rust_vec_len, data_len),
+        237 => {
             wire__crate__api__core__set_scrobble_settings_impl(port, ptr, rust_vec_len, data_len)
         }
-        237 => wire__crate__api__core__set_setting_impl(port, ptr, rust_vec_len, data_len),
-        239 => wire__crate__api__core__set_track_artwork_impl(port, ptr, rust_vec_len, data_len),
-        240 => wire__crate__api__core__set_track_overlay_impl(port, ptr, rust_vec_len, data_len),
-        241 => {
+        238 => wire__crate__api__core__set_setting_impl(port, ptr, rust_vec_len, data_len),
+        240 => wire__crate__api__core__set_track_artwork_impl(port, ptr, rust_vec_len, data_len),
+        241 => wire__crate__api__core__set_track_overlay_impl(port, ptr, rust_vec_len, data_len),
+        242 => {
             wire__crate__api__core__set_track_tag_overrides_impl(port, ptr, rust_vec_len, data_len)
         }
-        243 => wire__crate__api__usb_output__set_usb_bit_perfect_impl(
+        244 => wire__crate__api__usb_output__set_usb_bit_perfect_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        245 => {
+        246 => {
             wire__crate__api__core__smart_playlist_tracks_impl(port, ptr, rust_vec_len, data_len)
         }
-        246 => wire__crate__api__core__smart_playlists_impl(port, ptr, rust_vec_len, data_len),
-        247 => wire__crate__api__core__split_track_source_impl(port, ptr, rust_vec_len, data_len),
-        248 => wire__crate__api__core__start_scan_impl(port, ptr, rust_vec_len, data_len),
-        249 => wire__crate__api__lyric_search__stored_lyric_versions_impl(
+        247 => wire__crate__api__core__smart_playlists_impl(port, ptr, rust_vec_len, data_len),
+        248 => wire__crate__api__core__split_track_source_impl(port, ptr, rust_vec_len, data_len),
+        249 => wire__crate__api__core__start_scan_impl(port, ptr, rust_vec_len, data_len),
+        250 => wire__crate__api__lyric_search__stored_lyric_versions_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        250 => wire__crate__api__core__sync_now_impl(port, ptr, rust_vec_len, data_len),
-        251 => {
+        251 => wire__crate__api__core__sync_now_impl(port, ptr, rust_vec_len, data_len),
+        252 => {
             wire__crate__api__dto__sync_report_dto_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        252 => wire__crate__api__core__test_scrobble_impl(port, ptr, rust_vec_len, data_len),
-        253 => wire__crate__api__core__test_source_impl(port, ptr, rust_vec_len, data_len),
-        254 => wire__crate__api__core__track_index_offsets_impl(port, ptr, rust_vec_len, data_len),
-        255 => {
+        253 => wire__crate__api__core__test_scrobble_impl(port, ptr, rust_vec_len, data_len),
+        254 => wire__crate__api__core__test_source_impl(port, ptr, rust_vec_len, data_len),
+        255 => wire__crate__api__core__track_index_offsets_impl(port, ptr, rust_vec_len, data_len),
+        256 => {
             wire__crate__api__core__track_metadata_by_source_impl(port, ptr, rust_vec_len, data_len)
         }
-        256 => {
+        257 => {
             wire__crate__api__dto__track_overlay_dto_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        257 => wire__crate__api__core__track_sources_impl(port, ptr, rust_vec_len, data_len),
-        258 => wire__crate__api__core__track_tag_overrides_impl(port, ptr, rust_vec_len, data_len),
-        259 => wire__crate__api__dto__track_tag_overrides_dto_default_impl(
+        258 => wire__crate__api__core__track_sources_impl(port, ptr, rust_vec_len, data_len),
+        259 => wire__crate__api__core__track_tag_overrides_impl(port, ptr, rust_vec_len, data_len),
+        260 => wire__crate__api__dto__track_tag_overrides_dto_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        260 => wire__crate__api__core__update_source_impl(port, ptr, rust_vec_len, data_len),
-        262 => wire__crate__api__core__write_track_tags_impl(port, ptr, rust_vec_len, data_len),
+        261 => wire__crate__api__core__update_source_impl(port, ptr, rust_vec_len, data_len),
+        263 => wire__crate__api__core__write_track_tags_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -13712,108 +13749,108 @@ fn pde_ffi_dispatcher_sync_impl(
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
         6 => wire__crate__api__core__add_to_queue_impl(ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__core__artwork_path_impl(ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__core__clear_logs_impl(ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__connect__connect_devices_impl(ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__connect__connect_pair_cancel_impl(ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__connect__connect_paired_devices_impl(ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__connect__connect_port_impl(ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__core__core_version_impl(ptr, rust_vec_len, data_len),
-        57 => {
+        18 => wire__crate__api__core__artwork_path_impl(ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__core__clear_logs_impl(ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__connect__connect_devices_impl(ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__connect__connect_pair_cancel_impl(ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__connect__connect_paired_devices_impl(ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__connect__connect_port_impl(ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__core__core_version_impl(ptr, rust_vec_len, data_len),
+        58 => {
             wire__crate__api__desktop_lyrics__desktop_lyrics_hide_impl(ptr, rust_vec_len, data_len)
         }
-        58 => wire__crate__api__desktop_lyrics__desktop_lyrics_is_locked_impl(
+        59 => wire__crate__api__desktop_lyrics__desktop_lyrics_is_locked_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        59 => wire__crate__api__desktop_lyrics__desktop_lyrics_is_menu_bar_supported_impl(
+        60 => wire__crate__api__desktop_lyrics__desktop_lyrics_is_menu_bar_supported_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        60 => wire__crate__api__desktop_lyrics__desktop_lyrics_is_supported_impl(
+        61 => wire__crate__api__desktop_lyrics__desktop_lyrics_is_supported_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        61 => wire__crate__api__desktop_lyrics__desktop_lyrics_is_visible_impl(
+        62 => wire__crate__api__desktop_lyrics__desktop_lyrics_is_visible_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        62 => wire__crate__api__desktop_lyrics__desktop_lyrics_set_clock_impl(
+        63 => wire__crate__api__desktop_lyrics__desktop_lyrics_set_clock_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        63 => wire__crate__api__desktop_lyrics__desktop_lyrics_set_locked_impl(
+        64 => wire__crate__api__desktop_lyrics__desktop_lyrics_set_locked_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        64 => wire__crate__api__desktop_lyrics__desktop_lyrics_set_lyrics_impl(
+        65 => wire__crate__api__desktop_lyrics__desktop_lyrics_set_lyrics_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        65 => wire__crate__api__desktop_lyrics__desktop_lyrics_set_menu_bar_visible_impl(
+        66 => wire__crate__api__desktop_lyrics__desktop_lyrics_set_menu_bar_visible_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        66 => wire__crate__api__desktop_lyrics__desktop_lyrics_set_placements_impl(
+        67 => wire__crate__api__desktop_lyrics__desktop_lyrics_set_placements_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        67 => wire__crate__api__desktop_lyrics__desktop_lyrics_set_style_impl(
+        68 => wire__crate__api__desktop_lyrics__desktop_lyrics_set_style_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        68 => {
+        69 => {
             wire__crate__api__desktop_lyrics__desktop_lyrics_show_impl(ptr, rust_vec_len, data_len)
         }
-        69 => wire__crate__api__core__device_id_impl(ptr, rust_vec_len, data_len),
-        75 => wire__crate__api__media_controls__enable_system_media_controls_impl(
+        70 => wire__crate__api__core__device_id_impl(ptr, rust_vec_len, data_len),
+        76 => wire__crate__api__media_controls__enable_system_media_controls_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        80 => wire__crate__api__core__equalizer_presets_impl(ptr, rust_vec_len, data_len),
-        97 => wire__crate__api__core__has_credential_impl(ptr, rust_vec_len, data_len),
-        114 => wire__crate__api__core__list_output_devices_impl(ptr, rust_vec_len, data_len),
-        126 => wire__crate__api__ruby__lyric_has_han_impl(ptr, rust_vec_len, data_len),
-        127 => wire__crate__api__ruby__lyric_ruby_ja_lines_impl(ptr, rust_vec_len, data_len),
-        128 => wire__crate__api__ruby__lyric_ruby_lines_impl(ptr, rust_vec_len, data_len),
-        134 => wire__crate__api__core__next_impl(ptr, rust_vec_len, data_len),
-        139 => wire__crate__api__core__pause_impl(ptr, rust_vec_len, data_len),
-        142 => wire__crate__api__core__play_impl(ptr, rust_vec_len, data_len),
-        144 => wire__crate__api__core__play_next_impl(ptr, rust_vec_len, data_len),
-        145 => wire__crate__api__core__play_tracks_impl(ptr, rust_vec_len, data_len),
-        146 => wire__crate__api__core__playback_snapshot_impl(ptr, rust_vec_len, data_len),
-        153 => wire__crate__api__core__plugins_dir_impl(ptr, rust_vec_len, data_len),
-        173 => wire__crate__api__core__previous_impl(ptr, rust_vec_len, data_len),
-        175 => wire__crate__api__core__queue_move_impl(ptr, rust_vec_len, data_len),
-        176 => wire__crate__api__core__queue_remove_impl(ptr, rust_vec_len, data_len),
-        188 => wire__crate__api__core__recent_logs_impl(ptr, rust_vec_len, data_len),
-        192 => {
+        81 => wire__crate__api__core__equalizer_presets_impl(ptr, rust_vec_len, data_len),
+        98 => wire__crate__api__core__has_credential_impl(ptr, rust_vec_len, data_len),
+        115 => wire__crate__api__core__list_output_devices_impl(ptr, rust_vec_len, data_len),
+        127 => wire__crate__api__ruby__lyric_has_han_impl(ptr, rust_vec_len, data_len),
+        128 => wire__crate__api__ruby__lyric_ruby_ja_lines_impl(ptr, rust_vec_len, data_len),
+        129 => wire__crate__api__ruby__lyric_ruby_lines_impl(ptr, rust_vec_len, data_len),
+        135 => wire__crate__api__core__next_impl(ptr, rust_vec_len, data_len),
+        140 => wire__crate__api__core__pause_impl(ptr, rust_vec_len, data_len),
+        143 => wire__crate__api__core__play_impl(ptr, rust_vec_len, data_len),
+        145 => wire__crate__api__core__play_next_impl(ptr, rust_vec_len, data_len),
+        146 => wire__crate__api__core__play_tracks_impl(ptr, rust_vec_len, data_len),
+        147 => wire__crate__api__core__playback_snapshot_impl(ptr, rust_vec_len, data_len),
+        154 => wire__crate__api__core__plugins_dir_impl(ptr, rust_vec_len, data_len),
+        174 => wire__crate__api__core__previous_impl(ptr, rust_vec_len, data_len),
+        176 => wire__crate__api__core__queue_move_impl(ptr, rust_vec_len, data_len),
+        177 => wire__crate__api__core__queue_remove_impl(ptr, rust_vec_len, data_len),
+        189 => wire__crate__api__core__recent_logs_impl(ptr, rust_vec_len, data_len),
+        193 => {
             wire__crate__api__usb_output__refresh_usb_bit_perfect_impl(ptr, rust_vec_len, data_len)
         }
-        199 => wire__crate__api__core__report_source_reachability_impl(ptr, rust_vec_len, data_len),
-        207 => wire__crate__api__core__scrobble_settings_impl(ptr, rust_vec_len, data_len),
-        209 => wire__crate__api__core__scrobble_status_impl(ptr, rust_vec_len, data_len),
-        218 => wire__crate__api__core__seek_impl(ptr, rust_vec_len, data_len),
-        221 => wire__crate__api__core__set_ducked_impl(ptr, rust_vec_len, data_len),
-        226 => wire__crate__api__core__set_network_away_impl(ptr, rust_vec_len, data_len),
-        227 => wire__crate__api__core__set_output_device_impl(ptr, rust_vec_len, data_len),
-        228 => wire__crate__api__core__set_output_mode_impl(ptr, rust_vec_len, data_len),
-        235 => wire__crate__api__core__set_repeat_impl(ptr, rust_vec_len, data_len),
-        238 => wire__crate__api__core__set_shuffle_impl(ptr, rust_vec_len, data_len),
-        242 => wire__crate__api__core__set_ui_language_impl(ptr, rust_vec_len, data_len),
-        244 => wire__crate__api__core__set_volume_impl(ptr, rust_vec_len, data_len),
-        261 => {
+        200 => wire__crate__api__core__report_source_reachability_impl(ptr, rust_vec_len, data_len),
+        208 => wire__crate__api__core__scrobble_settings_impl(ptr, rust_vec_len, data_len),
+        210 => wire__crate__api__core__scrobble_status_impl(ptr, rust_vec_len, data_len),
+        219 => wire__crate__api__core__seek_impl(ptr, rust_vec_len, data_len),
+        222 => wire__crate__api__core__set_ducked_impl(ptr, rust_vec_len, data_len),
+        227 => wire__crate__api__core__set_network_away_impl(ptr, rust_vec_len, data_len),
+        228 => wire__crate__api__core__set_output_device_impl(ptr, rust_vec_len, data_len),
+        229 => wire__crate__api__core__set_output_mode_impl(ptr, rust_vec_len, data_len),
+        236 => wire__crate__api__core__set_repeat_impl(ptr, rust_vec_len, data_len),
+        239 => wire__crate__api__core__set_shuffle_impl(ptr, rust_vec_len, data_len),
+        243 => wire__crate__api__core__set_ui_language_impl(ptr, rust_vec_len, data_len),
+        245 => wire__crate__api__core__set_volume_impl(ptr, rust_vec_len, data_len),
+        262 => {
             wire__crate__api__usb_output__usb_bit_perfect_status_impl(ptr, rust_vec_len, data_len)
         }
         _ => unreachable!(),

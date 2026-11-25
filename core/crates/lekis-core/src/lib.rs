@@ -1464,6 +1464,13 @@ impl LekisCore {
         .await
     }
 
+    /// 艺人头像。没有时在线查一次（免 Key，名字须完全一致），查到就存下来。
+    pub async fn artist_artwork(&self, id: ArtistId) -> Result<Option<lekis_library::ArtworkRow>> {
+        let s = self.services.clone();
+        self.run(async move { s.enrich.artist_artwork(&s.library, id).await })
+            .await
+    }
+
     /// 按 ID 取封面元数据。
     pub async fn get_artwork(&self, id: ArtworkId) -> Result<lekis_library::ArtworkRow> {
         let s = self.services.clone();

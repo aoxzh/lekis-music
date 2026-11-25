@@ -112,7 +112,7 @@ class _ArtistListState extends ConsumerState<ArtistList> {
                   ),
                   child: Row(
                     children: [
-                      ArtistAvatar(name: artist.name),
+                      ArtistAvatar(name: artist.name, artistId: artist.id),
                       const SizedBox(width: LekisSpacing.md),
                       Expanded(
                         child: Text(

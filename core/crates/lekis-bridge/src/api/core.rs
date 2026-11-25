@@ -1,6 +1,6 @@
 //! 核心门面：Flutter 调用的全部函数。
 //!
-//! 和 lekis-ffi 的 `LekisCore` 方法一一对应（ADR-0006），只是把对象方法换成了全局函数：
+//! 和核心 `LekisCore` 的方法一一对应，只是把对象方法换成了全局函数：
 //! 进程里只有一个核心实例，先调用 [`init_core`]，再调用其他函数。
 
 use std::sync::Arc;
@@ -560,6 +560,14 @@ pub async fn album_tracks_by_source(
 pub async fn album_artwork(album_id: i64) -> Result<Option<ArtworkDto>, CoreError> {
     Ok(core()
         .album_artwork(lekis_types::AlbumId(album_id))
+        .await?
+        .map(Into::into))
+}
+
+/// 艺人头像（没有时在线查一次并缓存；查不到返回 `None`）。
+pub async fn artist_artwork(artist_id: i64) -> Result<Option<ArtworkDto>, CoreError> {
+    Ok(core()
+        .artist_artwork(lekis_types::ArtistId(artist_id))
         .await?
         .map(Into::into))
 }

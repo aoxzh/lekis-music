@@ -55,6 +55,9 @@ pub(super) fn pipeline(
             lyrics_providers,
             artwork_providers: vec![],
             cache_dir: std::env::temp_dir(),
+            artist_images: None,
+            artist_lock: Default::default(),
+            artist_tried: Default::default(),
         },
         calls,
     )

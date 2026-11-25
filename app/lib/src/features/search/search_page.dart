@@ -794,7 +794,7 @@ class _Results extends ConsumerWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(LekisRadius.sm),
                 ),
-                leading: ArtistAvatar(name: a.name),
+                leading: ArtistAvatar(name: a.name, artistId: a.id),
                 title: Text(a.name),
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () =>

@@ -359,6 +359,10 @@ Future<List<TrackRowDto>> albumTracksBySource({
 Future<ArtworkDto?> albumArtwork({required PlatformInt64 albumId}) =>
     RustLib.instance.api.crateApiCoreAlbumArtwork(albumId: albumId);
 
+/// 艺人头像（没有时在线查一次并缓存；查不到返回 `None`）。
+Future<ArtworkDto?> artistArtwork({required PlatformInt64 artistId}) =>
+    RustLib.instance.api.crateApiCoreArtistArtwork(artistId: artistId);
+
 /// 按 ID 取封面元数据。
 Future<ArtworkDto> getArtwork({required PlatformInt64 artworkId}) =>
     RustLib.instance.api.crateApiCoreGetArtwork(artworkId: artworkId);

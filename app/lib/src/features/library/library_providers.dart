@@ -91,6 +91,15 @@ final albumArtworkProvider = FutureProvider.autoDispose
       return core.albumArtwork(albumId: albumId);
     });
 
+/// Artist photo. The core looks it up online once (exact name match) and
+/// caches it; `null` keeps the initial-letter avatar.
+final artistArtworkProvider = FutureProvider.autoDispose
+    .family<ArtworkDto?, int>((ref, artistId) async {
+      ref.invalidateOnCatalogChange();
+      ref.cacheFor(const Duration(minutes: 10));
+      return core.artistArtwork(artistId: artistId);
+    });
+
 /// Artwork by id (playlist covers). Artwork rows never change once written,
 /// so there is nothing to invalidate.
 final artworkByIdProvider = FutureProvider.autoDispose.family<ArtworkDto?, int>(

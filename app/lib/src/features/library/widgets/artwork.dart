@@ -276,17 +276,29 @@ class AlbumArtwork extends ConsumerWidget {
   }
 }
 
-/// Round initial-letter avatar (the core has no artist images yet).
-class ArtistAvatar extends StatelessWidget {
-  const ArtistAvatar({super.key, required this.name, this.size});
+/// Round artist avatar: the artist's photo when the core has (or finds) one,
+/// otherwise the initial letter. Without [artistId] it is always the initial.
+class ArtistAvatar extends ConsumerWidget {
+  const ArtistAvatar({super.key, required this.name, this.artistId, this.size});
 
   final String name;
+  final int? artistId;
   final double? size;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = context.lekisColors;
+  Widget build(BuildContext context, WidgetRef ref) {
     final s = size ?? LekisSizes.listArtwork;
+    final id = artistId;
+    final hash = id == null
+        ? null
+        : ref.watch(artistArtworkProvider(id)).value?.hash;
+    if (hash != null) {
+      return SizedBox.square(
+        dimension: s,
+        child: ArtworkImage(hash: hash, radius: s / 2),
+      );
+    }
+    final colors = context.lekisColors;
     final initial = name.trim().isEmpty
         ? '?'
         : name.trim().characters.first.toUpperCase();

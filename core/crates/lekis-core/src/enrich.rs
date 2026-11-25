@@ -1,4 +1,4 @@
-//! 元数据补全流水线（REQUIREMENTS 3.3，ENR-01~12）。
+//! 元数据补全流水线（ENR-01~12）。
 //!
 //! 把 `lekis-enrich` 的提供方能力接进核心：
 //!
@@ -10,12 +10,13 @@
 //! ```
 //!
 //! 自动应用的封面会把图片下载下来、缩放成档位、编码 WebP 落到本机缓存目录
-//! （`docs/ARCHITECTURE.md` 第 5 节：数据库只存元数据），然后把 `artwork` 行和
+//! （数据库只存元数据），然后把 `artwork` 行和
 //! 曲目/专辑的 `artwork_id` 一起写好。歌词直接进 `lyrics` 表。
 //!
 //! 所有网络失败都只记日志，不打断整批补全：一个提供方挂了不能影响另一个。
 
 use crate::config::CoreConfig;
+use lekis_enrich::artist_image::ArtistImages;
 use lekis_enrich::artwork_ingest;
 use lekis_enrich::bangumi::BangumiArtwork;
 use lekis_enrich::providers::{AmllLyrics, CoverArtArchive, ITunes, Lrclib};
@@ -29,6 +30,29 @@ use lekis_enrich::{
 };
 use lekis_library::{cache_relative_path, Library, NewEnrichCandidate};
 use lekis_types::*;
+
+/// 在线查不到头像的艺人，隔多久再查一次（30 天）。
+const ARTIST_MISS_RETRY_MS: i64 = 30 * 24 * 60 * 60 * 1000;
+
+/// "群星" / "未知艺人" 这类占位名不去查头像。
+fn is_placeholder_artist(name: &str) -> bool {
+    let n = lekis_library::normalize::norm_key(name);
+    n.is_empty()
+        || matches!(
+            n.as_str(),
+            "various artists"
+                | "various"
+                | "va"
+                | "unknown"
+                | "unknown artist"
+                | "群星"
+                | "未知"
+                | "未知艺人"
+                | "未知歌手"
+                | "佚名"
+                | "[unknown]"
+        )
+}
 
 /// 一次补全最多保留多少条候选。
 const MAX_PROVIDERS_PER_KIND: usize = 8;
@@ -73,6 +97,12 @@ pub(crate) struct EnrichPipeline {
     lyrics_providers: Vec<Box<dyn LyricsProvider>>,
     artwork_providers: Vec<Box<dyn ArtworkProvider>>,
     cache_dir: std::path::PathBuf,
+    /// 艺人头像检索（网易云 / Deezer）。
+    artist_images: Option<ArtistImages>,
+    /// 串行化头像检索，避免列表和详情页同时为同一个艺人下载。
+    artist_lock: tokio::sync::Mutex<()>,
+    /// 本次运行已经试过的艺人（网络失败也不在同一次运行里反复重试）。
+    artist_tried: std::sync::Mutex<std::collections::HashSet<ArtistId>>,
 }
 
 impl EnrichPipeline {
@@ -126,6 +156,9 @@ impl EnrichPipeline {
             lyrics_providers,
             artwork_providers,
             cache_dir: config.cache_dir.clone(),
+            artist_images: ArtistImages::new().ok(),
+            artist_lock: tokio::sync::Mutex::new(()),
+            artist_tried: Default::default(),
         }
     }
 
@@ -523,6 +556,78 @@ impl EnrichPipeline {
 
         report.queued = library.insert_enrich_candidates(queued).await? as u32;
         Ok(report)
+    }
+
+    /// 艺人头像：已有就直接返回；没有就在线找一次（网易云 / Deezer，名字须一致），
+    /// 下载进封面缓存并写回 `artist.artwork_id`。找不到的记一笔，[`ARTIST_MISS_RETRY_MS`] 内不再查。
+    pub(crate) async fn artist_artwork(
+        &self,
+        library: &Library,
+        id: ArtistId,
+    ) -> Result<Option<lekis_library::ArtworkRow>> {
+        if let Some(artwork_id) = library.get_artist(id).await?.artwork_id {
+            return library.get_artwork(artwork_id).await.map(Some);
+        }
+        let Some(images) = &self.artist_images else {
+            return Ok(None);
+        };
+        let _guard = self.artist_lock.lock().await;
+        // 排队期间可能已经被别的调用补上了。
+        let artist = library.get_artist(id).await?;
+        if let Some(artwork_id) = artist.artwork_id {
+            return library.get_artwork(artwork_id).await.map(Some);
+        }
+        if !self
+            .artist_tried
+            .lock()
+            .map(|mut t| t.insert(id))
+            .unwrap_or(false)
+        {
+            return Ok(None);
+        }
+        if is_placeholder_artist(&artist.name) {
+            return Ok(None);
+        }
+        let miss_key = format!("artist.image.miss.{}", id.0);
+        if let Some(at) = library.get_setting(&miss_key).await? {
+            if now_ms() - at.parse::<i64>().unwrap_or(0) < ARTIST_MISS_RETRY_MS {
+                return Ok(None);
+            }
+        }
+
+        let same = |a: &str, b: &str| {
+            lekis_library::normalize::norm_key(a) == lekis_library::normalize::norm_key(b)
+        };
+        let found = match images.find(&artist.name, same).await {
+            Ok(found) => found,
+            Err(error) => {
+                // 网络问题：下次启动再试，不记"查无此人"。
+                tracing::debug!(target: "lekis_core::enrich", code = %error.code.as_str(), "艺人头像检索失败");
+                return Ok(None);
+            }
+        };
+        let Some(image) = found else {
+            library
+                .set_setting(&miss_key, &now_ms().to_string())
+                .await?;
+            return Ok(None);
+        };
+        let target = ArtworkTarget {
+            track_id: None,
+            album_id: None,
+            replace_album: false,
+        };
+        match store_artwork(&self.cache_dir, library, target, &image.url, image.source).await {
+            Ok(artwork_id) => {
+                library.set_artist_artwork(id, Some(artwork_id)).await?;
+                let _ = library.delete_setting(&miss_key).await;
+                library.get_artwork(artwork_id).await.map(Some)
+            }
+            Err(error) => {
+                tracing::debug!(target: "lekis_core::enrich", source = image.source, code = %error.code.as_str(), "艺人头像下载失败");
+                Ok(None)
+            }
+        }
     }
 
     /// 应用一条已经入库的待确认候选（用户点"接受"时调）。
