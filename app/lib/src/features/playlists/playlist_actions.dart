@@ -11,6 +11,7 @@ import 'package:lekis/src/rust/api/error.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:lekis/src/widgets/progress_dialog.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/features/playlists/playlist_strings.dart';
 
@@ -615,71 +616,47 @@ Future<void> showPlaylistSortSheet(
   PlaylistDto playlist,
   List<PlaylistEntryDto> rows,
 ) async {
-  final mode = await showModalBottomSheet<PlaylistSortMode>(
-    context: context,
-    showDragHandle: true,
-    builder: (sheet) {
-      ListTile item(PlaylistSortMode value, IconData icon, String label) =>
-          ListTile(
-            leading: Icon(icon),
-            title: Text(label),
-            onTap: () => Navigator.of(sheet).pop(value),
-          );
-      return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                LekisSpacing.lg,
-                0,
-                LekisSpacing.lg,
-                LekisSpacing.sm,
-              ),
-              child: Text(
-                PlaylistStrings.sortPlaylist,
-                style: Theme.of(sheet).textTheme.titleLarge,
-              ),
-            ),
-            item(
-              PlaylistSortMode.title,
-              Icons.sort_by_alpha_rounded,
-              PlaylistStrings.sortByTitle,
-            ),
-            item(
-              PlaylistSortMode.artist,
-              Icons.person_outline_rounded,
-              PlaylistStrings.sortByArtist,
-            ),
-            item(
-              PlaylistSortMode.album,
-              Icons.album_outlined,
-              PlaylistStrings.sortByAlbum,
-            ),
-            item(
-              PlaylistSortMode.added,
-              Icons.schedule_rounded,
-              PlaylistStrings.sortByAdded,
-            ),
-            item(
-              PlaylistSortMode.duration,
-              Icons.timer_outlined,
-              PlaylistStrings.sortByDuration,
-            ),
-            item(
-              PlaylistSortMode.reverse,
-              Icons.swap_vert_rounded,
-              PlaylistStrings.reverseOrder,
-            ),
-            item(
-              PlaylistSortMode.shuffle,
-              Icons.shuffle_rounded,
-              PlaylistStrings.shuffleOrder,
-            ),
-          ],
-        ),
-      );
-    },
+  final mode = await showLekisActionList<PlaylistSortMode>(
+    context,
+    title: PlaylistStrings.sortPlaylist,
+    subtitle: playlist.name,
+    actions: [
+      LekisMenuAction(
+        PlaylistSortMode.title,
+        Icons.sort_by_alpha_rounded,
+        PlaylistStrings.sortByTitle,
+      ),
+      LekisMenuAction(
+        PlaylistSortMode.artist,
+        Icons.person_outline_rounded,
+        PlaylistStrings.sortByArtist,
+      ),
+      LekisMenuAction(
+        PlaylistSortMode.album,
+        Icons.album_outlined,
+        PlaylistStrings.sortByAlbum,
+      ),
+      LekisMenuAction(
+        PlaylistSortMode.added,
+        Icons.schedule_rounded,
+        PlaylistStrings.sortByAdded,
+      ),
+      LekisMenuAction(
+        PlaylistSortMode.duration,
+        Icons.timer_outlined,
+        PlaylistStrings.sortByDuration,
+      ),
+      LekisMenuAction(
+        PlaylistSortMode.reverse,
+        Icons.swap_vert_rounded,
+        PlaylistStrings.reverseOrder,
+      ),
+      LekisMenuAction(
+        PlaylistSortMode.shuffle,
+        Icons.shuffle_rounded,
+        PlaylistStrings.shuffleOrder,
+      ),
+    ],
   );
   if (mode == null || !context.mounted) return;
   await sortPlaylistFlow(context, ref, playlist, rows, mode);

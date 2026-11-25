@@ -21,6 +21,15 @@ import '../platform/ui_profile.dart';
 import '../theme/tokens.dart';
 import 'glass.dart';
 
+AnimationStyle _sheetMotion(BuildContext context) =>
+    MediaQuery.disableAnimationsOf(context) ||
+        MediaQuery.reduceMotionOf(context)
+    ? AnimationStyle.noAnimation
+    : const AnimationStyle(
+        duration: LekisMotion.normal,
+        reverseDuration: LekisMotion.fast,
+      );
+
 /// Widest an editor dialog gets.
 const double lekisPanelMaxWidth = 620;
 
@@ -49,6 +58,7 @@ Future<T?> showLekisPanel<T>(
     return showModalBottomSheet<T>(
       context: context,
       useRootNavigator: true,
+      sheetAnimationStyle: _sheetMotion(context),
       isScrollControlled: true,
       useSafeArea: true,
       // On media the handle is drawn inside the glass (see [LekisPanel]): the
@@ -133,6 +143,7 @@ Future<T?> showLekisSheet<T>(
   return showModalBottomSheet<T>(
     context: context,
     useRootNavigator: true,
+    sheetAnimationStyle: _sheetMotion(context),
     isScrollControlled: true,
     useSafeArea: true,
     showDragHandle: showDragHandle && !glass,

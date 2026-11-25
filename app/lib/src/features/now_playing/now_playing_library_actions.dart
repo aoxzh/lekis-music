@@ -12,6 +12,7 @@ import 'package:lekis/src/features/library/artist_detail_page.dart';
 import 'package:lekis/src/features/library/library_actions.dart';
 import 'package:lekis/src/features/library/library_providers.dart'
     show artistIdForNameProvider;
+import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/now_playing/alternate_source_sheet.dart';
 import 'package:lekis/src/features/now_playing/lyrics_editor_sheet.dart';
@@ -26,6 +27,7 @@ import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../connect/connect_strings.dart';
@@ -68,18 +70,13 @@ Future<void> openNowPlayingArtist(
   if (names.isEmpty) return;
   final name = names.length == 1
       ? names.single
-      : await showDialog<String>(
-          context: context,
-          builder: (context) => SimpleDialog(
-            title: Text(context.l10n.pick('选择艺人', 'Choose an artist')),
-            children: [
-              for (final artist in names)
-                SimpleDialogOption(
-                  onPressed: () => Navigator.of(context).pop(artist),
-                  child: Text(artist),
-                ),
-            ],
-          ),
+      : await showLekisActionList<String>(
+          context,
+          title: context.l10n.pick('选择艺人', 'Choose an artist'),
+          actions: [
+            for (final artist in names)
+              LekisMenuAction(artist, Icons.person_outline_rounded, artist),
+          ],
         );
   if (!context.mounted || name == null) return;
   try {
@@ -323,7 +320,6 @@ class _MoreButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.lekisColors;
     final downloadState = ref.watch(downloadStateProvider(track.id));
     final artists = nowPlayingArtistNames(track);
     final video =
@@ -331,19 +327,16 @@ class _MoreButton extends ConsumerWidget {
         pluginSupportsVideo(ref, PluginTrackRef.fromUid(track.uid)?.pluginId) &&
         videoEnabled(ref);
     final rating = ratingOf(ref, track.id, track.rating?.toInt()) ?? 0;
-    Widget item(IconData icon, String label) => ListTile(
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(icon),
-      title: Text(label),
-    );
-    return PopupMenuButton<_MoreAction>(
+    return LekisActionMenuButton<_MoreAction>(
       key: const ValueKey('now-playing.more'),
       tooltip: context.l10n.pick('更多操作', 'More actions'),
-      constraints: const BoxConstraints(
-        minWidth: LekisSizes.desktopSidebarWidth * 0.75,
+      title: track.title,
+      artwork: TrackArtwork(
+        trackId: track.id,
+        hasArtwork: track.artworkId != null || !track.isLocal,
+        placeholderLabel: track.title,
       ),
-      icon: Icon(Icons.more_horiz_rounded, color: colors.onSurfaceVariant),
+      subtitle: artists.join(' / '),
       onSelected: (action) {
         switch (action) {
           case _MoreAction.alternateSource:
@@ -409,127 +402,102 @@ class _MoreButton extends ConsumerWidget {
             unawaited(_adjustLyrics(context, ref, (_) => 0));
         }
       },
-      itemBuilder: (_) => [
+      actions: () => [
         if (video)
-          PopupMenuItem(
-            value: _MoreAction.video,
-            child: item(Icons.ondemand_video_rounded, watchVideoLabel(context)),
+          LekisMenuAction(
+            _MoreAction.video,
+            Icons.ondemand_video_rounded,
+            watchVideoLabel(context),
           ),
         if (video)
-          PopupMenuItem(
-            value: _MoreAction.videoExternal,
-            child: item(
-              Icons.open_in_new_rounded,
-              openVideoInBrowserLabel(context),
-            ),
+          LekisMenuAction(
+            _MoreAction.videoExternal,
+            Icons.open_in_new_rounded,
+            openVideoInBrowserLabel(context),
           ),
         if (!track.isLocal && track.id > 0)
-          PopupMenuItem(
-            value: _MoreAction.alternateSource,
-            child: item(
-              Icons.swap_horiz_rounded,
-              context.l10n.pick('手动换源', 'Change audio source'),
-            ),
+          LekisMenuAction(
+            _MoreAction.alternateSource,
+            Icons.swap_horiz_rounded,
+            context.l10n.pick('手动换源', 'Change audio source'),
           ),
         if (includeRating)
-          PopupMenuItem(
-            value: _MoreAction.rate,
-            child: item(
-              rating > 0 ? Icons.star_rounded : Icons.star_outline_rounded,
-              rating > 0
-                  ? context.l10n.pick('评分（$rating 星）', 'Rate ($rating stars)')
-                  : context.l10n.pick('评分', 'Rate'),
-            ),
+          LekisMenuAction(
+            _MoreAction.rate,
+            rating > 0 ? Icons.star_rounded : Icons.star_outline_rounded,
+            rating > 0
+                ? context.l10n.pick('评分（$rating 星）', 'Rate ($rating stars)')
+                : context.l10n.pick('评分', 'Rate'),
           ),
         if (!track.isLocal || downloadState != null)
-          PopupMenuItem(
-            value: _MoreAction.download,
-            child: item(switch (downloadState) {
-              null => Icons.download_for_offline_outlined,
-              OfflineStateDto.ready => Icons.delete_outline_rounded,
-              OfflineStateDto.failed => Icons.refresh_rounded,
-              OfflineStateDto.downloading => Icons.close_rounded,
-              OfflineStateDto.queued => Icons.download_rounded,
-            }, downloadMenuLabel(downloadState)),
-          ),
-        PopupMenuItem(
-          value: _MoreAction.addToPlaylist,
-          child: item(
-            Icons.playlist_add_rounded,
-            context.l10n.pick('添加到歌单', 'Add to Playlist'),
-          ),
+          LekisMenuAction(_MoreAction.download, switch (downloadState) {
+            null => Icons.download_for_offline_outlined,
+            OfflineStateDto.ready => Icons.delete_outline_rounded,
+            OfflineStateDto.failed => Icons.refresh_rounded,
+            OfflineStateDto.downloading => Icons.close_rounded,
+            OfflineStateDto.queued => Icons.download_rounded,
+          }, downloadMenuLabel(downloadState)),
+        LekisMenuAction(
+          _MoreAction.addToPlaylist,
+          Icons.playlist_add_rounded,
+          context.l10n.pick('添加到歌单', 'Add to Playlist'),
+          startsGroup: true,
         ),
         if (track.albumId != null)
-          PopupMenuItem(
-            value: _MoreAction.viewAlbum,
-            child: item(
-              Icons.album_outlined,
-              context.l10n.pick('查看专辑', 'View Album'),
-            ),
+          LekisMenuAction(
+            _MoreAction.viewAlbum,
+            Icons.album_outlined,
+            context.l10n.pick('查看专辑', 'View Album'),
           ),
         if (artists.isNotEmpty)
-          PopupMenuItem(
-            value: _MoreAction.viewArtist,
-            child: item(
-              Icons.person_outline_rounded,
-              context.l10n.pick('查看艺人', 'View Artist'),
-            ),
+          LekisMenuAction(
+            _MoreAction.viewArtist,
+            Icons.person_outline_rounded,
+            context.l10n.pick('查看艺人', 'View Artist'),
           ),
-        PopupMenuItem(
-          value: _MoreAction.playOnDevice,
-          child: item(Icons.cast_rounded, ConnectStrings.playHere),
+        LekisMenuAction(
+          _MoreAction.playOnDevice,
+          Icons.cast_rounded,
+          ConnectStrings.playHere,
         ),
         // Editors live in the menu, not as a floating button over the lyrics
         // (iOS 26 puts them with the rest of the lyric controls).
-        PopupMenuItem(
-          value: _MoreAction.editLyrics,
-          child: item(
-            Icons.edit_note_rounded,
-            context.l10n.pick('编辑歌词', 'Edit Lyrics'),
-          ),
+        LekisMenuAction(
+          _MoreAction.editLyrics,
+          Icons.edit_note_rounded,
+          context.l10n.pick('编辑歌词', 'Edit Lyrics'),
+          startsGroup: true,
         ),
-        PopupMenuItem(
-          value: _MoreAction.sources,
-          child: item(
-            Icons.storage_rounded,
-            context.l10n.pick('查看来源', 'View Sources'),
-          ),
+        LekisMenuAction(
+          _MoreAction.sources,
+          Icons.storage_rounded,
+          context.l10n.pick('查看来源', 'View Sources'),
         ),
-        PopupMenuItem(
-          value: _MoreAction.copyInfo,
-          child: item(
-            Icons.copy_all_rounded,
-            context.l10n.pick('复制曲目信息', 'Copy Track Info'),
-          ),
+        LekisMenuAction(
+          _MoreAction.copyInfo,
+          Icons.copy_all_rounded,
+          context.l10n.pick('复制曲目信息', 'Copy Track Info'),
         ),
-        PopupMenuItem(
-          value: _MoreAction.copyLyrics,
-          child: item(
-            Icons.content_copy_rounded,
-            context.l10n.pick('复制歌词', 'Copy Lyrics'),
-          ),
+        LekisMenuAction(
+          _MoreAction.copyLyrics,
+          Icons.content_copy_rounded,
+          context.l10n.pick('复制歌词', 'Copy Lyrics'),
         ),
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          value: _MoreAction.lyricsEarlier,
-          child: item(
-            Icons.fast_rewind_rounded,
-            context.l10n.pick('歌词提前 0.5 秒', 'Lyrics 0.5s earlier'),
-          ),
+        LekisMenuAction(
+          _MoreAction.lyricsEarlier,
+          Icons.fast_rewind_rounded,
+          context.l10n.pick('歌词提前 0.5 秒', 'Lyrics 0.5s earlier'),
+          startsGroup: true,
         ),
-        PopupMenuItem(
-          value: _MoreAction.lyricsLater,
-          child: item(
-            Icons.fast_forward_rounded,
-            context.l10n.pick('歌词延后 0.5 秒', 'Lyrics 0.5s later'),
-          ),
+        LekisMenuAction(
+          _MoreAction.lyricsLater,
+          Icons.fast_forward_rounded,
+          context.l10n.pick('歌词延后 0.5 秒', 'Lyrics 0.5s later'),
         ),
-        PopupMenuItem(
-          value: _MoreAction.lyricsReset,
-          child: item(
-            Icons.restart_alt_rounded,
-            context.l10n.pick('重置歌词偏移', 'Reset lyrics offset'),
-          ),
+        LekisMenuAction(
+          _MoreAction.lyricsReset,
+          Icons.restart_alt_rounded,
+          context.l10n.pick('重置歌词偏移', 'Reset lyrics offset'),
         ),
       ],
     );

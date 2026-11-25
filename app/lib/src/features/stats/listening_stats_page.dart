@@ -9,6 +9,7 @@ import 'package:lekis/src/features/library/library_providers.dart'
     show artistIdForNameProvider;
 import 'package:lekis/src/features/library/widgets/page_gutter.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
+import 'package:lekis/src/features/settings/widgets/settings_widgets.dart';
 import 'package:lekis/src/features/sources/common.dart';
 import 'package:lekis/src/features/stats/listening_stats_providers.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
@@ -35,8 +36,8 @@ class _ListeningStatsPageState extends ConsumerState<ListeningStatsPage> {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
 
-    return Scaffold(
-      appBar: AppBar(title: Text(context.l10n.pick('听歌统计', 'Listening Stats'))),
+    return SettingsScaffold(
+      title: context.l10n.pick('听歌统计', 'Listening Stats'),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(listeningYearsProvider);
@@ -44,83 +45,90 @@ class _ListeningStatsPageState extends ConsumerState<ListeningStatsPage> {
           await ref.read(listeningSummaryProvider(_year).future);
         },
         child: ListView(
-          padding: EdgeInsets.symmetric(
-            horizontal: pageGutterOf(context),
-            vertical: LekisSpacing.lg,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(
+            pageGutterOf(context),
+            LekisSpacing.sm,
+            pageGutterOf(context),
+            scrollEndPadding(context),
           ),
           children: [
-            ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: featureMaxContentWidth,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          context.l10n.pick(
-                            '你的听歌足迹',
-                            'Your Listening Footprint',
+            Align(
+              alignment: AlignmentDirectional.topStart,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: featureMaxContentWidth,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            context.l10n.pick('时间范围', 'Time range'),
+                            style: theme.textTheme.bodyLarge,
                           ),
-                          style: theme.textTheme.headlineSmall,
                         ),
-                      ),
-                      years.when(
-                        data: (items) => DropdownButton<int?>(
-                          value: _year,
-                          hint: Text(context.l10n.pick('全部时间', 'All Time')),
-                          items: [
-                            DropdownMenuItem<int?>(
-                              value: null,
-                              child: Text(
-                                context.l10n.pick('全部时间', 'All Time'),
-                              ),
+                        years.when(
+                          data: (items) => DropdownButtonHideUnderline(
+                            child: DropdownButton<int?>(
+                              value: _year,
+                              hint: Text(context.l10n.pick('全部时间', 'All Time')),
+                              items: [
+                                DropdownMenuItem<int?>(
+                                  value: null,
+                                  child: Text(
+                                    context.l10n.pick('全部时间', 'All Time'),
+                                  ),
+                                ),
+                                for (final y in items)
+                                  DropdownMenuItem<int?>(
+                                    value: y,
+                                    child: Text(
+                                      context.l10n.pick('$y 年', '$y'),
+                                    ),
+                                  ),
+                              ],
+                              onChanged: (v) => setState(() => _year = v),
                             ),
-                            for (final y in items)
-                              DropdownMenuItem<int?>(
-                                value: y,
-                                child: Text(context.l10n.pick('$y 年', '$y')),
-                              ),
-                          ],
-                          onChanged: (v) => setState(() => _year = v),
-                        ),
-                        loading: () => const SizedBox.shrink(),
-                        error: (_, _) => const SizedBox.shrink(),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: LekisSpacing.sm),
-                  Text(
-                    context.l10n.pick(
-                      '统计来自本机播放记录；只在本地保存，不包含歌词或文件内容。',
-                      'Based on local playback history; stored only on this device without lyrics or file contents.',
-                    ),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: LekisSpacing.lg),
-                  summary.whenSkeleton(
-                    skeleton: const _StatsSkeleton(),
-                    error: (e, _) => Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.error_outline),
-                        title: Text(
-                          context.l10n.pick(
-                            '读取听歌统计失败',
-                            'Failed to load listening stats',
                           ),
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, _) => const SizedBox.shrink(),
                         ),
-                        subtitle: Text('$e'),
+                      ],
+                    ),
+                    const SizedBox(height: LekisSpacing.sm),
+                    Text(
+                      context.l10n.pick(
+                        '统计来自本机播放记录；只在本地保存，不包含歌词或文件内容。',
+                        'Based on local playback history; stored only on this device without lyrics or file contents.',
+                      ),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
                       ),
                     ),
-                    data: (data) => data.totalPlays == BigInt.zero
-                        ? const _EmptyStats()
-                        : _StatsBody(summary: data),
-                  ),
-                ],
+                    const SizedBox(height: LekisSpacing.lg),
+                    summary.whenSkeleton(
+                      skeleton: const _StatsSkeleton(),
+                      error: (e, _) => Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.error_outline),
+                          title: Text(
+                            context.l10n.pick(
+                              '读取听歌统计失败',
+                              'Failed to load listening stats',
+                            ),
+                          ),
+                          subtitle: Text('$e'),
+                        ),
+                      ),
+                      data: (data) => data.totalPlays == BigInt.zero
+                          ? const _EmptyStats()
+                          : _StatsBody(summary: data),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -147,11 +155,10 @@ class _StatsSkeleton extends StatelessWidget {
         const LekisSkeleton(height: 132, radius: card),
         const SizedBox(height: LekisSpacing.lg),
         title(72),
-        // _BucketBars: 150 bars + 20 / 14 padding.
-        const LekisSkeleton(height: 184, radius: card),
+        const LekisSkeleton(height: 144, radius: card),
         const SizedBox(height: LekisSpacing.lg),
         title(112),
-        const LekisSkeleton(height: 184, radius: card),
+        const LekisSkeleton(height: 144, radius: card),
         const SizedBox(height: LekisSpacing.lg),
         title(96),
         for (var i = 0; i < 5; i++)
@@ -209,39 +216,84 @@ class _StatsBody extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Wrap(
-              spacing: 28,
-              runSpacing: 18,
-              children: [
-                _BigStat(
-                  value: _formatHours(hours),
-                  label: context.l10n.pick('累计收听', 'Total Time'),
-                  icon: Icons.timer_outlined,
-                ),
-                _BigStat(
-                  value: '${summary.totalPlays}',
-                  label: context.l10n.pick('播放次数', 'Plays'),
-                  icon: Icons.play_arrow_rounded,
-                ),
-                _BigStat(
-                  value: '${summary.uniqueArtists}',
-                  label: context.l10n.pick('艺人', 'Artists'),
-                  icon: Icons.people_alt_outlined,
-                ),
-                _BigStat(
-                  value: '${summary.uniqueAlbums}',
-                  label: context.l10n.pick('专辑', 'Albums'),
-                  icon: Icons.album_outlined,
-                ),
-                _BigStat(
-                  value: '${summary.uniqueTracks}',
-                  label: context.l10n.pick('曲目', 'Tracks'),
-                  icon: Icons.music_note_outlined,
-                ),
-              ],
+        SizedBox(
+          width: double.infinity,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: context.lekisColors.surfaceVariant,
+              borderRadius: BorderRadius.circular(LekisRadius.md),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(LekisSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.l10n.pick('累计收听', 'Total time'),
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: LekisSpacing.xs),
+                  Text(
+                    _formatHours(hours),
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  const SizedBox(height: LekisSpacing.lg),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final minWidth = MediaQuery.textScalerOf(context)
+                          .scale(72);
+                      final columns = constraints.maxWidth >= 4 * minWidth
+                          ? 4
+                          : constraints.maxWidth >= 2 * minWidth
+                          ? 2
+                          : 1;
+                      return Wrap(
+                        runSpacing: LekisSpacing.md,
+                        children: [
+                          for (final (value, label) in [
+                            (
+                              summary.totalPlays,
+                              context.l10n.pick('播放次数', 'Plays'),
+                            ),
+                            (
+                              summary.uniqueArtists,
+                              context.l10n.pick('艺人', 'Artists'),
+                            ),
+                            (
+                              summary.uniqueAlbums,
+                              context.l10n.pick('专辑', 'Albums'),
+                            ),
+                            (
+                              summary.uniqueTracks,
+                              context.l10n.pick('曲目', 'Tracks'),
+                            ),
+                          ])
+                            SizedBox(
+                              width: constraints.maxWidth / columns,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '$value',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium,
+                                  ),
+                                  Text(
+                                    label,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -476,44 +528,6 @@ class _StatsBody extends ConsumerWidget {
   }
 }
 
-class _BigStat extends StatelessWidget {
-  const _BigStat({
-    required this.value,
-    required this.label,
-    required this.icon,
-  });
-
-  final String value;
-  final String label;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 140,
-      child: Row(
-        children: [
-          Icon(icon, size: 22, color: context.lekisColors.moon),
-          const SizedBox(width: LekisSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(value, style: Theme.of(context).textTheme.titleLarge),
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.labelSmall
-                      ?.copyWith(color: context.lekisColors.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _Rank extends StatelessWidget {
   const _Rank({required this.index});
 
@@ -551,87 +565,72 @@ class _BucketBars extends StatelessWidget {
       (m, b) => b.playedMs.toDouble() > m ? b.playedMs.toDouble() : m,
     );
     final color = context.lekisColors.moon;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 14),
-        child: SizedBox(
-          height: 150,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              for (final (i, b) in buckets.indexed)
-                Expanded(
-                  child: Tooltip(
-                    message:
-                        '${labelFor(i)} · ${context.l10n.pick('${b.plays} 次', '${b.plays} plays')} · ${_formatHours(b.playedMs.toDouble() / 3600000)}',
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Expanded(
-                            child: Align(
-                              alignment: Alignment.bottomCenter,
-                              child: FractionallySizedBox(
-                                heightFactor: maxMs <= 0
-                                    ? 0.02
-                                    : (b.playedMs.toDouble() / maxMs).clamp(
-                                        0.02,
-                                        1.0,
-                                      ),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: color.withValues(
-                                      alpha: b.playedMs == BigInt.zero
-                                          ? 0.18
-                                          : 0.8,
-                                    ),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
+    final tickStyle = Theme.of(context).textTheme.labelSmall
+        ?.copyWith(color: context.lekisColors.onSurfaceVariant);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: LekisSpacing.sm),
+      child: Column(
+        children: [
+          SizedBox(
+            height: 112,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (final (i, bucket) in buckets.indexed)
+                  Expanded(
+                    child: Tooltip(
+                      message:
+                          '${labelFor(i)} · ${context.l10n.pick('${bucket.plays} 次', '${bucket.plays} plays')} · ${_formatHours(bucket.playedMs.toDouble() / 3600000)}',
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: LekisSpacing.xxs,
+                        ),
+                        child: Align(
+                          alignment: Alignment.bottomCenter,
+                          child: FractionallySizedBox(
+                            heightFactor: maxMs == 0
+                                ? 0
+                                : bucket.playedMs.toDouble() / maxMs,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: color,
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(LekisRadius.xs),
                                 ),
                               ),
+                              child: const SizedBox.expand(),
                             ),
                           ),
-                          const SizedBox(height: 6),
-                          SizedBox(
-                            height: 14,
-                            child: i % everyLabel == 0
-                                ? Text(
-                                    labelFor(i),
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelSmall
-                                        ?.copyWith(
-                                          color: context
-                                              .lekisColors
-                                              .onSurfaceVariant,
-                                          fontSize: 9,
-                                        ),
-                                  )
-                                : null,
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          const SizedBox(height: LekisSpacing.xs),
+          Row(
+            children: [
+              for (var i = 0; i < buckets.length; i += everyLabel)
+                Expanded(
+                  flex: (buckets.length - i).clamp(1, everyLabel),
+                  child: Text(labelFor(i), style: tickStyle),
                 ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
 String _formatHours(double hours) {
-  if (hours <= 0) return L10n.tr('0 分钟', '0m');
-  if (hours >= 1) {
-    final whole = hours.floor();
-    final minutes = ((hours - whole) * 60).round();
-    return minutes == 0
-        ? L10n.tr('$whole 小时', '${whole}h')
-        : L10n.tr('$whole 小时 $minutes 分', '${whole}h ${minutes}m');
-  }
-  final mins = (hours * 60).round();
-  return L10n.tr('$mins 分钟', '${mins}m');
+  final total = (hours * 60).round();
+  if (total < 60) return L10n.tr('$total 分钟', '${total}m');
+  final whole = total ~/ 60;
+  final minutes = total % 60;
+  return minutes == 0
+      ? L10n.tr('$whole 小时', '${whole}h')
+      : L10n.tr('$whole 小时 $minutes 分', '${whole}h ${minutes}m');
 }

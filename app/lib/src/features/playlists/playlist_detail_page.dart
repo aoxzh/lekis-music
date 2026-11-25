@@ -25,6 +25,7 @@ import 'package:lekis/src/widgets/list_motion.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_actions.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/features/playlists/playlist_strings.dart';
 
@@ -884,7 +885,8 @@ class _PlaylistHeader extends ConsumerWidget {
                     icon: const Icon(Icons.ios_share_rounded),
                     label: Text(PlaylistStrings.exportPlaylist),
                   ),
-                PopupMenuButton<String>(
+                LekisActionMenuButton<String>(
+                  title: playlist.name,
                   tooltip: PlaylistStrings.playlistActions,
                   onSelected: (value) {
                     switch (value) {
@@ -935,68 +937,84 @@ class _PlaylistHeader extends ConsumerWidget {
                         delete();
                     }
                   },
-                  itemBuilder: (_) => [
+                  actions: () => [
                     if (queueTrackIds.isNotEmpty) ...[
-                      PopupMenuItem(
-                        value: 'next',
-                        child: Text(QueueStrings.playNext),
+                      LekisMenuAction(
+                        'next',
+                        Icons.queue_play_next,
+                        QueueStrings.playNext,
                       ),
-                      PopupMenuItem(
-                        value: 'queue',
-                        child: Text(QueueStrings.addToQueue),
+                      LekisMenuAction(
+                        'queue',
+                        Icons.add_to_queue,
+                        QueueStrings.addToQueue,
                       ),
-                      const PopupMenuDivider(),
                     ],
-                    PopupMenuItem(
-                      value: 'cover',
-                      child: Text(ArtworkActionStrings.change),
+                    LekisMenuAction(
+                      'cover',
+                      Icons.image_outlined,
+                      ArtworkActionStrings.change,
+                      startsGroup: true,
                     ),
                     if (playlist.artworkId != null)
-                      PopupMenuItem(
-                        value: 'cover-remove',
-                        child: Text(ArtworkActionStrings.remove),
+                      LekisMenuAction(
+                        'cover-remove',
+                        Icons.hide_image_outlined,
+                        ArtworkActionStrings.remove,
                       ),
-                    PopupMenuItem(
-                      value: 'rename',
-                      child: Text(PlaylistStrings.rename),
+                    LekisMenuAction(
+                      'rename',
+                      Icons.edit_outlined,
+                      PlaylistStrings.rename,
                     ),
-                    PopupMenuItem(
-                      value: 'duplicate',
-                      child: Text(PlaylistStrings.duplicate),
+                    LekisMenuAction(
+                      'duplicate',
+                      Icons.content_copy,
+                      PlaylistStrings.duplicate,
                     ),
                     if (onSort != null)
-                      PopupMenuItem(
-                        value: 'sort',
-                        child: Text(PlaylistStrings.sortPlaylist),
+                      LekisMenuAction(
+                        'sort',
+                        Icons.sort,
+                        PlaylistStrings.sortPlaylist,
+                        startsGroup: true,
                       ),
                     if (onCopy != null)
-                      PopupMenuItem(
-                        value: 'copy',
-                        child: Text(PlaylistStrings.copyPlaylist),
+                      LekisMenuAction(
+                        'copy',
+                        Icons.playlist_add,
+                        PlaylistStrings.copyPlaylist,
                       ),
                     if (onDedupe != null)
-                      PopupMenuItem(
-                        value: 'dedupe',
-                        child: Text(PlaylistStrings.removeDuplicates),
+                      LekisMenuAction(
+                        'dedupe',
+                        Icons.filter_list,
+                        PlaylistStrings.removeDuplicates,
                       ),
                     if (onCleanMissing != null)
-                      PopupMenuItem(
-                        value: 'missing',
-                        child: Text(PlaylistStrings.removeMissing),
+                      LekisMenuAction(
+                        'missing',
+                        Icons.playlist_remove,
+                        PlaylistStrings.removeMissing,
                       ),
                     if (onMerge != null)
-                      PopupMenuItem(
-                        value: 'merge',
-                        child: Text(PlaylistStrings.mergePlaylist),
+                      LekisMenuAction(
+                        'merge',
+                        Icons.merge,
+                        PlaylistStrings.mergePlaylist,
                       ),
                     if (onSelect != null)
-                      PopupMenuItem(
-                        value: 'select',
-                        child: Text(PlaylistStrings.selectEntries),
+                      LekisMenuAction(
+                        'select',
+                        Icons.checklist,
+                        PlaylistStrings.selectEntries,
                       ),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Text(PlaylistStrings.deletePlaylist),
+                    LekisMenuAction(
+                      'delete',
+                      Icons.delete_outline,
+                      PlaylistStrings.deletePlaylist,
+                      startsGroup: true,
+                      destructive: true,
                     ),
                   ],
                 ),
@@ -1386,9 +1404,10 @@ class _PlaylistEntryTile extends StatelessWidget {
                     onPressed: canMoveDown ? onMoveDown : null,
                   ),
                 ],
-                PopupMenuButton<String>(
+                LekisActionMenuButton<String>(
                   tooltip: PlaylistStrings.entryActions,
-                  padding: EdgeInsets.zero,
+                  compact: true,
+                  title: track?.title ?? PlaylistStrings.trackUnavailable,
                   onSelected: (value) {
                     switch (value) {
                       case 'up':
@@ -1403,38 +1422,39 @@ class _PlaylistEntryTile extends StatelessWidget {
                         onRemove();
                     }
                   },
-                  itemBuilder: (_) => [
-                    PopupMenuItem(
-                      value: 'up',
+                  actions: () => [
+                    LekisMenuAction(
+                      'up',
+                      Icons.arrow_upward_rounded,
+                      PlaylistStrings.moveUp,
                       enabled: canMoveUp,
-                      child: Text(PlaylistStrings.moveUp),
                     ),
-                    PopupMenuItem(
-                      value: 'down',
+                    LekisMenuAction(
+                      'down',
+                      Icons.arrow_downward_rounded,
+                      PlaylistStrings.moveDown,
                       enabled: canMoveDown,
-                      child: Text(PlaylistStrings.moveDown),
                     ),
-                    PopupMenuItem(
-                      value: 'top',
+                    LekisMenuAction(
+                      'top',
+                      Icons.vertical_align_top_rounded,
+                      PlaylistStrings.moveToTop,
                       enabled: canMoveToTop,
-                      child: Text(PlaylistStrings.moveToTop),
                     ),
-                    PopupMenuItem(
-                      value: 'bottom',
+                    LekisMenuAction(
+                      'bottom',
+                      Icons.vertical_align_bottom_rounded,
+                      PlaylistStrings.moveToBottom,
                       enabled: canMoveToBottom,
-                      child: Text(PlaylistStrings.moveToBottom),
                     ),
-                    PopupMenuItem(
-                      value: 'remove',
-                      child: Text(PlaylistStrings.removeFromPlaylist),
+                    LekisMenuAction(
+                      'remove',
+                      Icons.playlist_remove_rounded,
+                      PlaylistStrings.removeFromPlaylist,
+                      startsGroup: true,
+                      destructive: true,
                     ),
                   ],
-                  // A 36 dp row action, matching the heart.
-                  child: const SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: Icon(Icons.more_vert, size: 20),
-                  ),
                 ),
               ],
             );

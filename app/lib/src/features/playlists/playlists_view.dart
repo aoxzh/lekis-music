@@ -15,6 +15,7 @@ import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:lekis/src/features/playlists/playlist_strings.dart';
 
@@ -270,7 +271,8 @@ class _PlaylistTile extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        trailing: PopupMenuButton<String>(
+        trailing: LekisActionMenuButton<String>(
+          title: playlist.name,
           tooltip: PlaylistStrings.playlistActions,
           onSelected: (value) {
             switch (value) {
@@ -284,15 +286,30 @@ class _PlaylistTile extends StatelessWidget {
                 onDelete();
             }
           },
-          itemBuilder: (_) => [
-            PopupMenuItem(value: 'open', child: Text(PlaylistStrings.open)),
-            PopupMenuItem(value: 'rename', child: Text(PlaylistStrings.rename)),
+          actions: () => [
+            LekisMenuAction(
+              'open',
+              Icons.queue_music_rounded,
+              PlaylistStrings.open,
+            ),
+            LekisMenuAction(
+              'rename',
+              Icons.edit_outlined,
+              PlaylistStrings.rename,
+            ),
             if (onEditRules != null)
-              PopupMenuItem(
-                value: 'rules',
-                child: Text(PlaylistStrings.editRules),
+              LekisMenuAction(
+                'rules',
+                Icons.tune_rounded,
+                PlaylistStrings.editRules,
               ),
-            PopupMenuItem(value: 'delete', child: Text(PlaylistStrings.delete)),
+            LekisMenuAction(
+              'delete',
+              Icons.delete_outline_rounded,
+              PlaylistStrings.delete,
+              startsGroup: true,
+              destructive: true,
+            ),
           ],
         ),
       ),

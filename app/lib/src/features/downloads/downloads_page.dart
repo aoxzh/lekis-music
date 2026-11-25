@@ -18,6 +18,7 @@ import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/platform/reveal_file.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
 
 class DownloadsPage extends ConsumerWidget {
@@ -246,62 +247,59 @@ class DownloadsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final async = ref.watch(downloadsProvider);
+    final sortMode = ref.watch(downloadSortProvider);
     final hasCompleted = async.value?.ready.isNotEmpty ?? false;
     final hasFailed = async.value?.failed.isNotEmpty ?? false;
     return SettingsScaffold(
       title: l10n.pick('下载', 'Downloads'),
       actions: [
-        PopupMenuButton<DownloadSortMode>(
+        LekisActionMenuButton<DownloadSortMode>(
+          title: l10n.pick('排序', 'Sort'),
           tooltip: l10n.pick('排序', 'Sort'),
-          icon: const Icon(Icons.sort_rounded),
+          icon: Icons.sort_rounded,
           onSelected: (value) =>
               ref.read(downloadSortProvider.notifier).set(value),
-          itemBuilder: (_) => [
-            PopupMenuItem(
-              value: DownloadSortMode.default_,
-              child: ListTile(
-                leading: const Icon(Icons.format_list_numbered_rounded),
-                title: Text(l10n.pick('默认顺序', 'Default Order')),
-              ),
+          actions: () => [
+            LekisMenuAction(
+              DownloadSortMode.default_,
+              Icons.format_list_numbered_rounded,
+              l10n.pick('默认顺序', 'Default Order'),
+              selected: sortMode == DownloadSortMode.default_,
             ),
-            PopupMenuItem(
-              value: DownloadSortMode.title,
-              child: ListTile(
-                leading: const Icon(Icons.sort_by_alpha_rounded),
-                title: Text(l10n.pick('按标题', 'By Title')),
-              ),
+            LekisMenuAction(
+              DownloadSortMode.title,
+              Icons.sort_by_alpha_rounded,
+              l10n.pick('按标题', 'By Title'),
+              selected: sortMode == DownloadSortMode.title,
             ),
-            PopupMenuItem(
-              value: DownloadSortMode.artist,
-              child: ListTile(
-                leading: const Icon(Icons.person_outline_rounded),
-                title: Text(l10n.pick('按艺人', 'By Artist')),
-              ),
+            LekisMenuAction(
+              DownloadSortMode.artist,
+              Icons.person_outline_rounded,
+              l10n.pick('按艺人', 'By Artist'),
+              selected: sortMode == DownloadSortMode.artist,
             ),
-            PopupMenuItem(
-              value: DownloadSortMode.album,
-              child: ListTile(
-                leading: const Icon(Icons.album_outlined),
-                title: Text(l10n.pick('按专辑', 'By Album')),
-              ),
+            LekisMenuAction(
+              DownloadSortMode.album,
+              Icons.album_outlined,
+              l10n.pick('按专辑', 'By Album'),
+              selected: sortMode == DownloadSortMode.album,
             ),
-            PopupMenuItem(
-              value: DownloadSortMode.newest,
-              child: ListTile(
-                leading: const Icon(Icons.schedule_rounded),
-                title: Text(l10n.pick('最新添加', 'Newest First')),
-              ),
+            LekisMenuAction(
+              DownloadSortMode.newest,
+              Icons.schedule_rounded,
+              l10n.pick('最新添加', 'Newest First'),
+              selected: sortMode == DownloadSortMode.newest,
             ),
-            PopupMenuItem(
-              value: DownloadSortMode.largest,
-              child: ListTile(
-                leading: const Icon(Icons.sd_storage_rounded),
-                title: Text(l10n.pick('文件最大', 'Largest First')),
-              ),
+            LekisMenuAction(
+              DownloadSortMode.largest,
+              Icons.sd_storage_rounded,
+              l10n.pick('文件最大', 'Largest First'),
+              selected: sortMode == DownloadSortMode.largest,
             ),
           ],
         ),
-        PopupMenuButton<String>(
+        LekisActionMenuButton<String>(
+          title: l10n.pick('批量下载', 'Batch Download'),
           tooltip: l10n.pick('批量下载', 'Batch Download'),
           onSelected: (value) {
             switch (value) {
@@ -323,62 +321,48 @@ class DownloadsPage extends ConsumerWidget {
                 _clearFailed(context, ref);
             }
           },
-          itemBuilder: (_) => [
-            PopupMenuItem(
-              value: 'loved',
-              child: ListTile(
-                leading: const Icon(Icons.favorite_outline),
-                title: Text(l10n.pick('下载收藏', 'Download Liked')),
-              ),
+          actions: () => [
+            LekisMenuAction(
+              'loved',
+              Icons.favorite_outline,
+              l10n.pick('下载收藏', 'Download Liked'),
             ),
-            PopupMenuItem(
-              value: 'most-played',
-              child: ListTile(
-                leading: const Icon(Icons.trending_up_rounded),
-                title: Text(l10n.pick('下载最常听 50 首', 'Download Top 50')),
-              ),
+            LekisMenuAction(
+              'most-played',
+              Icons.trending_up_rounded,
+              l10n.pick('下载最常听 50 首', 'Download Top 50'),
             ),
             if (hasCompleted)
-              PopupMenuItem(
-                value: 'play-downloaded',
-                child: ListTile(
-                  leading: const Icon(Icons.play_arrow_rounded),
-                  title: Text(l10n.pick('播放已下载', 'Play Downloaded')),
-                ),
+              LekisMenuAction(
+                'play-downloaded',
+                Icons.play_arrow_rounded,
+                l10n.pick('播放已下载', 'Play Downloaded'),
+                startsGroup: true,
               ),
             if (hasCompleted)
-              PopupMenuItem(
-                value: 'shuffle-downloaded',
-                child: ListTile(
-                  leading: const Icon(Icons.shuffle_rounded),
-                  title: Text(l10n.pick('随机播放已下载', 'Shuffle Downloaded')),
-                ),
+              LekisMenuAction(
+                'shuffle-downloaded',
+                Icons.shuffle_rounded,
+                l10n.pick('随机播放已下载', 'Shuffle Downloaded'),
               ),
             if (hasCompleted)
-              PopupMenuItem(
-                value: 'clear-completed',
-                child: ListTile(
-                  leading: const Icon(Icons.delete_sweep_outlined),
-                  title: Text(
-                    l10n.pick('清理已完成的下载', 'Clear Completed Downloads'),
-                  ),
-                ),
+              LekisMenuAction(
+                'clear-completed',
+                Icons.delete_sweep_outlined,
+                l10n.pick('清理已完成的下载', 'Clear Completed Downloads'),
+                startsGroup: true,
               ),
             if (hasFailed)
-              PopupMenuItem(
-                value: 'retry-failed',
-                child: ListTile(
-                  leading: const Icon(Icons.refresh_rounded),
-                  title: Text(l10n.pick('重试全部失败下载', 'Retry All Failed')),
-                ),
+              LekisMenuAction(
+                'retry-failed',
+                Icons.refresh_rounded,
+                l10n.pick('重试全部失败下载', 'Retry All Failed'),
               ),
             if (hasFailed)
-              PopupMenuItem(
-                value: 'clear-failed',
-                child: ListTile(
-                  leading: const Icon(Icons.error_outline_rounded),
-                  title: Text(l10n.pick('清理失败记录', 'Clear Failed Downloads')),
-                ),
+              LekisMenuAction(
+                'clear-failed',
+                Icons.error_outline_rounded,
+                l10n.pick('清理失败记录', 'Clear Failed Downloads'),
               ),
           ],
         ),

@@ -6,7 +6,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/sources/sources_page.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
-import 'package:lekis/src/rust/api/core.dart' as core;
+import 'package:lekis/src/features/library/track_sources_sheet.dart'
+    show trackSourcesProvider;
+import 'package:lekis/src/features/sources/source_kind_info.dart';
+import 'package:lekis/src/features/sources/common.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:material_ui/material_ui.dart';
@@ -16,120 +20,80 @@ Future<void> showTrackSourcesSheet(
   required int trackId,
   required String title,
 }) {
-  return showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    isScrollControlled: true,
+  return showLekisSheet<void>(
+    context,
+    heightFactor: 0.65,
     builder: (_) => _TrackSourcesSheet(trackId: trackId, title: title),
   );
 }
 
-class _TrackSourcesSheet extends ConsumerStatefulWidget {
+class _TrackSourcesSheet extends ConsumerWidget {
   const _TrackSourcesSheet({required this.trackId, required this.title});
 
   final int trackId;
   final String title;
 
   @override
-  ConsumerState<_TrackSourcesSheet> createState() => _TrackSourcesSheetState();
-}
-
-class _TrackSourcesSheetState extends ConsumerState<_TrackSourcesSheet> {
-  late Future<List<TrackSourceInfoDto>> _future;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = core.trackSources(trackId: widget.trackId);
-  }
-
-  void _retry() {
-    setState(() => _future = core.trackSources(trackId: widget.trackId));
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final provider = trackSourcesProvider(trackId);
     final theme = Theme.of(context);
     final colors = context.lekisColors;
     final l10n = context.l10n;
-    return SafeArea(
-      child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * 0.65,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                LekisSpacing.lg,
-                0,
-                LekisSpacing.lg,
-                LekisSpacing.md,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            LekisSpacing.xl,
+            0,
+            LekisSpacing.xl,
+            LekisSpacing.md,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.pick('曲目来源', 'Track Sources'),
+                style: theme.textTheme.titleLarge,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.pick('曲目来源', 'Track Sources'),
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: LekisSpacing.xxs),
-                  Text(
-                    widget.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colors.onSurfaceVariant,
+              const SizedBox(height: LekisSpacing.xxs),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Divider(height: 1, color: colors.outline),
+        Expanded(
+          child: ref
+              .watch(provider)
+              .when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) => Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(LekisSpacing.xl),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          describeCoreError(error),
+                          textAlign: TextAlign.center,
+                        ),
+                        TextButton.icon(
+                          onPressed: () => ref.invalidate(provider),
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: Text(l10n.pick('重试', 'Retry')),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-            Divider(height: 1, color: colors.outline),
-            Expanded(
-              child: FutureBuilder<List<TrackSourceInfoDto>>(
-                future: _future,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState != ConnectionState.done) {
-                    return const Center(
-                      child: SizedBox.square(
-                        dimension: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    );
-                  }
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(LekisSpacing.xl),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.error_outline_rounded,
-                              color: colors.danger,
-                            ),
-                            const SizedBox(height: LekisSpacing.sm),
-                            Text(
-                              l10n.pick(
-                                '读取来源失败：${snapshot.error}',
-                                'Failed to load sources: ${snapshot.error}',
-                              ),
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colors.onSurfaceVariant,
-                              ),
-                            ),
-                            const SizedBox(height: LekisSpacing.md),
-                            OutlinedButton(
-                              onPressed: _retry,
-                              child: Text(l10n.pick('重试', 'Retry')),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-                  final sources = snapshot.data ?? const [];
+                ),
+                data: (sources) {
                   if (sources.isEmpty) {
                     return Center(
                       child: Text(
@@ -156,10 +120,8 @@ class _TrackSourcesSheetState extends ConsumerState<_TrackSourcesSheet> {
                   );
                 },
               ),
-            ),
-          ],
         ),
-      ),
+      ],
     );
   }
 }
@@ -192,7 +154,15 @@ class _SourceTile extends StatelessWidget {
       'Q${source.qualityScore.toInt()}',
     ].join(' · ');
     return ListTile(
-      leading: Icon(Icons.storage_rounded, color: colors.onSurfaceVariant),
+      contentPadding: const EdgeInsets.symmetric(horizontal: LekisSpacing.xl),
+      leading: Tooltip(
+        message: switch (reachable) {
+          true => l10n.pick('可连接', 'Reachable'),
+          false => l10n.pick('无法连接', 'Unreachable'),
+          null => l10n.pick('未检测', 'Not checked'),
+        },
+        child: Icon(reachIcon, color: reachColor),
+      ),
       title: Row(
         children: [
           Flexible(
@@ -216,7 +186,7 @@ class _SourceTile extends StatelessWidget {
         ],
       ),
       subtitle: Text(
-        '${source.sourceKind.name} · $details\n${source.path}',
+        '${source.sourceKind.label} · $details\n${source.path}',
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: theme.textTheme.bodySmall?.copyWith(
@@ -227,27 +197,23 @@ class _SourceTile extends StatelessWidget {
       onTap: () =>
           Navigator.of(context)
               .push(SourceDetailPage.route(source.sourceId.toInt())),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            tooltip: l10n.pick('复制路径', 'Copy path'),
-            iconSize: 18,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            padding: EdgeInsets.zero,
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: source.path));
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context)
-                ..hideCurrentSnackBar()
-                ..showSnackBar(
-                  SnackBar(content: Text(l10n.pick('已复制路径', 'Path copied'))),
-                );
-            },
-            icon: const Icon(Icons.copy_rounded),
-          ),
-          Icon(reachIcon, size: 20, color: reachColor),
-        ],
+      trailing: IconButton(
+        tooltip: l10n.pick('复制路径', 'Copy path'),
+        iconSize: LekisSpacing.xl - LekisSpacing.xs,
+        constraints: const BoxConstraints(
+          minWidth: LekisSizes.touchTargetMin,
+          minHeight: LekisSizes.touchTargetMin,
+        ),
+        onPressed: () async {
+          await Clipboard.setData(ClipboardData(text: source.path));
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(content: Text(l10n.pick('已复制路径', 'Path copied'))),
+            );
+        },
+        icon: const Icon(Icons.copy_rounded),
       ),
     );
   }
