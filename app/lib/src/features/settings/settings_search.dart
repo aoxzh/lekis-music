@@ -10,6 +10,7 @@ import 'settings_categories.dart';
 import 'strings.dart';
 import 'usb_bit_perfect_providers.dart';
 import 'widgets/settings_reveal.dart';
+import 'widgets/settings_widgets.dart';
 
 enum _Group {
   lyrics(SettingsCategory.appearance, '歌词 lyrics'),
@@ -44,7 +45,7 @@ class SettingsSearchItem {
 
   SettingsCategory get category => _group.category;
   bool get inPlugins => _group == _Group.plugins;
-  String get path => [category.title, ?_group.section, title].join(' › ');
+  String get location => [category.title, ?_group.section].join(' › ');
 
   Route<void> pluginRoute() => MaterialPageRoute<void>(
     settings: const RouteSettings(name: '/plugins'),
@@ -177,7 +178,7 @@ List<SettingsSearchItem> searchSettings(WidgetRef ref, String query) {
   return [
     for (final entry in entries)
       if (words.every(
-        '${entry.path} ${entry._group.aliases} ${entry._aliases}'
+        '${entry.location} ${entry.title} ${entry._group.aliases} ${entry._aliases}'
             .toLowerCase()
             .contains,
       ))
@@ -191,6 +192,11 @@ class SettingsSearchRow extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) =>
-      ListTile(dense: true, title: Text(item.path), onTap: onTap);
+  Widget build(BuildContext context) => SettingsTile(
+    icon: item.inPlugins ? Icons.extension_outlined : item.category.icon,
+    title: item.title,
+    subtitle: Text(item.location),
+    chevron: true,
+    onTap: onTap,
+  );
 }

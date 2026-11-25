@@ -500,16 +500,9 @@ class _Empty extends StatelessWidget {
         return;
       }
       if (kind == LibraryScopeKind.local) {
-        Navigator.of(context).push<void>(
+        Navigator.of(context).push<int>(
           MaterialPageRoute(
-            builder: (page) => Scaffold(
-              appBar: AppBar(title: Text(action!)),
-              body: SourceForm(
-                kind: SourceKindDto.local,
-                onBack: () => Navigator.pop(page),
-                onDone: (_) => Navigator.pop(page),
-              ),
-            ),
+            builder: (_) => const SourceFormPage(kind: SourceKindDto.local),
           ),
         );
         return;

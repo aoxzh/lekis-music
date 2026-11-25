@@ -65,13 +65,14 @@ class SettingsPageHeader extends StatelessWidget {
     final gutter = pageGutterOf(context);
     final canPop = ModalRoute.of(context)?.impliesAppBarDismissal ?? false;
     final theme = Theme.of(context);
+    final compactHeader = canPop && !_desktop;
     return Padding(
       padding: EdgeInsets.fromLTRB(
         // 返回按钮的图标和下方内容的左边缘对齐。
         canPop ? gutter - LekisSpacing.md : gutter,
-        LekisSpacing.lg,
+        compactHeader ? LekisSpacing.xs : LekisSpacing.lg,
         gutter - LekisSpacing.sm,
-        LekisSpacing.md,
+        compactHeader ? LekisSpacing.xs : LekisSpacing.md,
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: LekisSizes.touchTargetMin),
@@ -90,6 +91,8 @@ class SettingsPageHeader extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: _desktop
                       ? LekisDesktopText.of(context).pageTitle
+                      : compactHeader
+                      ? theme.textTheme.titleLarge
                       : theme.textTheme.headlineMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
@@ -254,8 +257,7 @@ class SettingsSectionHeader extends StatelessWidget {
                 style: _desktop
                     ? LekisDesktopText.of(context).sectionHeader
                     : text.labelLarge?.copyWith(
-                        color: context.lekisColors.onSurfaceVariant,
-                        letterSpacing: 0.4,
+                        color: context.lekisColors.accent,
                       ),
               ),
             ),
@@ -429,6 +431,7 @@ class SettingsTile extends StatelessWidget {
     super.key,
     required this.icon,
     required this.title,
+    this.annotation,
     this.subtitle,
     this.trailing,
     this.onTap,
@@ -438,6 +441,9 @@ class SettingsTile extends StatelessWidget {
 
   final IconData icon;
   final String title;
+
+  /// Short status beside the title. Wraps without narrowing the subtitle.
+  final String? annotation;
 
   /// 说明文字；默认用 bodySmall（元信息色），可以覆盖颜色。
   final Widget? subtitle;
@@ -468,6 +474,10 @@ class SettingsTile extends StatelessWidget {
 
   Widget _build(BuildContext context, ThemeData theme, LekisColors colors) {
     final desktop = _desktop ? LekisDesktopText.of(context) : null;
+    final label = Text(
+      title,
+      style: desktop?.rowTitle ?? theme.textTheme.bodyLarge,
+    );
     final end = chevron
         ? Row(
             mainAxisSize: MainAxisSize.min,
@@ -505,10 +515,22 @@ class SettingsTile extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: desktop?.rowTitle ?? theme.textTheme.bodyLarge,
-                    ),
+                    if (annotation == null)
+                      label
+                    else
+                      Wrap(
+                        spacing: LekisSpacing.sm,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          label,
+                          Text(
+                            annotation!,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: colors.accent,
+                            ),
+                          ),
+                        ],
+                      ),
                     if (subtitle != null) ...[
                       const SizedBox(height: LekisSpacing.xxs),
                       DefaultTextStyle.merge(

@@ -184,7 +184,13 @@ class _SettingsHomeListState extends ConsumerState<SettingsHomeList> {
               ? SettingsListView(
                   children: [
                     if (items.isEmpty && categories.isEmpty)
-                      Text(SettingsStrings.searchEmpty),
+                      Padding(
+                        padding: const EdgeInsets.all(settingsRowInset),
+                        child: Text(
+                          SettingsStrings.searchEmpty,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
                     for (final item in items)
                       SettingsSearchRow(
                         item: item,
@@ -282,7 +288,12 @@ class SettingsSetupCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
     return Padding(
-      padding: const EdgeInsets.only(bottom: LekisSpacing.xl),
+      padding: EdgeInsets.fromLTRB(
+        UiProfile.current.desktopSettings ? 0 : settingsRowInset,
+        0,
+        UiProfile.current.desktopSettings ? 0 : settingsRowInset,
+        LekisSpacing.xl,
+      ),
       child: DecoratedBox(
         decoration: UiProfile.current.desktopSettings
             ? settingsCardDecoration(context)
@@ -311,8 +322,7 @@ class SettingsSetupCard extends StatelessWidget {
                 style: FilledButton.styleFrom(
                   minimumSize: const Size(0, LekisSizes.touchTargetMin),
                 ),
-                onPressed: () =>
-                    AppShell.select(context, LekisDestination.sources),
+                onPressed: () => AppShell.openAddSource(context),
                 icon: const Icon(Icons.add),
                 label: Text(SettingsStrings.setupAction),
               ),

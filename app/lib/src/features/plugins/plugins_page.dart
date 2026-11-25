@@ -458,24 +458,33 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
     return catalog.when(
       skipLoadingOnRefresh: false,
       loading: () => [
-        ListTile(title: Text(PluginStrings.catalogLoading)),
-        const LinearProgressIndicator(),
+        SettingsTile(
+          icon: Icons.extension_outlined,
+          title: PluginStrings.catalogLoading,
+          trailing: const SizedBox.square(
+            dimension: LekisSpacing.lg,
+            child: CircularProgressIndicator(strokeWidth: LekisSpacing.xxs),
+          ),
+        ),
       ],
       error: (error, _) => [
-        Padding(
-          padding: const EdgeInsets.all(LekisSpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('${errorLabel ?? PluginStrings.catalogFailed} ($error)'),
-              TextButton(onPressed: retry, child: Text(PluginStrings.retry)),
-            ],
+        SettingsTile(
+          icon: Icons.error_outline_rounded,
+          title: errorLabel ?? PluginStrings.catalogFailed,
+          subtitle: Text(error.toString()),
+          trailing: IconButton(
+            tooltip: PluginStrings.retry,
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: retry,
           ),
         ),
       ],
       data: (entries) => [
         if (entries.isEmpty)
-          ListTile(title: Text(emptyLabel ?? PluginStrings.catalogEmpty)),
+          SettingsTile(
+            icon: Icons.extension_outlined,
+            title: emptyLabel ?? PluginStrings.catalogEmpty,
+          ),
         for (final entry in entries)
           _catalogRow(
             entry,
@@ -532,15 +541,6 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
         ),
         SettingsReveal.control(
           context,
-          IconButton(
-            key: const ValueKey('plugins.directory'),
-            tooltip: PluginStrings.pluginDir,
-            onPressed: _showDirectory,
-            icon: const Icon(Icons.folder_outlined),
-          ),
-        ),
-        SettingsReveal.control(
-          context,
           IconButton.filledTonal(
             key: const ValueKey('plugins.install'),
             tooltip: PluginStrings.install,
@@ -557,51 +557,62 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
           Expanded(
             child: SettingsListView(
               children: [
-                Text(PluginStrings.providerNotice),
-                const SizedBox(height: LekisSpacing.sm),
-                if (!_browsing)
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: SettingsReveal.control(
-                      context,
-                      OutlinedButton.icon(
+                SettingsGroup(
+                  children: [
+                    if (!_browsing)
+                      SettingsTile(
                         key: const ValueKey('plugins.browse'),
-                        icon: const Icon(Icons.extension_outlined),
-                        label: Text(PluginStrings.browse),
-                        onPressed: () => setState(() => _browsing = true),
+                        icon: Icons.extension_outlined,
+                        title: PluginStrings.browse,
+                        chevron: true,
+                        onTap: () => setState(() => _browsing = true),
                       ),
+                    SettingsTile(
+                      key: const ValueKey('plugins.directory'),
+                      icon: Icons.folder_outlined,
+                      title: PluginStrings.pluginDir,
+                      chevron: true,
+                      onTap: _showDirectory,
                     ),
-                  )
-                else
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SettingsSection(
-                        title: PluginStrings.defaultSource,
-                        children: _catalogRows(
-                          ref.watch(pluginRegistryProvider),
-                          plugins,
-                          retry: () => ref.invalidate(pluginRegistryProvider),
-                        ),
-                      ),
-                      ..._customSourceSections(plugins),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: LekisSpacing.xl),
-                        child: Align(
-                          alignment: AlignmentDirectional.centerStart,
-                          child: SettingsReveal.control(
-                            context,
-                            OutlinedButton.icon(
-                              key: const ValueKey('plugins.add-source'),
-                              icon: const Icon(Icons.add_link_rounded),
-                              label: Text(PluginStrings.addSource),
-                              onPressed: _installing ? null : _addSource,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    settingsRowInset,
+                    LekisSpacing.sm,
+                    settingsRowInset,
+                    LekisSpacing.xl,
                   ),
+                  child: Text(
+                    PluginStrings.providerNotice,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                if (_browsing) ...[
+                  SettingsSection(
+                    title: PluginStrings.defaultSource,
+                    children: _catalogRows(
+                      ref.watch(pluginRegistryProvider),
+                      plugins,
+                      retry: () => ref.invalidate(pluginRegistryProvider),
+                    ),
+                  ),
+                  ..._customSourceSections(plugins),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: LekisSpacing.xl),
+                    child: SettingsGroup(
+                      children: [
+                        SettingsTile(
+                          key: const ValueKey('plugins.add-source'),
+                          icon: Icons.add_link_rounded,
+                          title: PluginStrings.addSource,
+                          chevron: true,
+                          onTap: _installing ? null : _addSource,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 plugins.when(
                   skipLoadingOnReload: true,
                   loading: () =>
@@ -617,31 +628,43 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
                     ),
                   ),
                   data: (list) => list.isEmpty
-                      ? LekisEmptyState(
-                          title: PluginStrings.emptyTitle,
-                          message: PluginStrings.sourceHint,
-                          action: Wrap(
-                            spacing: LekisSpacing.sm,
-                            runSpacing: LekisSpacing.sm,
-                            alignment: WrapAlignment.center,
-                            children: [
-                              FilledButton.icon(
-                                onPressed: _installing ? null : _installZip,
-                                icon: const Icon(Icons.folder_zip_outlined),
-                                label: Text(PluginStrings.installZip),
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SettingsSectionHeader(PluginStrings.emptyTitle),
+                            SettingsGroup(
+                              children: [
+                                SettingsTile(
+                                  icon: Icons.folder_zip_outlined,
+                                  title: PluginStrings.installZip,
+                                  chevron: true,
+                                  onTap: _installing ? null : _installZip,
+                                ),
+                                SettingsTile(
+                                  icon: Icons.link_rounded,
+                                  title: PluginStrings.installLink,
+                                  chevron: true,
+                                  onTap: _installing ? null : _installLink,
+                                ),
+                                SettingsTile(
+                                  icon: Icons.folder_open_outlined,
+                                  title: PluginStrings.installFolder,
+                                  chevron: true,
+                                  onTap: _installing ? null : _installFolder,
+                                ),
+                              ],
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: settingsRowInset,
+                                vertical: LekisSpacing.sm,
                               ),
-                              OutlinedButton.icon(
-                                onPressed: _installing ? null : _installLink,
-                                icon: const Icon(Icons.link_rounded),
-                                label: Text(PluginStrings.installLink),
+                              child: Text(
+                                PluginStrings.sourceHint,
+                                style: Theme.of(context).textTheme.bodySmall,
                               ),
-                              OutlinedButton.icon(
-                                onPressed: _installing ? null : _installFolder,
-                                icon: const Icon(Icons.folder_open_outlined),
-                                label: Text(PluginStrings.installFolder),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         )
                       : SettingsSection(
                           title: PluginStrings.manageTitle,
@@ -678,25 +701,30 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
     required bool installed,
     required bool available,
   }) {
-    return Padding(
-      padding: const EdgeInsets.all(LekisSpacing.md),
-      child: Column(
+    return SettingsTile(
+      icon: Icons.extension_outlined,
+      title: plugin.name,
+      annotation: installed ? PluginStrings.installed : null,
+      subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${plugin.name} · v${plugin.version}',
-            style: Theme.of(context).textTheme.titleMedium,
+            'v${plugin.version}',
+            style: Theme.of(context).textTheme.bodySmall,
           ),
-          Text(plugin.description),
-          if (installed)
-            Text(PluginStrings.installed)
-          else
+          if (plugin.description.isNotEmpty) ...[
+            const SizedBox(height: LekisSpacing.xs),
+            Text(plugin.description),
+          ],
+          if (!installed) ...[
+            const SizedBox(height: LekisSpacing.sm),
             OutlinedButton(
               onPressed: available
                   ? () => _confirmCatalogInstall(plugin)
                   : null,
               child: Text(PluginStrings.downloadInstall),
             ),
+          ],
         ],
       ),
     );

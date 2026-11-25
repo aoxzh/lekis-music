@@ -169,7 +169,7 @@ void main() {
       first.completeError(const FormatException('test catalog'));
       await tester.pumpAndSettle();
       expect(find.textContaining(PluginStrings.catalogFailed), findsOneWidget);
-      await tester.tap(find.text(PluginStrings.retry));
+      await tester.tap(find.byTooltip(PluginStrings.retry));
       await tester.pumpAndSettle();
       expect(reads, 2);
       expect(find.text(PluginStrings.installed), findsOneWidget);

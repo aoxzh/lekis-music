@@ -7,6 +7,7 @@ import '../../../rust/api/dto.dart';
 import '../../../theme/tokens.dart';
 import '../../plugins/plugins_page.dart';
 import '../../plugins/strings.dart';
+import '../../settings/widgets/settings_widgets.dart';
 import '../common.dart';
 import '../discovery_providers.dart';
 import '../local_folder_access.dart';
@@ -85,10 +86,49 @@ class _AddSourcePaneState extends ConsumerState<AddSourcePane> {
 class AddSourcePage extends StatelessWidget {
   const AddSourcePage({super.key});
 
+  Future<void> _openForm(
+    BuildContext context,
+    SourceKindDto kind, [
+    SourceDraft? draft,
+  ]) async {
+    final id = await Navigator.of(context).push<int>(
+      MaterialPageRoute(
+        builder: (_) => SourceFormPage(kind: kind, initial: draft),
+      ),
+    );
+    if (id != null && context.mounted) Navigator.of(context).pop(id);
+  }
+
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(SourcesStrings.addSource)),
-    body: AddSourcePane(onDone: (id) => Navigator.of(context).pop(id)),
+  Widget build(BuildContext context) => SettingsScaffold(
+    title: SourcesStrings.addSource,
+    body: SourceKindChooser(
+      onChoose: (kind) => _openForm(context, kind),
+      onDiscovered: (service) {
+        final draft = SourceDraft.fromDiscovered(service);
+        _openForm(context, draft.kind, draft);
+      },
+    ),
+  );
+}
+
+/// A pushed form has a single page header. Embedded forms provide their own.
+class SourceFormPage extends StatelessWidget {
+  const SourceFormPage({super.key, required this.kind, this.initial});
+
+  final SourceKindDto kind;
+  final SourceDraft? initial;
+
+  @override
+  Widget build(BuildContext context) => SettingsScaffold(
+    title: kind.label,
+    body: SourceForm(
+      kind: kind,
+      initial: initial,
+      showHeader: false,
+      onBack: () => Navigator.of(context).pop(),
+      onDone: (id) => Navigator.of(context).pop(id),
+    ),
   );
 }
 
@@ -99,11 +139,12 @@ class EditSourcePage extends StatelessWidget {
   final SourceConfigDto source;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(SourcesStrings.editSource)),
+  Widget build(BuildContext context) => SettingsScaffold(
+    title: '${SourcesStrings.editSource} · ${source.kind.label}',
     body: SourceForm(
       kind: source.kind,
       existing: source,
+      showHeader: false,
       onBack: () => Navigator.of(context).pop(false),
       onDone: (_) => Navigator.of(context).pop(true),
     ),
@@ -126,198 +167,64 @@ class SourceKindChooser extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final muted = theme.textTheme.bodyMedium?.copyWith(
-      color: context.lekisColors.onSurfaceVariant,
-    );
-    Widget group(String title, List<SourceKindDto> kinds) => Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    Widget group(String title, List<SourceKindDto> kinds) => SettingsSection(
+      title: title,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(
-            top: LekisSpacing.xl,
-            bottom: LekisSpacing.sm,
+        for (final kind in kinds)
+          SettingsTile(
+            icon: kind.icon,
+            title: kind.label,
+            subtitle: kind.hint == null ? null : Text(kind.hint!),
+            onTap: () => onChoose(kind),
+            chevron: true,
           ),
-          child: Text(
-            title,
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: context.lekisColors.onSurfaceVariant,
-            ),
-          ),
-        ),
-        for (final k in kinds) _KindOption(kind: k, onTap: () => onChoose(k)),
       ],
     );
 
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: featureMaxContentWidth),
-        child: ListView(
-          padding: featureScrollPadding(context),
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    SourcesStrings.chooseKind,
-                    style: theme.textTheme.headlineSmall,
-                  ),
+    return SettingsListView(
+      children: [
+        SettingsSection(
+          title: SourcesStrings.chooseKind,
+          trailing: onCancel == null
+              ? null
+              : IconButton(
+                  tooltip: SourcesStrings.cancel,
+                  onPressed: onCancel,
+                  icon: const Icon(Icons.close_rounded),
                 ),
-                if (onCancel != null)
-                  IconButton(
-                    tooltip: SourcesStrings.cancel,
-                    onPressed: onCancel,
-                    icon: const Icon(Icons.close),
-                  ),
-              ],
+          children: [
+            SettingsTile(
+              key: const ValueKey('add-source-local'),
+              icon: SourceKindDto.local.icon,
+              title: SourcesStrings.kindLocal,
+              subtitle: Text(SourcesStrings.kindLocalFeaturedHint),
+              annotation: SourcesStrings.recommended,
+              chevron: true,
+              onTap: () => onChoose(SourceKindDto.local),
             ),
-            const SizedBox(height: LekisSpacing.sm),
-            Text(SourcesStrings.chooseKindBody, style: muted),
-            const SizedBox(height: LekisSpacing.xl),
-            // 本地文件夹是绝大多数人的第一步：单独放大、放在最前面。
-            _FeaturedLocalOption(onTap: () => onChoose(SourceKindDto.local)),
-            ListTile(
-              leading: const Icon(Icons.extension_outlined),
-              title: Text(PluginStrings.importSource),
-              trailing: const Icon(Icons.chevron_right_rounded),
+            SettingsTile(
+              icon: Icons.extension_outlined,
+              title: PluginStrings.importSource,
+              chevron: true,
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(builder: (_) => const PluginsPage()),
               ),
             ),
-            const SizedBox(height: LekisSpacing.xl),
-            // 打开就自动扫局域网，找到的 NAS 紧跟在本地文件夹后面，点一下就能预填。
-            LanDiscoverySection(onPick: onDiscovered),
-            const SizedBox(height: LekisSpacing.xxl),
-            Text(
-              SourcesStrings.groupNetwork,
-              style: theme.textTheme.titleMedium,
-            ),
-            const SizedBox(height: LekisSpacing.xs),
-            Text(SourcesStrings.groupNetworkBody, style: muted),
-            group(SourcesStrings.groupNetworkShare, const [
-              SourceKindDto.smb,
-              SourceKindDto.webDav,
-              SourceKindDto.nfs,
-              SourceKindDto.sftp,
-            ]),
-            group(SourcesStrings.groupMediaServer, const [
-              SourceKindDto.openSubsonic,
-              SourceKindDto.jellyfin,
-              SourceKindDto.plex,
-            ]),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// “本地文件夹”的大号入口：强调色底 + “推荐”标签。
-class _FeaturedLocalOption extends StatelessWidget {
-  const _FeaturedLocalOption({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.lekisColors;
-    final theme = Theme.of(context);
-    return Card(
-      key: const ValueKey('add-source-local'),
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      color: colors.accentSoft,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(LekisRadius.md),
-        side: BorderSide(color: colors.accent.withValues(alpha: 0.5)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(LekisSpacing.lg),
-          child: Row(
-            children: [
-              SourceKindBadge(icon: SourceKindDto.local.icon),
-              const SizedBox(width: LekisSpacing.lg),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: LekisSpacing.sm,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text(
-                          SourcesStrings.kindLocal,
-                          style: theme.textTheme.titleMedium,
-                        ),
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: colors.accent,
-                            borderRadius: BorderRadius.circular(LekisRadius.sm),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: LekisSpacing.sm,
-                              vertical: LekisSpacing.xxs,
-                            ),
-                            child: Text(
-                              SourcesStrings.recommended,
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: colors.onAccent,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: LekisSpacing.xs),
-                    Text(
-                      SourcesStrings.kindLocalFeaturedHint,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: LekisSpacing.sm),
-              Icon(Icons.chevron_right, color: colors.onSurfaceVariant),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _KindOption extends StatelessWidget {
-  const _KindOption({required this.kind, required this.onTap});
-
-  final SourceKindDto kind;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final hint = kind.hint;
-    return Card(
-      elevation: 0,
-      color: context.lekisColors.surfaceVariant,
-      margin: const EdgeInsets.only(bottom: LekisSpacing.sm),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(LekisRadius.md),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: ListTile(
-        minTileHeight: LekisSizes.touchTargetMin + LekisSpacing.lg,
-        leading: SourceKindBadge(icon: kind.icon),
-        title: Text(kind.label),
-        subtitle: hint == null ? null : Text(hint),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
-      ),
+        LanDiscoverySection(onPick: onDiscovered),
+        group(SourcesStrings.groupNetworkShare, const [
+          SourceKindDto.smb,
+          SourceKindDto.webDav,
+          SourceKindDto.nfs,
+          SourceKindDto.sftp,
+        ]),
+        group(SourcesStrings.groupMediaServer, const [
+          SourceKindDto.openSubsonic,
+          SourceKindDto.jellyfin,
+          SourceKindDto.plex,
+        ]),
+      ],
     );
   }
 }
@@ -331,6 +238,7 @@ class SourceForm extends ConsumerStatefulWidget {
     required this.onDone,
     this.initial,
     this.existing,
+    this.showHeader = true,
   });
 
   final SourceKindDto kind;
@@ -342,6 +250,7 @@ class SourceForm extends ConsumerStatefulWidget {
 
   /// 编辑时传入已保存的配置；`null` 表示新建。
   final SourceConfigDto? existing;
+  final bool showHeader;
 
   @override
   ConsumerState<SourceForm> createState() => _SourceFormState();
@@ -706,25 +615,27 @@ class _SourceFormState extends ConsumerState<SourceForm> {
             child: ListView(
               padding: featureScrollPadding(context),
               children: [
-                Row(
-                  children: [
-                    IconButton(
-                      tooltip: SourcesStrings.back,
-                      onPressed: _busy || _testing ? null : widget.onBack,
-                      icon: const Icon(Icons.arrow_back),
-                    ),
-                    const SizedBox(width: LekisSpacing.sm),
-                    SourceKindBadge(icon: _kind.icon),
-                    const SizedBox(width: LekisSpacing.md),
-                    Expanded(
-                      child: Text(
-                        _kind.label,
-                        style: theme.textTheme.headlineSmall,
+                if (widget.showHeader) ...[
+                  Row(
+                    children: [
+                      IconButton(
+                        tooltip: SourcesStrings.back,
+                        onPressed: _busy || _testing ? null : widget.onBack,
+                        icon: const Icon(Icons.arrow_back),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: LekisSpacing.xl),
+                      const SizedBox(width: LekisSpacing.sm),
+                      SourceKindBadge(icon: _kind.icon),
+                      const SizedBox(width: LekisSpacing.md),
+                      Expanded(
+                        child: Text(
+                          _kind.label,
+                          style: theme.textTheme.headlineSmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: LekisSpacing.xl),
+                ],
                 ..._fields(context),
                 _gap,
                 _text(

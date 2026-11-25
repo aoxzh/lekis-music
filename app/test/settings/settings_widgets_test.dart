@@ -76,7 +76,7 @@ void main() {
     );
   });
 
-  testWidgets('subpage uses the same header with a back button', (
+  testWidgets('pushed mobile pages use a compact header with a back button', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(400, 800);
@@ -84,13 +84,20 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(_app());
 
-    final topStyle = tester.widget<Text>(find.text('设置')).style;
+    final theme = Theme.of(tester.element(find.text('设置')));
+    expect(
+      tester.widget<Text>(find.text('设置')).style?.fontSize,
+      theme.textTheme.headlineMedium?.fontSize,
+    );
     await tester.tap(find.byKey(_rowKey));
     await tester.pumpAndSettle();
 
     expect(find.byType(BackButton), findsOneWidget);
     expect(find.byType(AppBar), findsNothing);
-    expect(tester.widget<Text>(find.text('诊断日志')).style, topStyle);
+    expect(
+      tester.widget<Text>(find.text('诊断日志')).style,
+      theme.textTheme.titleLarge,
+    );
 
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
