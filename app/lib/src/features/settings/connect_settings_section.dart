@@ -4,7 +4,9 @@
 // * 控制端：点设备的「配对」→ 对方屏幕显示 6 位码 → 弹窗输入 → 完成；
 // * 被控端：核心推 PairingCode → 全 App 任意位置弹出配对码（[ConnectPairingHost]）。
 
+import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../l10n/app_l10n.dart';
@@ -237,11 +239,11 @@ class ConnectSettingsSection extends ConsumerWidget {
     String current,
   ) async {
     final controller = TextEditingController(text: current);
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(ConnectStrings.renameTitle),
-        content: TextField(
+    final name = await showLekisPanel<String>(
+      context,
+      builder: (context) => LekisPanel(
+        title: ConnectStrings.renameTitle,
+        body: TextField(
           controller: controller,
           autofocus: true,
           maxLength: 40,
@@ -308,92 +310,136 @@ String _platformName(String platform) => switch (platform) {
 Future<String?> showPairingCodeDialog(
   BuildContext context, {
   required ConnectDeviceInfo device,
-}) {
+}) async {
   final controller = TextEditingController();
-  return showDialog<String>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(ConnectStrings.pairTitle),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('${device.name}\n\n${ConnectStrings.pairBody}'),
-          const SizedBox(height: LekisSpacing.md),
-          TextField(
-            controller: controller,
-            autofocus: true,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineSmall
-                ?.copyWith(letterSpacing: 8),
-            decoration: InputDecoration(
-              labelText: ConnectStrings.pairCodeLabel,
-              counterText: '',
+  final field = GlobalKey<FormFieldState<String>>();
+  final code = await showLekisPanel<String>(
+    context,
+    builder: (context) {
+      void submit() {
+        if (field.currentState!.validate()) {
+          Navigator.of(context).pop(controller.text);
+        }
+      }
+
+      return LekisPanel(
+        title: ConnectStrings.pairTitle,
+        body: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${device.name}\n\n${ConnectStrings.pairBody}'),
+            const SizedBox(height: LekisSpacing.md),
+            TextFormField(
+              key: field,
+              autovalidateMode: AutovalidateMode.onUserInteractionIfError,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              validator: (value) => value?.length == 6
+                  ? null
+                  : context.l10n.pick('请输入 6 位配对码', 'Enter the six-digit code'),
+              controller: controller,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineSmall
+                  ?.copyWith(letterSpacing: 8),
+              decoration: InputDecoration(
+                labelText: ConnectStrings.pairCodeLabel,
+                counterText: '',
+              ),
+              onFieldSubmitted: (_) => submit(),
             ),
-            onSubmitted: (v) => Navigator.of(context).pop(v),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(ConnectStrings.cancel),
+          ),
+          FilledButton(
+            onPressed: submit,
+            child: Text(ConnectStrings.pairConfirm),
           ),
         ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(ConnectStrings.cancel),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(controller.text),
-          child: Text(ConnectStrings.pairConfirm),
-        ),
-      ],
-    ),
+      );
+    },
   );
+  controller.dispose();
+  return code;
 }
 
 /// 手动按地址添加。
-Future<(String, int)?> showAddByAddressDialog(BuildContext context) {
+Future<(String, int)?> showAddByAddressDialog(BuildContext context) async {
   final host = TextEditingController();
   final port = TextEditingController(text: '47655');
-  return showDialog<(String, int)>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(ConnectStrings.addByAddress),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: host,
-            autofocus: true,
-            decoration: InputDecoration(
-              labelText: ConnectStrings.host,
-              hintText: ConnectStrings.hostHint,
-            ),
+  final form = GlobalKey<FormState>();
+  final address = await showLekisPanel<(String, int)>(
+    context,
+    builder: (context) {
+      void submit() {
+        if (form.currentState!.validate()) {
+          Navigator.of(context)
+              .pop((host.text.trim(), int.parse(port.text.trim())));
+        }
+      }
+
+      return LekisPanel(
+        title: ConnectStrings.addByAddress,
+        body: Form(
+          key: form,
+          autovalidateMode: AutovalidateMode.onUserInteractionIfError,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: host,
+                autofocus: true,
+                autocorrect: false,
+                textInputAction: TextInputAction.next,
+                decoration: InputDecoration(
+                  labelText: ConnectStrings.host,
+                  hintText: ConnectStrings.hostHint,
+                ),
+                validator: (value) => (value ?? '').trim().isEmpty
+                    ? context.l10n.pick(
+                        '请输入主机名或 IP 地址',
+                        'Enter a hostname or IP address',
+                      )
+                    : null,
+              ),
+              const SizedBox(height: LekisPanel.fieldGap),
+              TextFormField(
+                controller: port,
+                keyboardType: TextInputType.number,
+                onFieldSubmitted: (_) => submit(),
+                decoration: InputDecoration(labelText: ConnectStrings.port),
+                validator: (value) {
+                  final number = int.tryParse((value ?? '').trim());
+                  return number == null || number < 1 || number > 65535
+                      ? context.l10n.pick(
+                          '端口范围为 1–65535',
+                          'Enter a port from 1 to 65535',
+                        )
+                      : null;
+                },
+              ),
+            ],
           ),
-          const SizedBox(height: LekisSpacing.md),
-          TextField(
-            controller: port,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(labelText: ConnectStrings.port),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(ConnectStrings.cancel),
           ),
+          FilledButton(onPressed: submit, child: Text(ConnectStrings.add)),
         ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(ConnectStrings.cancel),
-        ),
-        FilledButton(
-          onPressed: () {
-            final h = host.text.trim();
-            final p = int.tryParse(port.text.trim()) ?? 0;
-            if (h.isEmpty || p <= 0) return;
-            Navigator.of(context).pop((h, p));
-          },
-          child: Text(ConnectStrings.add),
-        ),
-      ],
-    ),
+      );
+    },
   );
+  host.dispose();
+  port.dispose();
+  return address;
 }
 
 /// 被控端：有设备来配对时，全 App 任意位置弹出配对码。
@@ -432,12 +478,12 @@ class _ConnectPairingHostState extends ConsumerState<ConnectPairingHost> {
 
   Future<void> _showCode(ConnectPairingCode pairing) async {
     _showing = true;
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text(ConnectStrings.incomingPairing),
-        content: Column(
+    await showLekisPanel<void>(
+      context,
+      dismissible: false,
+      builder: (context) => LekisPanel(
+        title: ConnectStrings.incomingPairing,
+        body: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

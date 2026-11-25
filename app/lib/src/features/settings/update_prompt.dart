@@ -9,6 +9,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../platform/external_url.dart';
@@ -77,9 +78,8 @@ class _UpdatePromptHostState extends ConsumerState<UpdatePromptHost> {
     }
     _prompting = true;
     try {
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: true,
+      await showLekisPanel<void>(
+        context,
         builder: (_) => AppUpdateDialog(
           onOpenLink: _openLink,
           onIgnore: () => _ignoreVersion(info.version),

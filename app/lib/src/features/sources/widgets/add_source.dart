@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../rust/api/dto.dart';
 import '../../../theme/tokens.dart';
+import '../../../widgets/adaptive_panel.dart';
 import '../../plugins/plugins_page.dart';
 import '../../plugins/strings.dart';
 import '../../settings/widgets/settings_widgets.dart';
@@ -63,7 +64,7 @@ class _AddSourcePaneState extends ConsumerState<AddSourcePane> {
     ref.watch(lanDiscoveryProvider.select((s) => s.hasScanned));
     final kind = _kind;
     return AnimatedSwitcher(
-      duration: LekisMotion.normal,
+      duration: lekisPanelMotion(context).duration ?? Duration.zero,
       child: kind == null
           ? SourceKindChooser(
               key: const ValueKey('chooser'),
@@ -562,6 +563,7 @@ class _SourceFormState extends ConsumerState<SourceForm> {
       setState(() => _error = missing);
       return;
     }
+    FocusScope.of(context).unfocus();
     final webDav = _kind == SourceKindDto.webDav;
     final base = _draft();
     if (!webDav) base.path = '';
@@ -573,11 +575,13 @@ class _SourceFormState extends ConsumerState<SourceForm> {
       final picked = await actions.withPreparedConfig(
         base,
         existing: existing,
-        (config) => showRemoteFolderPicker(
-          context,
-          initialPath: webDav ? '' : _path.text,
-          load: (path) => actions.browseConfig(config, path),
-        ),
+        (config) => !mounted
+            ? Future<String?>.value()
+            : showRemoteFolderPicker(
+                context,
+                initialPath: webDav ? '' : _path.text,
+                load: (path) => actions.browseConfig(config, path),
+              ),
       );
       if (picked == null || !mounted) return;
       setState(() {
@@ -781,7 +785,6 @@ class _SourceFormState extends ConsumerState<SourceForm> {
                   ? '${SourcesStrings.fieldAlternatesHint}\n${_alternateExample()}'
                   : '${SourcesStrings.fieldAlternatesHint}\nhttps://music.example.com',
               helperText: SourcesStrings.fieldAlternatesHelper,
-              border: const OutlineInputBorder(),
             ),
           ),
         ],
@@ -1201,7 +1204,6 @@ class _SourceFormState extends ConsumerState<SourceForm> {
               : SourcesStrings.fieldPrivateKey,
           hintText: SourcesStrings.fieldPrivateKeyHint,
           hintMaxLines: 3,
-          border: const OutlineInputBorder(),
         ),
       ),
       _gap,
@@ -1214,7 +1216,6 @@ class _SourceFormState extends ConsumerState<SourceForm> {
         keyboardType: TextInputType.visiblePassword,
         decoration: InputDecoration(
           labelText: SourcesStrings.fieldKeyPassphrase,
-          border: const OutlineInputBorder(),
           suffixIcon: _obscureToggle(),
         ),
       ),
@@ -1344,7 +1345,6 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     decoration: InputDecoration(
       labelText: label,
       hintText: hint,
-      border: const OutlineInputBorder(),
       suffixIcon: suffix,
     ),
   );
@@ -1366,7 +1366,6 @@ class _SourceFormState extends ConsumerState<SourceForm> {
     decoration: InputDecoration(
       labelText: label,
       hintText: hint,
-      border: const OutlineInputBorder(),
       suffixIcon: _obscureToggle(),
     ),
   );

@@ -1,5 +1,6 @@
 // 下载页：下载队列、已完成、失败和缓存总大小。
 
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/downloads/download_status.dart';
@@ -48,11 +49,11 @@ class DownloadsPage extends ConsumerWidget {
         );
       return;
     }
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.pick('下载收藏', 'Download Liked')),
-        content: Text(
+    final confirmed = await showLekisPanel<bool>(
+      context,
+      builder: (context) => LekisPanel(
+        title: l10n.pick('下载收藏', 'Download Liked'),
+        body: Text(
           l10n.pick(
             '把 ${ids.length} 首收藏歌曲加入离线队列？已下载的会跳过。',
             'Queue ${ids.length} liked songs for offline? Already downloaded ones will be skipped.',
@@ -136,11 +137,11 @@ class DownloadsPage extends ConsumerWidget {
         );
       return;
     }
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: Text(l10n.pick('清理已完成的下载？', 'Clear completed downloads?')),
-        content: Text(
+    final confirmed = await showLekisPanel<bool>(
+      context,
+      builder: (dialog) => LekisPanel(
+        title: l10n.pick('清理已完成的下载？', 'Clear completed downloads?'),
+        body: Text(
           l10n.pick(
             '会删除 $count 个离线文件，之后可以重新下载。',
             'This removes $count offline files; you can download them again later.',
@@ -191,11 +192,11 @@ class DownloadsPage extends ConsumerWidget {
     final l10n = context.l10n;
     final count = ref.read(downloadsProvider).value?.failed.length ?? 0;
     if (count == 0) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: Text(l10n.pick('清理失败下载？', 'Clear failed downloads?')),
-        content: Text(
+    final confirmed = await showLekisPanel<bool>(
+      context,
+      builder: (dialog) => LekisPanel(
+        title: l10n.pick('清理失败下载？', 'Clear failed downloads?'),
+        body: Text(
           l10n.pick(
             '会移除 $count 条失败记录，不会删除已完成的离线文件。',
             'This removes $count failed records; completed offline files stay.',
@@ -731,11 +732,11 @@ class _DownloadTile extends ConsumerWidget {
 
   Future<bool> _confirmRemove(BuildContext context) async {
     final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.pick('删除下载？', 'Remove Download?')),
-        content: Text(
+    final confirmed = await showLekisPanel<bool>(
+      context,
+      builder: (context) => LekisPanel(
+        title: l10n.pick('删除下载？', 'Remove Download?'),
+        body: Text(
           l10n.pick(
             '“${entry.title}”的缓存文件会被删除，之后需要重新下载。',
             'The cached file for "${entry.title}" will be deleted and will need to be downloaded again.',

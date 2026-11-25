@@ -5,27 +5,39 @@ import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../platform/ui_profile.dart';
 import '../../rust/api/core.dart' as core;
 import '../../rust/api/dto.dart';
 import '../../theme/tokens.dart';
+import '../library/widgets/page_gutter.dart';
 import '../settings/widgets/settings_widgets.dart';
 import '../sources/common.dart';
 import 'plugin_format.dart';
 import 'plugin_browse_page.dart';
 import 'strings.dart';
 
-/// Mobile: a tall bottom sheet. Desktop: a centred dialog.
-Future<void> showPluginDetailSheet(
-  BuildContext context,
-  PluginInfoDto plugin,
-) => showLekisSheet<void>(
-  context,
-  heightFactor: 0.92,
-  builder: (_) => _PluginDetailSheet(plugin: plugin),
-);
+/// A settings page on mobile, a centred detail window on desktop.
+Future<void> showPluginDetailSheet(BuildContext context, PluginInfoDto plugin) {
+  if (UiProfile.current.prefersSheets) {
+    return Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => SettingsScaffold(
+          title: plugin.name,
+          body: _PluginDetailSheet(plugin: plugin, fullPage: true),
+        ),
+      ),
+    );
+  }
+  return showLekisSheet<void>(
+    context,
+    heightFactor: 0.92,
+    builder: (_) => _PluginDetailSheet(plugin: plugin),
+  );
+}
 
 class _PluginDetailSheet extends StatefulWidget {
-  const _PluginDetailSheet({required this.plugin});
+  const _PluginDetailSheet({required this.plugin, this.fullPage = false});
+  final bool fullPage;
 
   final PluginInfoDto plugin;
 
@@ -54,18 +66,24 @@ class _PluginDetailSheetState extends State<_PluginDetailSheet> {
     final plugin = widget.plugin;
     final theme = Theme.of(context);
     final colors = context.lekisColors;
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(
-          context.featureGutter,
-          0,
-          context.featureGutter,
-          LekisSpacing.xl,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+        context.featureGutter,
+        0,
+        context.featureGutter,
+        widget.fullPage ? scrollEndPadding(context) : LekisSpacing.xl,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (widget.fullPage)
+            SelectableText(
+              plugin.id,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            )
+          else
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -91,125 +109,119 @@ class _PluginDetailSheetState extends State<_PluginDetailSheet> {
                 ),
               ],
             ),
-            const SizedBox(height: LekisSpacing.sm),
-            Wrap(
-              spacing: LekisSpacing.sm,
-              runSpacing: LekisSpacing.sm,
-              children: [
-                _InfoChip(label: pluginVersionLabel(plugin.version)),
-                _InfoChip(label: pluginKindsLabel(plugin.kinds)),
-                _InfoChip(label: pluginRuntimeLabel(plugin.runtime)),
-                _InfoChip(
-                  label: plugin.enabled
-                      ? PluginStrings.enabled
-                      : PluginStrings.disabled,
-                  emphasised: plugin.enabled,
-                ),
-              ],
-            ),
-            if (plugin.compatibility == 'mygo') ...[
-              const SizedBox(height: LekisSpacing.md),
-              Text(
-                context.l10n.pick(
-                  'MyGO 兼容插件：支持搜索、公开内容浏览和直接音频播放。网页登录、远程播放及后台转码暂不支持。',
-                  'MyGO compatibility: search, public collections and direct audio. Web sign-in, remote playback and background transcoding are unavailable.',
-                ),
+          const SizedBox(height: LekisSpacing.sm),
+          Wrap(
+            spacing: LekisSpacing.sm,
+            runSpacing: LekisSpacing.sm,
+            children: [
+              _InfoChip(label: pluginVersionLabel(plugin.version)),
+              _InfoChip(label: pluginKindsLabel(plugin.kinds)),
+              _InfoChip(label: pluginRuntimeLabel(plugin.runtime)),
+              _InfoChip(
+                label: plugin.enabled
+                    ? PluginStrings.enabled
+                    : PluginStrings.disabled,
+                emphasised: plugin.enabled,
               ),
-              if (plugin.enabled && plugin.error == null)
-                TextButton.icon(
-                  icon: const Icon(Icons.folder_outlined),
-                  label: Text(context.l10n.pick('浏览音源', 'Browse source')),
-                  onPressed: () =>
-                      Navigator.of(context)
-                          .push(PluginBrowsePage.route(plugin.id, plugin.name)),
-                ),
             ],
-            if (plugin.error != null) ...[
-              const SizedBox(height: LekisSpacing.md),
-              _ErrorBox(message: plugin.error!),
-            ],
-            const SizedBox(height: LekisSpacing.lg),
-            SettingsSectionHeader(PluginStrings.info),
-            _DetailTable(
-              rows: [
-                (PluginStrings.kind, pluginKindsLabel(plugin.kinds)),
-                (PluginStrings.runtime, pluginRuntimeLabel(plugin.runtime)),
-                if (plugin.entry != null && plugin.entry!.isNotEmpty)
-                  (PluginStrings.entry, plugin.entry!),
-                if (plugin.author != null && plugin.author!.isNotEmpty)
-                  (PluginStrings.author, plugin.author!),
-                if (plugin.homepage != null && plugin.homepage!.isNotEmpty)
-                  (PluginStrings.homepage, plugin.homepage!),
-                (PluginStrings.directory, plugin.directory),
-                (
-                  PluginStrings.permissions,
-                  pluginPermissionSummary(plugin.permissions),
-                ),
-              ],
+          ),
+          if (plugin.compatibility == 'mygo') ...[
+            const SizedBox(height: LekisSpacing.md),
+            Text(
+              context.l10n.pick(
+                'MyGO 兼容插件：支持搜索、公开内容浏览和直接音频播放。网页登录、远程播放及后台转码暂不支持。',
+                'MyGO compatibility: search, public collections and direct audio. Web sign-in, remote playback and background transcoding are unavailable.',
+              ),
             ),
-            const SizedBox(height: LekisSpacing.xl),
-            if (plugin.error == null &&
-                plugin.permissions.nativeAndroid &&
-                defaultTargetPlatform == TargetPlatform.android)
-              _NativeAndroidPermission(plugin: plugin),
-            if (plugin.error == null &&
-                defaultTargetPlatform != TargetPlatform.android &&
-                defaultTargetPlatform != TargetPlatform.iOS)
-              for (final program in plugin.permissions.process)
-                _ProcessPermission(pluginId: plugin.id, program: program),
-            SettingsSectionHeader(PluginStrings.settings),
-            if (plugin.error != null)
-              Text(
-                PluginStrings.invalidManifest,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colors.danger,
-                ),
-              )
-            else
-              FutureBuilder<List<PluginSettingDto>>(
-                future: _settings,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Padding(
-                      padding: EdgeInsets.all(LekisSpacing.lg),
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  }
-                  if (snapshot.hasError) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          PluginStrings.settingsLoadFailed,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colors.danger,
-                          ),
-                        ),
-                        TextButton.icon(
-                          onPressed: _retry,
-                          icon: const Icon(Icons.refresh),
-                          label: Text(PluginStrings.retry),
-                        ),
-                      ],
-                    );
-                  }
-                  final settings = snapshot.data ?? const <PluginSettingDto>[];
-                  if (settings.isEmpty) {
-                    return Text(
-                      PluginStrings.noSettings,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
-                    );
-                  }
-                  return _SettingsEditor(
-                    pluginId: plugin.id,
-                    settings: settings,
-                  );
-                },
+            if (plugin.enabled && plugin.error == null)
+              TextButton.icon(
+                icon: const Icon(Icons.folder_outlined),
+                label: Text(context.l10n.pick('浏览音源', 'Browse source')),
+                onPressed: () =>
+                    Navigator.of(context)
+                        .push(PluginBrowsePage.route(plugin.id, plugin.name)),
               ),
           ],
-        ),
+          if (plugin.error != null) ...[
+            const SizedBox(height: LekisSpacing.md),
+            _ErrorBox(message: plugin.error!),
+          ],
+          const SizedBox(height: LekisSpacing.lg),
+          SettingsSectionHeader(PluginStrings.info),
+          _DetailTable(
+            rows: [
+              (PluginStrings.kind, pluginKindsLabel(plugin.kinds)),
+              (PluginStrings.runtime, pluginRuntimeLabel(plugin.runtime)),
+              if (plugin.entry != null && plugin.entry!.isNotEmpty)
+                (PluginStrings.entry, plugin.entry!),
+              if (plugin.author != null && plugin.author!.isNotEmpty)
+                (PluginStrings.author, plugin.author!),
+              if (plugin.homepage != null && plugin.homepage!.isNotEmpty)
+                (PluginStrings.homepage, plugin.homepage!),
+              (PluginStrings.directory, plugin.directory),
+              (
+                PluginStrings.permissions,
+                pluginPermissionSummary(plugin.permissions),
+              ),
+            ],
+          ),
+          const SizedBox(height: LekisSpacing.xl),
+          if (plugin.error == null &&
+              plugin.permissions.nativeAndroid &&
+              defaultTargetPlatform == TargetPlatform.android)
+            _NativeAndroidPermission(plugin: plugin),
+          if (plugin.error == null &&
+              defaultTargetPlatform != TargetPlatform.android &&
+              defaultTargetPlatform != TargetPlatform.iOS)
+            for (final program in plugin.permissions.process)
+              _ProcessPermission(pluginId: plugin.id, program: program),
+          SettingsSectionHeader(PluginStrings.settings),
+          if (plugin.error != null)
+            Text(
+              PluginStrings.invalidManifest,
+              style: theme.textTheme.bodyMedium?.copyWith(color: colors.danger),
+            )
+          else
+            FutureBuilder<List<PluginSettingDto>>(
+              future: _settings,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.all(LekisSpacing.lg),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        PluginStrings.settingsLoadFailed,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colors.danger,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _retry,
+                        icon: const Icon(Icons.refresh),
+                        label: Text(PluginStrings.retry),
+                      ),
+                    ],
+                  );
+                }
+                final settings = snapshot.data ?? const <PluginSettingDto>[];
+                if (settings.isEmpty) {
+                  return Text(
+                    PluginStrings.noSettings,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  );
+                }
+                return _SettingsEditor(pluginId: plugin.id, settings: settings);
+              },
+            ),
+        ],
       ),
     );
   }
@@ -321,66 +333,77 @@ class _SettingsEditorState extends State<_SettingsEditor> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(setting.label, style: theme.textTheme.bodyLarge),
-                if (setting.help != null && setting.help!.isNotEmpty) ...[
-                  const SizedBox(height: LekisSpacing.xxs),
-                  Text(
-                    setting.help!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
+                if (setting.kind != 'boolean') ...[
+                  Text(setting.label, style: theme.textTheme.bodyLarge),
+                  if (setting.help != null && setting.help!.isNotEmpty) ...[
+                    const SizedBox(height: LekisSpacing.xxs),
+                    Text(
+                      setting.help!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
                     ),
-                  ),
+                  ],
+                  const SizedBox(height: LekisSpacing.sm),
                 ],
-                const SizedBox(height: LekisSpacing.sm),
                 switch (setting.kind) {
                   'boolean' => SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    dense: true,
                     title: Text(
-                      (_booleans[setting.key] ?? false)
-                          ? PluginStrings.enabled
-                          : PluginStrings.disabled,
+                      setting.label,
+                      style: theme.textTheme.bodyLarge,
                     ),
+                    subtitle: setting.help == null || setting.help!.isEmpty
+                        ? null
+                        : Text(
+                            setting.help!,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
                     value: _booleans[setting.key] ?? false,
                     onChanged: _saving
                         ? null
                         : (value) =>
                               setState(() => _booleans[setting.key] = value),
                   ),
-                  'select' => DropdownButton<String>(
-                    value: _selections[setting.key],
-                    isExpanded: true,
-                    underline: const SizedBox.shrink(),
-                    borderRadius: BorderRadius.circular(LekisRadius.md),
-                    items: [
+                  'select' => SettingsSelectField<String>(
+                    title: setting.label,
+                    icon: Icons.tune_rounded,
+                    value: _selections[setting.key] ?? '',
+                    choices: [
                       for (final option in setting.options)
-                        DropdownMenuItem(value: option, child: Text(option)),
+                        SettingsChoice(option, option),
                     ],
                     onChanged: _saving
                         ? null
-                        : (value) {
-                            if (value == null) return;
-                            setState(() => _selections[setting.key] = value);
-                          },
+                        : (value) =>
+                              setState(() => _selections[setting.key] = value),
                   ),
-                  'password' => TextField(
-                    controller: _controllers[setting.key],
-                    obscureText: true,
-                    autocorrect: false,
-                    enableSuggestions: false,
-                    decoration: InputDecoration(
-                      isDense: true,
-                      hintText: setting.hasValue
-                          ? PluginStrings.secretKept
-                          : null,
-                      suffixIcon: setting.hasValue
-                          ? const Icon(Icons.lock_outline)
-                          : null,
+                  'password' => Semantics(
+                    label: setting.label,
+                    child: TextField(
+                      enabled: !_saving,
+                      controller: _controllers[setting.key],
+                      obscureText: true,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      decoration: InputDecoration(
+                        hintText: setting.hasValue
+                            ? PluginStrings.secretKept
+                            : null,
+                        suffixIcon: setting.hasValue
+                            ? const Icon(Icons.lock_outline)
+                            : null,
+                      ),
                     ),
                   ),
-                  _ => TextField(
-                    controller: _controllers[setting.key],
-                    decoration: const InputDecoration(isDense: true),
+                  _ => Semantics(
+                    label: setting.label,
+                    child: TextField(
+                      enabled: !_saving,
+                      controller: _controllers[setting.key],
+                    ),
                   ),
                 },
                 if (setting.secret && setting.hasValue) ...[

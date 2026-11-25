@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../l10n/app_l10n.dart';
@@ -100,10 +101,8 @@ class LyricsPresetTile extends StatelessWidget {
         'Save this appearance or import a shared preset',
       ),
     ),
-    onTap: () => showDialog<void>(
-      context: context,
-      builder: (_) => const _PresetDialog(),
-    ),
+    onTap: () =>
+        showLekisPanel<void>(context, builder: (_) => const _PresetDialog()),
   );
 }
 
@@ -113,8 +112,22 @@ class _PresetDialog extends ConsumerStatefulWidget {
   ConsumerState<_PresetDialog> createState() => _PresetDialogState();
 }
 
+enum _PresetInput { save, importJson }
+
 class _PresetDialogState extends ConsumerState<_PresetDialog> {
   bool busy = false;
+  _PresetInput? inputMode;
+  String draft = '';
+
+  void _edit(_PresetInput? mode) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      inputMode = mode;
+      draft = '';
+      message = null;
+    });
+  }
+
   String? message;
 
   Future<void> _run(Future<void> Function() action) async {
@@ -141,46 +154,9 @@ class _PresetDialogState extends ConsumerState<_PresetDialog> {
     }
   }
 
-  Future<String?> _input({required bool importing}) async {
-    var value = '';
-    return showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        scrollable: true,
-        title: Text(
-          importing
-              ? context.l10n.pick('导入预设', 'Import preset')
-              : context.l10n.pick('保存当前组合', 'Save current appearance'),
-        ),
-        content: TextField(
-          autofocus: true,
-          minLines: importing ? 3 : 1,
-          maxLines: importing ? 6 : 1,
-          maxLength: importing ? 4096 : 80,
-          onChanged: (text) => value = text.trim(),
-          decoration: InputDecoration(
-            labelText: importing
-                ? 'JSON'
-                : context.l10n.pick('预设名称', 'Preset name'),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(context.l10n.pick('取消', 'Cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, value),
-            child: Text(context.l10n.pick('确定', 'OK')),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _add(LyricAppearance current, {required bool importing}) async {
-    final input = await _input(importing: importing);
-    if (input == null || !mounted) return;
+  Future<void> _add(LyricAppearance current) async {
+    final importing = inputMode == _PresetInput.importJson;
+    final input = draft.trim();
     if (input.isEmpty) {
       setState(
         () => message = context.l10n.pick(
@@ -206,6 +182,7 @@ class _PresetDialogState extends ConsumerState<_PresetDialog> {
       return;
     }
     await ref.read(provider.notifier).set(jsonEncode([...presets, preset]));
+    if (mounted) _edit(null);
   }
 
   Future<void> _apply(LyricAppearance appearance) async {
@@ -265,83 +242,136 @@ class _PresetDialogState extends ConsumerState<_PresetDialog> {
     }
     final readable = ready && presets != null;
     final l10n = context.l10n;
+    final editing = inputMode != null;
+    final importing = inputMode == _PresetInput.importJson;
     return PopScope(
-      canPop: !busy,
-      child: AlertDialog(
-        scrollable: true,
-        title: Text(SettingsStrings.lyricsPresets),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (presets != null)
-                for (final preset in presets)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(preset.name),
-                    subtitle: Text(preset.appearance.style.label),
-                    selected: preset.appearance == current,
-                    leading: Icon(
-                      preset.appearance == current
-                          ? Icons.check_circle
-                          : preset.appearance.style.icon,
-                    ),
-                    onTap: readable
-                        ? () => _run(() => _apply(preset.appearance))
-                        : null,
-                    trailing: IconButton(
-                      tooltip: l10n.pick('复制 JSON', 'Copy JSON'),
-                      icon: const Icon(Icons.copy),
-                      onPressed: busy
-                          ? null
-                          : () => _run(() async {
-                              await Clipboard.setData(
-                                ClipboardData(text: jsonEncode(preset)),
-                              );
-                              if (mounted) {
-                                setState(
-                                  () => message = l10n.pick(
-                                    '已复制 JSON',
-                                    'JSON copied',
-                                  ),
-                                );
-                              }
-                            }),
-                    ),
+      canPop: !busy && !editing,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !busy && editing) _edit(null);
+      },
+      child: LekisPanel(
+        title: editing
+            ? (importing
+                  ? l10n.pick('导入预设', 'Import preset')
+                  : l10n.pick('保存当前组合', 'Save current appearance'))
+            : SettingsStrings.lyricsPresets,
+        error: editing ? message : null,
+        body: AnimatedSize(
+          duration: lekisPanelMotion(context).reverseDuration ?? Duration.zero,
+          alignment: Alignment.topCenter,
+          curve: Curves.easeOutCubic,
+          child: editing
+              ? TextField(
+                  autofocus: true,
+                  readOnly: busy,
+                  minLines: importing ? 3 : 1,
+                  maxLines: importing ? 6 : 1,
+                  maxLength: importing ? 4096 : 80,
+                  onChanged: (text) {
+                    draft = text;
+                    if (message != null) setState(() => message = null);
+                  },
+                  decoration: InputDecoration(
+                    labelText: importing
+                        ? 'JSON'
+                        : l10n.pick('预设名称', 'Preset name'),
                   ),
-              if (presets == null || [saved, ...values].any((s) => s.hasError))
-                Text(l10n.pick('无法读取歌词设置', 'Unable to read lyric settings')),
-              if (message != null)
-                Semantics(liveRegion: true, child: Text(message!)),
-              Wrap(
-                children: [
-                  TextButton.icon(
-                    icon: const Icon(Icons.add),
-                    label: Text(l10n.pick('保存当前组合', 'Save current appearance')),
-                    onPressed: readable
-                        ? () => _run(() => _add(current, importing: false))
-                        : null,
+                  onSubmitted: importing
+                      ? null
+                      : (_) => _run(() => _add(current)),
+                )
+              : SizedBox(
+                  width: 420,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (presets != null)
+                        for (final preset in presets)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(preset.name),
+                            subtitle: Text(preset.appearance.style.label),
+                            selected: preset.appearance == current,
+                            leading: Icon(
+                              preset.appearance == current
+                                  ? Icons.check_circle
+                                  : preset.appearance.style.icon,
+                            ),
+                            onTap: readable
+                                ? () => _run(() => _apply(preset.appearance))
+                                : null,
+                            trailing: IconButton(
+                              tooltip: l10n.pick('复制 JSON', 'Copy JSON'),
+                              icon: const Icon(Icons.copy),
+                              onPressed: busy
+                                  ? null
+                                  : () => _run(() async {
+                                      await Clipboard.setData(
+                                        ClipboardData(text: jsonEncode(preset)),
+                                      );
+                                      if (mounted) {
+                                        setState(
+                                          () => message = l10n.pick(
+                                            '已复制 JSON',
+                                            'JSON copied',
+                                          ),
+                                        );
+                                      }
+                                    }),
+                            ),
+                          ),
+                      if (presets == null ||
+                          [saved, ...values].any((s) => s.hasError))
+                        Text(
+                          l10n.pick(
+                            '无法读取歌词设置',
+                            'Unable to read lyric settings',
+                          ),
+                        ),
+                      if (message != null)
+                        Semantics(liveRegion: true, child: Text(message!)),
+                      Wrap(
+                        children: [
+                          TextButton.icon(
+                            icon: const Icon(Icons.add),
+                            label: Text(
+                              l10n.pick('保存当前组合', 'Save current appearance'),
+                            ),
+                            onPressed: readable
+                                ? () => _edit(_PresetInput.save)
+                                : null,
+                          ),
+                          TextButton.icon(
+                            icon: const Icon(Icons.download_outlined),
+                            label: Text(l10n.pick('导入 JSON', 'Import JSON')),
+                            onPressed: readable
+                                ? () => _edit(_PresetInput.importJson)
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  TextButton.icon(
-                    icon: const Icon(Icons.download_outlined),
-                    label: Text(l10n.pick('导入 JSON', 'Import JSON')),
-                    onPressed: readable
-                        ? () => _run(() => _add(current, importing: true))
-                        : null,
-                  ),
-                ],
-              ),
-            ],
-          ),
+                ),
         ),
-        actions: [
-          TextButton(
-            onPressed: busy ? null : () => Navigator.pop(context),
-            child: Text(l10n.pick('关闭', 'Close')),
-          ),
-        ],
+        actions: editing
+            ? [
+                TextButton(
+                  onPressed: busy ? null : () => _edit(null),
+                  child: Text(l10n.pick('取消', 'Cancel')),
+                ),
+                FilledButton(
+                  onPressed: busy ? null : () => _run(() => _add(current)),
+                  child: Text(l10n.pick('确定', 'OK')),
+                ),
+              ]
+            : [
+                TextButton(
+                  onPressed: busy ? null : () => Navigator.pop(context),
+                  child: Text(l10n.pick('关闭', 'Close')),
+                ),
+              ],
       ),
     );
   }

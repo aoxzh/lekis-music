@@ -156,25 +156,17 @@ class _EqualizerBody extends ConsumerWidget {
               hint: preset == null
                   ? '${EqualizerStrings.currentPreset}：${EqualizerStrings.custom}'
                   : '${EqualizerStrings.currentPreset}：${preset.name} — ${preset.description}',
-              child: DropdownButton<String>(
+              child: SettingsSelectField<String>(
                 key: const Key('equalizer-preset-dropdown'),
+                title: EqualizerStrings.preset,
+                icon: Icons.headphones_outlined,
                 value: state.presetId ?? '',
-                isExpanded: true,
-                underline: const SizedBox.shrink(),
-                borderRadius: BorderRadius.circular(LekisRadius.md),
-                items: [
-                  DropdownMenuItem<String>(
-                    value: '',
-                    child: Text(EqualizerStrings.custom),
-                  ),
+                choices: [
+                  SettingsChoice('', EqualizerStrings.custom),
                   for (final item in state.presets)
-                    DropdownMenuItem<String>(
-                      value: item.id,
-                      child: Text(item.name, overflow: TextOverflow.ellipsis),
-                    ),
+                    SettingsChoice(item.id, item.name),
                 ],
                 onChanged: (id) {
-                  if (id == null) return;
                   if (id.isEmpty) {
                     _guard(context, notifier.resetFlat);
                   } else {

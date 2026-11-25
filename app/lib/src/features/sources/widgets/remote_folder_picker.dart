@@ -23,6 +23,7 @@ Future<String?> showRemoteFolderPicker(
   builder: (context) => RemoteFolderBrowser(
     load: load,
     initialPath: initialPath,
+    onClose: () => Navigator.of(context).pop(),
     onPick: (path) => Navigator.of(context).pop(path),
   ),
 );
@@ -38,11 +39,13 @@ class RemoteFolderBrowser extends StatefulWidget {
     super.key,
     required this.load,
     required this.onPick,
+    this.onClose,
     this.initialPath = '',
   });
 
   final RemoteFolderLoader load;
   final ValueChanged<String> onPick;
+  final VoidCallback? onClose;
   final String initialPath;
 
   @override
@@ -106,61 +109,83 @@ class _RemoteFolderBrowserState extends State<RemoteFolderBrowser> {
     final listing = _listing;
     final error = _error;
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        context.featureGutter,
-        0,
-        context.featureGutter,
-        LekisSpacing.lg + MediaQuery.paddingOf(context).bottom,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(SourcesStrings.browseTitle, style: theme.textTheme.titleLarge),
-          const SizedBox(height: LekisSpacing.sm),
-          Row(
-            children: [
-              IconButton(
-                key: const ValueKey('remote-folder-up'),
-                tooltip: SourcesStrings.browseUp,
-                onPressed: _path.isEmpty || _loading
-                    ? null
-                    : () => _open(_parent),
-                icon: const Icon(Icons.arrow_upward),
-              ),
-              const SizedBox(width: LekisSpacing.xs),
-              Expanded(
+    return PopScope<String>(
+      canPop: widget.onClose == null || _path.isEmpty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && widget.onClose != null && _path.isNotEmpty) {
+          _open(_parent);
+        }
+      },
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          context.featureGutter,
+          0,
+          context.featureGutter,
+          LekisSpacing.lg + MediaQuery.paddingOf(context).bottom,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    SourcesStrings.browseTitle,
+                    style: theme.textTheme.titleLarge,
+                  ),
+                ),
+                if (widget.onClose != null)
+                  IconButton(
+                    tooltip: MaterialLocalizations.of(context)
+                        .closeButtonTooltip,
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: widget.onClose,
+                  ),
+              ],
+            ),
+            const SizedBox(height: LekisSpacing.sm),
+            Row(
+              children: [
+                IconButton(
+                  key: const ValueKey('remote-folder-up'),
+                  tooltip: SourcesStrings.browseUp,
+                  onPressed: _path.isEmpty ? null : () => _open(_parent),
+                  icon: const Icon(Icons.arrow_upward),
+                ),
+                const SizedBox(width: LekisSpacing.xs),
+                Expanded(
+                  child: Text(
+                    _path.isEmpty ? SourcesStrings.browseRoot : '/$_path',
+                    key: const ValueKey('remote-folder-path'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
+              ],
+            ),
+            const Divider(),
+            Expanded(child: _body(context, listing, error, muted)),
+            const SizedBox(height: LekisSpacing.sm),
+            if (listing != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: LekisSpacing.sm),
                 child: Text(
-                  _path.isEmpty ? SourcesStrings.browseRoot : '/$_path',
-                  key: const ValueKey('remote-folder-path'),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium,
+                  SourcesStrings.browseAudioCount(listing.audioFiles),
+                  style: muted,
                 ),
               ),
-            ],
-          ),
-          const Divider(),
-          Expanded(child: _body(context, listing, error, muted)),
-          const SizedBox(height: LekisSpacing.sm),
-          if (listing != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: LekisSpacing.sm),
-              child: Text(
-                SourcesStrings.browseAudioCount(listing.audioFiles),
-                style: muted,
+            FilledButton.icon(
+              key: const ValueKey('remote-folder-pick'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, LekisSizes.touchTargetMin),
               ),
+              onPressed: listing == null ? null : () => widget.onPick(_path),
+              icon: const Icon(Icons.check),
+              label: Text(SourcesStrings.browseUseThis),
             ),
-          FilledButton.icon(
-            key: const ValueKey('remote-folder-pick'),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(0, LekisSizes.touchTargetMin),
-            ),
-            onPressed: listing == null ? null : () => widget.onPick(_path),
-            icon: const Icon(Icons.check),
-            label: Text(SourcesStrings.browseUseThis),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -208,19 +233,27 @@ class _RemoteFolderBrowserState extends State<RemoteFolderBrowser> {
     if (folders.isEmpty) {
       return Center(child: Text(SourcesStrings.browseEmpty, style: muted));
     }
-    return ListView.builder(
-      itemCount: folders.length,
-      itemBuilder: (context, i) {
-        final name = folders[i];
-        return ListTile(
-          key: ValueKey('remote-folder:$name'),
-          minTileHeight: LekisSizes.touchTargetMin,
-          leading: Icon(Icons.folder, color: context.lekisColors.accent),
-          title: Text(name),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _open(_child(name)),
-        );
-      },
+    return TweenAnimationBuilder<double>(
+      key: ValueKey(_path),
+      duration: lekisPanelMotion(context).reverseDuration ?? Duration.zero,
+      curve: Curves.easeOutCubic,
+      tween: Tween(begin: 0.0, end: 1.0),
+      builder: (_, opacity, child) => Opacity(opacity: opacity, child: child),
+      child: ListView.builder(
+        key: PageStorageKey(_path),
+        itemCount: folders.length,
+        itemBuilder: (context, i) {
+          final name = folders[i];
+          return ListTile(
+            key: ValueKey('remote-folder:$name'),
+            minTileHeight: LekisSizes.touchTargetMin,
+            leading: Icon(Icons.folder, color: context.lekisColors.accent),
+            title: Text(name),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _open(_child(name)),
+          );
+        },
+      ),
     );
   }
 }

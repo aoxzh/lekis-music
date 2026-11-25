@@ -340,6 +340,10 @@ void main() {
       final catalog = destination[SettingKeys.lyricsPresets];
       await input('导入 JSON', exported);
       expect(find.text('已有同名预设，请更换名称。'), findsOneWidget);
+      expect(find.text(exported), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('导入 JSON'), findsOneWidget);
       await input(
         '导入 JSON',
         exported.replaceFirst('"version":1', '"version":2'),

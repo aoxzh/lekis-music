@@ -216,29 +216,22 @@ class _ScrobbleSettingsSectionState
             await _save();
           },
         ),
-        SettingsTile(
+        SettingsBlockTile(
           icon: Icons.cloud_outlined,
           title: SettingsStrings.scrobbleService,
-          trailing: DropdownButton<String>(
+          child: SettingsSelectField<String>(
+            title: SettingsStrings.scrobbleService,
+            icon: Icons.cloud_outlined,
             value: _service,
-            underline: SizedBox.shrink(),
-            borderRadius: BorderRadius.circular(LekisRadius.md),
-            items: [
-              DropdownMenuItem(
-                value: 'lastfm',
-                child: Text(SettingsStrings.scrobbleLastFm),
+            choices: [
+              SettingsChoice('lastfm', SettingsStrings.scrobbleLastFm),
+              SettingsChoice(
+                'listenbrainz',
+                SettingsStrings.scrobbleListenBrainz,
               ),
-              DropdownMenuItem(
-                value: 'listenbrainz',
-                child: Text(SettingsStrings.scrobbleListenBrainz),
-              ),
-              DropdownMenuItem(
-                value: 'librefm',
-                child: Text(SettingsStrings.scrobbleLibreFm),
-              ),
+              SettingsChoice('librefm', SettingsStrings.scrobbleLibreFm),
             ],
             onChanged: (value) async {
-              if (value == null) return;
               setState(() => _service = value);
               await _save();
             },
@@ -254,7 +247,6 @@ class _ScrobbleSettingsSectionState
                 controller: _username,
                 decoration: InputDecoration(
                   labelText: SettingsStrings.scrobbleUsername,
-                  isDense: true,
                 ),
                 textInputAction: TextInputAction.next,
               ),
@@ -354,7 +346,6 @@ class _SecretField extends StatelessWidget {
       decoration: InputDecoration(
         labelText: label,
         hintText: saved ? SettingsStrings.scrobbleSecretKept : null,
-        isDense: true,
       ),
       textInputAction: TextInputAction.next,
     ),

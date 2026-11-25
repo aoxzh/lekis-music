@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:lekis/src/widgets/adaptive_panel.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -47,11 +46,11 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
   );
 
   Future<void> _remove(PluginInfoDto plugin) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(PluginStrings.removeTitle),
-        content: Text(PluginStrings.removeBody(plugin.name)),
+    final confirmed = await showLekisPanel<bool>(
+      context,
+      builder: (context) => LekisPanel(
+        title: PluginStrings.removeTitle,
+        body: Text(PluginStrings.removeBody(plugin.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -96,28 +95,103 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
     }
   }
 
-  Future<void> _chooseInstall() async {
-    final choice = await showLekisActionList(
+  Future<void> _chooseInstall({bool linkOnly = false}) async {
+    var enteringLink = linkOnly;
+    Uri? address;
+    final choice = await showLekisPanel<_InstallChoice>(
       context,
-      title: PluginStrings.install,
-      subtitle: PluginStrings.installHint,
-      actions: [
-        LekisMenuAction(
-          _InstallChoice.link,
-          Icons.link_rounded,
-          PluginStrings.installLink,
-        ),
-        LekisMenuAction(
-          _InstallChoice.folder,
-          Icons.folder_open_outlined,
-          PluginStrings.installFolder,
-        ),
-        LekisMenuAction(
-          _InstallChoice.zip,
-          Icons.folder_zip_outlined,
-          PluginStrings.installZip,
-        ),
-      ],
+      builder: (dialog) => StatefulBuilder(
+        builder: (context, update) {
+          void editLink(bool editing) {
+            FocusScope.of(context).unfocus();
+            update(() {
+              enteringLink = editing;
+              address = null;
+            });
+          }
+
+          void back() {
+            if (enteringLink && !linkOnly) {
+              editLink(false);
+            } else {
+              Navigator.pop(dialog);
+            }
+          }
+
+          void submit() {
+            if (address != null) Navigator.pop(dialog, _InstallChoice.link);
+          }
+
+          return PopScope<_InstallChoice>(
+            canPop: !enteringLink || linkOnly,
+            onPopInvokedWithResult: (didPop, _) {
+              if (!didPop && enteringLink && !linkOnly) editLink(false);
+            },
+            child: LekisPanel(
+              title: enteringLink
+                  ? PluginStrings.installLink
+                  : PluginStrings.install,
+              subtitle: enteringLink ? null : PluginStrings.installHint,
+              body: AnimatedSize(
+                alignment: Alignment.topCenter,
+                curve: Curves.easeOutCubic,
+                duration:
+                    lekisPanelMotion(context).reverseDuration ?? Duration.zero,
+                child: enteringLink
+                    ? TextField(
+                        autofocus: true,
+                        keyboardType: TextInputType.url,
+                        autocorrect: false,
+                        decoration: const InputDecoration(
+                          labelText: 'HTTPS ZIP URL',
+                        ),
+                        onChanged: (value) =>
+                            update(() => address = pluginPackageUri(value)),
+                        onSubmitted: (_) => submit(),
+                      )
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SettingsTile(
+                            icon: Icons.link_rounded,
+                            title: PluginStrings.installLink,
+                            chevron: true,
+                            onTap: () => editLink(true),
+                          ),
+                          SettingsTile(
+                            icon: Icons.folder_open_outlined,
+                            title: PluginStrings.installFolder,
+                            onTap: () =>
+                                Navigator.pop(dialog, _InstallChoice.folder),
+                          ),
+                          SettingsTile(
+                            icon: Icons.folder_zip_outlined,
+                            title: PluginStrings.installZip,
+                            onTap: () =>
+                                Navigator.pop(dialog, _InstallChoice.zip),
+                          ),
+                        ],
+                      ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: back,
+                  child: Text(
+                    enteringLink && !linkOnly
+                        ? MaterialLocalizations.of(context).backButtonTooltip
+                        : PluginStrings.cancel,
+                  ),
+                ),
+                if (enteringLink)
+                  FilledButton(
+                    onPressed: address == null ? null : submit,
+                    child: Text(PluginStrings.install),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
     );
     if (!mounted) return;
     switch (choice) {
@@ -126,56 +200,18 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
       case _InstallChoice.zip:
         await _installZip();
       case _InstallChoice.link:
-        await _installLink();
+        await _installRemote(address!);
       case null:
         break;
     }
   }
 
-  Future<void> _installLink() async {
-    Uri? address;
-    final uri = await showLekisPanel<Uri>(
-      context,
-      builder: (dialog) => StatefulBuilder(
-        builder: (context, update) => LekisPanel(
-          title: PluginStrings.installLink,
-          body: TextField(
-            autofocus: true,
-            keyboardType: TextInputType.url,
-            autocorrect: false,
-            decoration: const InputDecoration(labelText: 'HTTPS ZIP URL'),
-            onChanged: (value) =>
-                update(() => address = pluginPackageUri(value)),
-            onSubmitted: (_) {
-              if (address != null) Navigator.pop(dialog, address);
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialog),
-              child: Text(PluginStrings.cancel),
-            ),
-            FilledButton(
-              onPressed: address == null
-                  ? null
-                  : () => Navigator.pop(dialog, address),
-              child: Text(PluginStrings.install),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (uri == null || !mounted) return;
-    await _installRemote(uri);
-  }
-
   Future<void> _confirmCatalogInstall(RegistryPlugin plugin) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        scrollable: true,
-        title: Text(PluginStrings.downloadInstall),
-        content: Column(
+    final confirmed = await showLekisPanel<bool>(
+      context,
+      builder: (dialog) => LekisPanel(
+        title: PluginStrings.downloadInstall,
+        body: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -365,32 +401,50 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
 
   Future<void> _addSource() async {
     final controller = TextEditingController();
-    final raw = await showDialog<String>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: Text(PluginStrings.addSource),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: TextInputType.url,
-          autocorrect: false,
-          decoration: InputDecoration(
-            labelText: PluginStrings.sourceUrlLabel,
-            hintText: PluginStrings.sourceUrlHint,
+    final field = GlobalKey<FormFieldState<String>>();
+    final raw = await showLekisPanel<String>(
+      context,
+      builder: (dialog) {
+        void submit() {
+          if (field.currentState!.validate()) {
+            Navigator.of(dialog).pop(controller.text);
+          }
+        }
+
+        return LekisPanel(
+          title: PluginStrings.addSource,
+          body: TextFormField(
+            key: field,
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            autovalidateMode: AutovalidateMode.onUserInteractionIfError,
+            validator: (value) {
+              final url = normalizePluginSourceUrl(value ?? '');
+              final sources = ref.read(pluginSourcesProvider).value ?? [];
+              return url == null || sources.any((s) => s.url == url)
+                  ? PluginStrings.sourceInvalid
+                  : null;
+            },
+            decoration: InputDecoration(
+              labelText: PluginStrings.sourceUrlLabel,
+              hintText: PluginStrings.sourceUrlHint,
+            ),
+            onFieldSubmitted: (_) => submit(),
           ),
-          onSubmitted: (value) => Navigator.of(dialog).pop(value),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialog).pop(),
-            child: Text(PluginStrings.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialog).pop(controller.text),
-            child: Text(PluginStrings.addSource),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialog).pop(),
+              child: Text(PluginStrings.cancel),
+            ),
+            FilledButton(
+              onPressed: submit,
+              child: Text(PluginStrings.addSource),
+            ),
+          ],
+        );
+      },
     );
     controller.dispose();
     if (raw == null || !mounted) return;
@@ -604,7 +658,9 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
                                   icon: Icons.link_rounded,
                                   title: PluginStrings.installLink,
                                   chevron: true,
-                                  onTap: _installing ? null : _installLink,
+                                  onTap: _installing
+                                      ? null
+                                      : () => _chooseInstall(linkOnly: true),
                                 ),
                                 SettingsTile(
                                   icon: Icons.folder_open_outlined,

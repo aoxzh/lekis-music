@@ -49,6 +49,40 @@ class _Root extends StatelessWidget {
 }
 
 void main() {
+  testWidgets(
+    'mobile selector distinguishes dismissing from choosing the system default',
+    (tester) async {
+      final values = <String?>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: lekisDarkTheme(),
+          home: Scaffold(
+            body: SettingsSelectField<String?>(
+              title: 'Output',
+              icon: Icons.speaker,
+              value: 'USB',
+              choices: const [
+                SettingsChoice(null, 'System'),
+                SettingsChoice('USB', 'USB'),
+              ],
+              onChanged: values.add,
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('USB'));
+      await tester.pumpAndSettle();
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(values, isEmpty);
+      await tester.tap(find.text('USB'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('System'));
+      await tester.pumpAndSettle();
+      expect(values, [null]);
+    },
+  );
+
   testWidgets('top-level page: title at the page gutter, no back button', (
     tester,
   ) async {
