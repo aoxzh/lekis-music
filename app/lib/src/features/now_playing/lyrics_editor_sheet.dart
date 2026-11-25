@@ -44,6 +44,7 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
   Map<int, search.LyricSearchVersionDto> _recordings = const {};
   bool _searched = false;
   bool _searchExpanded = false;
+  LyricsRowDto? _previewing;
   var _format = LyricsFormatDto.lrc;
   var _offset = 0;
   String _loadedContent = '';
@@ -167,7 +168,7 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
     }
   }
 
-  Future<void> _preview(LyricsRowDto version) async {
+  Widget _preview(LyricsRowDto version) {
     final parsed = ParsedLyrics.parse(version.lyrics);
     // The parser falls back to raw text for malformed TTML; do not show XML
     // markup as if it were lyrics.
@@ -175,41 +176,39 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
         version.lyrics.format == LyricsFormatDto.ttml && !parsed.synced
         ? <LyricLine>[]
         : parsed.lines;
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.pick('歌词预览', 'Lyrics preview')),
-        content: SizedBox(
-          width: 480,
-          child: SingleChildScrollView(
-            child: lines.isEmpty
-                ? Text(
-                    context.l10n.pick(
-                      '无法预览此歌词。',
-                      'This lyrics version cannot be previewed.',
+    return LekisPanel(
+      step: 'preview',
+      title: context.l10n.pick('歌词预览', 'Lyrics preview'),
+      body: lines.isEmpty
+          ? Text(
+              context.l10n.pick(
+                '无法预览此歌词。',
+                'This lyrics version cannot be previewed.',
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final line in lines) ...[
+                  Text(line.text),
+                  if (line.translation != null)
+                    Text(
+                      line.translation!,
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (final line in lines) ...[
-                        Text(line.text),
-                        if (line.translation != null) Text(line.translation!),
-                      ],
-                    ],
-                  ),
-          ),
+                ],
+              ],
+            ),
+      actions: [
+        TextButton(
+          onPressed: _leavePreview,
+          child: Text(MaterialLocalizations.of(context).backButtonTooltip),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(context.l10n.pick('关闭', 'Close')),
-          ),
-        ],
-      ),
+      ],
     );
   }
+
+  void _leavePreview() => setState(() => _previewing = null);
 
   Future<void> _activate(LyricsRowDto version) async {
     setState(() {
@@ -313,6 +312,17 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final version = _previewing;
+    return PopScope<void>(
+      canPop: !_saving && version == null,
+      onPopInvokedWithResult: (popped, _) {
+        if (!popped && version != null) _leavePreview();
+      },
+      child: version == null ? _editor(context) : _preview(version),
+    );
+  }
+
+  Widget _editor(BuildContext context) {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
     final stored = _versions.where(
@@ -320,6 +330,7 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
     );
     final close = _saving ? null : () => Navigator.of(context).pop();
     return LekisPanel(
+      step: 'editor',
       title: context.l10n.pick('编辑歌词', 'Edit Lyrics'),
       subtitle: context.l10n.pick(
         '粘贴 LRC / 增强 LRC / TTML，或直接写纯文本。保存后作为“手动”版本立即生效。',
@@ -358,6 +369,7 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
               children: [
                 ExpansionTile(
                   key: const ValueKey('lyrics-editor.search'),
+                  initiallyExpanded: _searchExpanded,
                   onExpansionChanged: (open) =>
                       setState(() => _searchExpanded = open),
                   title: Text(
@@ -546,7 +558,12 @@ class _LyricsEditorSheetState extends ConsumerState<_LyricsEditorSheet> {
           'lyrics-editor.${result ? 'result-preview' : 'preview'}.${v.id}',
         ),
         tooltip: context.l10n.pick('预览歌词', 'Preview lyrics'),
-        onPressed: _saving ? null : () => _preview(v),
+        onPressed: _saving
+            ? null
+            : () {
+                FocusScope.of(context).unfocus();
+                setState(() => _previewing = v);
+              },
         icon: const Icon(Icons.visibility_outlined),
       ),
       title: Text(metadata?.title ?? detail),

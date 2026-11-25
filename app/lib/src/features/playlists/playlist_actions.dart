@@ -23,47 +23,40 @@ Future<String?> askPlaylistName(
   String? confirm,
 }) async {
   final controller = TextEditingController(text: initial);
+  final field = GlobalKey<FormFieldState<String>>();
   final result = await showLekisPanel<String>(
     context,
     dismissible: false,
-    builder: (_) {
-      String? error;
-      return StatefulBuilder(
-        builder: (context, setState) => LekisPanel(
-          title: title,
-          error: error,
-          body: TextField(
-            controller: controller,
-            autofocus: true,
-            textInputAction: TextInputAction.done,
-            decoration: InputDecoration(labelText: PlaylistStrings.nameLabel),
-            onSubmitted: (_) {
-              final name = controller.text.trim();
-              if (name.isEmpty) {
-                setState(() => error = PlaylistStrings.nameEmpty);
-              } else {
-                Navigator.of(context).pop(name);
-              }
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(PlaylistStrings.cancel),
-            ),
-            FilledButton(
-              onPressed: () {
-                final name = controller.text.trim();
-                if (name.isEmpty) {
-                  setState(() => error = PlaylistStrings.nameEmpty);
-                  return;
-                }
-                Navigator.of(context).pop(name);
-              },
-              child: Text(confirm ?? PlaylistStrings.ok),
-            ),
-          ],
+    builder: (panel) {
+      void submit() {
+        if (field.currentState!.validate()) {
+          Navigator.pop(panel, controller.text.trim());
+        }
+      }
+
+      return LekisPanel(
+        title: title,
+        body: TextFormField(
+          key: field,
+          controller: controller,
+          autofocus: true,
+          textInputAction: TextInputAction.done,
+          decoration: InputDecoration(labelText: PlaylistStrings.nameLabel),
+          autovalidateMode: AutovalidateMode.onUserInteractionIfError,
+          validator: (value) =>
+              (value ?? '').trim().isEmpty ? PlaylistStrings.nameEmpty : null,
+          onFieldSubmitted: (_) => submit(),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(panel),
+            child: Text(PlaylistStrings.cancel),
+          ),
+          FilledButton(
+            onPressed: submit,
+            child: Text(confirm ?? PlaylistStrings.ok),
+          ),
+        ],
       );
     },
   );
@@ -75,11 +68,11 @@ Future<bool> confirmDeletePlaylist(
   BuildContext context,
   PlaylistDto playlist,
 ) async {
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(PlaylistStrings.deleteTitle),
-      content: Text(
+  final ok = await showLekisPanel<bool>(
+    context,
+    builder: (context) => LekisPanel(
+      title: PlaylistStrings.deleteTitle,
+      body: Text(
         playlist.kind == PlaylistKindDto.smart
             ? PlaylistStrings.deleteSmartBody(playlist.name)
             : PlaylistStrings.deleteBody(playlist.name),
@@ -155,27 +148,19 @@ Future<void> saveTracksAsPlaylistFlow(
 
   final total = tracks.length;
   final progress = ValueNotifier<int>(0);
-  final navigator = Navigator.of(context, rootNavigator: true);
-  unawaited(
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => nonDismissibleProgressDialog(
-        title: Text(PlaylistStrings.savingPlaylist),
-        content: ValueListenableBuilder<int>(
-          valueListenable: progress,
-          builder: (_, done, _) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              LinearProgressIndicator(
-                value: total == 0 ? 0 : (done / total).clamp(0.0, 1.0),
-              ),
-              const SizedBox(height: LekisSpacing.md),
-              Text('$done / $total'),
-            ],
-          ),
+  final closeProgress = showProgressPanel(
+    context,
+    title: PlaylistStrings.savingPlaylist,
+    progress: progress,
+    builder: (done) => Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        LinearProgressIndicator(
+          value: total == 0 ? 0 : (done / total).clamp(0.0, 1.0),
         ),
-      ),
+        const SizedBox(height: LekisSpacing.md),
+        Text('$done / $total'),
+      ],
     ),
   );
 
@@ -223,8 +208,7 @@ Future<void> saveTracksAsPlaylistFlow(
   } catch (e) {
     if (context.mounted) showPlaylistError(context, e);
   } finally {
-    if (navigator.mounted && navigator.canPop()) navigator.pop();
-    progress.dispose();
+    await closeProgress();
   }
 }
 
@@ -325,11 +309,11 @@ Future<void> mergePlaylistFlow(
   );
   if (source == null || !context.mounted) return;
 
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (dialog) => AlertDialog(
-      title: Text(PlaylistStrings.mergePlaylist),
-      content: Text(PlaylistStrings.mergeBody(source.name, source.trackCount)),
+  final confirmed = await showLekisPanel<bool>(
+    context,
+    builder: (dialog) => LekisPanel(
+      title: PlaylistStrings.mergePlaylist,
+      body: Text(PlaylistStrings.mergeBody(source.name, source.trackCount)),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialog).pop(false),
@@ -346,27 +330,19 @@ Future<void> mergePlaylistFlow(
 
   final total = source.trackCount;
   final progress = ValueNotifier<int>(0);
-  final navigator = Navigator.of(context, rootNavigator: true);
-  unawaited(
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => nonDismissibleProgressDialog(
-        title: Text(PlaylistStrings.mergingPlaylist),
-        content: ValueListenableBuilder<int>(
-          valueListenable: progress,
-          builder: (_, done, _) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              LinearProgressIndicator(
-                value: total <= 0 ? null : (done / total).clamp(0.0, 1.0),
-              ),
-              const SizedBox(height: LekisSpacing.md),
-              Text(total <= 0 ? '$done' : '$done / $total'),
-            ],
-          ),
+  final closeProgress = showProgressPanel(
+    context,
+    title: PlaylistStrings.mergingPlaylist,
+    progress: progress,
+    builder: (done) => Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        LinearProgressIndicator(
+          value: total <= 0 ? null : (done / total).clamp(0.0, 1.0),
         ),
-      ),
+        const SizedBox(height: LekisSpacing.md),
+        Text(total <= 0 ? '$done' : '$done / $total'),
+      ],
     ),
   );
 
@@ -414,8 +390,7 @@ Future<void> mergePlaylistFlow(
   } catch (e) {
     if (context.mounted) showPlaylistError(context, e);
   } finally {
-    if (navigator.mounted && navigator.canPop()) navigator.pop();
-    progress.dispose();
+    await closeProgress();
   }
 }
 
@@ -480,28 +455,20 @@ Future<void> duplicatePlaylistFlow(
   );
   if (name == null || !context.mounted) return;
   final progress = ValueNotifier<int>(0);
-  final navigator = Navigator.of(context, rootNavigator: true);
-  unawaited(
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => nonDismissibleProgressDialog(
-        title: Text(PlaylistStrings.duplicating),
-        content: ValueListenableBuilder<int>(
-          valueListenable: progress,
-          builder: (_, done, _) => Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox.square(
-                dimension: 22,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              const SizedBox(width: LekisSpacing.md),
-              Text('$done'),
-            ],
-          ),
+  final closeProgress = showProgressPanel(
+    context,
+    title: PlaylistStrings.duplicating,
+    progress: progress,
+    builder: (done) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox.square(
+          dimension: 22,
+          child: CircularProgressIndicator(strokeWidth: 2),
         ),
-      ),
+        const SizedBox(width: LekisSpacing.md),
+        Text('$done'),
+      ],
     ),
   );
   var saved = 0;
@@ -533,8 +500,7 @@ Future<void> duplicatePlaylistFlow(
   } catch (e) {
     if (context.mounted) showPlaylistError(context, e);
   } finally {
-    if (navigator.mounted && navigator.canPop()) navigator.pop();
-    progress.dispose();
+    await closeProgress();
   }
 }
 
@@ -676,11 +642,11 @@ Future<void> sortPlaylistFlow(
   }
 
   final label = _sortLabel(mode);
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (dialog) => AlertDialog(
-      title: Text(PlaylistStrings.sortConfirmTitle),
-      content: Text(PlaylistStrings.sortConfirmBody(label)),
+  final confirmed = await showLekisPanel<bool>(
+    context,
+    builder: (dialog) => LekisPanel(
+      title: PlaylistStrings.sortConfirmTitle,
+      body: Text(PlaylistStrings.sortConfirmBody(label)),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialog).pop(false),
@@ -696,27 +662,19 @@ Future<void> sortPlaylistFlow(
   if (confirmed != true || !context.mounted) return;
 
   final progress = ValueNotifier<int>(0);
-  final navigator = Navigator.of(context, rootNavigator: true);
-  unawaited(
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => nonDismissibleProgressDialog(
-        title: Text(PlaylistStrings.sortingPlaylist),
-        content: ValueListenableBuilder<int>(
-          valueListenable: progress,
-          builder: (_, done, _) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              LinearProgressIndicator(
-                value: target.isEmpty ? 0 : done / target.length,
-              ),
-              const SizedBox(height: LekisSpacing.md),
-              Text('$done / ${target.length}'),
-            ],
-          ),
+  final closeProgress = showProgressPanel(
+    context,
+    title: PlaylistStrings.sortingPlaylist,
+    progress: progress,
+    builder: (done) => Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        LinearProgressIndicator(
+          value: target.isEmpty ? 0 : done / target.length,
         ),
-      ),
+        const SizedBox(height: LekisSpacing.md),
+        Text('$done / ${target.length}'),
+      ],
     ),
   );
 
@@ -751,8 +709,7 @@ Future<void> sortPlaylistFlow(
   } catch (e) {
     if (context.mounted) showPlaylistError(context, e);
   } finally {
-    if (navigator.mounted && navigator.canPop()) navigator.pop();
-    progress.dispose();
+    await closeProgress();
   }
 }
 
@@ -851,11 +808,11 @@ Future<void> removePlaylistDuplicatesFlow(
       ..showSnackBar(SnackBar(content: Text(PlaylistStrings.noDuplicates)));
     return;
   }
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (dialog) => AlertDialog(
-      title: Text(PlaylistStrings.removeDuplicatesTitle),
-      content: Text(PlaylistStrings.removeDuplicatesBody(duplicates.length)),
+  final confirmed = await showLekisPanel<bool>(
+    context,
+    builder: (dialog) => LekisPanel(
+      title: PlaylistStrings.removeDuplicatesTitle,
+      body: Text(PlaylistStrings.removeDuplicatesBody(duplicates.length)),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialog).pop(false),
@@ -871,27 +828,19 @@ Future<void> removePlaylistDuplicatesFlow(
   if (confirmed != true || !context.mounted) return;
 
   final progress = ValueNotifier<int>(0);
-  final navigator = Navigator.of(context, rootNavigator: true);
-  unawaited(
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => nonDismissibleProgressDialog(
-        title: Text(PlaylistStrings.removingDuplicates),
-        content: ValueListenableBuilder<int>(
-          valueListenable: progress,
-          builder: (_, done, _) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              LinearProgressIndicator(
-                value: duplicates.isEmpty ? 0 : done / duplicates.length,
-              ),
-              const SizedBox(height: LekisSpacing.md),
-              Text('$done / ${duplicates.length}'),
-            ],
-          ),
+  final closeProgress = showProgressPanel(
+    context,
+    title: PlaylistStrings.removingDuplicates,
+    progress: progress,
+    builder: (done) => Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        LinearProgressIndicator(
+          value: duplicates.isEmpty ? 0 : done / duplicates.length,
         ),
-      ),
+        const SizedBox(height: LekisSpacing.md),
+        Text('$done / ${duplicates.length}'),
+      ],
     ),
   );
 
@@ -925,8 +874,7 @@ Future<void> removePlaylistDuplicatesFlow(
   } catch (e) {
     if (context.mounted) showPlaylistError(context, e);
   } finally {
-    if (navigator.mounted && navigator.canPop()) navigator.pop();
-    progress.dispose();
+    await closeProgress();
   }
 }
 
@@ -946,11 +894,11 @@ Future<void> removeMissingPlaylistEntriesFlow(
       ..showSnackBar(SnackBar(content: Text(PlaylistStrings.noMissing)));
     return;
   }
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (dialog) => AlertDialog(
-      title: Text(PlaylistStrings.removeMissingTitle),
-      content: Text(PlaylistStrings.removeMissingBody(missing.length)),
+  final confirmed = await showLekisPanel<bool>(
+    context,
+    builder: (dialog) => LekisPanel(
+      title: PlaylistStrings.removeMissingTitle,
+      body: Text(PlaylistStrings.removeMissingBody(missing.length)),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialog).pop(false),
@@ -966,27 +914,19 @@ Future<void> removeMissingPlaylistEntriesFlow(
   if (confirmed != true || !context.mounted) return;
 
   final progress = ValueNotifier<int>(0);
-  final navigator = Navigator.of(context, rootNavigator: true);
-  unawaited(
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => nonDismissibleProgressDialog(
-        title: Text(PlaylistStrings.removingMissing),
-        content: ValueListenableBuilder<int>(
-          valueListenable: progress,
-          builder: (_, done, _) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              LinearProgressIndicator(
-                value: missing.isEmpty ? 0 : done / missing.length,
-              ),
-              const SizedBox(height: LekisSpacing.md),
-              Text('$done / ${missing.length}'),
-            ],
-          ),
+  final closeProgress = showProgressPanel(
+    context,
+    title: PlaylistStrings.removingMissing,
+    progress: progress,
+    builder: (done) => Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        LinearProgressIndicator(
+          value: missing.isEmpty ? 0 : done / missing.length,
         ),
-      ),
+        const SizedBox(height: LekisSpacing.md),
+        Text('$done / ${missing.length}'),
+      ],
     ),
   );
 
@@ -1020,8 +960,7 @@ Future<void> removeMissingPlaylistEntriesFlow(
   } catch (e) {
     if (context.mounted) showPlaylistError(context, e);
   } finally {
-    if (navigator.mounted && navigator.canPop()) navigator.pop();
-    progress.dispose();
+    await closeProgress();
   }
 }
 

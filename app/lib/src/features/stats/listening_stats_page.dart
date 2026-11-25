@@ -71,26 +71,23 @@ class _ListeningStatsPageState extends ConsumerState<ListeningStatsPage> {
                           ),
                         ),
                         years.when(
-                          data: (items) => DropdownButtonHideUnderline(
-                            child: DropdownButton<int?>(
+                          data: (items) => Flexible(
+                            child: SettingsSelectField<int?>(
+                              title: context.l10n.pick('时间范围', 'Time range'),
+                              icon: Icons.calendar_month_outlined,
                               value: _year,
-                              hint: Text(context.l10n.pick('全部时间', 'All Time')),
-                              items: [
-                                DropdownMenuItem<int?>(
-                                  value: null,
-                                  child: Text(
-                                    context.l10n.pick('全部时间', 'All Time'),
-                                  ),
+                              choices: [
+                                SettingsChoice(
+                                  null,
+                                  context.l10n.pick('全部时间', 'All Time'),
                                 ),
                                 for (final y in items)
-                                  DropdownMenuItem<int?>(
-                                    value: y,
-                                    child: Text(
-                                      context.l10n.pick('$y 年', '$y'),
-                                    ),
+                                  SettingsChoice(
+                                    y,
+                                    context.l10n.pick('$y 年', '$y'),
                                   ),
                               ],
-                              onChanged: (v) => setState(() => _year = v),
+                              onChanged: (year) => setState(() => _year = year),
                             ),
                           ),
                           loading: () => const SizedBox.shrink(),

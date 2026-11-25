@@ -315,25 +315,17 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
     if (length < 2) return;
 
     final progress = ValueNotifier<int>(0);
-    final navigator = Navigator.of(context, rootNavigator: true);
-    unawaited(
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => nonDismissibleProgressDialog(
-          title: Text(context.l10n.pick('正在检查队列', 'Checking Queue')),
-          content: ValueListenableBuilder<int>(
-            valueListenable: progress,
-            builder: (_, done, _) => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LinearProgressIndicator(value: length == 0 ? 0 : done / length),
-                const SizedBox(height: LekisSpacing.md),
-                Text('$done / $length'),
-              ],
-            ),
-          ),
-        ),
+    final closeProgress = showProgressPanel(
+      context,
+      title: context.l10n.pick('正在检查队列', 'Checking Queue'),
+      progress: progress,
+      builder: (done) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          LinearProgressIndicator(value: length == 0 ? 0 : done / length),
+          const SizedBox(height: LekisSpacing.md),
+          Text('$done / $length'),
+        ],
       ),
     );
 
@@ -362,8 +354,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
         if (page.length < 500) break;
       }
     } catch (e) {
-      if (navigator.mounted && navigator.canPop()) navigator.pop();
-      progress.dispose();
+      await closeProgress();
       if (context.mounted) {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
@@ -377,8 +368,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
       }
       return;
     }
-    if (navigator.mounted && navigator.canPop()) navigator.pop();
-    progress.dispose();
+    await closeProgress();
     if (!context.mounted) return;
 
     if (duplicates.isEmpty) {
@@ -730,25 +720,17 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
     if (name == null || name.isEmpty || !context.mounted) return;
     if (!mounted) return;
     final progress = ValueNotifier<int>(0);
-    final navigator = Navigator.of(context, rootNavigator: true);
-    unawaited(
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => nonDismissibleProgressDialog(
-          title: Text(l10n.pick('正在保存歌单', 'Saving Playlist')),
-          content: ValueListenableBuilder<int>(
-            valueListenable: progress,
-            builder: (_, done, _) => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LinearProgressIndicator(value: (done / length).clamp(0.0, 1.0)),
-                const SizedBox(height: LekisSpacing.md),
-                Text('$done / $length'),
-              ],
-            ),
-          ),
-        ),
+    final closeProgress = showProgressPanel(
+      context,
+      title: l10n.pick('正在保存歌单', 'Saving Playlist'),
+      progress: progress,
+      builder: (done) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          LinearProgressIndicator(value: (done / length).clamp(0.0, 1.0)),
+          const SizedBox(height: LekisSpacing.md),
+          Text('$done / $length'),
+        ],
       ),
     );
     var saved = 0;
@@ -816,8 +798,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel>
           );
       }
     } finally {
-      if (navigator.mounted && navigator.canPop()) navigator.pop();
-      progress.dispose();
+      await closeProgress();
     }
   }
 

@@ -1,5 +1,8 @@
 // 歌单详情：普通歌单可增删 / 上下移动；智能歌单展示实时规则结果。
 
+import 'package:lekis/src/widgets/adaptive_panel.dart';
+import 'package:lekis/src/widgets/progress_dialog.dart';
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -298,11 +301,11 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
       }
       return;
     }
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: Text(PlaylistStrings.removeSelectedTitle(entries.length)),
-        content: Text(PlaylistStrings.removeSelectedBody(entries.length)),
+    final confirmed = await showLekisPanel<bool>(
+      context,
+      builder: (dialog) => LekisPanel(
+        title: PlaylistStrings.removeSelectedTitle(entries.length),
+        body: Text(PlaylistStrings.removeSelectedBody(entries.length)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialog).pop(false),
@@ -318,34 +321,21 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
     if (confirmed != true || !mounted) return;
 
     final progress = ValueNotifier<int>(0);
-    final navigator = Navigator.of(context, rootNavigator: true);
-    unawaited(
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => PopScope(
-          // Without this the system back button dismisses the dialog and the
-          // final pop() below would pop the playlist page instead.
-          canPop: false,
-          child: AlertDialog(
-            title: Text(PlaylistStrings.removingSelected),
-            content: ValueListenableBuilder<int>(
-              valueListenable: progress,
-              builder: (_, done, _) => Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  LinearProgressIndicator(
-                    value: entries.isEmpty
-                        ? 0
-                        : (done / entries.length).clamp(0.0, 1.0),
-                  ),
-                  const SizedBox(height: LekisSpacing.md),
-                  Text('$done / ${entries.length}'),
-                ],
-              ),
-            ),
+    final closeProgress = showProgressPanel(
+      context,
+      title: PlaylistStrings.removingSelected,
+      progress: progress,
+      builder: (done) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          LinearProgressIndicator(
+            value: entries.isEmpty
+                ? 0
+                : (done / entries.length).clamp(0.0, 1.0),
           ),
-        ),
+          const SizedBox(height: LekisSpacing.md),
+          Text('$done / ${entries.length}'),
+        ],
       ),
     );
 
@@ -378,8 +368,7 @@ class _StaticPlaylistBodyState extends ConsumerState<_StaticPlaylistBody> {
     } catch (e) {
       if (mounted) showPlaylistError(context, e);
     } finally {
-      if (navigator.mounted && navigator.canPop()) navigator.pop();
-      progress.dispose();
+      await closeProgress();
       if (mounted) {
         setState(() {
           _selecting = false;

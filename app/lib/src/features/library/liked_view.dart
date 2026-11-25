@@ -1,5 +1,7 @@
 // "喜欢的歌曲" 视图：直接读核心的 loved_tracks，不建虚拟歌单。
 
+import 'package:lekis/src/widgets/adaptive_panel.dart';
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -46,27 +48,19 @@ class LikedSongsView extends ConsumerWidget {
   ) async {
     if (total == 0) return;
     final progress = ValueNotifier<int>(0);
-    final navigator = Navigator.of(context, rootNavigator: true);
-    unawaited(
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => nonDismissibleProgressDialog(
-          title: Text(context.l10n.pick('正在收集喜欢的歌曲', 'Collecting Liked Songs')),
-          content: ValueListenableBuilder<int>(
-            valueListenable: progress,
-            builder: (_, done, _) => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LinearProgressIndicator(
-                  value: total <= 0 ? 0 : (done / total).clamp(0.0, 1.0),
-                ),
-                const SizedBox(height: LekisSpacing.md),
-                Text('$done / $total'),
-              ],
-            ),
+    final closeProgress = showProgressPanel(
+      context,
+      title: context.l10n.pick('正在收集喜欢的歌曲', 'Collecting Liked Songs'),
+      progress: progress,
+      builder: (done) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          LinearProgressIndicator(
+            value: total <= 0 ? 0 : (done / total).clamp(0.0, 1.0),
           ),
-        ),
+          const SizedBox(height: LekisSpacing.md),
+          Text('$done / $total'),
+        ],
       ),
     );
 
@@ -81,8 +75,7 @@ class LikedSongsView extends ConsumerWidget {
         progress.value = offset;
         if (page.length < 500) break;
       }
-      if (navigator.mounted && navigator.canPop()) navigator.pop();
-      progress.dispose();
+      await closeProgress();
       if (!context.mounted) return;
       final stamp = DateTime.now()
           .toString()
@@ -95,8 +88,7 @@ class LikedSongsView extends ConsumerWidget {
         suggestedName: '${context.l10n.pick('喜欢的歌曲', 'Liked Songs')} $stamp',
       );
     } catch (e) {
-      if (navigator.mounted && navigator.canPop()) navigator.pop();
-      progress.dispose();
+      await closeProgress();
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -113,11 +105,11 @@ class LikedSongsView extends ConsumerWidget {
     WidgetRef ref,
     int total,
   ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: Text(context.l10n.pick('下载喜欢的歌曲？', 'Download Liked Songs?')),
-        content: Text(
+    final confirmed = await showLekisPanel<bool>(
+      context,
+      builder: (dialog) => LekisPanel(
+        title: context.l10n.pick('下载喜欢的歌曲？', 'Download Liked Songs?'),
+        body: Text(
           context.l10n.pick(
             '将把 $total 首喜欢的歌曲加入下载队列，已在本机的曲目会跳过。',
             'This queues the $total liked songs for download, skipping tracks already on this device.',
@@ -138,27 +130,19 @@ class LikedSongsView extends ConsumerWidget {
     if (confirmed != true || !context.mounted) return;
 
     final progress = ValueNotifier<int>(0);
-    final navigator = Navigator.of(context, rootNavigator: true);
-    unawaited(
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => nonDismissibleProgressDialog(
-          title: Text(context.l10n.pick('正在准备下载', 'Preparing Downloads')),
-          content: ValueListenableBuilder<int>(
-            valueListenable: progress,
-            builder: (_, done, _) => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LinearProgressIndicator(
-                  value: total <= 0 ? 0 : (done / total).clamp(0.0, 1.0),
-                ),
-                const SizedBox(height: LekisSpacing.md),
-                Text('$done / $total'),
-              ],
-            ),
+    final closeProgress = showProgressPanel(
+      context,
+      title: context.l10n.pick('正在准备下载', 'Preparing Downloads'),
+      progress: progress,
+      builder: (done) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          LinearProgressIndicator(
+            value: total <= 0 ? 0 : (done / total).clamp(0.0, 1.0),
           ),
-        ),
+          const SizedBox(height: LekisSpacing.md),
+          Text('$done / $total'),
+        ],
       ),
     );
 
@@ -178,7 +162,7 @@ class LikedSongsView extends ConsumerWidget {
       final accepted = ids.isEmpty
           ? 0
           : await ref.read(downloadsProvider.notifier).downloadTracks(ids);
-      if (navigator.mounted && navigator.canPop()) navigator.pop();
+      await closeProgress();
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -198,7 +182,7 @@ class LikedSongsView extends ConsumerWidget {
           ),
         );
     } catch (e) {
-      if (navigator.mounted && navigator.canPop()) navigator.pop();
+      await closeProgress();
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -207,8 +191,6 @@ class LikedSongsView extends ConsumerWidget {
             content: Text(context.l10n.pick('下载失败：$e', 'Download failed: $e')),
           ),
         );
-    } finally {
-      progress.dispose();
     }
   }
 

@@ -77,27 +77,19 @@ Future<bool> showAddTracksToPlaylistSheet(
   if (playlist == null || !context.mounted) return false;
 
   final progress = ValueNotifier<int>(0);
-  final navigator = Navigator.of(context, rootNavigator: true);
-  unawaited(
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => nonDismissibleProgressDialog(
-        title: Text(PlaylistStrings.addingTracks),
-        content: ValueListenableBuilder<int>(
-          valueListenable: progress,
-          builder: (_, done, _) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              LinearProgressIndicator(
-                value: total == 0 ? 0 : (done / total).clamp(0.0, 1.0),
-              ),
-              const SizedBox(height: LekisSpacing.md),
-              Text('$done / $total'),
-            ],
-          ),
+  final closeProgress = showProgressPanel(
+    context,
+    title: PlaylistStrings.addingTracks,
+    progress: progress,
+    builder: (done) => Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        LinearProgressIndicator(
+          value: total == 0 ? 0 : (done / total).clamp(0.0, 1.0),
         ),
-      ),
+        const SizedBox(height: LekisSpacing.md),
+        Text('$done / $total'),
+      ],
     ),
   );
 
@@ -146,7 +138,7 @@ Future<bool> showAddTracksToPlaylistSheet(
       ref.invalidate(playlistsProvider);
       ref.invalidate(playlistEntriesProvider(playlist.id));
     }
-    if (navigator.mounted && navigator.canPop()) navigator.pop();
+    await closeProgress();
     if (context.mounted) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -165,7 +157,7 @@ Future<bool> showAddTracksToPlaylistSheet(
     }
     return added > 0 || already > 0;
   } catch (e) {
-    if (navigator.mounted && navigator.canPop()) navigator.pop();
+    await closeProgress();
     if (context.mounted) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -176,8 +168,6 @@ Future<bool> showAddTracksToPlaylistSheet(
         );
     }
     return false;
-  } finally {
-    progress.dispose();
   }
 }
 
