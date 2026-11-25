@@ -30,7 +30,7 @@ windows = { version = "0.62", features = [
   "Win32_UI_WindowsAndMessaging",
 ] }
 
-# Win32 / Direct2D 是 FFI：Windows 后端需要 unsafe（见 docs/adr/0008-desktop-lyrics-native-window.md）。
+# Win32 / Direct2D 是 FFI：Windows 后端需要 unsafe。
 # 与平台无关的部分（timeline / placement / model）不写 unsafe。
 [lints.rust]
 missing_docs = "warn"

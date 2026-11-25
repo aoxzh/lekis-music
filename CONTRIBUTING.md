@@ -2,9 +2,9 @@
 
 ## 1. 开始之前
 
-1. 读 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，搞清楚你要改的代码属于哪一层、允许依赖谁。
-2. 在 [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) 里找到对应的需求编号（例如 `LIB-05`、`PLY-01`），PR 标题和描述里要写上。
-3. 如果你的改动违反了架构文档里的任何一条规则，或者要引入新的重要依赖，**先写 ADR，评审通过后再写代码**。
+1. 先看 [README](README.md) 里的目录结构，搞清楚你要改的代码属于哪一层：业务逻辑放在 Rust 核心（`core/`），Flutter 端（`app/`）只负责显示和交互。
+2. 如果知道对应的需求编号（例如 `LIB-05`、`PLY-01`），写进 PR 标题和描述；不知道可以不写。
+3. 如果要改变分层、线程模型、FFI 方式或引入新的重要依赖，**先写 ADR，评审通过后再写代码**。
 
 ## 2. 分支
 
@@ -42,11 +42,11 @@ refactor(bridge): 把 TrackDto 拆成列表用和详情用两种
 
 以下情况需要写 ADR：引入新的第三方依赖（核心层）、新增或拆分 crate、改变线程模型、改变 FFI 方式、改变数据存储方式、改变插件协议。
 
-复制 [docs/adr/0000-template.md](docs/adr/0000-template.md)，编号递增，状态从"提议"开始，评审通过后改为"已采纳"。
+参照 [docs/adr/](docs/adr/) 里现有的 ADR 格式，编号递增，状态从"提议"开始，评审通过后改为"已采纳"。
 
 ## 6. 复用与许可证
 
-项目许可证是 **MPL-2.0**，原则是**复用优先**：写新模块前先查 [docs/REUSE.md](docs/REUSE.md)，能用现成的库或代码就不要自己写。完整规则见 [ADR-0007](docs/adr/0007-license-and-reuse-first.md)，简单说：
+项目许可证是 **MPL-2.0**，原则是**复用优先**：能用现成的库或代码就不要自己写。规则：
 
 - ✅ MIT、Apache-2.0、BSD、ISC、Zlib、MPL-2.0、CC0：可以作为依赖，也可以**直接拷代码**（保留原版权头，登记到 `THIRD_PARTY_NOTICES.md`，提交说明写清来源）。
 - 🟡 LGPL：只能动态链接或作为可替换组件，单独评审。

@@ -4,7 +4,7 @@
 //! - 多个只读连接处理查询（[`Library::read`]），WAL 模式下读写互不阻塞；
 //! - 表结构只能通过 `migrations/` 下的迁移文件修改。
 //!
-//! **数据库文件必须在本机**，不能放在网络共享上（ADR-0004）。
+//! **数据库文件必须在本机**，不能放在网络共享上。
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 

@@ -20,7 +20,7 @@
 //! 独占 / 比特完美链路目前**不是无缝的**：WASAPI 独占格式按每首歌协商，曲目结束时
 //! 引擎会重建会话（有缝回退）。共享模式仍然保持样本级无缝（PLY-01）。
 //!
-//! 线程模型（docs/ARCHITECTURE.md 第 3 节）：
+//! 线程模型：
 //! - 解码在专用 `std::thread` 上跑（`open_decoder` 需要 `Handle::block_on`，不能待在 tokio worker 上）；
 //! - 实时回调只从环形缓冲里 `pop_slice`，不分配、不加锁、不做 IO、不打日志；
 //! - 引擎（tokio 任务）只读 [`RingProgress`] 里的原子量来算播放位置。

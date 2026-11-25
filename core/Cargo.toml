@@ -21,7 +21,7 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.85"
 publish = false
-# 许可证待定（见 REQUIREMENTS 第 5 章），确定前不要发布任何 crate。
+# 暂不发布任何 crate 到 crates.io。
 
 [workspace.dependencies]
 # ---- 内部 crate ----

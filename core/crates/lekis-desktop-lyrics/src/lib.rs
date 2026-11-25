@@ -1,7 +1,7 @@
 //! 桌面悬浮歌词（UIX-07）。
 //!
 //! 一个 Rust 自己持有的原生窗口，不经过 Flutter：第二个 Flutter 引擎要多 40–80 MB，
-//! 官方多窗口 API 仍是实验性的（见 docs/adr/0008-desktop-lyrics-native-window.md）。
+//! 官方多窗口 API 仍是实验性的。
 //!
 //! - 宿主（桥接层）在换曲时推一次整首歌词（[`DesktopLyrics::set_lyrics`]），
 //!   并把核心的播放时钟（约 200ms 一次）转给 [`DesktopLyrics::set_clock`]；

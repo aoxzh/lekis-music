@@ -1,9 +1,7 @@
 # Lekis Flutter 客户端
 
-Lekis Music 的 UI，一套 Flutter 代码覆盖 Windows 和 Android（Beta 起加 macOS / iOS / Linux）。所有业务逻辑在 Rust 核心里（[`../core`](../core)），这里只负责显示和交互。
+Lekis Music 的 UI，一套 Flutter 代码覆盖所有平台。所有业务逻辑在 Rust 核心里（[`../core`](../core)），这里只负责显示和交互。
 
-- 代码结构和分层规则：[docs/ARCHITECTURE.md 第 7 节](../docs/ARCHITECTURE.md)
-- 编码规范：[docs/CODING_GUIDELINES.md](../docs/CODING_GUIDELINES.md)
 - 环境和构建命令：[根目录 README](../README.md#常用命令)
 
 要点：

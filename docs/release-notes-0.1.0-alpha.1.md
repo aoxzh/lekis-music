@@ -8,7 +8,6 @@
 
 - 只有 Android APK（arm64-v8a）和 Windows x64 免安装 zip。
 - macOS、iOS、Linux 不在这个版本里，Beta 跟进。
-- 代码在 `phase-0` 分支；Alpha 的四条退出标准还没全部达成，进度见 [HANDOFF.md](HANDOFF.md)。
 
 ## 能用的部分
 

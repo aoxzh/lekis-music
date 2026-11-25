@@ -625,7 +625,7 @@ class _ResumeProgress extends ConsumerWidget {
   }
 }
 
-/// 首页基于真实资料库数据的快捷电台 / 场景胶囊条（DESIGN.md §3）。
+/// 首页基于真实资料库数据的快捷电台 / 场景胶囊条。
 ///
 /// 绝不展示写死的虚构分类：仅当用户确有喜欢曲目、常听记录或流派标签时才显示对应胶囊。
 class HomeQuickMixStrip extends StatelessWidget {

@@ -1,4 +1,4 @@
-//! 插件宿主（REQUIREMENTS 3.11 节，ADR-0003）。
+//! 插件宿主。
 //!
 //! - 清单格式的唯一定义：`plugin-sdk/schema/plugin.schema.json`，[`manifest::PluginManifest`] 必须和它一致；
 //! - 能力即导出函数：调用插件就是"调用某个导出函数，传一个 JSON 对象，拿回一个 JSON 对象"；

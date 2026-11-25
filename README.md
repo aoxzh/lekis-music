@@ -200,7 +200,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release history.
 ├── plugin-sdk/            Plugin protocol (JSON Schema / TS SDK / WIT / examples)
 ├── design/                Design tokens
 ├── tools/                 Build, packaging, privacy check & icon scripts
-└── docs/                  Architecture, requirements, roadmap, ADRs
+└── docs/                  Release notes, screenshots, ADRs
 ```
 
 </details>

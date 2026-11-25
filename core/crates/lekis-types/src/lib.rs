@@ -1,6 +1,6 @@
 //! Lekis 的领域模型、强类型 ID、错误和事件。
 //!
-//! 规则（见 docs/ARCHITECTURE.md 第 2 节）：这个 crate 只放纯数据，
+//! 规则：这个 crate 只放纯数据，
 //! 不能依赖 tokio、rusqlite、reqwest 等任何 IO 库。
 
 pub mod error;

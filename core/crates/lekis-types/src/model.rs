@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 // 音源
 // ---------------------------------------------------------------------------
 
-/// 音源类型（REQUIREMENTS 3.1 节）。
+/// 音源类型。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SourceKind {

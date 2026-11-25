@@ -1,7 +1,7 @@
 //! 浏览维度（LIB-06）：专辑、艺人、流派。
 //!
 //! 曲目列表在 `tracks.rs`，这里补上"换一个维度看同一批数据"的部分。
-//! 所有列表查询都必须分页（`docs/ARCHITECTURE.md`），所以每个方法都收 `offset` / `limit`。
+//! 所有列表查询都必须分页，所以每个方法都收 `offset` / `limit`。
 
 use crate::db::DbResultExt;
 use crate::Library;

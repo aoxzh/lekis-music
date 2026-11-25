@@ -1,6 +1,6 @@
 # Lekis 插件 SDK
 
-对外开放的插件协议。设计见 [REQUIREMENTS 3.11](../docs/REQUIREMENTS.md#311-开放插件平台plugins--developer-ecosystem) 和 [ADR-0003](../docs/adr/0003-plugins-js-first.md)。
+对外开放的插件协议。
 
 | 目录 | 内容 | 状态 |
 |---|---|---|

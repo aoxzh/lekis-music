@@ -1,4 +1,4 @@
-//! 部分读取：扫描网络共享时只读文件的头部和尾部（REQUIREMENTS 3.2 节、NFR-03）。
+//! 部分读取：扫描网络共享时只读文件的头部和尾部（NFR-03）。
 //!
 //! - 头部：ID3v2、FLAC metadata block、MP4 `moov`（大多数情况下在前面）、Vorbis comment。
 //! - 尾部：ID3v1（128 字节）、APEv2、Lyrics3。

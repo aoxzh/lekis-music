@@ -8,7 +8,7 @@
 //! `core/crates/lekis-providers/src/md5.rs` 里已经有一份同样用途的实现（Subsonic 的
 //! `t = md5(password + salt)`）。`lekis-enrich` **不能**依赖 `lekis-providers`：
 //! 前者是"元数据补全"的底层能力，后者是"音乐源客户端"，补全不该被某个源客户端拖进来
-//! （两个 crate 也不互相依赖，见 `docs/ARCHITECTURE.md` 的分层说明）。workspace 里也没
+//! （两个 crate 也不互相依赖）。workspace 里也没
 //! 有 `md-5` crate，为 20 行算法加一个依赖同样不划算。
 //!
 //! 因此这里保留一份副本：算法、常量表和测试向量与 `lekis-providers` 那份完全一致

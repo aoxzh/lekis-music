@@ -8,7 +8,7 @@ publish.workspace = true
 
 [dependencies]
 lekis-types.workspace = true
-# 领域 crate 之间只允许依赖 types / vfs（见 docs/ARCHITECTURE.md）：
+# 领域 crate 之间只允许依赖 types / vfs：
 # 播放要按 Range 从 VFS 流式读取音频，所以这里依赖 lekis-vfs 是允许的。
 lekis-vfs.workspace = true
 tokio.workspace = true
