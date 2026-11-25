@@ -1,9 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:lekis/src/theme/theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lekis/src/features/library/folders_view.dart';
 import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/sources/sources_providers.dart';
-import 'package:lekis/src/rust/api/core.dart' show FolderRootDto;
+import 'package:lekis/src/rust/api/core.dart'
+    show FolderRootDto, FolderListingDto, FolderEntryDto;
 import 'package:lekis/src/rust/api/dto.dart';
 
 class _Sources extends SourcesNotifier {
@@ -46,6 +49,72 @@ void main() {
       expect(roots.map((root) => root.sourceId), ids);
     }
   });
+
+  testWidgets(
+    'folder menus and breadcrumbs keep the parent route and its scroll offset',
+    (tester) async {
+      final container = ProviderContainer.test(
+        overrides: [
+          scopedFolderRootsProvider.overrideWith(
+            (ref, scope) async => [
+              const FolderRootDto(sourceId: 1, name: 'Music', trackCount: 30),
+            ],
+          ),
+          folderListingProvider.overrideWith(
+            (ref, key) async => FolderListingDto(
+              folders: key.path.isEmpty
+                  ? [
+                      for (var i = 0; i < 30; i++)
+                        FolderEntryDto(
+                          name: 'Disc $i',
+                          path: 'Disc $i',
+                          trackCount: 1,
+                        ),
+                    ]
+                  : const [],
+              trackCount: 0,
+            ),
+          ),
+          folderTracksListProvider.overrideWith((ref, key) {
+            final list = PagedList<TrackRowDto>(fetch: (_, _) async => []);
+            ref.onDispose(list.dispose);
+            return list;
+          }),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: lekisDarkTheme(),
+            home: const Scaffold(body: FoldersView()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      Future<void> openFolder(String name) async {
+        await tester.tap(find.byTooltip('更多操作：$name'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('打开文件夹'));
+        await tester.pumpAndSettle();
+      }
+
+      await openFolder('Music');
+      final menu = find.byTooltip('更多操作：Disc 20');
+      await tester.ensureVisible(menu);
+      await tester.pumpAndSettle();
+      final before = tester.getCenter(menu);
+      await openFolder('Disc 20');
+      expect(find.text('没有子文件夹'), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(tester.getCenter(menu), before);
+      await openFolder('Disc 20');
+      await tester.tap(find.widgetWithText(TextButton, '音源'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('更多操作：Music'), findsOneWidget);
+    },
+  );
 
   test('folder location splits its path for breadcrumbs', () {
     const location = FolderLocation(

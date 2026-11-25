@@ -20,6 +20,7 @@ class ArtworkCardFrame extends StatefulWidget {
     this.subtitle,
     this.selected = false,
     this.semanticLabel,
+    this.menu,
   });
 
   final VoidCallback onTap;
@@ -28,6 +29,7 @@ class ArtworkCardFrame extends StatefulWidget {
   final String? subtitle;
   final bool selected;
   final String? semanticLabel;
+  final Widget? menu;
 
   /// Height of the text block below the artwork (for fixed-height shelves).
   static double textBlockHeight(BuildContext context) {
@@ -90,25 +92,54 @@ class _ArtworkCardFrameState extends State<ArtworkCardFrame> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                AnimatedScale(
-                  scale: scale,
-                  duration: LekisMotion.fast,
-                  curve: Curves.easeOutCubic,
-                  child: DecoratedBox(
-                    position: DecorationPosition.foreground,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(
-                        LekisRadius.artworkGrid,
+                Stack(
+                  children: [
+                    AnimatedScale(
+                      scale: scale,
+                      duration: LekisMotion.fast,
+                      curve: Curves.easeOutCubic,
+                      child: DecoratedBox(
+                        position: DecorationPosition.foreground,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(
+                            LekisRadius.artworkGrid,
+                          ),
+                          border: widget.selected
+                              ? Border.all(
+                                  color: colors.accent,
+                                  width: LekisSpacing.xxs,
+                                )
+                              : null,
+                        ),
+                        child: widget.artwork,
                       ),
-                      border: widget.selected
-                          ? Border.all(
-                              color: colors.accent,
-                              width: LekisSpacing.xxs,
-                            )
-                          : null,
                     ),
-                    child: widget.artwork,
-                  ),
+                    if (widget.menu != null)
+                      PositionedDirectional(
+                        top: 0,
+                        end: 0,
+                        child: Material(
+                          type: MaterialType.transparency,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: colors.surfaceElevated.withValues(
+                                    alpha: 0.91,
+                                  ),
+                                ),
+                                child: const SizedBox.square(
+                                  dimension: LekisSpacing.xl + LekisSpacing.xs,
+                                ),
+                              ),
+                              widget.menu!,
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: LekisSpacing.sm),
                 Text(
@@ -293,12 +324,14 @@ class AlbumCard extends StatelessWidget {
     this.selected = false,
     this.heroTag,
     this.useListedArtwork = false,
+    this.menu,
   });
 
   final AlbumDto album;
   final VoidCallback onTap;
   final bool selected;
   final bool useListedArtwork;
+  final Widget? menu;
 
   /// Pass the same tag to `AlbumDetailPage.route` for a cover flight.
   final Object? heroTag;
@@ -312,6 +345,7 @@ class AlbumCard extends StatelessWidget {
     return ArtworkCardFrame(
       onTap: onTap,
       selected: selected,
+      menu: menu,
       artwork: AspectRatio(
         aspectRatio: 1,
         child: useListedArtwork
