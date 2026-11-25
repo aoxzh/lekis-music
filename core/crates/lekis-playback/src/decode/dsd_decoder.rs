@@ -282,9 +282,10 @@ impl<R: Read + Seek + Send> Decoder for DsdAudioDecoder<R> {
             out.reserve(usable * nch);
             // DSD 基准电平比 PCM 低 6 dB（SACD 规范）；用 +6 dB（2×）补偿回常规响度并限幅到 [-1, 1]。
             let scale = GRID_TO_UNIT * 2.0;
+            #[allow(clippy::needless_range_loop)]
             for i in skip..skip + usable {
-                for ch in 0..nch {
-                    let s = (self.pcm_ch_bufs[ch][i] * scale).clamp(-1.0, 1.0) as f32;
+                for ch_buf in self.pcm_ch_bufs.iter().take(nch) {
+                    let s = (ch_buf[i] * scale).clamp(-1.0, 1.0) as f32;
                     out.push(s);
                 }
             }
@@ -366,6 +367,7 @@ impl<R: Read + Seek + Send> Decoder for DsdAudioDecoder<R> {
                 decimator::quantise(&self.pcm_ch_bufs[ch][skip..skip + usable], gain, q_buf);
             }
             out.reserve(usable * nch);
+            #[allow(clippy::needless_range_loop)]
             for i in 0..usable {
                 for ch_buf in &q_ch {
                     // 24-bit 有符号整数左对齐到高 24 位（PLY-05）。
