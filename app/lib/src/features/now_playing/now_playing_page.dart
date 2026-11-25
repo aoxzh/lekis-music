@@ -919,90 +919,94 @@ class _NowPlayingSubtitle extends ConsumerWidget {
     return LayoutBuilder(
       // The artist keeps its natural width (a name cut down to one
       // character is useless as a link) and is capped at 45%; the album
-      // takes the rest of the line and ellipsises.
-      builder: (context, constraints) => Row(
-        key: const ValueKey('now-playing.subtitle'),
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (hasArtist)
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: hasAlbum || hasQuality || exclusive
-                    ? constraints.maxWidth * 0.45
-                    : constraints.maxWidth,
-              ),
-              child: _SubtitleLink(
-                label: artistNames,
-                style: subtitleStyle,
-                semanticsLabel: context.l10n.pick(
-                  '查看艺人 $artistNames',
-                  'View artist $artistNames',
+      // takes the rest of the line and ellipsises. Cap the system text
+      // scale so the three single-line segments (artist · album · quality)
+      // still fit one row at the largest accessibility sizes.
+      builder: (context, constraints) => MediaQuery.withClampedTextScaling(
+        maxScaleFactor: 1.5,
+        child: Row(
+          key: const ValueKey('now-playing.subtitle'),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasArtist)
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: hasAlbum || hasQuality || exclusive
+                      ? constraints.maxWidth * 0.45
+                      : constraints.maxWidth,
                 ),
-                onTap: () => openNowPlayingArtist(context, ref, artists),
+                child: _SubtitleLink(
+                  label: artistNames,
+                  style: subtitleStyle,
+                  semanticsLabel: context.l10n.pick(
+                    '查看艺人 $artistNames',
+                    'View artist $artistNames',
+                  ),
+                  onTap: () => openNowPlayingArtist(context, ref, artists),
+                ),
+              )
+            else
+              Flexible(
+                child: Text(context.l10n.unknownArtist, style: subtitleStyle),
               ),
-            )
-          else
-            Flexible(
-              child: Text(context.l10n.unknownArtist, style: subtitleStyle),
-            ),
-          if (hasArtist && hasAlbum) Text(' · ', style: subtitleStyle),
-          if (hasAlbum)
-            Flexible(
-              child: albumId == null
-                  ? Text(
-                      album,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: subtitleStyle,
-                    )
-                  : _SubtitleLink(
-                      label: album,
-                      style: subtitleStyle,
-                      semanticsLabel: context.l10n.pick(
-                        '查看专辑 $album',
-                        'View album $album',
+            if (hasAlbum)
+              Flexible(
+                child: albumId == null
+                    ? Text(
+                        hasArtist ? ' · $album' : album,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: subtitleStyle,
+                      )
+                    : _SubtitleLink(
+                        label: album,
+                        prefix: hasArtist ? ' · ' : '',
+                        style: subtitleStyle,
+                        semanticsLabel: context.l10n.pick(
+                          '查看专辑 $album',
+                          'View album $album',
+                        ),
+                        onTap: () =>
+                            Navigator.of(context)
+                                .push(AlbumDetailPage.route(albumId.toInt())),
                       ),
-                      onTap: () =>
-                          Navigator.of(context)
-                              .push(AlbumDetailPage.route(albumId.toInt())),
-                    ),
-            ),
-          if (hasQuality) ...[
-            Text(' · ', style: subtitleStyle),
-            Flexible(
-              child: _SubtitleLink(
-                label: quality,
-                style: subtitleStyle?.copyWith(
+              ),
+            if (hasQuality)
+              Flexible(
+                child: _SubtitleLink(
+                  label: quality,
+                  prefix: ' · ',
+                  style: subtitleStyle?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  semanticsLabel: context.l10n.pick(
+                    '查看曲目来源',
+                    'View track sources',
+                  ),
+                  onTap: () => showTrackSourcesSheet(
+                    context,
+                    trackId: track.id.toInt(),
+                    title: track.title,
+                  ),
+                ),
+              ),
+            if (exclusive) ...[
+              const SizedBox(width: LekisSpacing.sm),
+              Tooltip(
+                message: context.l10n.pick(
+                  '独占模式：绕过系统混音',
+                  'Exclusive mode: bypasses the system mixer',
+                ),
+                child: Icon(
+                  Icons.high_quality_rounded,
+                  size: 18,
                   color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-                semanticsLabel: context.l10n.pick(
-                  '查看曲目来源',
-                  'View track sources',
-                ),
-                onTap: () => showTrackSourcesSheet(
-                  context,
-                  trackId: track.id.toInt(),
-                  title: track.title,
                 ),
               ),
-            ),
+            ],
           ],
-          if (exclusive) ...[
-            Text(' · ', style: subtitleStyle),
-            Tooltip(
-              message: context.l10n.pick(
-                '独占模式：绕过系统混音',
-                'Exclusive mode: bypasses the system mixer',
-              ),
-              child: Icon(
-                Icons.high_quality_rounded,
-                size: 18,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -1020,12 +1024,17 @@ class _SubtitleLink extends StatefulWidget {
     required this.style,
     required this.onTap,
     required this.semanticsLabel,
+    this.prefix = '',
   });
 
   final String label;
   final TextStyle? style;
   final VoidCallback onTap;
   final String semanticsLabel;
+
+  /// Visible separator kept inside the ellipsised label (e.g. `· `), so it
+  /// shrinks with the text instead of taking a fixed, unscrollable width.
+  final String prefix;
 
   @override
   State<_SubtitleLink> createState() => _SubtitleLinkState();
@@ -1052,7 +1061,7 @@ class _SubtitleLinkState extends State<_SubtitleLink> {
           onTap: widget.onTap,
           borderRadius: BorderRadius.circular(LekisRadius.xs),
           child: Text(
-            widget.label,
+            '${widget.prefix}${widget.label}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: widget.style?.copyWith(

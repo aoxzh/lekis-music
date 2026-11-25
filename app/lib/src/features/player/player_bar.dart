@@ -70,7 +70,16 @@ class PlayerBar extends ConsumerWidget {
       sleepTimerProvider.select((s) => s.active),
     );
     final colors = context.lekisColors;
-    const artSize = LekisSizes.desktopPlayerBarHeight - LekisSpacing.lg * 2;
+    // Secondary toggles (shuffle / repeat) fold away first when the bar gets
+    // narrow, so the transport never clips. The bar proper only appears on
+    // wide windows, but split-screen and freeform resizes can still squeeze
+    // it.
+    final compactBar = MediaQuery.sizeOf(context).width < 900;
+    // The artwork shrinks with the bar so the title link + heart still fit
+    // the left third at the narrowest widths.
+    final artSize = compactBar
+        ? LekisSizes.listArtwork
+        : LekisSizes.desktopPlayerBarHeight - LekisSpacing.lg * 2;
 
     void toggleSide(DesktopSidePane pane) => ref
         .read(desktopSidePaneProvider.notifier)
@@ -81,15 +90,15 @@ class PlayerBar extends ConsumerWidget {
         Flexible(
           child: _NowPlayingLink(
             enabled: hasTrack,
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 SizedBox.square(
                   dimension: artSize,
-                  child: CurrentArtwork(radius: LekisRadius.artworkList),
+                  child: const CurrentArtwork(radius: LekisRadius.artworkList),
                 ),
-                SizedBox(width: LekisSpacing.md),
-                Flexible(child: CurrentTrackText()),
+                const SizedBox(width: LekisSpacing.md),
+                const Flexible(child: CurrentTrackText()),
               ],
             ),
           ),
@@ -102,10 +111,13 @@ class PlayerBar extends ConsumerWidget {
       constraints: const BoxConstraints(
         maxWidth: LekisSizes.desktopSidebarWidth * 3,
       ),
-      child: const Column(
+      child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
-        children: [TransportControls(), SeekBar(inlineTimes: true)],
+        children: [
+          TransportControls(showModes: !compactBar),
+          const SeekBar(inlineTimes: true),
+        ],
       ),
     );
 
@@ -118,6 +130,7 @@ class PlayerBar extends ConsumerWidget {
         ),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           _BarToggle(
@@ -198,8 +211,14 @@ class PlayerBar extends ConsumerWidget {
               decoration: BoxDecoration(
                 border: Border(top: BorderSide(color: colors.outline)),
               ),
-              child: SizedBox(
-                height: LekisSizes.desktopPlayerBarHeight,
+              // The bar is at least the design height, but grows with the
+              // system text size so the transport labels and the seek times
+              // never clip (users who scale text up on the desktop still get
+              // the whole bar). A fixed height overflowed at 1.3x and above.
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: LekisSizes.desktopPlayerBarHeight,
+                ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: LekisSpacing.lg,
@@ -211,7 +230,14 @@ class PlayerBar extends ConsumerWidget {
                       const SizedBox(width: LekisSpacing.md),
                       Expanded(flex: 4, child: Center(child: center)),
                       const SizedBox(width: LekisSpacing.md),
-                      Expanded(flex: 4, child: right),
+                      Expanded(
+                        flex: 4,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: right,
+                        ),
+                      ),
                     ],
                   ),
                 ),

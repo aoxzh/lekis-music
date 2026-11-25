@@ -359,107 +359,115 @@ class TrackTile extends ConsumerWidget {
       button: true,
       selected: selected,
       label: '${track.title}, ${track.artistLine}',
-      child: PressFeedback(
-        child: InkWell(
-          onTap: onTap,
-          onLongPress: onLongPress,
-          onSecondaryTapUp: (details) =>
-              openContextMenu(details.globalPosition),
-          borderRadius: BorderRadius.circular(LekisRadius.sm),
-          child: ColoredBox(
-            color: selected ? colors.accentSoft : Colors.transparent,
-            child: SizedBox(
-              height: extent,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: LekisSpacing.sm,
-                ),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    // Metadata is secondary: on phones show just the codec,
-                    // never a full-width badge that squeezes the title.
-                    final compact = constraints.maxWidth < 560;
-                    final quality = track.qualityBadge;
-                    final qualityLabel = quality == null
-                        ? null
-                        : compact
-                        ? _compactQualityLabel(quality)
-                        : quality;
-                    final hasSubtitle = subtitle.isNotEmpty;
-                    return Row(
-                      children: [
-                        leading,
-                        const SizedBox(width: LekisSpacing.md),
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                track.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodyLarge?.copyWith(
-                                  color: isCurrent ? colors.accent : null,
-                                  fontWeight: isCurrent
-                                      ? FontWeight.w600
-                                      : null,
+      // Fixed 56 dp rows: cap the system text scale so a two-line title /
+      // artist still fits the row at the largest accessibility sizes
+      // instead of clipping (the row height is also the list's itemExtent).
+      child: MediaQuery.withClampedTextScaling(
+        maxScaleFactor: 1.3,
+        child: PressFeedback(
+          child: InkWell(
+            onTap: onTap,
+            onLongPress: onLongPress,
+            onSecondaryTapUp: (details) =>
+                openContextMenu(details.globalPosition),
+            borderRadius: BorderRadius.circular(LekisRadius.sm),
+            child: ColoredBox(
+              color: selected ? colors.accentSoft : Colors.transparent,
+              child: SizedBox(
+                height: extent,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: LekisSpacing.sm,
+                  ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      // Metadata is secondary: on phones show just the codec,
+                      // never a full-width badge that squeezes the title.
+                      final compact = constraints.maxWidth < 560;
+                      final quality = track.qualityBadge;
+                      final qualityLabel = quality == null
+                          ? null
+                          : compact
+                          ? _compactQualityLabel(quality)
+                          : quality;
+                      final hasSubtitle = subtitle.isNotEmpty;
+                      return Row(
+                        children: [
+                          leading,
+                          const SizedBox(width: LekisSpacing.md),
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  track.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodyLarge?.copyWith(
+                                    color: isCurrent ? colors.accent : null,
+                                    fontWeight: isCurrent
+                                        ? FontWeight.w600
+                                        : null,
+                                  ),
                                 ),
-                              ),
-                              if (hasSubtitle || qualityLabel != null)
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        subtitle,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(
-                                              color: colors.onSurfaceVariant,
-                                            ),
+                                if (hasSubtitle || qualityLabel != null)
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          subtitle,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: colors.onSurfaceVariant,
+                                              ),
+                                        ),
                                       ),
-                                    ),
-                                    if (qualityLabel != null) ...[
-                                      const SizedBox(width: LekisSpacing.xs),
-                                      _QualityBadge(label: qualityLabel),
+                                      if (qualityLabel != null) ...[
+                                        const SizedBox(width: LekisSpacing.xs),
+                                        _QualityBadge(label: qualityLabel),
+                                      ],
                                     ],
-                                  ],
-                                ),
-                            ],
+                                  ),
+                              ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: LekisSpacing.xs),
-                        CompactDownloadProgress(trackId: track.id),
-                        LovedButton(
-                          trackId: track.id,
-                          initialLoved: track.loved,
-                          size: LekisSpacing.lg,
-                        ),
-                        PopupMenuButton<_TrackMenuAction>(
-                          tooltip: context.l10n.pick('更多操作', 'More Actions'),
-                          padding: EdgeInsets.zero,
-                          onSelected: onMenu,
-                          itemBuilder: (_) => menuItems(),
-                          // A 36 dp row action, matching the heart; the same
-                          // menu still opens from a long press.
-                          child: const SizedBox(
-                            width: 36,
-                            height: 36,
-                            child: Icon(Icons.more_horiz_rounded, size: 20),
+                          const SizedBox(width: LekisSpacing.xs),
+                          CompactDownloadProgress(trackId: track.id),
+                          LovedButton(
+                            trackId: track.id,
+                            initialLoved: track.loved,
+                            size: LekisSpacing.lg,
                           ),
-                        ),
-                        const SizedBox(width: LekisSpacing.xs),
-                        Text(
-                          formatDuration(track.durationMs.toInt()),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colors.onSurfaceVariant,
-                            fontFeatures: const [FontFeature.tabularFigures()],
+                          PopupMenuButton<_TrackMenuAction>(
+                            tooltip: context.l10n.pick('更多操作', 'More Actions'),
+                            padding: EdgeInsets.zero,
+                            onSelected: onMenu,
+                            itemBuilder: (_) => menuItems(),
+                            // A 36 dp row action, matching the heart; the same
+                            // menu still opens from a long press.
+                            child: const SizedBox(
+                              width: 36,
+                              height: 36,
+                              child: Icon(Icons.more_horiz_rounded, size: 20),
+                            ),
                           ),
-                        ),
-                      ],
-                    );
-                  },
+                          const SizedBox(width: LekisSpacing.xs),
+                          Text(
+                            formatDuration(track.durationMs.toInt()),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                 ),
               ),
             ),

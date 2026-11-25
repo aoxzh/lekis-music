@@ -347,7 +347,15 @@ class MiniPlayerFace extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: LekisSpacing.md),
-          const Expanded(child: CurrentTrackText()),
+          // Two single-line labels inside a 56 dp capsule: cap the system
+          // text scale so the title and artist stay inside the glass
+          // instead of overflowing it at the largest accessibility sizes.
+          Expanded(
+            child: MediaQuery.withClampedTextScaling(
+              maxScaleFactor: 1.4,
+              child: const CurrentTrackText(),
+            ),
+          ),
           // Only when another Lekis is around (Connect); otherwise no room
           // is taken.
           const ConnectDeviceButton(),

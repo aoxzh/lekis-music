@@ -308,47 +308,53 @@ class _BandSlider extends StatelessWidget {
     final label = equalizerBandLabel(index);
     return SizedBox(
       width: 54,
-      child: Column(
-        children: [
-          SizedBox(
-            height: 22,
-            child: Text(
-              _dbLabel(value),
+      // The band graph is a fixed-height drawing (dB readout + 172 dp fader +
+      // frequency label). Cap the system text scale so the labels never push
+      // the fader out of its box at the largest accessibility sizes.
+      child: MediaQuery.withClampedTextScaling(
+        maxScaleFactor: 1.3,
+        child: Column(
+          children: [
+            SizedBox(
+              height: 22,
+              child: Text(
+                _dbLabel(value),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: value.abs() < 0.05
+                      ? colors.onSurfaceVariant
+                      : colors.accent,
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 172,
+              width: 40,
+              child: RotatedBox(
+                quarterTurns: 3,
+                child: LekisSlider(
+                  key: Key('equalizer-band-$index'),
+                  value: value,
+                  min: equalizerMinGainDb,
+                  max: equalizerMaxGainDb,
+                  divisions: 48,
+                  label: '$label Hz ${_dbLabel(value)}',
+                  semanticFormatterCallback: (value) =>
+                      '$label Hz ${_dbLabel(value)}',
+                  onChanged: onChanged,
+                  onChangeEnd: onChangeEnd,
+                  trackHeight: LekisSliderGeometry.track,
+                ),
+              ),
+            ),
+            const SizedBox(height: LekisSpacing.xs),
+            Text(
+              label,
               style: theme.textTheme.labelSmall?.copyWith(
-                color: value.abs() < 0.05
-                    ? colors.onSurfaceVariant
-                    : colors.accent,
+                color: colors.onSurfaceVariant,
               ),
             ),
-          ),
-          SizedBox(
-            height: 172,
-            width: 40,
-            child: RotatedBox(
-              quarterTurns: 3,
-              child: LekisSlider(
-                key: Key('equalizer-band-$index'),
-                value: value,
-                min: equalizerMinGainDb,
-                max: equalizerMaxGainDb,
-                divisions: 48,
-                label: '$label Hz ${_dbLabel(value)}',
-                semanticFormatterCallback: (value) =>
-                    '$label Hz ${_dbLabel(value)}',
-                onChanged: onChanged,
-                onChangeEnd: onChangeEnd,
-                trackHeight: LekisSliderGeometry.track,
-              ),
-            ),
-          ),
-          const SizedBox(height: LekisSpacing.xs),
-          Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: colors.onSurfaceVariant,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

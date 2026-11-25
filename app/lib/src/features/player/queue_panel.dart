@@ -1374,7 +1374,16 @@ class _QueueHeader extends StatelessWidget {
               color: colors.onSurfaceVariant,
             ),
             const SizedBox(width: LekisSpacing.sm),
-            Text(context.l10n.queue, style: theme.textTheme.titleMedium),
+            // The title shrinks (ellipsised) before the actions do, so the
+            // header still fits a phone at the largest text sizes.
+            Flexible(
+              child: Text(
+                context.l10n.queue,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
             const SizedBox(width: LekisSpacing.sm),
             _CountBadge(count: length),
             const Spacer(),
@@ -1598,73 +1607,78 @@ class _QueueRow extends StatelessWidget {
               color: current ? colors.accentSoft : null,
               borderRadius: BorderRadius.circular(LekisRadius.sm),
             ),
-            child: Row(
-              children: [
-                SizedBox.square(
-                  dimension: LekisSizes.listArtwork - LekisSpacing.md,
-                  child: TrackArtwork(
-                    trackId: row.id,
-                    hasArtwork: row.artworkId != null || !row.isLocal,
-                    radius: LekisRadius.artworkList,
-                    placeholderLabel: row.title,
-                  ),
-                ),
-                const SizedBox(width: LekisSpacing.sm),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        row.title.isEmpty
-                            ? context.l10n.pick('（已删除）', '(Deleted)')
-                            : row.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: current ? colors.accent : null,
-                          fontWeight: current ? FontWeight.w600 : null,
-                        ),
-                      ),
-                      Text(
-                        row.artistLine.isEmpty ? '—' : row.artistLine,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (current)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: LekisSpacing.xxs,
-                    ),
-                    child: Icon(
-                      Icons.graphic_eq_rounded,
-                      size: 18,
-                      color: colors.accent,
+            // Fixed 64 dp rows (the list's itemExtent): cap the system text
+            // scale so the two single-line labels never clip the row.
+            child: MediaQuery.withClampedTextScaling(
+              maxScaleFactor: 1.3,
+              child: Row(
+                children: [
+                  SizedBox.square(
+                    dimension: LekisSizes.listArtwork - LekisSpacing.md,
+                    child: TrackArtwork(
+                      trackId: row.id,
+                      hasArtwork: row.artworkId != null || !row.isLocal,
+                      radius: LekisRadius.artworkList,
+                      placeholderLabel: row.title,
                     ),
                   ),
-                _QueueAction(
-                  icon: Icons.keyboard_arrow_up_rounded,
-                  tooltip: context.l10n.pick('上移', 'Move up'),
-                  onPressed: onMoveUp,
-                ),
-                _QueueAction(
-                  icon: Icons.keyboard_arrow_down_rounded,
-                  tooltip: context.l10n.pick('下移', 'Move down'),
-                  onPressed: onMoveDown,
-                ),
-                _QueueAction(
-                  icon: Icons.close_rounded,
-                  tooltip: context.l10n.pick('从队列移除', 'Remove from Queue'),
-                  onPressed: onRemove,
-                  destructive: true,
-                ),
-              ],
+                  const SizedBox(width: LekisSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          row.title.isEmpty
+                              ? context.l10n.pick('（已删除）', '(Deleted)')
+                              : row.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: current ? colors.accent : null,
+                            fontWeight: current ? FontWeight.w600 : null,
+                          ),
+                        ),
+                        Text(
+                          row.artistLine.isEmpty ? '—' : row.artistLine,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (current)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: LekisSpacing.xxs,
+                      ),
+                      child: Icon(
+                        Icons.graphic_eq_rounded,
+                        size: 18,
+                        color: colors.accent,
+                      ),
+                    ),
+                  _QueueAction(
+                    icon: Icons.keyboard_arrow_up_rounded,
+                    tooltip: context.l10n.pick('上移', 'Move up'),
+                    onPressed: onMoveUp,
+                  ),
+                  _QueueAction(
+                    icon: Icons.keyboard_arrow_down_rounded,
+                    tooltip: context.l10n.pick('下移', 'Move down'),
+                    onPressed: onMoveDown,
+                  ),
+                  _QueueAction(
+                    icon: Icons.close_rounded,
+                    tooltip: context.l10n.pick('从队列移除', 'Remove from Queue'),
+                    onPressed: onRemove,
+                    destructive: true,
+                  ),
+                ],
+              ),
             ),
           ),
         ),

@@ -303,7 +303,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.descendant(of: subtitle, matching: find.text('夜航')),
+      find.descendant(of: subtitle, matching: find.textContaining('夜航')),
       findsOneWidget,
     );
     expect(
