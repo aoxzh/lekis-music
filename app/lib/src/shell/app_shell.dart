@@ -21,6 +21,7 @@ import 'package:lekis/src/features/now_playing/now_playing_route.dart';
 import 'package:lekis/src/features/player/mini_player.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/player_bar.dart';
+import 'package:lekis/src/features/settings/app_updater_provider.dart';
 import 'package:lekis/src/features/sources/sources_page.dart';
 import 'package:lekis/src/layout/window_size.dart';
 import 'package:lekis/src/platform/android_home_widget.dart';
@@ -119,6 +120,10 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   void _select(LekisDestination destination) {
+    if (destination == LekisDestination.settings) {
+      // 用户点进设置页时每天最多自动检测一次更新，当天不再重复触发。
+      unawaited(ref.read(appUpdaterProvider.notifier).checkOncePerDay());
+    }
     if (destination == _current) {
       // Re-selecting the active tab returns to its root.
       _currentNavigator?.popUntil((route) => route.isFirst);

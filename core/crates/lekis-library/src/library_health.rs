@@ -297,6 +297,22 @@ groups AS (
 )
 ";
 
+/// 缺封面检测条件（仅限本地音乐与 NAS 文件系统源，排除插件与媒体服务器音源）。
+/// 插件与媒体服务器有自己的封面拉取机制，不应被计入「缺封面」或送入本地补全队列。
+const MISSING_COVER_SQL: &str = "
+  b.effective_artwork_id IS NULL
+  AND (
+    NOT EXISTS (SELECT 1 FROM track_file tf WHERE tf.track_id = b.track_id)
+    OR EXISTS (
+      SELECT 1
+      FROM track_file tf
+      JOIN source s ON s.id = tf.source_id
+      WHERE tf.track_id = b.track_id
+        AND s.kind IN ('local', 'smb', 'webdav', 'nfs', 'sftp')
+    )
+  )
+";
+
 /// 假无损的简单启发式（别名必须是 `b`，表示 [`BEST_FILE_CTE`] 的 `best`）。
 const FAKE_LOSSLESS_SQL: &str = "
   ((b.audio_json IS NOT NULL AND json_valid(b.audio_json)
@@ -399,7 +415,7 @@ impl Library {
         let sql = format!(
             "{BEST_FILE_CTE}
              SELECT COUNT(*),
-                    COALESCE(SUM(CASE WHEN b.effective_artwork_id IS NULL THEN 1 ELSE 0 END), 0),
+                    COALESCE(SUM(CASE WHEN {MISSING_COVER_SQL} THEN 1 ELSE 0 END), 0),
                     COALESCE(SUM(CASE WHEN NOT EXISTS (
                         SELECT 1 FROM lyrics l
                         WHERE l.track_id = b.track_id AND l.is_active = 1
@@ -720,7 +736,7 @@ fn codec_name(codec: &Codec) -> &'static str {
 
 fn health_condition(kind: HealthIssueKind) -> &'static str {
     match kind {
-        HealthIssueKind::MissingCover => "b.effective_artwork_id IS NULL",
+        HealthIssueKind::MissingCover => MISSING_COVER_SQL,
         HealthIssueKind::MissingLyrics => {
             "NOT EXISTS (SELECT 1 FROM lyrics l WHERE l.track_id = b.track_id AND l.is_active = 1)"
         }
@@ -1293,6 +1309,99 @@ mod tests {
             .await?;
         assert_eq!(update.cleared, 1);
         assert_eq!(lib.library_health_summary().await?.unreadable_files, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn missing_cover_only_includes_local_and_nas_sources() -> Result<()> {
+        let lib = temp_library("health-missing-cover-scope")?;
+        let local_src = source(&lib).await?;
+        let plugin_src = lib
+            .add_source(SourceConfig {
+                id: None,
+                kind: SourceKind::Plugin,
+                name: "online-plugin".into(),
+                addresses: vec![],
+                root_path: "example.plugin".into(),
+                credential_ref: None,
+                options: BTreeMap::new(),
+                enabled: true,
+            })
+            .await?;
+        let nas_src = lib
+            .add_source(SourceConfig {
+                id: None,
+                kind: SourceKind::Smb,
+                name: "nas".into(),
+                addresses: vec!["smb://nas/music".into()],
+                root_path: "/".into(),
+                credential_ref: None,
+                options: BTreeMap::new(),
+                enabled: true,
+            })
+            .await?;
+
+        seed(
+            &lib,
+            local_src,
+            vec![track(
+                "local.flac",
+                "Local Song",
+                "Artist",
+                100_000,
+                Codec::Flac,
+                44_100,
+                Some(16),
+                Some(900),
+                10,
+            )],
+        )
+        .await?;
+        seed(
+            &lib,
+            nas_src,
+            vec![track(
+                "nas.flac",
+                "NAS Song",
+                "Artist",
+                100_000,
+                Codec::Flac,
+                44_100,
+                Some(16),
+                Some(900),
+                10,
+            )],
+        )
+        .await?;
+        lib.append_plugin_tracks(
+            plugin_src,
+            vec![crate::RemoteTrackRow {
+                external_album_id: None,
+                album_artists: vec![],
+                disc_no: None,
+                track_no: None,
+                external_id: "pl-1".into(),
+                title: "Plugin Song".into(),
+                artists: vec!["Artist".into()],
+                album: None,
+                duration_ms: 100_000,
+                mbid_recording: None,
+                quality_score: 50,
+            }],
+        )
+        .await?;
+
+        let summary = lib.library_health_summary().await?;
+        assert_eq!(summary.total_tracks, 3);
+        assert_eq!(
+            summary.missing_cover, 2,
+            "plugin track must not be counted in missing_cover"
+        );
+        let missing = lib
+            .library_health_page(HealthIssueKind::MissingCover, 0, 10)
+            .await?;
+        assert_eq!(missing.len(), 2);
+        assert!(missing.iter().all(|e| e.title != "Plugin Song"));
         Ok(())
     }
 }

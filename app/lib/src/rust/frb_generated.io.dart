@@ -4,6 +4,7 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api/alternate_source.dart';
+import 'api/artwork_search.dart';
 import 'api/cast.dart';
 import 'api/connect.dart';
 import 'api/core.dart';
@@ -77,6 +78,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ArtworkDto dco_decode_artwork_dto(dynamic raw);
+
+  @protected
+  ArtworkSearchResultDto dco_decode_artwork_search_result_dto(dynamic raw);
 
   @protected
   BatchTagWriteItemDto dco_decode_batch_tag_write_item_dto(dynamic raw);
@@ -360,6 +364,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ArtistListeningDto> dco_decode_list_artist_listening_dto(dynamic raw);
+
+  @protected
+  List<ArtworkSearchResultDto> dco_decode_list_artwork_search_result_dto(
+    dynamic raw,
+  );
 
   @protected
   List<BatchTagWriteItemDto> dco_decode_list_batch_tag_write_item_dto(
@@ -956,6 +965,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ArtworkDto sse_decode_artwork_dto(SseDeserializer deserializer);
 
   @protected
+  ArtworkSearchResultDto sse_decode_artwork_search_result_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   BatchTagWriteItemDto sse_decode_batch_tag_write_item_dto(
     SseDeserializer deserializer,
   );
@@ -1323,6 +1337,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ArtistListeningDto> sse_decode_list_artist_listening_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ArtworkSearchResultDto> sse_decode_list_artwork_search_result_dto(
     SseDeserializer deserializer,
   );
 
@@ -2079,6 +2098,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_artwork_dto(ArtworkDto self, SseSerializer serializer);
 
   @protected
+  void sse_encode_artwork_search_result_dto(
+    ArtworkSearchResultDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_batch_tag_write_item_dto(
     BatchTagWriteItemDto self,
     SseSerializer serializer,
@@ -2540,6 +2565,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_artist_listening_dto(
     List<ArtistListeningDto> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_artwork_search_result_dto(
+    List<ArtworkSearchResultDto> self,
     SseSerializer serializer,
   );
 

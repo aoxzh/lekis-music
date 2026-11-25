@@ -789,9 +789,15 @@ class _Songs extends ConsumerWidget {
               onShuffle: () => play(shuffle: true),
               queueTrackIds: ids,
               onEnrich: albumDetail
-                  ? () => enrichTracksFlow(context, ids)
+                  ? () => enrichTracksFlow(
+                      context,
+                      ids,
+                      scope: scope.kind == LibraryScopeKind.plugin
+                          ? EnrichScope.lyrics
+                          : null,
+                    )
                   : null,
-              onChangeArtwork: albumDetail
+              onChangeArtwork: albumDetail && scope.kind != LibraryScopeKind.plugin
                   ? () => changeArtworkFlow(context, trackIds: ids)
                   : null,
               menuTitle: menuTitle,

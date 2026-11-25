@@ -9,8 +9,20 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../platform/desktop_tray/desktop_tray_controller.dart';
+import '../../rust/api/core.dart' as core;
 import 'app_updater.dart';
 import 'desktop_self_updater.dart';
+
+/// 记录上次自动检测更新的本地自然日（`YYYY-MM-DD`），每天最多静默检测一次。
+const String kLastAutoUpdateCheckDayKey = 'ui.update.last_auto_check_day';
+
+/// 将本地日期格式化为 `YYYY-MM-DD`。
+String formatUpdateCheckDay(DateTime dt) {
+  final y = dt.year.toString().padLeft(4, '0');
+  final m = dt.month.toString().padLeft(2, '0');
+  final d = dt.day.toString().padLeft(2, '0');
+  return '$y-$m-$d';
+}
 
 enum AppUpdaterPhase {
   idle,
@@ -83,16 +95,76 @@ final appUpdaterProvider =
 class AppUpdaterNotifier extends Notifier<AppUpdaterState> {
   UpdateCancelToken? _cancelToken;
   DateTime? _lastCheckedAt;
+  DateTime? _lastAutoErrorAt;
+  String? _lastAutoCheckedDay;
+  bool _dailyCheckInFlight = false;
 
   @override
   AppUpdaterState build() => const AppUpdaterState();
 
+  /// 每天最多静默检查一次（按本地自然日持久化在核心设置中）。
+  ///
+  /// 启动时与每次进入「设置」页都会调用；当天已经成功检测过就直接跳过，
+  /// 用户手动点「检查更新」仍走 [checkForUpdates] 不受此限制。
+  Future<AppUpdateCheckResult?> checkOncePerDay({
+    DateTime? now,
+    bool allowInTests = false,
+  }) async {
+    if (_dailyCheckInFlight) return null;
+    if (!allowInTests && Platform.environment['FLUTTER_TEST'] == 'true') {
+      return null;
+    }
+    if (!(Platform.isAndroid ||
+        Platform.isWindows ||
+        Platform.isMacOS ||
+        Platform.isLinux)) {
+      return null;
+    }
+    final current = now ?? DateTime.now();
+    final today = formatUpdateCheckDay(current);
+    if (_lastAutoCheckedDay == today) return null;
+    // 网络暂时不通时避免频繁重试，30 分钟内不重复发请求。
+    if (_lastAutoErrorAt != null &&
+        current.difference(_lastAutoErrorAt!) < const Duration(minutes: 30)) {
+      return null;
+    }
+
+    _dailyCheckInFlight = true;
+    try {
+      try {
+        final saved = await core.getSetting(key: kLastAutoUpdateCheckDayKey);
+        if (saved == today) {
+          _lastAutoCheckedDay = today;
+          return null;
+        }
+      } catch (_) {
+        // 测试环境或核心未就绪时退化为单次会话去重。
+      }
+
+      final result = await checkForUpdates(silent: true, bypassThrottle: true);
+      if (result is AppUpdateUpToDate || result is AppUpdateAvailable) {
+        _lastAutoCheckedDay = today;
+        _lastAutoErrorAt = null;
+        try {
+          await core.setSetting(key: kLastAutoUpdateCheckDayKey, value: today);
+        } catch (_) {}
+      } else if (result is AppUpdateError) {
+        _lastAutoErrorAt = current;
+      }
+      return result;
+    } finally {
+      _dailyCheckInFlight = false;
+    }
+  }
+
   /// Checks GitHub Releases for a newer version.
   ///
-  /// When [silent] is true (e.g. startup background check), errors and
-  /// up-to-date states do not disturb the user, and checks are throttled to
-  /// once every 6 hours.
-  Future<AppUpdateCheckResult?> checkForUpdates({bool silent = false}) async {
+  /// When [silent] is true (e.g. startup or daily settings check), errors and
+  /// up-to-date states do not disturb the user.
+  Future<AppUpdateCheckResult?> checkForUpdates({
+    bool silent = false,
+    bool bypassThrottle = false,
+  }) async {
     if (state.phase == AppUpdaterPhase.checking ||
         state.phase == AppUpdaterPhase.downloading ||
         state.phase == AppUpdaterPhase.restarting) {
@@ -104,6 +176,7 @@ class AppUpdaterNotifier extends Notifier<AppUpdaterState> {
       return null;
     }
     if (silent &&
+        !bypassThrottle &&
         _lastCheckedAt != null &&
         DateTime.now().difference(_lastCheckedAt!) < const Duration(hours: 6)) {
       return null;
@@ -264,6 +337,6 @@ void scheduleStartupUpdateCheck(ProviderContainer container) {
     return;
   }
   Future<void>.delayed(const Duration(seconds: 5), () {
-    container.read(appUpdaterProvider.notifier).checkForUpdates(silent: true);
+    container.read(appUpdaterProvider.notifier).checkOncePerDay();
   });
 }

@@ -105,6 +105,27 @@ pub(crate) struct EnrichPipeline {
     artist_tried: std::sync::Mutex<std::collections::HashSet<ArtistId>>,
 }
 
+/// 手动搜索封面返回的一条候选。
+#[derive(Debug, Clone)]
+pub struct ArtworkSearchResult {
+    /// 图片 URL（用于预览与下载入库）。
+    pub url: String,
+    /// 来源名（如 `itunes`、`deezer`、`netease`、`vocadb`、`coverartarchive`）。
+    pub source: String,
+    /// 宽度（提供方未给出时为 `None`）。
+    pub width: Option<u32>,
+    /// 高度（提供方未给出时为 `None`）。
+    pub height: Option<u32>,
+    /// 匹配到的曲目/专辑标题。
+    pub title: Option<String>,
+    /// 匹配到的艺人。
+    pub artist: Option<String>,
+    /// 匹配到的专辑。
+    pub album: Option<String>,
+    /// 匹配分数（`0.0..=1.0`）。
+    pub score: f32,
+}
+
 impl EnrichPipeline {
     /// 构造流水线。某个提供方构造失败（比如 TLS 初始化不了）时跳过它，不影响其它。
     pub(crate) fn new(config: &CoreConfig) -> Self {
@@ -407,9 +428,9 @@ impl EnrichPipeline {
             }
         }
 
-        // ---- 封面（ENR-01）----
+        // ---- 封面（ENR-01）：仅对本地音乐与 NAS 文件系统源补全，插件与媒体服务器使用自有封面逻辑 ----
         if want_artwork
-            && !plugin_only_track(library, track_id).await?
+            && track_allows_auto_artwork_enrich(library, track_id).await?
             && library.effective_artwork_id(track_id).await?.is_none()
         {
             report.absorb(self.fill_artwork(library, &track, &hint).await?);
@@ -630,6 +651,121 @@ impl EnrichPipeline {
         }
     }
 
+    /// 手动在线搜索封面候选（并行查询全部免 Key 封面提供方，按匹配分降序去重返回）。
+    pub(crate) async fn manual_artwork_search(
+        &self,
+        library: &Library,
+        track_id: TrackId,
+        title: String,
+        artist: String,
+        album: Option<String>,
+    ) -> Result<Vec<ArtworkSearchResult>> {
+        use futures_util::{stream, StreamExt};
+        let title = title.trim();
+        let artist = artist.trim();
+        let album_clean = album
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned);
+        if title.is_empty() && album_clean.is_none() {
+            return Err(LekisError::invalid("请输入歌曲名或专辑名再搜索封面"));
+        }
+        if title.chars().count() > 512
+            || artist.chars().count() > 512
+            || album_clean
+                .as_ref()
+                .is_some_and(|a| a.chars().count() > 512)
+        {
+            return Err(LekisError::invalid("搜索关键词过长"));
+        }
+        let duration_ms = library
+            .get_track(track_id)
+            .await
+            .map(|t| t.duration_ms)
+            .unwrap_or(0);
+        let hint = TrackHint {
+            title: title.to_owned(),
+            artists: if artist.is_empty() {
+                vec![]
+            } else {
+                vec![artist.to_owned()]
+            },
+            album: album_clean,
+            duration_ms,
+            ..Default::default()
+        };
+        let hint = &hint;
+        let requests = self
+            .artwork_providers
+            .iter()
+            .enumerate()
+            .map(|(order, provider)| async move {
+                let result = tokio::time::timeout(
+                    std::time::Duration::from_secs(12),
+                    provider.find_artwork(hint),
+                )
+                .await
+                .map_err(|_| LekisError::new(ErrorCode::Network, "artwork provider timeout"))
+                .and_then(|r| r);
+                (order, result)
+            })
+            .collect::<Vec<_>>();
+        let responses = stream::iter(requests)
+            .buffer_unordered(4)
+            .collect::<Vec<_>>()
+            .await;
+
+        let mut raw = Vec::new();
+        let mut first_error = None;
+        for (order, result) in responses {
+            match result {
+                Ok(list) => raw.extend(list.into_iter().map(|c| (order, c))),
+                Err(e) => {
+                    first_error.get_or_insert(e);
+                }
+            }
+        }
+        if raw.is_empty() {
+            return first_error.map_or_else(|| Ok(Vec::new()), Err);
+        }
+        raw.sort_by(|(oa, a), (ob, b)| {
+            b.provider_confidence
+                .total_cmp(&a.provider_confidence)
+                .then(oa.cmp(ob))
+        });
+        let mut seen = std::collections::HashSet::new();
+        let mut out = Vec::new();
+        for (_, c) in raw {
+            let url = c.payload.url.trim().to_string();
+            if url.is_empty() || !seen.insert(url.clone()) {
+                continue;
+            }
+            let artist_line = {
+                let joined = c.matched.artists.join(" / ");
+                if joined.trim().is_empty() {
+                    None
+                } else {
+                    Some(joined)
+                }
+            };
+            out.push(ArtworkSearchResult {
+                url,
+                source: c.source,
+                width: c.payload.width,
+                height: c.payload.height,
+                title: Some(c.matched.title).filter(|s| !s.trim().is_empty()),
+                artist: artist_line,
+                album: c.matched.album.filter(|s| !s.trim().is_empty()),
+                score: c.provider_confidence.clamp(0.0, 1.0),
+            });
+            if out.len() >= 20 {
+                break;
+            }
+        }
+        Ok(out)
+    }
+
     /// 应用一条已经入库的待确认候选（用户点"接受"时调）。
     pub(crate) async fn apply_candidate(
         &self,
@@ -640,10 +776,31 @@ impl EnrichPipeline {
     }
 }
 
+/// 自动补全封面仅限本地音乐与 NAS 文件系统源（`Local / Smb / WebDav / Nfs / Sftp`）。
+///
+/// 插件音源与媒体服务器自有封面拉取逻辑，不参与自动封面补全；
+/// 没有任何 `track_file` 行的单元测试合成曲目默认允许。
+async fn track_allows_auto_artwork_enrich(library: &Library, track_id: TrackId) -> Result<bool> {
+    let files = library.track_files(track_id).await?;
+    Ok(files.is_empty() || files.iter().any(|f| f.source_kind.is_filesystem()))
+}
+
 /// Plugin catalog entries get their artwork from the website, never album search.
 async fn plugin_only_track(library: &Library, track_id: TrackId) -> Result<bool> {
     let files = library.track_files(track_id).await?;
     Ok(!files.is_empty() && files.iter().all(|f| f.source_kind == SourceKind::Plugin))
+}
+
+/// 下载一张在线封面图片字节（复用封面缓存与节流客户端）。
+pub(crate) async fn fetch_artwork_bytes(url: &str) -> Result<Vec<u8>> {
+    let parsed =
+        url::Url::parse(url.trim()).map_err(|_| LekisError::invalid("封面图片链接格式不正确"))?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return Err(LekisError::invalid("封面图片链接仅支持 http / https"));
+    }
+    Ok(artwork_ingest::fetch_image_cached(parsed.as_str())
+        .await?
+        .to_vec())
 }
 
 /// 封面要挂到哪里。

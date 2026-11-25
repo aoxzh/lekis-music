@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -772843619;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1765794702;
 
 // Section: executor
 
@@ -8113,6 +8113,51 @@ fn wire__crate__api__core__search_apple_albums_session_impl(
         },
     )
 }
+fn wire__crate__api__artwork_search__search_artwork_candidates_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "search_artwork_candidates",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_track_id = <i64>::sse_decode(&mut deserializer);
+            let api_title = <String>::sse_decode(&mut deserializer);
+            let api_artist = <String>::sse_decode(&mut deserializer);
+            let api_album = <Option<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::CoreError>(
+                    (move || async move {
+                        let output_ok = crate::api::artwork_search::search_artwork_candidates(
+                            api_track_id,
+                            api_title,
+                            api_artist,
+                            api_album,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__lyric_search__search_lyric_versions_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -8340,6 +8385,49 @@ fn wire__crate__api__core__set_artwork_from_image_impl(
                     (move || async move {
                         let output_ok = crate::api::core::set_artwork_from_image(
                             api_image,
+                            api_track_ids,
+                            api_album_id,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__artwork_search__set_artwork_from_url_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "set_artwork_from_url",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_url = <String>::sse_decode(&mut deserializer);
+            let api_track_ids = <Vec<i64>>::sse_decode(&mut deserializer);
+            let api_album_id = <Option<i64>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::CoreError>(
+                    (move || async move {
+                        let output_ok = crate::api::artwork_search::set_artwork_from_url(
+                            api_url,
                             api_track_ids,
                             api_album_id,
                         )
@@ -10122,6 +10210,30 @@ impl SseDecode for crate::api::dto::ArtworkDto {
     }
 }
 
+impl SseDecode for crate::api::artwork_search::ArtworkSearchResultDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_url = <String>::sse_decode(deserializer);
+        let mut var_source = <String>::sse_decode(deserializer);
+        let mut var_width = <Option<u32>>::sse_decode(deserializer);
+        let mut var_height = <Option<u32>>::sse_decode(deserializer);
+        let mut var_title = <Option<String>>::sse_decode(deserializer);
+        let mut var_artist = <Option<String>>::sse_decode(deserializer);
+        let mut var_album = <Option<String>>::sse_decode(deserializer);
+        let mut var_score = <f32>::sse_decode(deserializer);
+        return crate::api::artwork_search::ArtworkSearchResultDto {
+            url: var_url,
+            source: var_source,
+            width: var_width,
+            height: var_height,
+            title: var_title,
+            artist: var_artist,
+            album: var_album,
+            score: var_score,
+        };
+    }
+}
+
 impl SseDecode for crate::api::dto::BatchTagWriteItemDto {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11178,6 +11290,20 @@ impl SseDecode for Vec<crate::api::dto::ArtistListeningDto> {
             ans_.push(<crate::api::dto::ArtistListeningDto>::sse_decode(
                 deserializer,
             ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::artwork_search::ArtworkSearchResultDto> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(
+                <crate::api::artwork_search::ArtworkSearchResultDto>::sse_decode(deserializer),
+            );
         }
         return ans_;
     }
@@ -14213,92 +14339,104 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        225 => wire__crate__api__lyric_search__search_lyric_versions_impl(
+        225 => wire__crate__api__artwork_search__search_artwork_candidates_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        226 => wire__crate__api__core__search_plugin_impl(port, ptr, rust_vec_len, data_len),
-        227 => {
+        226 => wire__crate__api__lyric_search__search_lyric_versions_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        227 => wire__crate__api__core__search_plugin_impl(port, ptr, rust_vec_len, data_len),
+        228 => {
             wire__crate__api__core__search_spotify_albums_impl(port, ptr, rust_vec_len, data_len)
         }
-        228 => wire__crate__api__core__search_spotify_albums_session_impl(
+        229 => wire__crate__api__core__search_spotify_albums_session_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        230 => {
+        231 => {
             wire__crate__api__core__set_artwork_from_image_impl(port, ptr, rust_vec_len, data_len)
         }
-        231 => wire__crate__api__core__set_credential_impl(port, ptr, rust_vec_len, data_len),
-        233 => wire__crate__api__core__set_equalizer_impl(port, ptr, rust_vec_len, data_len),
-        234 => wire__crate__api__core__set_loved_impl(port, ptr, rust_vec_len, data_len),
-        235 => wire__crate__api__core__set_lyrics_impl(port, ptr, rust_vec_len, data_len),
-        236 => wire__crate__api__core__set_lyrics_offset_impl(port, ptr, rust_vec_len, data_len),
-        240 => wire__crate__api__core__set_playlist_artwork_impl(port, ptr, rust_vec_len, data_len),
-        241 => wire__crate__api__core__set_playlist_rules_impl(port, ptr, rust_vec_len, data_len),
-        242 => wire__crate__api__core__set_plugin_enabled_impl(port, ptr, rust_vec_len, data_len),
-        243 => wire__crate__api__core__set_plugin_native_android_allowed_impl(
+        232 => wire__crate__api__artwork_search__set_artwork_from_url_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        244 => wire__crate__api__core__set_plugin_setting_impl(port, ptr, rust_vec_len, data_len),
-        245 => wire__crate__api__core__set_rating_impl(port, ptr, rust_vec_len, data_len),
-        247 => {
+        233 => wire__crate__api__core__set_credential_impl(port, ptr, rust_vec_len, data_len),
+        235 => wire__crate__api__core__set_equalizer_impl(port, ptr, rust_vec_len, data_len),
+        236 => wire__crate__api__core__set_loved_impl(port, ptr, rust_vec_len, data_len),
+        237 => wire__crate__api__core__set_lyrics_impl(port, ptr, rust_vec_len, data_len),
+        238 => wire__crate__api__core__set_lyrics_offset_impl(port, ptr, rust_vec_len, data_len),
+        242 => wire__crate__api__core__set_playlist_artwork_impl(port, ptr, rust_vec_len, data_len),
+        243 => wire__crate__api__core__set_playlist_rules_impl(port, ptr, rust_vec_len, data_len),
+        244 => wire__crate__api__core__set_plugin_enabled_impl(port, ptr, rust_vec_len, data_len),
+        245 => wire__crate__api__core__set_plugin_native_android_allowed_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        246 => wire__crate__api__core__set_plugin_setting_impl(port, ptr, rust_vec_len, data_len),
+        247 => wire__crate__api__core__set_rating_impl(port, ptr, rust_vec_len, data_len),
+        249 => {
             wire__crate__api__core__set_scrobble_settings_impl(port, ptr, rust_vec_len, data_len)
         }
-        248 => wire__crate__api__core__set_setting_impl(port, ptr, rust_vec_len, data_len),
-        250 => wire__crate__api__core__set_track_artwork_impl(port, ptr, rust_vec_len, data_len),
-        251 => wire__crate__api__core__set_track_overlay_impl(port, ptr, rust_vec_len, data_len),
-        252 => {
+        250 => wire__crate__api__core__set_setting_impl(port, ptr, rust_vec_len, data_len),
+        252 => wire__crate__api__core__set_track_artwork_impl(port, ptr, rust_vec_len, data_len),
+        253 => wire__crate__api__core__set_track_overlay_impl(port, ptr, rust_vec_len, data_len),
+        254 => {
             wire__crate__api__core__set_track_tag_overrides_impl(port, ptr, rust_vec_len, data_len)
         }
-        254 => wire__crate__api__usb_output__set_usb_bit_perfect_impl(
+        256 => wire__crate__api__usb_output__set_usb_bit_perfect_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        256 => {
+        258 => {
             wire__crate__api__core__smart_playlist_tracks_impl(port, ptr, rust_vec_len, data_len)
         }
-        257 => wire__crate__api__core__smart_playlists_impl(port, ptr, rust_vec_len, data_len),
-        258 => wire__crate__api__core__split_track_source_impl(port, ptr, rust_vec_len, data_len),
-        259 => wire__crate__api__core__start_scan_impl(port, ptr, rust_vec_len, data_len),
-        260 => wire__crate__api__storage__storage_usage_impl(port, ptr, rust_vec_len, data_len),
-        261 => wire__crate__api__lyric_search__stored_lyric_versions_impl(
+        259 => wire__crate__api__core__smart_playlists_impl(port, ptr, rust_vec_len, data_len),
+        260 => wire__crate__api__core__split_track_source_impl(port, ptr, rust_vec_len, data_len),
+        261 => wire__crate__api__core__start_scan_impl(port, ptr, rust_vec_len, data_len),
+        262 => wire__crate__api__storage__storage_usage_impl(port, ptr, rust_vec_len, data_len),
+        263 => wire__crate__api__lyric_search__stored_lyric_versions_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        262 => wire__crate__api__core__sync_now_impl(port, ptr, rust_vec_len, data_len),
-        263 => {
+        264 => wire__crate__api__core__sync_now_impl(port, ptr, rust_vec_len, data_len),
+        265 => {
             wire__crate__api__dto__sync_report_dto_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        264 => wire__crate__api__core__test_scrobble_impl(port, ptr, rust_vec_len, data_len),
-        265 => wire__crate__api__core__test_source_impl(port, ptr, rust_vec_len, data_len),
-        266 => wire__crate__api__core__track_index_offsets_impl(port, ptr, rust_vec_len, data_len),
-        267 => {
+        266 => wire__crate__api__core__test_scrobble_impl(port, ptr, rust_vec_len, data_len),
+        267 => wire__crate__api__core__test_source_impl(port, ptr, rust_vec_len, data_len),
+        268 => wire__crate__api__core__track_index_offsets_impl(port, ptr, rust_vec_len, data_len),
+        269 => {
             wire__crate__api__core__track_metadata_by_source_impl(port, ptr, rust_vec_len, data_len)
         }
-        268 => {
+        270 => {
             wire__crate__api__dto__track_overlay_dto_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        269 => wire__crate__api__core__track_sources_impl(port, ptr, rust_vec_len, data_len),
-        270 => wire__crate__api__core__track_tag_overrides_impl(port, ptr, rust_vec_len, data_len),
-        271 => wire__crate__api__dto__track_tag_overrides_dto_default_impl(
+        271 => wire__crate__api__core__track_sources_impl(port, ptr, rust_vec_len, data_len),
+        272 => wire__crate__api__core__track_tag_overrides_impl(port, ptr, rust_vec_len, data_len),
+        273 => wire__crate__api__dto__track_tag_overrides_dto_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        272 => wire__crate__api__core__update_source_impl(port, ptr, rust_vec_len, data_len),
-        274 => wire__crate__api__core__write_track_tags_impl(port, ptr, rust_vec_len, data_len),
+        274 => wire__crate__api__core__update_source_impl(port, ptr, rust_vec_len, data_len),
+        276 => wire__crate__api__core__write_track_tags_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -14404,16 +14542,16 @@ fn pde_ffi_dispatcher_sync_impl(
         210 => wire__crate__api__core__report_source_reachability_impl(ptr, rust_vec_len, data_len),
         218 => wire__crate__api__core__scrobble_settings_impl(ptr, rust_vec_len, data_len),
         220 => wire__crate__api__core__scrobble_status_impl(ptr, rust_vec_len, data_len),
-        229 => wire__crate__api__core__seek_impl(ptr, rust_vec_len, data_len),
-        232 => wire__crate__api__core__set_ducked_impl(ptr, rust_vec_len, data_len),
-        237 => wire__crate__api__core__set_network_away_impl(ptr, rust_vec_len, data_len),
-        238 => wire__crate__api__core__set_output_device_impl(ptr, rust_vec_len, data_len),
-        239 => wire__crate__api__core__set_output_mode_impl(ptr, rust_vec_len, data_len),
-        246 => wire__crate__api__core__set_repeat_impl(ptr, rust_vec_len, data_len),
-        249 => wire__crate__api__core__set_shuffle_impl(ptr, rust_vec_len, data_len),
-        253 => wire__crate__api__core__set_ui_language_impl(ptr, rust_vec_len, data_len),
-        255 => wire__crate__api__core__set_volume_impl(ptr, rust_vec_len, data_len),
-        273 => {
+        230 => wire__crate__api__core__seek_impl(ptr, rust_vec_len, data_len),
+        234 => wire__crate__api__core__set_ducked_impl(ptr, rust_vec_len, data_len),
+        239 => wire__crate__api__core__set_network_away_impl(ptr, rust_vec_len, data_len),
+        240 => wire__crate__api__core__set_output_device_impl(ptr, rust_vec_len, data_len),
+        241 => wire__crate__api__core__set_output_mode_impl(ptr, rust_vec_len, data_len),
+        248 => wire__crate__api__core__set_repeat_impl(ptr, rust_vec_len, data_len),
+        251 => wire__crate__api__core__set_shuffle_impl(ptr, rust_vec_len, data_len),
+        255 => wire__crate__api__core__set_ui_language_impl(ptr, rust_vec_len, data_len),
+        257 => wire__crate__api__core__set_volume_impl(ptr, rust_vec_len, data_len),
+        275 => {
             wire__crate__api__usb_output__usb_bit_perfect_status_impl(ptr, rust_vec_len, data_len)
         }
         _ => unreachable!(),
@@ -14576,6 +14714,33 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::dto::ArtworkDto>
     for crate::api::dto::ArtworkDto
 {
     fn into_into_dart(self) -> crate::api::dto::ArtworkDto {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::artwork_search::ArtworkSearchResultDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.url.into_into_dart().into_dart(),
+            self.source.into_into_dart().into_dart(),
+            self.width.into_into_dart().into_dart(),
+            self.height.into_into_dart().into_dart(),
+            self.title.into_into_dart().into_dart(),
+            self.artist.into_into_dart().into_dart(),
+            self.album.into_into_dart().into_dart(),
+            self.score.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::artwork_search::ArtworkSearchResultDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::artwork_search::ArtworkSearchResultDto>
+    for crate::api::artwork_search::ArtworkSearchResultDto
+{
+    fn into_into_dart(self) -> crate::api::artwork_search::ArtworkSearchResultDto {
         self
     }
 }
@@ -17902,6 +18067,20 @@ impl SseEncode for crate::api::dto::ArtworkDto {
     }
 }
 
+impl SseEncode for crate::api::artwork_search::ArtworkSearchResultDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.url, serializer);
+        <String>::sse_encode(self.source, serializer);
+        <Option<u32>>::sse_encode(self.width, serializer);
+        <Option<u32>>::sse_encode(self.height, serializer);
+        <Option<String>>::sse_encode(self.title, serializer);
+        <Option<String>>::sse_encode(self.artist, serializer);
+        <Option<String>>::sse_encode(self.album, serializer);
+        <f32>::sse_encode(self.score, serializer);
+    }
+}
+
 impl SseEncode for crate::api::dto::BatchTagWriteItemDto {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -18730,6 +18909,16 @@ impl SseEncode for Vec<crate::api::dto::ArtistListeningDto> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::dto::ArtistListeningDto>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::artwork_search::ArtworkSearchResultDto> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::artwork_search::ArtworkSearchResultDto>::sse_encode(item, serializer);
         }
     }
 }

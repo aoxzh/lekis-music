@@ -192,8 +192,8 @@ impl Library {
         .await
     }
 
-    /// 自动清理已经过期的待确认封面候选：曲目（或其所属专辑）已经有生效封面时，
-    /// 不再向用户提示重复的封面替换建议。返回被清理的条数。
+    /// 自动清理已经过期的待确认封面候选：曲目（或其所属专辑）已经有生效封面，
+    /// 或者曲目仅来自插件/非本地与 NAS 音源时，不再向用户提示封面替换建议。返回被清理的条数。
     pub async fn dismiss_stale_artwork_candidates(&self) -> Result<u64> {
         self.write(move |conn| {
             let now = now_ms();
@@ -211,6 +211,18 @@ impl Library {
                            WHERE t.id = enrich_candidate.track_id
                              AND COALESCE(t.artwork_id, a.artwork_id) IS NOT NULL
                          ))
+                         OR (track_id IS NOT NULL
+                             AND EXISTS (
+                               SELECT 1 FROM track_file tf
+                               WHERE tf.track_id = enrich_candidate.track_id
+                             )
+                             AND NOT EXISTS (
+                               SELECT 1
+                               FROM track_file tf
+                               JOIN source s ON s.id = tf.source_id
+                               WHERE tf.track_id = enrich_candidate.track_id
+                                 AND s.kind IN ('local', 'smb', 'webdav', 'nfs', 'sftp')
+                             ))
                          OR (album_id IS NOT NULL AND EXISTS (
                            SELECT 1
                            FROM album a

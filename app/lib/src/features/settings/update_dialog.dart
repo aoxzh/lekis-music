@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'app_updater_provider.dart';
 import 'desktop_self_updater.dart';
+import 'release_notes_markdown.dart';
 import 'strings.dart';
 
 /// Shows the pending update and, on desktop, lets the user download and stage
@@ -44,11 +45,12 @@ class AppUpdateDialog extends ConsumerWidget {
           children: [
             Flexible(
               child: SingleChildScrollView(
-                child: Text(
-                  info.notes.isEmpty
-                      ? SettingsStrings.checkUpdatesHint
-                      : info.notes,
-                ),
+                child: info.notes.isEmpty
+                    ? Text(SettingsStrings.checkUpdatesHint)
+                    : ReleaseNotesMarkdown(
+                        data: info.notes,
+                        onOpenLink: onOpenLink,
+                      ),
               ),
             ),
             if (state.phase == AppUpdaterPhase.downloading) ...[

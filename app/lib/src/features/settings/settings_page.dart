@@ -11,6 +11,8 @@
 //
 // 分类和分组都来自 [SettingsCategory]；加分类只改那个枚举。
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -24,6 +26,7 @@ import '../downloads/downloads_providers.dart';
 import '../enrich/enrich_providers.dart';
 import '../library/widgets/page_gutter.dart';
 import '../sources/sources_providers.dart';
+import 'app_updater_provider.dart';
 import 'desktop_settings_view.dart';
 import 'settings_categories.dart';
 import 'settings_search.dart';
@@ -37,17 +40,27 @@ export 'settings_categories.dart'
         SettingsCategoryPage,
         SettingsCategoryGroup;
 
-class SettingsPage extends StatefulWidget {
+class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
   @override
-  State<SettingsPage> createState() => _SettingsPageState();
+  ConsumerState<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _SettingsPageState extends ConsumerState<SettingsPage> {
   /// 宽窗口右栏显示的分类。
   SettingsCategory _selected = SettingsCategory.playback;
   SettingsSearchItem? _target;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(ref.read(appUpdaterProvider.notifier).checkOncePerDay());
+      }
+    });
+  }
 
   void _open(SettingsCategory category, {SettingsSearchItem? target}) {
     FocusManager.instance.primaryFocus?.unfocus();
@@ -210,6 +223,10 @@ class _SettingsHomeListState extends ConsumerState<SettingsHomeList> {
     final sources = ref.watch(sourcesProvider).value;
     final downloads = ref.watch(downloadsSummaryProvider);
     final pending = ref.watch(enrichPendingCountProvider);
+    final updateState = ref.watch(appUpdaterProvider);
+    final hasUpdate =
+        updateState.phase == AppUpdaterPhase.available ||
+        updateState.phase == AppUpdaterPhase.ready;
     final noSources = sources != null && sources.isEmpty;
     return SettingsListView(
       children: [
@@ -270,6 +287,8 @@ class _SettingsHomeListState extends ConsumerState<SettingsHomeList> {
                           pending != null &&
                           pending > 0
                       ? Badge.count(count: pending)
+                      : c == SettingsCategory.about && hasUpdate
+                      ? const Badge()
                       : null,
                 ),
             ],

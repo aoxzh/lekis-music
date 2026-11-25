@@ -15,6 +15,7 @@ import 'package:lekis/src/features/library/library_providers.dart'
 import 'package:lekis/src/features/library/widgets/artwork.dart';
 import 'package:lekis/src/features/library/widgets/track_actions.dart';
 import 'package:lekis/src/features/now_playing/alternate_source_sheet.dart';
+import 'package:lekis/src/features/now_playing/artwork_editor_sheet.dart';
 import 'package:lekis/src/features/now_playing/lyrics_editor_sheet.dart';
 import 'package:lekis/src/features/now_playing/lyrics_parser.dart';
 import 'package:lekis/src/features/now_playing/now_playing_providers.dart';
@@ -48,6 +49,7 @@ enum _MoreAction {
   viewAlbum,
   viewArtist,
   playOnDevice,
+  editArtwork,
   editLyrics,
   sources,
   copyInfo,
@@ -322,11 +324,13 @@ class _MoreButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final downloadState = ref.watch(downloadStateProvider(track.id));
     final artists = nowPlayingArtistNames(track);
+    final pluginTrack = PluginTrackRef.fromUid(track.uid) != null;
     final video =
         supportsVideo &&
         pluginSupportsVideo(ref, PluginTrackRef.fromUid(track.uid)?.pluginId) &&
         videoEnabled(ref);
     final rating = ratingOf(ref, track.id, track.rating?.toInt()) ?? 0;
+    final missingCover = track.artworkId == null;
     return LekisActionMenuButton<_MoreAction>(
       key: const ValueKey('now-playing.more'),
       tooltip: context.l10n.pick('更多操作', 'More actions'),
@@ -382,6 +386,8 @@ class _MoreButton extends ConsumerWidget {
             unawaited(openNowPlayingArtist(context, ref, artists));
           case _MoreAction.playOnDevice:
             showPlayOnDeviceSheet(context, ref);
+          case _MoreAction.editArtwork:
+            showArtworkEditor(context, ref, track);
           case _MoreAction.editLyrics:
             showLyricsEditor(context, ref, track.id);
           case _MoreAction.sources:
@@ -462,11 +468,22 @@ class _MoreButton extends ConsumerWidget {
         ),
         // Editors live in the menu, not as a floating button over the lyrics
         // (iOS 26 puts them with the rest of the lyric controls).
+        if (!pluginTrack && track.id > 0)
+          LekisMenuAction(
+            _MoreAction.editArtwork,
+            missingCover
+                ? Icons.add_photo_alternate_outlined
+                : Icons.image_outlined,
+            missingCover
+                ? context.l10n.pick('补全封面', 'Fetch & Edit Artwork')
+                : context.l10n.pick('编辑封面', 'Edit Artwork'),
+            startsGroup: true,
+          ),
         LekisMenuAction(
           _MoreAction.editLyrics,
           Icons.edit_note_rounded,
           context.l10n.pick('编辑歌词', 'Edit Lyrics'),
-          startsGroup: true,
+          startsGroup: pluginTrack || track.id <= 0,
         ),
         LekisMenuAction(
           _MoreAction.sources,

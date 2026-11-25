@@ -1,4 +1,5 @@
 pub mod alternate_source;
+pub mod artwork_search;
 pub mod cast;
 pub mod connect;
 pub mod core;

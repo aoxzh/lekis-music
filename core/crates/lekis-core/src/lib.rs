@@ -54,7 +54,7 @@ pub mod unified;
 
 pub use cast::{CastDevice, CastKind, CastPlaybackState};
 pub use config::{CoreConfig, PlatformKind};
-pub use enrich::EnrichReport;
+pub use enrich::{ArtworkSearchResult, EnrichReport};
 pub use equalizer::EqualizerSettings;
 pub use events::EventListener;
 pub use folders::{FolderEntry, FolderListing, FolderRoot};
@@ -2749,6 +2749,37 @@ impl LekisCore {
             scope: LibraryScope::Catalog,
         });
         Ok(())
+    }
+
+    /// 手动在线搜索封面候选（并行查询全部免 Key 封面提供方）。
+    pub async fn search_artwork_candidates(
+        &self,
+        track_id: TrackId,
+        title: String,
+        artist: String,
+        album: Option<String>,
+    ) -> Result<Vec<ArtworkSearchResult>> {
+        let s = self.services.clone();
+        self.run(async move {
+            s.enrich
+                .manual_artwork_search(&s.library, track_id, title, artist, album)
+                .await
+        })
+        .await
+    }
+
+    /// 从在线图片 URL 下载并设置为曲目 / 专辑封面（返回换前状态，可撤销）。
+    pub async fn set_artwork_from_url(
+        &self,
+        url: String,
+        track_ids: Vec<TrackId>,
+        album_id: Option<AlbumId>,
+    ) -> Result<ArtworkChange> {
+        let bytes = self
+            .run(async move { enrich::fetch_artwork_bytes(&url).await })
+            .await?;
+        self.set_artwork_from_image(bytes, track_ids, album_id)
+            .await
     }
 
     /// 用用户选的图片当封面（ENR-01 的"本地导入"）。
