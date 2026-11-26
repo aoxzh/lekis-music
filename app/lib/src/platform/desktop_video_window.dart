@@ -5,6 +5,8 @@ import 'package:desktop_webview_window/desktop_webview_window.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../l10n/app_l10n.dart';
+
 /// In-app video window for Windows and Linux.
 ///
 /// macOS keeps its existing WKWebView window and Android its WebView activity;
@@ -51,7 +53,7 @@ Future<bool> openDesktopVideoWindow({
       configuration: CreateConfiguration(
         title: (title != null && title.trim().isNotEmpty)
             ? title.trim()
-            : 'Lekis · 视频',
+            : L10n.tr('月兔音乐 · 视频', 'Lekis Music · Video'),
         windowWidth: 960,
         windowHeight: 600,
         titleBar: const TitleBarOptions(

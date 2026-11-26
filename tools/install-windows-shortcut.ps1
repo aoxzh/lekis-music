@@ -1,4 +1,4 @@
-# 在 Windows 开始菜单里创建 / 删除 "Lekis" 快捷方式（免安装构建也能从开始菜单和搜索里找到）。
+﻿# 在 Windows 开始菜单里创建 / 删除 "Lekis" 快捷方式（免安装构建也能从开始菜单和搜索里找到）。
 #
 #   tools/install-windows-shortcut.ps1                  # 指向默认的 release 构建
 #   tools/install-windows-shortcut.ps1 -ExePath <路径>   # 指向别的 lekis.exe（也可以直接传它所在的目录）
@@ -17,12 +17,16 @@
 
 param(
     [string]$ExePath = '',
-    [string]$Name = 'Lekis',
+    [string]$Name = '',
     [string]$StartMenuDir = '',
     [switch]$Uninstall
 )
 
 $ErrorActionPreference = 'Stop'
+$isChineseUi = [System.Globalization.CultureInfo]::CurrentUICulture.TwoLetterISOLanguageName -eq 'zh'
+if (-not $Name) {
+    $Name = if ($isChineseUi) { '月兔音乐' } else { 'Lekis Music' }
+}
 $root = Split-Path -Parent $PSScriptRoot
 if (-not $ExePath) { $ExePath = Join-Path $root 'app\build\windows\x64\runner\Release\lekis.exe' }
 $ExePath = [System.IO.Path]::GetFullPath($ExePath, (Get-Location).Path)
@@ -55,7 +59,7 @@ $link = $shell.CreateShortcut($lnkPath)
 $link.TargetPath = $ExePath
 $link.WorkingDirectory = $releaseDir
 $link.IconLocation = "$ExePath,0"
-$link.Description = 'Lekis 音乐'
+$link.Description = if ($isChineseUi) { '月兔音乐' } else { 'Lekis Music' }
 $link.WindowStyle = 1
 $link.Save()
 $null = [System.Runtime.InteropServices.Marshal]::ReleaseComObject($shell)

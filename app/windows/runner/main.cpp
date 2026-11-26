@@ -34,7 +34,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 820);
-  if (!window.Create(L"Lekis Music", origin, size)) {
+  const bool is_chinese_ui =
+      PRIMARYLANGID(::GetUserDefaultUILanguage()) == LANG_CHINESE;
+  const wchar_t* window_title =
+      is_chinese_ui ? L"\u6708\u5154\u97f3\u4e50" : L"Lekis Music";
+  if (!window.Create(window_title, origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);

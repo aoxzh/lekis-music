@@ -34,7 +34,7 @@ DisableProgramGroupPage=yes
 LicenseFile=..\LICENSE
 SetupIconFile=..\app\windows\runner\resources\app_icon.ico
 UninstallDisplayIcon={app}\lekis.exe
-UninstallDisplayName=Lekis Music
+UninstallDisplayName={code:GetLocalizedAppName}
 OutputDir={#LekisOutDir}
 OutputBaseFilename=lekis-{#Version}-windows-x64-setup
 Compression=lzma2/max
@@ -57,9 +57,40 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#LekisPayloadDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Lekis Music"; Filename: "{app}\lekis.exe"
-Name: "{group}\Uninstall Lekis Music"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\Lekis Music"; Filename: "{app}\lekis.exe"; Tasks: desktopicon
+Name: "{group}\{code:GetLocalizedAppName}"; Filename: "{app}\lekis.exe"
+Name: "{group}\{code:GetLocalizedUninstallName}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\{code:GetLocalizedAppName}"; Filename: "{app}\lekis.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\lekis.exe"; Description: "{cm:LaunchProgram,Lekis Music}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\lekis.exe"; Description: "{code:GetLocalizedLaunchLabel}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+function IsChineseUILanguage: Boolean;
+begin
+  { PRIMARYLANGID(GetUILanguage) == LANG_CHINESE (0x04) }
+  Result := (GetUILanguage and $3FF) = $04;
+end;
+
+function GetLocalizedAppName(Param: String): String;
+begin
+  if IsChineseUILanguage then
+    Result := #$6708#$5154#$97F3#$4E50
+  else
+    Result := 'Lekis Music';
+end;
+
+function GetLocalizedUninstallName(Param: String): String;
+begin
+  if IsChineseUILanguage then
+    Result := #$5378#$8F7D' '#$6708#$5154#$97F3#$4E50
+  else
+    Result := 'Uninstall Lekis Music';
+end;
+
+function GetLocalizedLaunchLabel(Param: String): String;
+begin
+  if IsChineseUILanguage then
+    Result := #$542F#$52A8' '#$6708#$5154#$97F3#$4E50
+  else
+    Result := 'Launch Lekis Music';
+end;

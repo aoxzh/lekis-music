@@ -19,7 +19,7 @@ class HomeWidgetSettingsTile extends StatelessWidget {
       context,
       l10n.pick(
         '当前桌面不支持直接添加。请长按桌面空白处 → 小组件 → 月兔音乐。',
-        "Your launcher can't add it from here. Long-press the home screen → Widgets → Lekis.",
+        "Your launcher can't add it from here. Long-press the home screen → Widgets → Lekis Music.",
       ),
     );
   }

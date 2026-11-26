@@ -11,6 +11,10 @@ class MainFlutterWindow: NSWindow {
     let windowFrame = self.frame
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
+    self.title =
+      Bundle.main.localizedInfoDictionary?["CFBundleDisplayName"] as? String
+      ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+      ?? "Lekis Music"
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 

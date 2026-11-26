@@ -22,7 +22,7 @@
          网络安全配置只约束 OkHttp、HttpURLConnection、WebView 等 Java 实现。因此保持
          targetSdk 36 的默认值（禁止明文），不要为了电台放开整个应用的明文 HTTP。 -->
     <application
-        android:label="Lekis"
+        android:label="@string/app_name"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"

@@ -13,6 +13,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 
@@ -31,17 +32,20 @@ Future<void> initAndroidMediaSession() async {
 
   final handler = await AudioService.init<LekisAudioHandler>(
     builder: LekisAudioHandler.new,
-    config: const AudioServiceConfig(
+    config: AudioServiceConfig(
       androidNotificationChannelId: 'dev.lekis.lekis.playback',
-      androidNotificationChannelName: 'Playback',
-      androidNotificationChannelDescription: 'Lekis playback controls',
+      androidNotificationChannelName: L10n.tr('播放控制', 'Playback'),
+      androidNotificationChannelDescription: L10n.tr(
+        '月兔音乐播放控制',
+        'Lekis Music playback controls',
+      ),
       androidNotificationIcon: 'mipmap/ic_launcher_monochrome',
       androidStopForegroundOnPause: false,
       // 限制通知封面位图尺寸，避免国产 ROM（OriginOS / HyperOS）因 IPC 位图过大丢弃封面。
       artDownscaleWidth: 300,
       artDownscaleHeight: 300,
-      fastForwardInterval: Duration(seconds: 10),
-      rewindInterval: Duration(seconds: 10),
+      fastForwardInterval: const Duration(seconds: 10),
+      rewindInterval: const Duration(seconds: 10),
     ),
   );
   await handler.start();

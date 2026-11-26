@@ -55,6 +55,27 @@ bool FlutterWindow::OnCreate() {
           result->Success();
           return;
         }
+        if (call.method_name() == "setWindowTitle") {
+          const auto* title = std::get_if<std::string>(call.arguments());
+          if (title == nullptr || title->empty()) {
+            result->Error("bad-args", "expected a non-empty string");
+            return;
+          }
+          int len = ::MultiByteToWideChar(
+              CP_UTF8, 0, title->c_str(), static_cast<int>(title->size()),
+              nullptr, 0);
+          if (len > 0) {
+            std::wstring wide(static_cast<size_t>(len), L'\0');
+            ::MultiByteToWideChar(CP_UTF8, 0, title->c_str(),
+                                  static_cast<int>(title->size()), wide.data(),
+                                  len);
+            if (HWND hwnd = GetHandle(); hwnd != nullptr) {
+              ::SetWindowTextW(hwnd, wide.c_str());
+            }
+          }
+          result->Success();
+          return;
+        }
         if (call.method_name() != "setDarkCaption") {
           result->NotImplemented();
           return;

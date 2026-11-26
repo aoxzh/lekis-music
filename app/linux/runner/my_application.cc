@@ -16,6 +16,23 @@ static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
 }
 
+// Picks the initial window title from the desktop locale so Chinese desktops
+// see "月兔音乐" and English / other desktops see "Lekis Music".
+static const char* localized_app_title() {
+  const char* const* langs = g_get_language_names();
+  if (langs != nullptr) {
+    for (int i = 0; langs[i] != nullptr; ++i) {
+      if (g_str_has_prefix(langs[i], "zh")) {
+        return "月兔音乐";
+      }
+      if (g_str_has_prefix(langs[i], "en")) {
+        return "Lekis Music";
+      }
+    }
+  }
+  return "Lekis Music";
+}
+
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
@@ -33,7 +50,7 @@ static void my_application_activate(GApplication* application) {
   // gtk_header_bar_set_show_close_button(header_bar, TRUE);
   // gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
 
-  gtk_window_set_title(window, "lekis");
+  gtk_window_set_title(window, localized_app_title());
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(

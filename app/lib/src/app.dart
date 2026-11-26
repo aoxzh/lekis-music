@@ -65,10 +65,17 @@ class LekisApp extends ConsumerWidget {
     return MaterialApp(
       title: L10n.tr('月兔音乐', 'Lekis Music'),
       scaffoldMessengerKey: messengerKey,
-      onGenerateTitle: (context) => context.l10n.appName,
+      onGenerateTitle: (context) =>
+          Localizations.maybeLocaleOf(context)?.languageCode == 'zh'
+          ? '月兔音乐'
+          : 'Lekis Music',
       debugShowCheckedModeBanner: false,
       locale: appLocale.locale,
       supportedLocales: const [Locale('zh', 'CN'), Locale('en', 'US')],
+      localeResolutionCallback: (locale, supportedLocales) =>
+          locale?.languageCode == 'zh'
+          ? const Locale('zh', 'CN')
+          : const Locale('en', 'US'),
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       theme: lekisLightTheme(accent: accent),
       darkTheme: lekisDarkTheme(oled: oled, accent: accent),
@@ -134,7 +141,16 @@ class LekisStartupErrorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: L10n.tr('月兔音乐', 'Lekis Music'),
-      onGenerateTitle: (context) => context.l10n.appName,
+      onGenerateTitle: (context) =>
+          Localizations.maybeLocaleOf(context)?.languageCode == 'zh'
+          ? '月兔音乐'
+          : 'Lekis Music',
+      supportedLocales: const [Locale('zh', 'CN'), Locale('en', 'US')],
+      localeResolutionCallback: (locale, supportedLocales) =>
+          locale?.languageCode == 'zh'
+          ? const Locale('zh', 'CN')
+          : const Locale('en', 'US'),
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       debugShowCheckedModeBanner: false,
       theme: lekisLightTheme(),
       darkTheme: lekisDarkTheme(),

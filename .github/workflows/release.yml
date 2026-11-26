@@ -363,6 +363,12 @@ jobs:
           cat > "$appdir/lekis.desktop" <<'EOF'
           [Desktop Entry]
           Name=Lekis Music
+          Name[zh_CN]=月兔音乐
+          Name[zh_TW]=月兔音乐
+          Name[zh_HK]=月兔音乐
+          GenericName=Music Player
+          GenericName[zh_CN]=音乐播放器
+          Keywords=music;audio;player;lekis;音乐;播放器;月兔;
           Exec=lekis %U
           Icon=lekis
           Type=Application

@@ -19,11 +19,13 @@ import 'package:window_manager/window_manager.dart';
 import '../../features/player/playback_session.dart';
 import '../../features/player/player_providers.dart';
 import '../../features/settings/desktop_tray_settings.dart';
+import '../../l10n/app_l10n.dart';
+import '../../l10n/app_locale.dart';
 import '../../rust/api/core.dart' as core;
 import 'desktop_tray_menu_state.dart';
 
 const String _trayIconAsset = 'assets/brand/tray_icon.ico';
-const String _trayTooltip = 'Lekis Music';
+String get _trayTooltip => L10n.tr('月兔音乐', 'Lekis Music');
 
 bool get _desktopTraySupported => !kIsWeb && Platform.isWindows;
 
@@ -125,6 +127,12 @@ class DesktopTrayController {
 
   void _applyTooltip() {
     _trayIcon?.setTooltip(_tooltipText);
+  }
+
+  /// Refreshes localized tray tooltip after an in-app language change.
+  void refreshLocale() {
+    if (!_desktopTraySupported || _disposed) return;
+    _applyTooltip();
   }
 
   Future<void> applySettings(DesktopTraySettings settings) async {
@@ -347,6 +355,11 @@ final desktopTrayControllerProvider = Provider<DesktopTrayController>((ref) {
     desktopTraySettingsProvider,
     (_, next) => unawaited(controller.applySettings(next)),
   );
+  ref.listen<AppLocalePreference>(appLocaleProvider, (_, _) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.refreshLocale();
+    });
+  });
   controller.installCloseHandler();
   return controller;
 });
