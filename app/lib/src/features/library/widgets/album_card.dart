@@ -1,6 +1,9 @@
+import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
 import 'package:lekis/src/features/library/widgets/artwork.dart';
+import 'package:lekis/src/features/library/widgets/press_feedback.dart';
+import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/nav_icon.dart' show lekisReduceMotion;
 import 'package:lekis/src/theme/tokens.dart';
@@ -324,6 +327,7 @@ class AlbumCard extends StatelessWidget {
     this.selected = false,
     this.heroTag,
     this.useListedArtwork = false,
+    this.compact = false,
     this.menu,
   });
 
@@ -331,6 +335,7 @@ class AlbumCard extends StatelessWidget {
   final VoidCallback onTap;
   final bool selected;
   final bool useListedArtwork;
+  final bool compact;
   final Widget? menu;
 
   /// Pass the same tag to `AlbumDetailPage.route` for a cover flight.
@@ -340,7 +345,7 @@ class AlbumCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final subtitle = [
       album.artistLine,
-      if (album.year != null) '${album.year}',
+      if (!compact && album.year != null) '${album.year}',
     ].where((s) => s.isNotEmpty).join(' · ');
     return ArtworkCardFrame(
       onTap: onTap,
@@ -351,7 +356,7 @@ class AlbumCard extends StatelessWidget {
         child: useListedArtwork
             ? ArtworkImage(
                 hash: album.artworkHash,
-                radius: LekisRadius.artworkGrid,
+                radius: compact ? LekisRadius.sm : LekisRadius.artworkGrid,
                 placeholderSeed: album.id,
                 placeholderIcon: Icons.album_rounded,
                 placeholderLabel: album.title,
@@ -359,11 +364,127 @@ class AlbumCard extends StatelessWidget {
             : AlbumArtHero(
                 album: album,
                 tag: heroTag,
-                radius: LekisRadius.artworkGrid,
+                radius: compact ? LekisRadius.sm : LekisRadius.artworkGrid,
               ),
       ),
       title: album.title,
       subtitle: subtitle.isEmpty ? null : subtitle,
+    );
+  }
+}
+
+/// 高效列表模式下的专辑行（固定高度，适合大曲库快速浏览）。
+class AlbumListTile extends StatelessWidget {
+  const AlbumListTile({
+    super.key,
+    required this.album,
+    required this.onTap,
+    this.selected = false,
+    this.useListedArtwork = false,
+    this.heroTag,
+    this.menu,
+  });
+
+  static double get extent => LekisSizes.listArtwork + LekisSpacing.sm * 2;
+
+  /// 自适应大字号的行高，保证 2.0× 系统字体缩放下也不裁切。
+  static double extentOf(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final scaler = MediaQuery.textScalerOf(context);
+    double lineOf(TextStyle? s, double fallback) =>
+        scaler.scale(s?.fontSize ?? fallback) * (s?.height ?? 1.3);
+    final textHeight =
+        lineOf(t.bodyLarge, 16) + lineOf(t.bodySmall, 12) + LekisSpacing.md;
+    return math.max(extent, textHeight);
+  }
+
+  final AlbumDto album;
+  final VoidCallback onTap;
+  final bool selected;
+  final bool useListedArtwork;
+  final Object? heroTag;
+  final Widget? menu;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.lekisColors;
+    final l10n = context.l10n;
+    final meta = [
+      if (album.artistLine.isNotEmpty) album.artistLine,
+      if (album.year != null) '${album.year}',
+      if (album.trackCount > 0)
+        l10n.pick(
+          '${album.trackCount} 首',
+          '${album.trackCount} ${album.trackCount == 1 ? 'song' : 'songs'}',
+        ),
+    ].join(' · ');
+
+    return PressFeedback(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(LekisRadius.sm),
+        onTap: onTap,
+        child: Ink(
+          decoration: BoxDecoration(
+            color: selected ? colors.accentSoft : null,
+            borderRadius: BorderRadius.circular(LekisRadius.sm),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: LekisSpacing.sm),
+          child: Row(
+            children: [
+              SizedBox.square(
+                dimension: LekisSizes.listArtwork,
+                child: useListedArtwork
+                    ? ArtworkImage(
+                        hash: album.artworkHash,
+                        radius: LekisRadius.artworkList,
+                        placeholderSeed: album.id,
+                        placeholderIcon: Icons.album_rounded,
+                        placeholderLabel: album.title,
+                      )
+                    : AlbumArtHero(
+                        album: album,
+                        tag: heroTag,
+                        radius: LekisRadius.artworkList,
+                      ),
+              ),
+              const SizedBox(width: LekisSpacing.md),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      album.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (meta.isNotEmpty)
+                      Text(
+                        meta,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (menu != null)
+                menu!
+              else
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: colors.onSurfaceVariant,
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

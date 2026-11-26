@@ -148,6 +148,8 @@ class PagedList<T> extends ChangeNotifier {
   final Set<int> _inFlight = <int>{};
   int? _total;
   int _knownEnd = 0;
+  int _generation = 0;
+  Timer? _refreshDebounce;
   bool _firstPageLoaded = false;
   bool _probing = false;
   bool _disposed = false;
@@ -217,20 +219,72 @@ class PagedList<T> extends ChangeNotifier {
     _load(0);
   }
 
-  void _load(int page) {
-    if (_disposed || _inFlight.contains(page)) return;
+  /// 就地静默刷新已缓存的页与总数（合并短时间内的频繁事件），**不**重置滚动位置、
+  /// **不**回退到骨架屏、也**不**在拉取完成前缩减 `itemCount`。
+  ///
+  /// 用于批量补全封面/标签等会高频触发 `LibraryChanged(Catalog)` 的场景。
+  void refresh({Duration debounce = const Duration(milliseconds: 250)}) {
+    if (_disposed) return;
+    _refreshDebounce?.cancel();
+    if (debounce <= Duration.zero) {
+      refreshNow();
+      return;
+    }
+    _refreshDebounce = Timer(debounce, refreshNow);
+  }
+
+  /// 立即执行一次就地刷新：优先重拉最近访问（当前视口附近）的已缓存页，并更新总数。
+  void refreshNow() {
+    if (_disposed) return;
+    _refreshDebounce?.cancel();
+    _refreshDebounce = null;
+    _generation++;
+    final gen = _generation;
+    _inFlight.clear();
+    _probing = false;
+    final cachedPages = _pages.keys.toList(growable: false);
+    if (cachedPages.isEmpty) {
+      _load(0);
+      return;
+    }
+    // 倒序遍历 LinkedHashMap：最近访问过的页（当前屏幕附近）排在最后，优先刷新。
+    for (final page in cachedPages.reversed) {
+      _load(page, generation: gen, replace: true);
+    }
+    if (count != null) {
+      unawaited(_refreshTotal(gen));
+    }
+  }
+
+  Future<void> _refreshTotal(int gen) async {
+    final counter = count;
+    if (counter == null) return;
+    try {
+      final total = await counter();
+      if (_disposed || gen != _generation) return;
+      _total = total;
+      _pages.removeWhere((page, _) => page * pageSize >= total && page > 0);
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  void _load(int page, {int? generation, bool replace = false}) {
+    final gen = generation ?? _generation;
+    if (_disposed || (!replace && _inFlight.contains(page))) return;
     _inFlight.add(page);
     _fetch(page * pageSize, pageSize).then(
       (rows) {
-        _inFlight.remove(page);
-        if (_disposed) return;
+        if (gen == _generation) _inFlight.remove(page);
+        if (_disposed || gen != _generation) return;
         _pages[page] = rows;
         if (page == 0) _firstPageLoaded = true;
         if (rows.length < pageSize) {
-          _total = page * pageSize + rows.length;
+          final exactEnd = page * pageSize + rows.length;
+          _total = exactEnd;
+          _pages.removeWhere((p, _) => p > page);
         } else {
           _knownEnd = math.max(_knownEnd, (page + 1) * pageSize);
-          if (page == 0) unawaited(_probeTotal());
+          if (page == 0 && !replace) unawaited(_probeTotal());
         }
         while (_pages.length > maxCachedPages) {
           _pages.remove(_pages.keys.first);
@@ -238,9 +292,9 @@ class PagedList<T> extends ChangeNotifier {
         notifyListeners();
       },
       onError: (Object e) {
-        _inFlight.remove(page);
-        if (_disposed) return;
-        if (page == 0) _error = e;
+        if (gen == _generation) _inFlight.remove(page);
+        if (_disposed || gen != _generation) return;
+        if (page == 0 && !replace) _error = e;
         notifyListeners();
       },
     );
@@ -290,14 +344,29 @@ class PagedList<T> extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _refreshDebounce?.cancel();
+    _refreshDebounce = null;
     super.dispose();
   }
 }
 
-PagedList<T> _pagedList<T>(Ref ref, PageFetcher<T> fetch, {ListCount? count}) {
+PagedList<T> _pagedList<T>(
+  Ref ref,
+  PageFetcher<T> fetch, {
+  ListCount? count,
+  bool refreshOnUserState = false,
+}) {
   ref.cacheFor(const Duration(minutes: 5));
-  ref.invalidateOnCatalogChange();
   final list = PagedList<T>(fetch: fetch, count: count);
+  // 资料库变更（如后台逐首补全封面）时就地刷新页缓存，保持 PagedList 实例与滚动位置不变。
+  ref.listen<AsyncValue<CoreEventDto>>(coreEventsProvider, (_, next) {
+    final event = next.value;
+    if (event is CoreEventDto_LibraryChanged &&
+        (event.scope == LibraryScopeDto.catalog ||
+            (refreshOnUserState && event.scope == LibraryScopeDto.userState))) {
+      list.refresh();
+    }
+  });
   ref.onDispose(list.dispose);
   return list;
 }
@@ -356,17 +425,15 @@ final genreTracksListProvider = Provider.autoDispose
       ),
     );
 
-/// 喜欢的歌曲。喜欢状态变化后自动刷新。
-final likedTracksListProvider = Provider.autoDispose<PagedList<TrackRowDto>>((
-  ref,
-) {
-  ref.invalidateOnUserStateChange();
-  return _pagedList(
+/// 喜欢的歌曲。喜欢状态变化后自动就地刷新。
+final likedTracksListProvider = Provider.autoDispose<PagedList<TrackRowDto>>(
+  (ref) => _pagedList(
     ref,
     (o, l) => core.lovedTracks(offset: o, limit: l),
     count: () => _count(core.countLoved),
-  );
-});
+    refreshOnUserState: true,
+  ),
+);
 
 /// 喜欢的歌曲总数（空状态 / 标题用）。
 final lovedCountProvider = FutureProvider.autoDispose<int>((ref) async {
@@ -609,6 +676,54 @@ final librarySegmentProvider = _valueProvider<LibrarySegment>(
 );
 final songSortProvider = _valueProvider<TrackSortDto>(TrackSortDto.title);
 final albumSortProvider = _valueProvider<TrackSortDto>(TrackSortDto.title);
+
+/// 资料库专辑页显示方式：标准网格 / 紧凑网格 / 高效列表。
+enum AlbumViewMode {
+  grid('grid'),
+  compactGrid('compact_grid'),
+  list('list');
+
+  const AlbumViewMode(this.storageValue);
+  final String storageValue;
+
+  static AlbumViewMode fromStorage(String? value) =>
+      values.firstWhere((m) => m.storageValue == value, orElse: () => grid);
+}
+
+const String kAlbumViewModeSettingKey = 'ui.library_album_view';
+
+class AlbumViewModeNotifier extends Notifier<AlbumViewMode> {
+  @override
+  AlbumViewMode build() => AlbumViewMode.grid;
+
+  void adopt(AlbumViewMode mode) => state = mode;
+
+  Future<void> set(AlbumViewMode mode) async {
+    if (state == mode) return;
+    state = mode;
+    try {
+      await core.setSetting(
+        key: kAlbumViewModeSettingKey,
+        value: mode.storageValue,
+      );
+    } catch (_) {}
+  }
+}
+
+final albumViewModeProvider =
+    NotifierProvider<AlbumViewModeNotifier, AlbumViewMode>(
+      AlbumViewModeNotifier.new,
+    );
+
+/// 启动时恢复上次选择的资料库专辑视图模式。
+Future<void> restoreAlbumViewMode(ProviderContainer container) async {
+  try {
+    final raw = await core.getSetting(key: kAlbumViewModeSettingKey);
+    container
+        .read(albumViewModeProvider.notifier)
+        .adopt(AlbumViewMode.fromStorage(raw));
+  } catch (_) {}
+}
 
 /// Selection shown in the secondary pane on wide windows.
 final selectedAlbumProvider = _valueProvider<int?>(null);

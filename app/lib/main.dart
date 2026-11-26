@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'package:lekis/src/app.dart';
 import 'package:lekis/src/bridge/core_init.dart';
+import 'package:lekis/src/features/library/library_providers.dart';
 import 'package:lekis/src/features/now_playing/now_playing_style.dart';
 import 'package:lekis/src/features/player/playback_session.dart';
 import 'package:lekis/src/features/plugins/official_plugins.dart';
@@ -61,6 +62,7 @@ Future<void> main() async {
     restoreNowPlayingStyle(container),
     restoreTabBarStyle(container),
     restoreNavBarPosition(container),
+    restoreAlbumViewMode(container),
     restoreDesktopTraySettings(container),
   ]);
 

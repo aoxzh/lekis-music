@@ -97,6 +97,7 @@ class LibraryHeader extends ConsumerWidget {
           ),
         if (segment == LibrarySegment.albums || segment == LibrarySegment.songs)
           _SortMenu(albums: segment == LibrarySegment.albums),
+        if (segment == LibrarySegment.albums) const _AlbumViewModeMenu(),
         if (segment == LibrarySegment.albums)
           IconButton(
             tooltip: l10n.coverFlow,
@@ -342,6 +343,42 @@ class _CategoryStripState extends State<_CategoryStrip> {
       ),
     ),
   );
+}
+
+class _AlbumViewModeMenu extends ConsumerWidget {
+  const _AlbumViewModeMenu();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = ref.watch(albumViewModeProvider);
+    final l10n = context.l10n;
+    String label(AlbumViewMode mode) => switch (mode) {
+      AlbumViewMode.grid => l10n.pick('标准网格', 'Standard Grid'),
+      AlbumViewMode.compactGrid => l10n.pick('紧凑网格', 'Compact Grid'),
+      AlbumViewMode.list => l10n.pick('高效列表', 'Compact List'),
+    };
+    IconData iconOf(AlbumViewMode mode) => switch (mode) {
+      AlbumViewMode.grid => Icons.grid_view_rounded,
+      AlbumViewMode.compactGrid => Icons.apps_rounded,
+      AlbumViewMode.list => Icons.view_list_rounded,
+    };
+    return LekisActionMenuButton<AlbumViewMode>(
+      key: const ValueKey('library-album-view-mode'),
+      title: l10n.pick('显示方式', 'Display Mode'),
+      tooltip: l10n.pick('显示方式：${label(current)}', 'View: ${label(current)}'),
+      icon: iconOf(current),
+      onSelected: (mode) => ref.read(albumViewModeProvider.notifier).set(mode),
+      actions: () => [
+        for (final mode in AlbumViewMode.values)
+          LekisMenuAction(
+            mode,
+            iconOf(mode),
+            label(mode),
+            selected: mode == current,
+          ),
+      ],
+    );
+  }
 }
 
 class _SortMenu extends ConsumerWidget {

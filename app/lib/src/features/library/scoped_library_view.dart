@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge.dart' show Int64List;
+import 'package:lekis/src/bridge/core_events.dart';
 import 'package:lekis/src/features/downloads/download_status.dart';
 import 'package:lekis/src/features/enrich/enrich_actions.dart';
 import 'package:lekis/src/features/library/artwork_actions.dart';
@@ -103,10 +104,17 @@ typedef _Catalog = ({
 
 final scopedAlbumsListProvider = Provider.autoDispose
     .family<PagedList<AlbumDto>, ScopedSongQuery>((ref, query) {
-      ref.invalidateOnCatalogChange();
       final list = PagedList<AlbumDto>(
         fetch: ref.watch(scopedAlbumPageProvider(query)),
       );
+      // 补全封面等后台目录变更时就地刷新页缓存，避免重建 PagedList 导致滚动条跳回顶部。
+      ref.listen<AsyncValue<CoreEventDto>>(coreEventsProvider, (_, next) {
+        final event = next.value;
+        if (event is CoreEventDto_LibraryChanged &&
+            event.scope == LibraryScopeDto.catalog) {
+          list.refresh();
+        }
+      });
       ref.onDispose(list.dispose);
       return list;
     });
@@ -234,6 +242,8 @@ class ScopedLibraryView extends ConsumerWidget {
       return ref
           .watch(tracks)
           .when(
+            skipLoadingOnReload: true,
+            skipLoadingOnRefresh: true,
             data: (rows) => ScopedLibraryRowsView(
               scope: scope,
               segment: segment,
@@ -253,6 +263,8 @@ class ScopedLibraryView extends ConsumerWidget {
     return ref
         .watch(catalog)
         .when(
+          skipLoadingOnReload: true,
+          skipLoadingOnRefresh: true,
           data: (data) => ScopedLibraryRowsView(
             scope: scope,
             segment: segment,
@@ -369,6 +381,8 @@ class _ScopedArtistsState extends ConsumerState<_ScopedArtists> {
     return ref
         .watch(provider)
         .when(
+          skipLoadingOnReload: true,
+          skipLoadingOnRefresh: true,
           loading: _loading,
           error: (error, _) => LoadErrorView(
             error: error,
@@ -407,6 +421,8 @@ class _ScopedArtistPage extends ConsumerWidget {
     body: ref
         .watch(_catalogProvider(scope))
         .when(
+          skipLoadingOnReload: true,
+          skipLoadingOnRefresh: true,
           loading: _loading,
           error: (error, _) => LoadErrorView(
             error: error,
@@ -456,6 +472,8 @@ class ScopedLibraryAlbumPage extends ConsumerWidget {
       body: ref
           .watch(provider)
           .when(
+            skipLoadingOnReload: true,
+            skipLoadingOnRefresh: true,
             data: (rows) => _Songs(
               scope: scope,
               rows: rows,
@@ -770,7 +788,7 @@ class _Songs extends ConsumerWidget {
         if (!row.isLocal) row.id,
     ];
     return PagedTrackList(
-      key: ObjectKey(rows),
+      key: ValueKey((scope, menuTitle, albumDetail, liked)),
       list: ref.watch(_groupListProvider(rows)),
       pluginId: scope.pluginId,
       header: Padding(
