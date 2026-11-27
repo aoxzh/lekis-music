@@ -135,73 +135,203 @@ pub(super) fn normalized_hint(hint: &TrackHint) -> TrackHint {
     }
 }
 
-// Video platforms often supply the uploader as artist. Extract an explicit
-// artist/title pair only as a search hint; it is not trusted for auto-apply.
-fn video_identity(hint: &TrackHint) -> Option<(String, String)> {
-    let folded = width_fold(&hint.title);
-    let clean = clean_title(&folded, &[]);
-    // Anime uploads commonly put the work and OP/ED label before the
-    // quoted song, followed by its performer and a bracketed upload label.
-    for (open, close) in [('「', '」'), ('『', '』')] {
-        if let Some((context, rest)) = folded.split_once(open) {
-            if let Some((song, tail)) = rest.split_once(close) {
-                let context_key = key(context);
-                let anime_theme = [
-                    "op主题曲",
-                    "ed主题曲",
-                    "op主題歌",
-                    "ed主題歌",
-                    "オープニングテーマ",
-                    "エンディングテーマ",
-                ]
-                .iter()
-                .any(|label| context_key.ends_with(label));
-                let artist = tail
-                    .split(['【', '〖', '[', '('])
-                    .next()
-                    .unwrap_or("")
-                    .trim();
-                if anime_theme && !song.trim().is_empty() && !artist.is_empty() {
-                    return Some((song.trim().to_string(), artist.to_string()));
-                }
+// Upload captions start with quality / format labels such as `【官方MV】`,
+// `【4K/Hi-Res】` or `[Official Video]`. They describe the video, not the song,
+// so strip them before looking for an artist/title pair.
+fn is_caption_label(value: &str) -> bool {
+    let compact = key(value);
+    if compact.is_empty() {
+        return false;
+    }
+    if is_media_label(value) {
+        return true;
+    }
+    const MARKERS: &[&str] = &[
+        "官方",
+        "视频",
+        "影片",
+        "中字",
+        "字幕",
+        "双字",
+        "完整版",
+        "高清",
+        "无损",
+        "试听",
+        "现场",
+        "official",
+        "musicvideo",
+        "lyricvideo",
+        "video",
+        "audio",
+        "mv",
+        "pv",
+        "4k",
+        "8k",
+        "hires",
+        "1080p",
+        "720p",
+        "hd",
+        "remaster",
+    ];
+    MARKERS.iter().any(|marker| compact.contains(marker))
+}
+
+fn strip_leading_caption_labels(mut value: &str) -> &str {
+    loop {
+        let mut stripped = false;
+        for (open, close) in [('【', '】'), ('[', ']')] {
+            let Some(inner) = value.strip_prefix(open) else {
+                continue;
+            };
+            let Some((label, tail)) = inner.split_once(close) else {
+                continue;
+            };
+            if !is_caption_label(label) {
+                continue;
             }
+            value = tail.trim_start_matches(|c: char| {
+                c.is_whitespace() || matches!(c, '｜' | '|' | '·' | '-' | '–' | '—')
+            });
+            stripped = true;
+            break;
+        }
+        if !stripped {
+            return value;
         }
     }
-    for (open, close) in [('「', '」'), ('『', '』')] {
-        if let Some((artist, rest)) = clean.split_once(open) {
-            if let Some((song, suffix)) = rest.split_once(close) {
-                if !artist.trim().is_empty() && !song.trim().is_empty() && suffix.trim().is_empty()
-                {
-                    return Some((song.trim().to_string(), artist.trim().to_string()));
-                }
-            }
+}
+
+/// Whether `value` begins with a media label such as `Official Music Video`,
+/// even when a performer or `VOCAL: ...` note follows it.
+fn starts_with_media_label(value: &str) -> bool {
+    if is_media_label(value) {
+        return true;
+    }
+    let mut prefix = String::new();
+    for word in value.split_whitespace().take(5) {
+        if !prefix.is_empty() {
+            prefix.push(' ');
+        }
+        prefix.push_str(word);
+        if is_media_label(&prefix) {
+            return true;
         }
     }
+    value
+        .split(['-', '–', '—', '|'])
+        .next()
+        .is_some_and(is_media_label)
+}
+
+/// Quoted titles (「」, 『』, 《》) are explicit in a way that a bare dash is not.
+/// Anime uploads put the work and OP/ED label before the song; everything else
+/// is normally `Artist「Song」` or `Artist《Song》`.
+fn quoted_identity(value: &str) -> Option<(String, String)> {
+    for (open, close) in [('「', '」'), ('『', '』'), ('《', '》')] {
+        let Some((context, rest)) = value.split_once(open) else {
+            continue;
+        };
+        let Some((song, tail)) = rest.split_once(close) else {
+            continue;
+        };
+        let (context, song, tail) = (context.trim(), song.trim(), tail.trim());
+        if context.is_empty() || song.is_empty() {
+            continue;
+        }
+        let context_key = key(context);
+        let anime_theme = [
+            "op主题曲",
+            "ed主题曲",
+            "op主題歌",
+            "ed主題歌",
+            "オープニングテーマ",
+            "エンディングテーマ",
+        ]
+        .iter()
+        .any(|label| context_key.ends_with(label));
+        if anime_theme {
+            let artist = tail
+                .split(['【', '〖', '[', '(', '（'])
+                .next()
+                .unwrap_or("")
+                .trim();
+            if !artist.is_empty() {
+                return Some((song.to_string(), artist.to_string()));
+            }
+        }
+        if tail.is_empty() || starts_with_media_label(tail) {
+            return Some((song.to_string(), context.to_string()));
+        }
+    }
+    None
+}
+
+fn separator_identities(value: &str, had_caption: bool, hint: &TrackHint) -> Vec<(String, String)> {
     let tagged = |part: &str| hint.artists.iter().any(|artist| key(artist) == key(part));
-    for (offset, separator) in clean.match_indices(['|', '–', '—', '-', '/']) {
-        let (left, right) = (&clean[..offset], &clean[offset + separator.len()..]);
+    let mut out = Vec::new();
+    for (offset, separator) in value.match_indices(['|', '–', '—', '-', '/']) {
+        let (left, right) = (&value[..offset], &value[offset + separator.len()..]);
         let (first, second) = (left.trim(), right.trim());
         if first.is_empty() || second.is_empty() {
             continue;
         }
         if tagged(second) {
-            return Some((first.into(), second.into()));
-        }
-        if tagged(first) {
-            return Some((second.into(), first.into()));
-        }
-        let spaced = left.ends_with(' ') && right.starts_with(' ');
-        if (separator == "|" || spaced)
-            && !clean[offset + separator.len()..].contains(['|', '—', '–'])
-            && !matches!(
+            out.push((first.into(), second.into()));
+        } else if tagged(first) {
+            out.push((second.into(), first.into()));
+        } else {
+            let spaced = left.ends_with(' ') && right.starts_with(' ');
+            let version_word = matches!(
                 key(second).as_str(),
                 "live" | "remix" | "cover" | "acoustic" | "instrumental"
-            )
-        {
-            return Some((second.into(), first.into()));
+            );
+            if (separator == "|" || spaced)
+                && !value[offset + separator.len()..].contains(['|', '—', '–'])
+                && !version_word
+            {
+                out.push((second.into(), first.into()));
+            } else if separator == "-" && had_caption {
+                // `【官方MV】念-薛之谦` and `【官方MV】薛之谦-念` are both common.
+                // Both orientations are search hints; the identity gate still
+                // requires the candidate to agree on title, artist and version.
+                let before = left.chars().next_back();
+                let after = right.chars().next();
+                if before.is_some_and(|c| !c.is_ascii_alphanumeric())
+                    && after.is_some_and(|c| !c.is_ascii_alphanumeric())
+                {
+                    out.push((first.into(), second.into()));
+                    out.push((second.into(), first.into()));
+                }
+            }
+        }
+        if !out.is_empty() {
+            break;
         }
     }
-    None
+    out
+}
+
+// Video platforms often supply the uploader as artist. Extract explicit
+// artist/title pairs only as a search hint; it is not trusted for auto-apply.
+fn video_identities(hint: &TrackHint) -> Vec<(String, String)> {
+    let folded = width_fold(&hint.title);
+    let body = strip_leading_caption_labels(&folded);
+    let had_caption = body.len() != folded.len();
+    let clean = clean_title(body, &[]);
+    let mut out = Vec::new();
+    let mut push = |song: String, artist: String| {
+        let pair = (song.trim().to_string(), artist.trim().to_string());
+        if !pair.0.is_empty() && !pair.1.is_empty() && !out.contains(&pair) {
+            out.push(pair);
+        }
+    };
+    if let Some((song, artist)) = quoted_identity(body).or_else(|| quoted_identity(&clean)) {
+        push(song, artist);
+    }
+    for (song, artist) in separator_identities(&clean, had_caption, hint) {
+        push(song, artist);
+    }
+    out
 }
 
 fn space_scripts(text: &str) -> String {
@@ -239,13 +369,15 @@ pub(crate) fn search_variants(hint: &TrackHint) -> Vec<(String, Option<String>)>
     };
     push(hint.title.trim().into(), artist.clone());
     let clean = clean_title(&hint.title, &hint.artists);
-    let identity = video_identity(hint);
-    if let Some((song, performer)) = &identity {
+    let identities = video_identities(hint);
+    for (song, performer) in &identities {
         push(song.clone(), Some(performer.clone()));
     }
     push(clean.clone(), artist.clone());
-    let (song, performer) =
-        identity.map_or_else(|| (clean.clone(), artist.clone()), |(s, a)| (s, Some(a)));
+    let (song, performer) = identities.first().map_or_else(
+        || (clean.clone(), artist.clone()),
+        |(song, performer)| (song.clone(), Some(performer.clone())),
+    );
     push(space_scripts(&song), performer);
     if artist.is_some() {
         push(clean, None);
@@ -317,18 +449,23 @@ pub(crate) fn confidence(hint: &TrackHint, matched: &TrackHint) -> Option<f32> {
     if let Some(score) = confidence_direct(hint, matched) {
         return Some(score);
     }
-    let (title, artist) = video_identity(hint)?;
     // A label such as Live or Cover must survive extraction and agree with the record.
     if versions(&hint.title) != versions(&matched.title) {
         return None;
     }
-    let inferred = TrackHint {
-        title,
-        artists: vec![artist],
-        ..hint.clone()
-    };
-    confidence_direct(&inferred, matched)
-        .map(|score| score.min(super::super::AUTO_APPLY_THRESHOLD - 0.01))
+    let mut best = None;
+    for (title, artist) in video_identities(hint) {
+        let inferred = TrackHint {
+            title,
+            artists: vec![artist],
+            ..hint.clone()
+        };
+        if let Some(score) = confidence_direct(&inferred, matched) {
+            let score = score.min(super::super::AUTO_APPLY_THRESHOLD - 0.01);
+            best = Some(best.map_or(score, |current: f32| current.max(score)));
+        }
+    }
+    best
 }
 
 fn confidence_direct(hint: &TrackHint, matched: &TrackHint) -> Option<f32> {

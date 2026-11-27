@@ -1348,7 +1348,19 @@ fn decode_loop(
             let fresh = prepared
                 .as_ref()
                 .is_some_and(|track| track.token == token_now);
-            if fresh {
+            // 关闭无缝播放（`playback.gapless = false`）：预装只是给交叉淡入淡出用的，
+            // EOF 时不做样本级拼接。丢掉预装，让这一首自然播完、缓冲放空，
+            // 引擎看到 `finished()` 后重新开流播下一首（正常的换曲间隔）。
+            let gapless = crossfade.gapless();
+            if fresh && !gapless {
+                tracing::debug!(
+                    target: "playback::gapless",
+                    track = %active.track_id,
+                    "gapless playback disabled; not splicing the pre-opened next track at EOF"
+                );
+                prepared = None;
+            }
+            if fresh && gapless {
                 if let Some(next) = prepared.take() {
                     if splice_next(
                         &mut active,

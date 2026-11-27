@@ -16,7 +16,7 @@
 3. **Unified Library & Quality Deduplication**: Merges identical tracks across local storage, NAS, and media servers, selecting the best quality automatically, with one-click deletion of lower-quality duplicates.
 4. **High-Performance Rust Audio Core**: Handles 100,000+ track libraries (~0.3s cold start, 120 fps UI), sample-accurate gapless playback, Windows WASAPI exclusive (bit-perfect) output, ReplayGain, 10-band EQ with headphone presets, and Last.fm / ListenBrainz / Libre.fm scrobbling.
 5. **Zero-API-Key Metadata Enrichment & Lyrics**: Built-in cascading artwork (Cover Art Archive, iTunes Global/JP, Deezer, VocaDB, MusicBrainz) and synced lyrics (LRCLIB, etc.), CJK per-locale font fallback, and Windows native floating desktop lyrics (Win32 + Direct2D/DirectWrite).
-6. **LAN Connect & Serverless Sync**: Remote control, queue transfer, and local track streaming between paired LAN devices; serverless multi-device sync for favorites, playlists, and play history over any shared folder.
+6. **LAN Connect**: Remote control, queue transfer, and local track streaming between paired LAN devices.
 7. **Extensible & Private**: Local JS plugin host, bilingual UI (English / Simplified Chinese), Vinyl/Cassette/Cover now-playing styles, zero accounts, zero tracking.
 
 ## Key Documentation

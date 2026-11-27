@@ -11,7 +11,7 @@ use crate::output::{AudioOutput, OutputDevice, OutputMode, SampleSource};
 use crate::session::OutputFactory;
 use lekis_types::Result;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -72,6 +72,8 @@ pub(crate) struct NullOutputFactory {
     pub chunk_frames: usize,
     /// 开播前等解码线程把缓冲填起来，避免测试一开始就欠载。
     pub startup_delay: Duration,
+    /// 一共开过几条输出流（无缝拼接 = 1 条；每次重建会话 +1）。
+    pub created: Arc<AtomicUsize>,
 }
 
 impl NullOutputFactory {
@@ -81,7 +83,13 @@ impl NullOutputFactory {
             capture: Arc::new(Mutex::new(Vec::new())),
             chunk_frames: 400,
             startup_delay: Duration::from_millis(120),
+            created: Arc::new(AtomicUsize::new(0)),
         }
+    }
+
+    /// 开过几条输出流。
+    pub(crate) fn created_count(&self) -> usize {
+        self.created.load(Ordering::Acquire)
     }
 
     pub(crate) fn captured(&self) -> Vec<f32> {
@@ -98,6 +106,7 @@ impl OutputFactory for NullOutputFactory {
     }
 
     fn create(&self) -> Box<dyn AudioOutput> {
+        self.created.fetch_add(1, Ordering::AcqRel);
         Box::new(NullOutput {
             capture: self.capture.clone(),
             planned: self.planned,

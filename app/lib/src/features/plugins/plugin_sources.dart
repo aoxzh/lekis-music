@@ -1,8 +1,9 @@
 // User-managed plugin sources.
 //
-// The app ships one built-in community catalog; users may add more HTTPS
-// catalog URLs (community mirrors or their own). The list is persisted in core
-// settings and every source is browsed on the Plugins page.
+// The app ships one built-in community catalog, which users may switch off;
+// users may add more HTTPS catalog URLs (community mirrors or their own). The
+// list and the switch are persisted in core settings and every enabled source
+// is browsed on the Plugins page.
 
 import 'dart:convert';
 
@@ -14,6 +15,47 @@ import 'plugin_registry.dart';
 
 /// Core setting key holding a JSON array of custom catalog URLs.
 const String kPluginSourcesSettingKey = 'plugins.sources';
+
+/// Core setting key for the built-in community catalog switch: `true`
+/// (default, also when unset) / `false`. When off the built-in catalog is
+/// neither fetched nor listed; user-added sources and installed plugins are
+/// unaffected.
+const String kPluginBuiltinSourceEnabledKey = 'plugins.builtinSource.enabled';
+
+/// Reads the persisted switch; anything but `false` means on.
+bool parsePluginBuiltinSourceEnabled(String? raw) =>
+    raw?.trim().toLowerCase() != 'false';
+
+final pluginBuiltinSourceEnabledProvider =
+    AsyncNotifierProvider<PluginBuiltinSourceNotifier, bool>(
+      PluginBuiltinSourceNotifier.new,
+    );
+
+class PluginBuiltinSourceNotifier extends AsyncNotifier<bool> {
+  @override
+  Future<bool> build() async {
+    try {
+      return parsePluginBuiltinSourceEnabled(
+        await core.getSetting(key: kPluginBuiltinSourceEnabledKey),
+      );
+    } catch (_) {
+      // Core may not be available in tests.
+      return true;
+    }
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    state = AsyncData(enabled);
+    try {
+      await core.setSetting(
+        key: kPluginBuiltinSourceEnabledKey,
+        value: enabled ? 'true' : 'false',
+      );
+    } catch (_) {
+      // Keep the in-memory choice usable even when settings are unavailable.
+    }
+  }
+}
 
 /// The catalog that ships with the app (see `LEKIS_PLUGIN_REGISTRY_URL`).
 String get defaultPluginSourceUrl => pluginRegistryUrl;
@@ -75,8 +117,29 @@ final pluginSourceCatalogProvider = FutureProvider.autoDispose
     );
 
 class PluginSourcesNotifier extends AsyncNotifier<List<PluginSource>> {
+  var _builtinEnabled = true;
+
   @override
-  Future<List<PluginSource>> build() async => _combine(await _loadCustom());
+  Future<List<PluginSource>> build() async {
+    // Flipping the switch only adds / drops the built-in entry; the custom
+    // list is kept as is instead of being re-read from storage.
+    ref.listen(pluginBuiltinSourceEnabledProvider, (_, next) {
+      final enabled = next.value;
+      if (enabled == null || enabled == _builtinEnabled) return;
+      _builtinEnabled = enabled;
+      final current = state.value;
+      if (current != null) {
+        state = AsyncData(
+          _combine([
+            for (final source in current)
+              if (!source.builtIn) source.url,
+          ]),
+        );
+      }
+    });
+    _builtinEnabled = await ref.read(pluginBuiltinSourceEnabledProvider.future);
+    return _combine(await _loadCustom());
+  }
 
   Future<List<String>> _loadCustom() async {
     try {
@@ -89,10 +152,13 @@ class PluginSourcesNotifier extends AsyncNotifier<List<PluginSource>> {
     }
   }
 
+  /// The built-in URL is never kept as a custom source, even while the
+  /// built-in catalog is switched off.
   List<PluginSource> _combine(List<String> custom) {
     final seen = <String>{defaultPluginSourceUrl};
     return [
-      PluginSource(url: defaultPluginSourceUrl, builtIn: true),
+      if (_builtinEnabled)
+        PluginSource(url: defaultPluginSourceUrl, builtIn: true),
       for (final url in custom)
         if (seen.add(url)) PluginSource(url: url, builtIn: false),
     ];
@@ -101,7 +167,7 @@ class PluginSourcesNotifier extends AsyncNotifier<List<PluginSource>> {
   /// Adds [raw] and returns false when it is invalid or already present.
   Future<bool> add(String raw) async {
     final url = normalizePluginSourceUrl(raw);
-    if (url == null) return false;
+    if (url == null || url == defaultPluginSourceUrl) return false;
     final current = state.value ?? _combine(await _loadCustom());
     if (current.any((source) => source.url == url)) return false;
     final custom = [

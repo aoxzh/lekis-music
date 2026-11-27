@@ -58,6 +58,7 @@ class EnrichReviewPage extends ConsumerWidget {
               skipLoadingOnReload: true,
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => LekisEmptyState(
+                mascot: LekisMascotPose.thinking,
                 title: EnrichStrings.loadFailed,
                 message: describeCoreError(e),
                 action: TextButton.icon(
@@ -69,6 +70,7 @@ class EnrichReviewPage extends ConsumerWidget {
               ),
               data: (list) => list.isEmpty
                   ? LekisEmptyState(
+                      mascot: LekisMascotPose.thumbsUp,
                       title: EnrichStrings.emptyTitle,
                       message: EnrichStrings.emptyBody,
                       action: FilledButton.tonalIcon(

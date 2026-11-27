@@ -56,6 +56,12 @@ fn is_placeholder_artist(name: &str) -> bool {
 
 /// 一次补全最多保留多少条候选。
 const MAX_PROVIDERS_PER_KIND: usize = 8;
+
+/// 按需播放/重试歌词时，强候选（例如 AMLL 无时长、视频标题推导出的身份）
+/// 分数被压在自动应用阈值以下。这里允许它们直接显示，避免歌词面板空着；
+/// 批量补全仍走 0.85 / 0.5 的自动应用与待确认流程。
+const ON_DEMAND_REVIEW_ACTIVATION_THRESHOLD: f32 = 0.8;
+
 const QQ_EXAMPLE_ID: &str = "dev.lekis.example.qq-lyrics";
 
 fn lyrics_source_key(source: &str) -> &str {
@@ -366,7 +372,7 @@ impl EnrichPipeline {
         let hint = hint_for(&track, library).await?;
         let candidates = manager.lyric_candidates(available, track_id, &hint).await?;
         if !candidates.is_empty() {
-            self.apply_lyrics(library, track_id, &hint, candidates)
+            self.apply_lyrics(library, track_id, &hint, candidates, false)
                 .await?;
         }
         Ok(())
@@ -389,7 +395,7 @@ impl EnrichPipeline {
         let hint = hint_for(&track, library).await?;
         let candidates = self.query_lyrics_cascade(&hint).await?;
         let found = !candidates.is_empty();
-        self.apply_lyrics(library, track_id, &hint, candidates)
+        self.apply_lyrics(library, track_id, &hint, candidates, true)
             .await?;
         Ok(found)
     }
@@ -417,7 +423,7 @@ impl EnrichPipeline {
         if want_lyrics && library.active_lyrics(track_id).await?.is_none() {
             match self.query_lyrics_cascade(&hint).await {
                 Ok(candidates) => report.absorb(
-                    self.apply_lyrics(library, track_id, &hint, candidates)
+                    self.apply_lyrics(library, track_id, &hint, candidates, false)
                         .await?,
                 ),
                 // Batch enrichment should still fetch artwork when every lyrics
@@ -446,11 +452,13 @@ impl EnrichPipeline {
         track_id: TrackId,
         _hint: &TrackHint,
         candidates: Vec<Candidate<LyricsPayload>>,
+        activate_review: bool,
     ) -> Result<EnrichReport> {
         let mut report = EnrichReport::default();
-        let mut queued: Vec<NewEnrichCandidate> = Vec::new();
+        let mut queued: Vec<(i64, NewEnrichCandidate)> = Vec::new();
         let existing = library.list_lyrics(track_id).await?;
         let mut selected = existing.iter().find(|row| row.is_active).map(|row| row.id);
+        let mut best_review: Option<(i64, f32, LyricsFormat)> = None;
         let mut seen = Vec::new();
         for candidate in &candidates {
             let identity = (lyrics_source_key(&candidate.source), &candidate.payload);
@@ -489,20 +497,47 @@ impl EnrichPipeline {
             };
             match decision {
                 Decision::AutoApply => {
-                    if selected.is_none() { selected = Some(id); report.auto_applied += 1; }
+                    if selected.is_none() {
+                        selected = Some(id);
+                        report.auto_applied += 1;
+                    }
                 }
-                Decision::Review => queued.push(NewEnrichCandidate {
-                    track_id: Some(track_id), album_id: None, kind: "lyrics".into(),
-                    payload_json: serde_json::json!({ "format": format_to_str(lyrics.format), "content": lyrics.content }).to_string(),
-                    source: existing_row.map(|row| &row.lyrics.source).unwrap_or(&candidate.source).clone(), score,
-                }),
+                Decision::Review => {
+                    let synced = lyrics.format != LyricsFormat::Plain;
+                    let better = best_review.is_none_or(|(_, best_score, best_format)| {
+                        let best_synced = best_format != LyricsFormat::Plain;
+                        (synced && !best_synced) || (synced == best_synced && score > best_score)
+                    });
+                    if better {
+                        best_review = Some((id, score, lyrics.format));
+                    }
+                    queued.push((id, NewEnrichCandidate {
+                        track_id: Some(track_id), album_id: None, kind: "lyrics".into(),
+                        payload_json: serde_json::json!({ "format": format_to_str(lyrics.format), "content": lyrics.content }).to_string(),
+                        source: existing_row.map(|row| &row.lyrics.source).unwrap_or(&candidate.source).clone(), score,
+                    }));
+                }
                 Decision::Discard => {}
+            }
+        }
+        // On-demand playback/retry should show the best strong candidate instead
+        // of leaving the lyrics pane empty. A user-selected version is never
+        // replaced; batch enrichment still keeps review candidates for review.
+        if selected.is_none() && activate_review {
+            if let Some((id, score, _format)) = best_review {
+                if score >= ON_DEMAND_REVIEW_ACTIVATION_THRESHOLD {
+                    selected = Some(id);
+                    report.auto_applied += 1;
+                    queued.retain(|(candidate_id, _)| *candidate_id != id);
+                }
             }
         }
         if let Some(id) = selected {
             library.activate_lyrics_if_empty(track_id, id).await?;
         }
-        report.queued = library.insert_enrich_candidates(queued).await? as u32;
+        report.queued = library
+            .insert_enrich_candidates(queued.into_iter().map(|(_, candidate)| candidate).collect())
+            .await? as u32;
         Ok(report)
     }
 

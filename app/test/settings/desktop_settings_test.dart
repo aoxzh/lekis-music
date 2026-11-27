@@ -274,6 +274,56 @@ void main() {
       expect(find.text(SettingsStrings.searchEmpty), findsOneWidget);
     });
 
+    testWidgets('plugins is a General category that search lands on', (
+      tester,
+    ) async {
+      _profile(UiProfile.desktop);
+      _size(tester, const Size(1280, 820));
+      await tester.pumpWidget(_app());
+      await tester.pump();
+
+      // Listed under 通用 (between the General header and 更多), not in 高级.
+      final general = tester.getTopLeft(
+        find.text(SettingsCategoryGroup.general.title),
+      );
+      final more = tester.getTopLeft(
+        find.text(SettingsCategoryGroup.more.title),
+      );
+      final plugins = tester.getTopLeft(_category('plugins'));
+      expect(plugins.dy, greaterThan(general.dy));
+      expect(plugins.dy, lessThan(more.dy));
+      expect(SettingsCategory.advanced.matches('插件'), isFalse);
+      expect(SettingsCategory.advanced.matches('plugin'), isFalse);
+
+      for (final query in ['插件', 'plugin']) {
+        await tester.enterText(find.byKey(DesktopSettingsView.searchKey), query);
+        await tester.pump();
+        expect(_category('plugins'), findsOneWidget);
+        expect(_category('advanced'), findsNothing);
+        expect(
+          find.widgetWithText(SettingsSearchRow, SettingsStrings.pluginsManage),
+          findsOneWidget,
+        );
+      }
+
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      expect(find.byType(BackButton), findsNothing);
+      expect(
+        find.byKey(const ValueKey('plugins.entry')).hitTestable(),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('plugins.builtin-source')),
+        findsOneWidget,
+      );
+
+      // The entry opens the full Plugins page.
+      await tester.tap(find.byKey(const ValueKey('plugins.entry')));
+      await tester.pumpAndSettle();
+      expect(find.byType(PluginsPage), findsOneWidget);
+    });
+
     testWidgets('narrow desktop window: pushed pages, still no glass options', (
       tester,
     ) async {

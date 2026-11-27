@@ -39,11 +39,18 @@ impl CrossfadeSettings {
     }
 }
 
-/// 跨线程共享的交叉淡入淡出控制句柄（无锁）。
+/// 跨线程共享的换曲过渡控制句柄（无锁）：交叉淡入淡出参数 + 无缝播放开关。
+///
+/// 无缝播放开关（`playback.gapless`，PLY-01）也放在这里，因为解码线程在曲目 EOF 时
+/// 要现场判断「预装好的下一首能不能直接拼进同一条输出流」：关掉无缝后，
+/// 交叉淡入淡出照常进行（那是用户要的重叠），但 EOF 不再做样本级拼接，
+/// 而是让这一首自然播完、缓冲放空，引擎再重新开流播下一首（正常的换曲间隔）。
 #[derive(Debug, Default)]
 pub struct CrossfadeControl {
     duration_ms: AtomicU32,
     smart_silence: AtomicBool,
+    /// 存「关闭」而不是「开启」：`Default` 派生出来就是默认开（与设置缺省值一致）。
+    gapless_off: AtomicBool,
 }
 
 impl CrossfadeControl {
@@ -52,7 +59,18 @@ impl CrossfadeControl {
         Self {
             duration_ms: AtomicU32::new(settings.duration_ms.min(MAX_CROSSFADE_MS)),
             smart_silence: AtomicBool::new(settings.smart_silence),
+            gapless_off: AtomicBool::new(false),
         }
+    }
+
+    /// 是否允许在曲目 EOF 时把预装好的下一首样本级拼进同一条输出流（默认开）。
+    pub fn gapless(&self) -> bool {
+        !self.gapless_off.load(Ordering::Acquire)
+    }
+
+    /// 更新无缝播放开关（`playback.gapless`）。解码线程在下一次 EOF 时读取。
+    pub fn set_gapless(&self, enabled: bool) {
+        self.gapless_off.store(!enabled, Ordering::Release);
     }
 
     /// 读取当前时长（毫秒）。

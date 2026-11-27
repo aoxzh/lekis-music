@@ -55,6 +55,8 @@ dependencies:
   connectivity_plus: ^7.3.2
   desktop_webview_window: ^0.4.3
   home_widget: ^0.10.0
+  share_plus: ^13.3.1
+  archive: ^4.7.1
 
 dev_dependencies:
   flutter_test:
@@ -86,6 +88,8 @@ flutter:
     - assets/spotify/spotify_white.png
     - assets/brand/mark.png
     - assets/brand/tray_icon.ico
+    # Mascot poses for empty / progress / all-good states (lib/src/widgets/mascot.dart).
+    - assets/brand/mascot/
     - assets/plugins/video-playback/plugin.json
     - assets/plugins/video-playback/index.js
 

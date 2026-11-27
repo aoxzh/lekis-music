@@ -314,6 +314,7 @@ class _SubscriptionsView extends ConsumerWidget {
       data: (list) {
         if (list.isEmpty && inProgress.isEmpty) {
           return LekisEmptyState(
+            mascot: LekisMascotPose.jumping,
             eyebrow: PodcastStrings.eyebrow,
             title: PodcastStrings.subscriptionsEmpty,
             message: PodcastStrings.subscriptionsEmptyBody,
@@ -547,6 +548,7 @@ class _DiscoverView extends ConsumerWidget {
             data: (list) {
               if (list.isEmpty) {
                 return LekisEmptyState(
+                  mascot: LekisMascotPose.thinking,
                   eyebrow: PodcastStrings.eyebrow,
                   title: term.isEmpty
                       ? PodcastStrings.chartEmpty
@@ -679,6 +681,7 @@ class _ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => LekisEmptyState(
+    mascot: LekisMascotPose.thinking,
     eyebrow: PodcastStrings.eyebrow,
     title: PodcastStrings.loadFailed,
     message: '${describeCoreError(error)}\n${PodcastStrings.networkHint}',

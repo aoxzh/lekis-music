@@ -16,6 +16,7 @@ import '../library/widgets/empty_state.dart';
 import '../settings/widgets/settings_reveal.dart';
 import '../settings/widgets/settings_widgets.dart';
 import '../sources/common.dart';
+import 'plugin_builtin_source_tile.dart';
 import 'plugin_detail_sheet.dart';
 import 'plugin_download.dart';
 import 'plugin_format.dart';
@@ -423,7 +424,9 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
             validator: (value) {
               final url = normalizePluginSourceUrl(value ?? '');
               final sources = ref.read(pluginSourcesProvider).value ?? [];
-              return url == null || sources.any((s) => s.url == url)
+              return url == null ||
+                      url == defaultPluginSourceUrl ||
+                      sources.any((s) => s.url == url)
                   ? PluginStrings.sourceInvalid
                   : null;
             },
@@ -539,6 +542,9 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
   @override
   Widget build(BuildContext context) {
     final plugins = ref.watch(pluginListProvider);
+    // Watched up front so the switch is known before the catalog is browsed.
+    final builtinEnabled =
+        ref.watch(pluginBuiltinSourceEnabledProvider).value ?? false;
     return SettingsScaffold(
       title: PluginStrings.title,
       actions: [
@@ -605,11 +611,18 @@ class _PluginsPageState extends ConsumerState<PluginsPage> {
                 if (_browsing) ...[
                   SettingsSection(
                     title: PluginStrings.defaultSource,
-                    children: _catalogRows(
-                      ref.watch(pluginRegistryProvider),
-                      plugins,
-                      retry: () => ref.invalidate(pluginRegistryProvider),
-                    ),
+                    children: [
+                      const PluginBuiltinSourceTile(
+                        key: ValueKey('plugins.builtin-source'),
+                      ),
+                      // Switched off: the built-in catalog is not fetched.
+                      if (builtinEnabled)
+                        ..._catalogRows(
+                          ref.watch(pluginRegistryProvider),
+                          plugins,
+                          retry: () => ref.invalidate(pluginRegistryProvider),
+                        ),
+                    ],
                   ),
                   ..._customSourceSections(plugins),
                   Padding(

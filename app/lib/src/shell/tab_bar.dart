@@ -19,6 +19,7 @@
 import 'dart:math' as math;
 
 import 'package:lekis/src/l10n/app_l10n.dart';
+import 'package:lekis/src/layout/window_size.dart';
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/liquid_glass.dart';
 import 'package:material_ui/material_ui.dart';
@@ -53,6 +54,22 @@ class LekisTabBar extends StatefulWidget {
 
   static Key tabKey(LekisDestination destination) =>
       ValueKey('lekis.tabbar.${destination.name}');
+
+  /// Widest slot on expanded and wider windows (tablets in landscape, large
+  /// portrait tablets): the capsule grows a little so labels breathe and it
+  /// does not look like a phone bar lost in the middle of the screen, while
+  /// still staying a compact, centred thumb-reachable capsule.
+  static const double wideSlotWidth = 88;
+
+  /// Widest the horizontal capsule gets in this window. The mini player
+  /// above it uses the same width so the two read as stacked twins.
+  static double horizontalMaxWidth(BuildContext context) {
+    final slot = context.widthClass >= WindowWidthClass.expanded
+        ? wideSlotWidth
+        : LekisTabBarTokens.maxSlotWidth;
+    return slot * LekisDestination.values.length +
+        LekisTabBarTokens.innerInset * 2;
+  }
 
   @override
   State<LekisTabBar> createState() => _LekisTabBarState();
@@ -106,9 +123,7 @@ class _LekisTabBarState extends State<LekisTabBar> {
         child: Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxWidth:
-                  LekisTabBarTokens.maxSlotWidth * count +
-                  LekisTabBarTokens.innerInset * 2,
+              maxWidth: LekisTabBar.horizontalMaxWidth(context),
             ),
             child: SizedBox(height: _thickness, child: bar),
           ),

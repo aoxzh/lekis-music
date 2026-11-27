@@ -16,6 +16,7 @@ import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/mascot.dart';
 import 'package:lekis/src/widgets/progress_dialog.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -287,32 +288,32 @@ class _EmptyLiked extends StatelessWidget {
     final colors = context.lekisColors;
     final theme = Theme.of(context);
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.favorite_border_rounded,
-            size: LekisSpacing.xxxl,
-            color: colors.onSurfaceVariant,
-          ),
-          const SizedBox(height: LekisSpacing.sm),
-          Text(
-            context.l10n.pick('还没有喜欢的歌曲', 'No Liked Songs Yet'),
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: colors.onSurfaceVariant,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(LekisSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const LekisMascot(pose: LekisMascotPose.sitting, size: 112),
+            const SizedBox(height: LekisSpacing.md),
+            Text(
+              context.l10n.pick('还没有喜欢的歌曲', 'No Liked Songs Yet'),
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
             ),
-          ),
-          const SizedBox(height: LekisSpacing.xxs),
-          Text(
-            context.l10n.pick(
-              '在歌曲行或正在播放里点一下心形',
-              'Tap the heart on any song or in Now Playing',
+            const SizedBox(height: LekisSpacing.xxs),
+            Text(
+              context.l10n.pick(
+                '在歌曲行或正在播放里点一下心形',
+                'Tap the heart on any song or in Now Playing',
+              ),
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
             ),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colors.onSurfaceVariant,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

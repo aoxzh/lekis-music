@@ -296,6 +296,58 @@ async fn lyrics_fetch_force_preserves_selection_and_candidates_are_selectable() 
 }
 
 #[tokio::test]
+async fn on_demand_lookup_shows_strong_review_candidate() {
+    let (root, library, id) = library("on-demand-review").await;
+    let (pipeline, _) = pipeline(vec![Ok(vec![candidate(LyricsFormat::Lrc, 0.84)])]);
+    assert!(pipeline.fetch_lyrics(&library, id, false).await.unwrap());
+    let active = library.active_lyrics(id).await.unwrap().unwrap();
+    assert_eq!(active.format, LyricsFormat::Lrc);
+    assert!(
+        library
+            .list_pending_candidates(10)
+            .await
+            .unwrap()
+            .is_empty(),
+        "the displayed candidate must not stay in the review queue"
+    );
+    drop(library);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn on_demand_lookup_shows_strong_plain_candidate() {
+    let (root, library, id) = library("on-demand-plain").await;
+    let (pipeline, _) = pipeline(vec![Ok(vec![candidate(LyricsFormat::Plain, 0.84)])]);
+    assert!(pipeline.fetch_lyrics(&library, id, false).await.unwrap());
+    assert_eq!(
+        library.active_lyrics(id).await.unwrap().unwrap().format,
+        LyricsFormat::Plain
+    );
+    drop(library);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn batch_enrichment_keeps_strong_review_candidate_inactive() {
+    let (root, library, id) = library("batch-review").await;
+    let (pipeline, _) = pipeline(vec![]);
+    pipeline
+        .apply_lyrics(
+            &library,
+            id,
+            &TrackHint::default(),
+            vec![candidate(LyricsFormat::Lrc, 0.84)],
+            false,
+        )
+        .await
+        .unwrap();
+    assert!(library.active_lyrics(id).await.unwrap().is_none());
+    assert_eq!(library.list_pending_candidates(10).await.unwrap().len(), 1);
+    drop(library);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
 async fn builtin_qq_reuses_the_selected_plugin_version_and_pending_review() {
     let (root, library, id) = library("qq-upgrade").await;
     let mut qq = candidate(LyricsFormat::Lrc, 0.72);
@@ -303,7 +355,7 @@ async fn builtin_qq_reuses_the_selected_plugin_version_and_pending_review() {
     let hint = qq.matched.clone();
     let (pipeline, _) = pipeline(vec![]);
     pipeline
-        .apply_lyrics(&library, id, &hint, vec![qq.clone()])
+        .apply_lyrics(&library, id, &hint, vec![qq.clone()], false)
         .await
         .unwrap();
     let selected = library.list_lyrics(id).await.unwrap()[0].id;
@@ -311,7 +363,7 @@ async fn builtin_qq_reuses_the_selected_plugin_version_and_pending_review() {
 
     qq.source = QqLyrics::NAME.into();
     pipeline
-        .apply_lyrics(&library, id, &hint, vec![qq])
+        .apply_lyrics(&library, id, &hint, vec![qq], false)
         .await
         .unwrap();
     let versions = library.list_lyrics(id).await.unwrap();

@@ -14,6 +14,7 @@ import 'package:lekis/src/features/playlists/smart_rules_model.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/theme.dart';
+import 'package:lekis/src/widgets/mascot.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:lekis/src/widgets/action_menu.dart';
 import 'package:material_ui/material_ui.dart';
@@ -325,29 +326,29 @@ class _EmptyPlaylists extends StatelessWidget {
     final colors = context.lekisColors;
     final theme = Theme.of(context);
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.queue_music_rounded,
-            size: LekisSpacing.xxxl,
-            color: colors.onSurfaceVariant,
-          ),
-          const SizedBox(height: LekisSpacing.sm),
-          Text(
-            PlaylistStrings.emptyTitle,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: colors.onSurfaceVariant,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(LekisSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const LekisMascot(pose: LekisMascotPose.sitting, size: 112),
+            const SizedBox(height: LekisSpacing.md),
+            Text(
+              PlaylistStrings.emptyTitle,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
             ),
-          ),
-          const SizedBox(height: LekisSpacing.xxs),
-          Text(
-            PlaylistStrings.emptyMessage,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colors.onSurfaceVariant,
+            const SizedBox(height: LekisSpacing.xxs),
+            Text(
+              PlaylistStrings.emptyMessage,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

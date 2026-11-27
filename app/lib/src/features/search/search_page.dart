@@ -324,6 +324,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           data.artists.isEmpty) {
         body = _Hint(
           icon: Icons.search_off_rounded,
+          mascot: LekisMascotPose.thinking,
           text: l10n.pick(
             '没有找到“${query.trim()}”',
             'No results for "${query.trim()}"',
@@ -839,8 +840,12 @@ class _Hint extends StatelessWidget {
     required this.text,
     required this.message,
     this.actions = const [],
+    this.mascot,
   });
   final IconData icon;
+
+  /// Replaces the icon tile with a mascot (e.g. thinking for no results).
+  final LekisMascotPose? mascot;
   final String text;
   final String message;
   final List<Widget> actions;
@@ -857,20 +862,23 @@ class _Hint extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: context.lekisColors.surfaceVariant,
-                borderRadius: BorderRadius.circular(LekisRadius.md),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Icon(
-                  icon,
-                  size: 24,
-                  color: context.lekisColors.onSurfaceVariant,
+            if (mascot case final pose?)
+              LekisMascot(pose: pose, size: 96)
+            else
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: context.lekisColors.surfaceVariant,
+                  borderRadius: BorderRadius.circular(LekisRadius.md),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Icon(
+                    icon,
+                    size: 24,
+                    color: context.lekisColors.onSurfaceVariant,
+                  ),
                 ),
               ),
-            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(

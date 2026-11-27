@@ -26,6 +26,10 @@ dist/
 node_modules/
 plugin-sdk/js/dist/
 
+# Python 生成工具
+__pycache__/
+*.py[cod]
+
 # 本地数据
 *.sqlite
 *.sqlite-wal

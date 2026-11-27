@@ -122,7 +122,8 @@ pub enum EngineCommand {
     /// 是否开启样本级无缝播放（`playback.gapless` 设置，PLY-01）。
     ///
     /// 开启时提前解析并预装下一首，自然播完直接在同一输出流里接上；
-    /// 关掉后每次换曲都重建会话（会有几十毫秒的间隔）。
+    /// 关掉后这一首播完、缓冲放空，再重建会话播下一首（正常的换曲间隔）。
+    /// 交叉淡入淡出开着时仍会预装下一首用来混音，但 EOF 不再样本级拼接。
     SetGapless(bool),
     /// 设置交叉淡入淡出时长和智能静音检测（PLY-02）。
     SetCrossfade {
@@ -604,6 +605,9 @@ impl State {
             EngineCommand::SetGapless(enabled) => {
                 self.gapless = enabled;
                 self.snap.gapless = enabled;
+                // 解码线程在 EOF 时读这个开关：关掉后即使为交叉淡入淡出预装了下一首，
+                // 也不会在 EOF 做样本级拼接（正在播的会话立即生效，不用重开）。
+                self.crossfade.set_gapless(enabled);
                 if self.needs_preopen() {
                     self.spawn_prefetch();
                 } else {
@@ -1864,6 +1868,162 @@ mod tests {
             span[frames..].iter().all(|s| *s < 0.0),
             "接缝之后必须立刻是第二首"
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 等第一首播到 `ms`，返回当时的快照。
+    async fn wait_for_position(engine: &PlaybackEngine, track: TrackId, ms: u64) {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline {
+            let snap = engine.snapshot();
+            if snap.track_id == Some(track) && snap.position_ms >= ms {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("track {track} never reached {ms} ms");
+    }
+
+    /// 等第二首真正出声一段，然后关掉引擎，返回录到的样本。
+    async fn play_until_second_track(
+        engine: &PlaybackEngine,
+        factory: &NullOutputFactory,
+    ) -> Vec<f32> {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let mut snap = engine.snapshot();
+        while Instant::now() < deadline
+            && !(snap.track_id == Some(TrackId(2)) && snap.position_ms >= 80)
+        {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            snap = engine.snapshot();
+        }
+        assert_eq!(snap.track_id, Some(TrackId(2)), "自然播完必须切到第二首");
+        assert_eq!(snap.queue_index, Some(1));
+        assert_eq!(snap.state, PlaybackState::Playing);
+        let _ = engine.send(EngineCommand::Shutdown);
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        factory.captured()
+    }
+
+    /// 关闭无缝播放（播放中切换、立即生效）：第一首播完、缓冲放空，
+    /// 重新开一条输出流播第二首，中间是一段正常的换曲间隔。
+    #[tokio::test]
+    async fn engine_gapless_off_restarts_the_output_between_tracks() {
+        let dir = temp_dir("engine-gapless-off");
+        // 2 s at 8 kHz: long enough that the test can toggle gapless while the
+        // first track is still playing even on a loaded CI machine.  A 0.5 s
+        // track made the command race the natural EOF.
+        let frames = 16_000usize;
+        let path_a = write_wav(&dir, "a.wav", 8_000, 1, frames, 8_000);
+        let path_b = write_wav(&dir, "b.wav", 8_000, 1, frames, -8_000);
+        let factory = Arc::new(NullOutputFactory::new(PcmFormat {
+            sample_rate: 8_000,
+            channels: 1,
+        }));
+        let engine =
+            PlaybackEngine::spawn_with_test_output(wav_resolver(path_a, path_b), factory.clone());
+        engine
+            .send(EngineCommand::SetQueue {
+                tracks: vec![TrackId(1), TrackId(2)],
+                start: 0,
+            })
+            .expect("send");
+        // 先按默认（开）播起来、下一首已经预装，再在播放中关掉。
+        wait_for_position(&engine, TrackId(1), 100).await;
+        engine.send(EngineCommand::SetGapless(false)).expect("send");
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        assert!(!engine.snapshot().gapless);
+
+        let captured = play_until_second_track(&engine, &factory).await;
+        assert_eq!(factory.created_count(), 2, "关闭无缝后换曲要重新开流");
+        let span = nonzero_span(&captured);
+        let first_negative = span.iter().position(|s| *s < 0.0).expect("第二首出声");
+        assert!(
+            span[..first_negative].iter().all(|s| *s >= 0.0),
+            "第二首之前只能是第一首和静音"
+        );
+        assert_eq!(
+            span[..first_negative].iter().filter(|s| **s > 0.0).count(),
+            frames,
+            "第一首必须完整播完（不截断、不重叠）"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 关闭无缝 + 开着交叉淡入淡出：为混音预装了下一首，但曲目太短不触发淡变时，
+    /// EOF 也不能偷偷样本级拼接，要走正常换曲。
+    #[tokio::test]
+    async fn engine_gapless_off_with_crossfade_does_not_splice_at_eof() {
+        let dir = temp_dir("engine-gapless-off-xfade");
+        // 1.5 s at 8 kHz: longer than the 100 ms check but still shorter than
+        // 2 × 1 s, so the crossfade trigger never fires.
+        let frames = 12_000usize;
+        let path_a = write_wav(&dir, "a.wav", 8_000, 1, frames, 8_000);
+        let path_b = write_wav(&dir, "b.wav", 8_000, 1, frames, -8_000);
+        let factory = Arc::new(NullOutputFactory::new(PcmFormat {
+            sample_rate: 8_000,
+            channels: 1,
+        }));
+        let engine =
+            PlaybackEngine::spawn_with_test_output(wav_resolver(path_a, path_b), factory.clone());
+        engine
+            .send(EngineCommand::SetCrossfade {
+                duration_ms: 1_000,
+                smart_silence: false,
+            })
+            .expect("send");
+        engine
+            .send(EngineCommand::SetQueue {
+                tracks: vec![TrackId(1), TrackId(2)],
+                start: 0,
+            })
+            .expect("send");
+        wait_for_position(&engine, TrackId(1), 100).await;
+        engine.send(EngineCommand::SetGapless(false)).expect("send");
+
+        let captured = play_until_second_track(&engine, &factory).await;
+        assert_eq!(factory.created_count(), 2, "EOF 不能拼接，必须重新开流");
+        let span = nonzero_span(&captured);
+        let first_negative = span.iter().position(|s| *s < 0.0).expect("第二首出声");
+        assert_eq!(
+            span[..first_negative].iter().filter(|s| **s > 0.0).count(),
+            frames
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 对照：开着交叉淡入淡出但曲目太短时，默认（无缝开）仍在同一条流里零间隔拼接。
+    #[tokio::test]
+    async fn engine_gapless_on_with_crossfade_still_splices_short_tracks() {
+        let dir = temp_dir("engine-gapless-on-xfade");
+        let frames = 3_900usize;
+        let path_a = write_wav(&dir, "a.wav", 8_000, 1, frames, 8_000);
+        let path_b = write_wav(&dir, "b.wav", 8_000, 1, frames, -8_000);
+        let factory = Arc::new(NullOutputFactory::new(PcmFormat {
+            sample_rate: 8_000,
+            channels: 1,
+        }));
+        let engine =
+            PlaybackEngine::spawn_with_test_output(wav_resolver(path_a, path_b), factory.clone());
+        engine
+            .send(EngineCommand::SetCrossfade {
+                duration_ms: 1_000,
+                smart_silence: false,
+            })
+            .expect("send");
+        engine
+            .send(EngineCommand::SetQueue {
+                tracks: vec![TrackId(1), TrackId(2)],
+                start: 0,
+            })
+            .expect("send");
+
+        let captured = play_until_second_track(&engine, &factory).await;
+        assert_eq!(factory.created_count(), 1, "无缝开启时不重建输出流");
+        let span = nonzero_span(&captured);
+        assert_eq!(longest_zero_run(span), 0, "曲目边界不能有静音");
+        assert!(span[..frames].iter().all(|s| *s > 0.0));
+        assert!(span[frames..].iter().all(|s| *s < 0.0));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

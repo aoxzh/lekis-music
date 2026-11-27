@@ -237,6 +237,13 @@ class _ClassicLyricsState extends ConsumerState<ClassicLyrics>
         (_) => mounted ? _follow(active, animate: !first) : null,
       );
     }
+    // 开关注音会改变每一行的高度（注音带）：当前句按新的布局重新对齐到
+    // 锚点，直接到位，不让高亮行被挤出视口中心。
+    ref.listen(lyricsRubyProvider, (_, _) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => mounted ? _follow(_active ?? -1, animate: false) : null,
+      );
+    });
 
     final actions = ref.read(playerActionsProvider);
     // No depth blur while Now Playing is still flying in / out: every
@@ -617,17 +624,26 @@ class _KaraokeLineState extends ConsumerState<_KaraokeLine>
 
   @override
   Widget build(BuildContext context) {
-    final style = widget.style;
     final fg =
-        style.color ??
+        widget.style.color ??
         DefaultTextStyle.of(context).style.color ??
         const Color(0xFFFFFFFF);
     final scaler = MediaQuery.textScalerOf(context);
     final direction = Directionality.of(context);
     final locale = Localizations.maybeLocaleOf(context);
-    // 注音关闭时 inset 为 0，和以前完全一样。
-    final ruby = ref.watch(lyricsRubyProvider);
-    final inset = ruby.enabled ? rubyInsetFor(style) : 0.0;
+    // 这一行有注音时，正文换成加了注音带行高的样式（和非当前句的
+    // RubyLyricText 同一份），每个折行上方都留出注音的位置；没有注音时
+    // inset 为 0、样式不变，和以前完全一样。
+    final hasRuby = rubySpansFor(
+      widget.line.text,
+      ref.watch(lyricsRubyProvider),
+    ).isNotEmpty;
+    final rubyLayout = hasRuby ? rubyLineLayoutFor(widget.style, scaler) : null;
+    final style = rubyLayout?.style ?? widget.style;
+    final inset = rubyLayout?.inset ?? 0.0;
+    final heightBehavior = rubyLayout == null
+        ? null
+        : RubyLineLayout.heightBehavior;
     var art = _art;
     if (art == null ||
         !art.matches(widget.line, style, fg, scaler, direction, locale, inset)) {
@@ -642,6 +658,7 @@ class _KaraokeLineState extends ConsumerState<_KaraokeLine>
         textDirection: direction,
         locale: locale,
         topInset: inset,
+        textHeightBehavior: heightBehavior,
       );
       // 旧 painter 这一帧可能还在用，下一帧再释放。
       if (old != null) {
@@ -661,6 +678,7 @@ class _KaraokeLineState extends ConsumerState<_KaraokeLine>
                 widget.line.text,
                 style: style,
                 textScaler: scaler,
+                textHeightBehavior: heightBehavior,
               ),
             ),
           ),
@@ -672,7 +690,7 @@ class _KaraokeLineState extends ConsumerState<_KaraokeLine>
             ),
           ),
         ),
-        if (inset > 0)
+        if (rubyLayout != null)
           Positioned.fill(
             child: RubyOverlay(
               text: widget.line.text,
@@ -698,6 +716,7 @@ class _KaraokeArt {
     required this.textDirection,
     required this.locale,
     required this.topInset,
+    this.textHeightBehavior,
   });
 
   final LyricLine line;
@@ -708,8 +727,11 @@ class _KaraokeArt {
   final TextDirection textDirection;
   final Locale? locale;
 
-  /// 正文上方为注音留出的高度（不进时注音就是 0）。
+  /// 正文上方为注音留出的高度（这一行没有注音时是 0）。
   final double topInset;
+
+  /// 带注音时是 [RubyLineLayout.heightBehavior]，必须和占位 Text 一致。
+  final TextHeightBehavior? textHeightBehavior;
 
   double? _width;
   TextPainter? _base;
@@ -741,6 +763,7 @@ class _KaraokeArt {
     textDirection: textDirection,
     textScaler: textScaler,
     locale: locale,
+    textHeightBehavior: textHeightBehavior,
   )..layout(maxWidth: width);
 
   void _ensure(double width) {

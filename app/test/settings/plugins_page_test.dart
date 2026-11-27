@@ -275,7 +275,99 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('插件'), findsOneWidget);
+    expect(find.text('管理插件'), findsOneWidget);
     expect(find.text('已安装 1 个插件'), findsOneWidget);
+  });
+
+  testWidgets(
+    'switching off the default catalog hides it and stops fetching it',
+    (tester) async {
+      var reads = 0;
+      await tester.pumpWidget(
+        _page(
+          const [],
+          catalog: () async {
+            reads++;
+            return [
+              RegistryPlugin(
+                id: 'catalog.entry',
+                name: '目录插件',
+                description: '',
+                version: '1.0.0',
+                package: Uri.parse('https://example.test/p.zip'),
+                sha256: 'a' * 64,
+              ),
+            ];
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(PluginStrings.browse));
+      await tester.pumpAndSettle();
+      expect(reads, 1);
+      expect(find.text('目录插件'), findsOneWidget);
+
+      final toggle = find.byKey(const ValueKey('plugins.builtin-source'));
+      expect(find.text(PluginStrings.builtinSourceToggle), findsOneWidget);
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      expect(find.text('目录插件'), findsNothing);
+      expect(find.text(PluginStrings.addSource), findsOneWidget);
+
+      // Off stays off: refreshing the page does not read the catalog again.
+      await tester.tap(find.byKey(const ValueKey('plugins.refresh')));
+      await tester.pumpAndSettle();
+      expect(reads, 1);
+
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      expect(reads, 2);
+      expect(find.text('目录插件'), findsOneWidget);
+    },
+  );
+
+  testWidgets('settings › plugins shows the entry and the catalog switch', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          pluginListProvider.overrideWith(() => _FakePluginListNotifier([])),
+        ],
+        child: MaterialApp(
+          theme: lekisLightTheme(),
+          home: Scaffold(
+            body: ListView(children: SettingsCategory.plugins.sections),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(SettingsCategory.plugins.group, SettingsCategoryGroup.general);
+    expect(find.text('管理插件'), findsOneWidget);
+    expect(find.text('未安装插件'), findsOneWidget);
+    final toggle = find.byKey(const ValueKey('plugins.builtin-source'));
+    expect(toggle, findsOneWidget);
+    expect(
+      tester
+          .widget<Switch>(
+            find.descendant(of: toggle, matching: find.byType(Switch)),
+          )
+          .value,
+      isTrue,
+    );
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<Switch>(
+            find.descendant(of: toggle, matching: find.byType(Switch)),
+          )
+          .value,
+      isFalse,
+    );
   });
 }

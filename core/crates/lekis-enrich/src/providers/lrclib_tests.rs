@@ -414,6 +414,40 @@ fn uploader_title_identity_is_review_only_and_keeps_version_guard() {
     }
 }
 
+#[test]
+fn upload_caption_titles_expose_song_and_performer_for_search() {
+    for (title, uploader, song, performer) in [
+        ("【官方视频】薛之谦 - 念", "潮石音乐", "念", "薛之谦"),
+        ("【官方MV】念-薛之谦", "半杯清茶112", "念", "薛之谦"),
+        ("薛之谦《风毛鳞角》", "bili_要早睡", "风毛鳞角", "薛之谦"),
+        (
+            "【4K/Hi-Res】泽野弘之《 X.U.》 Music Video - VOCAL：Gemie",
+            "珀尔修斯字幕",
+            "X.U.",
+            "泽野弘之",
+        ),
+    ] {
+        let wanted = hint(title, uploader, 308_000);
+        assert!(
+            lyrics_matching::search_variants(&wanted)
+                .contains(&(song.to_string(), Some(performer.to_string()))),
+            "search variants for {title}"
+        );
+        let score = lyrics_matching::confidence(&wanted, &hint(song, performer, 308_000)).unwrap();
+        assert!(score >= 0.8, "{title} -> {score}");
+        assert!(score < crate::AUTO_APPLY_THRESHOLD);
+    }
+}
+
+#[test]
+fn upload_caption_identity_keeps_version_guard() {
+    let wanted = hint("【官方MV】勇者- YOASOBI (Live)", "Uploader", 196_000);
+    assert!(lyrics_matching::confidence(&wanted, &hint("勇者", "YOASOBI", 196_000)).is_none());
+    assert!(
+        lyrics_matching::confidence(&wanted, &hint("勇者 (Live)", "YOASOBI", 196_000)).is_none()
+    );
+}
+
 #[tokio::test]
 async fn uploader_video_searches_inferred_song_and_artist() {
     let (base, requests, thread) = server(vec![

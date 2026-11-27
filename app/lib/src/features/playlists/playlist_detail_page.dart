@@ -25,6 +25,7 @@ import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/nav_icon.dart' show lekisReduceMotion;
 import 'package:lekis/src/theme/theme.dart';
 import 'package:lekis/src/widgets/list_motion.dart';
+import 'package:lekis/src/widgets/mascot.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/queue_actions.dart';
@@ -1486,10 +1487,29 @@ class _EmptyPlaylistBody extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = context.lekisColors;
     return Center(
-      child: Text(
-        isSmart ? PlaylistStrings.smartEmpty : PlaylistStrings.staticEmpty,
-        style: theme.textTheme.bodyLarge?.copyWith(
-          color: colors.onSurfaceVariant,
+      child: Padding(
+        padding: const EdgeInsets.all(LekisSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Smart rules matched nothing → puzzled; a fresh playlist → lounging.
+            LekisMascot(
+              pose: isSmart
+                  ? LekisMascotPose.thinking
+                  : LekisMascotPose.sitting,
+              size: 112,
+            ),
+            const SizedBox(height: LekisSpacing.md),
+            Text(
+              isSmart
+                  ? PlaylistStrings.smartEmpty
+                  : PlaylistStrings.staticEmpty,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ],
         ),
       ),
     );

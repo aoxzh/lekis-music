@@ -6,10 +6,14 @@
 
 import 'package:material_ui/material_ui.dart';
 
+import 'package:lekis/src/layout/window_size.dart';
+import 'package:lekis/src/platform/ui_profile.dart';
+
 import 'nav_bar_position.dart';
 
 enum ShellChromeMode {
-  /// Phones & foldables (default): floating glass tab bar + mini player over the content.
+  /// Phones, foldables and tablets (default), and narrow desktop windows:
+  /// floating glass tab bar + mini player over the content.
   bottomBar,
 
   /// Floating vertical icon glass capsule on the left or right edge over full-bleed content.
@@ -18,8 +22,37 @@ enum ShellChromeMode {
   /// Short landscape windows: icon rail on the left.
   rail,
 
-  /// Expanded windows: full sidebar + desktop player bar.
+  /// Expanded desktop windows only: full sidebar + desktop player bar.
   sidebar,
+}
+
+/// Which chrome the shell puts around the tabs for a [size] window.
+///
+/// The desktop sidebar + player bar is a desktop-profile layout, chosen
+/// only when the window is expanded or wider. Mobile profiles keep the
+/// phone chrome at every width: an Android tablet (1280 x 800 dp) or an
+/// unfolded foldable is still a touch device, so it gets the floating tab
+/// bar (or side tabs, per [navPosition]) and the mini player; pages adapt
+/// their content to the extra width themselves.
+///
+/// Short windows (phone landscape, split screen) use the rail on every
+/// profile: a bottom bar would eat too much of the height.
+ShellChromeMode shellChromeModeFor({
+  required Size size,
+  required NavBarPosition navPosition,
+  UiProfile? profile,
+}) {
+  if (WindowHeightClass.fromHeight(size.height) == WindowHeightClass.compact) {
+    return ShellChromeMode.rail;
+  }
+  final desktopShell = (profile ?? UiProfile.current).desktopShell;
+  if (desktopShell &&
+      WindowWidthClass.fromWidth(size.width) >= WindowWidthClass.expanded) {
+    return ShellChromeMode.sidebar;
+  }
+  return navPosition == NavBarPosition.bottom
+      ? ShellChromeMode.bottomBar
+      : ShellChromeMode.sideTabs;
 }
 
 class ShellChrome extends InheritedWidget {

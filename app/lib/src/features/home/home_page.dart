@@ -15,6 +15,7 @@ import 'package:lekis/src/features/library/widgets/track_tile.dart'
 import 'package:lekis/src/features/player/player_providers.dart';
 import 'package:lekis/src/features/player/widgets/current_track.dart';
 import 'package:lekis/src/features/player/widgets/player_controls.dart';
+import 'package:lekis/src/features/sources/sources_providers.dart';
 import 'package:lekis/src/features/stats/listening_stats_page.dart';
 import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/dto.dart';
@@ -34,6 +35,14 @@ class HomePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final empty = ref.watch(libraryIsEmptyProvider).value ?? false;
+    // First scan still running: show the running rabbit instead of "empty".
+    final indexing =
+        empty &&
+        ref.watch(
+          sourceRuntimeProvider.select(
+            (runtime) => runtime.values.any((r) => r.scanning),
+          ),
+        );
     final recentAlbumsAsync = ref.watch(recentlyAddedAlbumsProvider);
     final recentAsync = ref.watch(recentlyAddedProvider);
     final playedAsync = ref.watch(recentlyPlayedProvider);
@@ -95,10 +104,19 @@ class HomePage extends ConsumerWidget {
         child: empty
             ? Padding(
                 padding: EdgeInsets.only(left: safe.left, right: safe.right),
-                child: LibraryEmptyState(
-                  title: l10n.welcomeTitle,
-                  message: l10n.welcomeMessage,
-                ),
+                child: indexing
+                    ? LibraryEmptyState(
+                        mascot: LekisMascotPose.running,
+                        title: l10n.pick('正在建立索引…', 'Indexing Your Music…'),
+                        message: l10n.pick(
+                          '音源正在扫描，找到的歌曲会陆续出现在这里。',
+                          'Your sources are being scanned. Songs will show up here as they are found.',
+                        ),
+                      )
+                    : LibraryEmptyState(
+                        title: l10n.welcomeTitle,
+                        message: l10n.welcomeMessage,
+                      ),
               )
             : RefreshIndicator(
                 onRefresh: () async {

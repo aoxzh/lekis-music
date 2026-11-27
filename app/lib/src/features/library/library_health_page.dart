@@ -694,6 +694,8 @@ class _EmptyDuplicates extends StatelessWidget {
     return SizedBox(
       height: 380,
       child: LekisEmptyState(
+        mascot: LekisMascotPose.thumbsUp,
+        mascotSize: 112,
         eyebrow: L10n.tr('重复歌曲', 'Duplicates'),
         title: L10n.tr('没有发现重复歌曲', 'No Duplicates Found'),
         message: L10n.tr(
@@ -1068,6 +1070,8 @@ class _EmptyHealth extends StatelessWidget {
       return SizedBox(
         height: 380,
         child: LekisEmptyState(
+          mascot: LekisMascotPose.running,
+          mascotSize: 112,
           eyebrow: L10n.tr('库健康', 'Library Health'),
           title: L10n.tr('正在读取资料库…', 'Loading Library…'),
           message: L10n.tr(
@@ -1081,6 +1085,8 @@ class _EmptyHealth extends StatelessWidget {
       return SizedBox(
         height: 380,
         child: LekisEmptyState(
+          mascot: LekisMascotPose.jumping,
+          mascotSize: 112,
           eyebrow: L10n.tr('库健康', 'Library Health'),
           title: L10n.tr('资料库还是空的', 'Your Library Is Empty'),
           message: L10n.tr(
@@ -1115,6 +1121,8 @@ class _EmptyHealth extends StatelessWidget {
     return SizedBox(
       height: 380,
       child: LekisEmptyState(
+        mascot: LekisMascotPose.thumbsUp,
+        mascotSize: 112,
         eyebrow: tab.label,
         title: tab == HealthTabKind.unreadable
             ? L10n.tr('没有不可读文件', 'No Unreadable Files')

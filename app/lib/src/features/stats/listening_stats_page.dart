@@ -16,6 +16,7 @@ import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/mascot.dart';
 import 'package:lekis/src/widgets/skeleton.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -175,11 +176,7 @@ class _EmptyStats extends StatelessWidget {
         padding: const EdgeInsets.all(28),
         child: Column(
           children: [
-            Icon(
-              Icons.insights_outlined,
-              size: 44,
-              color: context.lekisColors.onSurfaceVariant,
-            ),
+            const LekisMascot(pose: LekisMascotPose.sitting, size: 112),
             const SizedBox(height: LekisSpacing.md),
             Text(
               context.l10n.pick('还没有听歌记录', 'No listening history yet'),

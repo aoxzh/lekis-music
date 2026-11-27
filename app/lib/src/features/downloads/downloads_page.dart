@@ -430,6 +430,7 @@ class _DownloadsBodyState extends ConsumerState<_DownloadsBody> {
             SizedBox(
               height: 420,
               child: LekisEmptyState(
+                mascot: LekisMascotPose.sitting,
                 eyebrow: l10n.pick('离线', 'Offline'),
                 title: l10n.pick('还没有下载', 'No Downloads Yet'),
                 message: l10n.pick(

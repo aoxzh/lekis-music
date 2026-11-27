@@ -1,0 +1,5 @@
+numpy>=2.0
+Pillow>=11.0
+soundfile>=0.13
+mutagen>=1.47
+scipy>=1.13

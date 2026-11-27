@@ -9,18 +9,24 @@ import 'package:lekis/src/l10n/app_l10n.dart';
 import 'package:lekis/src/rust/api/core.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 
+/// Dev / screenshot overrides: `--dart-define=LEKIS_DATA_DIR=<dir>` swaps the
+/// database and `LEKIS_CACHE_DIR=<dir>` keeps its artwork cache self-contained.
+/// Both are empty in normal builds.
+const _dataDirOverride = String.fromEnvironment('LEKIS_DATA_DIR');
+const _cacheDirOverride = String.fromEnvironment('LEKIS_CACHE_DIR');
+
 /// Resolves app directories and initialises the core (idempotent on the
 /// Rust side; repeated calls return immediately).
 Future<void> initLekisCore() async {
-  // 测试用：--dart-define=LEKIS_DATA_DIR=<目录> 换一个数据库（例如 10 万首假歌的性能测试库）。
-  const dataDirOverride = String.fromEnvironment('LEKIS_DATA_DIR');
   // 三个平台查询互不依赖；Android 上每次都是独立的 method-channel 往返，
   // 并行解析可以缩短首帧前的串行等待。
   final resolved = await Future.wait<Object>([
-    dataDirOverride.isNotEmpty
-        ? Future<Directory>.value(Directory(dataDirOverride))
+    _dataDirOverride.isNotEmpty
+        ? Future<Directory>.value(Directory(_dataDirOverride))
         : getApplicationSupportDirectory(),
-    getApplicationCacheDirectory(),
+    _cacheDirOverride.isNotEmpty
+        ? Future<Directory>.value(Directory(_cacheDirOverride))
+        : getApplicationCacheDirectory(),
     _deviceName(),
   ]);
   final dataDir = resolved[0] as Directory;
@@ -44,7 +50,9 @@ Future<void> initLekisCore() async {
 /// Cache directory path, for resolving relative artwork paths from the core.
 /// Resolved once and memoised.
 Future<String> lekisCacheDir() =>
-    _cacheDir ??= getApplicationCacheDirectory().then((d) => d.path);
+    _cacheDir ??= (_cacheDirOverride.isNotEmpty
+            ? Future<String>.value(_cacheDirOverride)
+            : getApplicationCacheDirectory().then((d) => d.path));
 Future<String>? _cacheDir;
 
 PlatformDto _platform() {

@@ -9,6 +9,7 @@ import 'package:lekis/src/features/sources/strings.dart';
 import 'package:lekis/src/features/sources/widgets/add_source.dart';
 import 'package:lekis/src/features/sources/widgets/source_list.dart';
 import 'package:lekis/src/features/sync/sync_providers.dart';
+import 'package:lekis/src/platform/ui_profile.dart';
 import 'package:lekis/src/rust/api/dto.dart';
 import 'package:lekis/src/shell/app_shell.dart';
 import 'package:lekis/src/shell/nav_icon.dart';
@@ -26,13 +27,20 @@ class _DisabledSync extends SyncController {
 }
 
 void main() {
-  for (final wide in [false, true]) {
-    testWidgets('Home opens Add Source on ${wide ? 'desktop' : 'phone'}', (
-      tester,
-    ) async {
+  // The tablet runs the phone chrome (tab bar + mini player) but still gets
+  // the wide list | detail content.
+  for (final (name, width, profile) in const [
+    ('phone', 400.0, UiProfile.mobile),
+    ('tablet', 1280.0, UiProfile.mobile),
+    ('desktop', 1440.0, UiProfile.desktop),
+  ]) {
+    final wide = width >= 840;
+    testWidgets('Home opens Add Source on $name', (tester) async {
       tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = Size(wide ? 1440 : 400, 900);
+      tester.view.physicalSize = Size(width, 900);
       addTearDown(tester.view.reset);
+      UiProfile.debugOverride = profile;
+      addTearDown(() => UiProfile.debugOverride = null);
       await tester.pumpWidget(
         ProviderScope(
           retry: (_, _) => null,

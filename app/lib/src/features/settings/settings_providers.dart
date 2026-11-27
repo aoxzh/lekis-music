@@ -8,8 +8,8 @@ import '../../rust/api/dto.dart';
 
 /// 核心设置项键名。
 abstract final class SettingKeys {
-  /// `true` / `false`，默认开。
-  // TODO(core-gapless): 核心目前总是无缝播放、并不读取这个键；先存下用户的选择。
+  /// `true` / `false`，默认开。核心启动时读取、每次写入立即作用于播放引擎：
+  /// 关闭后曲目播完、输出放空再开下一首（交叉淡入淡出照常），不做样本级拼接。
   static const gapless = 'playback.gapless';
 
   /// 交叉淡入淡出时长（毫秒，0 表示关闭，最大 12000）。

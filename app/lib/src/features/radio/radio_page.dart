@@ -418,6 +418,7 @@ class _RadioPageState extends ConsumerState<RadioPage> {
         if (state.stations.isEmpty) {
           return _EmptyState(
             icon: Icons.radio_outlined,
+            mascot: LekisMascotPose.thinking,
             title: RadioStrings.popularEmpty,
             message: RadioStrings.popularEmptyBody,
             action: OutlinedButton.icon(
@@ -505,6 +506,7 @@ class _RadioPageState extends ConsumerState<RadioPage> {
         if (list.isEmpty) {
           return _EmptyState(
             icon: deletable ? Icons.add_link_rounded : Icons.radio_outlined,
+            mascot: LekisMascotPose.sitting,
             title: emptyTitle,
             message: emptyBody,
             action: deletable
@@ -599,6 +601,7 @@ class _RadioPageState extends ConsumerState<RadioPage> {
               child: filtered.isEmpty
                   ? _EmptyState(
                       icon: Icons.search_off_rounded,
+                      mascot: LekisMascotPose.thinking,
                       title: RadioStrings.noMatch,
                       message: RadioStrings.noMatchBody,
                       action: OutlinedButton.icon(
@@ -721,6 +724,7 @@ class _ErrorState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LekisEmptyState(
+      mascot: LekisMascotPose.thinking,
       eyebrow: RadioStrings.eyebrow,
       title: RadioStrings.loadFailed,
       message: '${describeCoreError(error)}\n${RadioStrings.networkHint}',
@@ -740,16 +744,19 @@ class _EmptyState extends StatelessWidget {
     required this.title,
     required this.message,
     this.action,
+    this.mascot,
   });
 
   final IconData icon;
   final String title;
   final String message;
   final Widget? action;
+  final LekisMascotPose? mascot;
 
   @override
   Widget build(BuildContext context) {
     return LekisEmptyState(
+      mascot: mascot,
       eyebrow: RadioStrings.eyebrow,
       title: title,
       message: message,

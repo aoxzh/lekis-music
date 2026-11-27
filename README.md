@@ -20,9 +20,9 @@
 ---
 
 > **TL;DR / 一句话介绍**  
-> **Lekis Music (月兔音乐)** is a privacy-first, open-source (MPL-2.0) music player powered by a **Rust audio & library core** and a **Flutter UI**. Play music directly from local folders or your NAS (**SMB / WebDAV / NFS / SFTP**) with **zero server setup**, or connect **Navidrome / OpenSubsonic / Jellyfin / Emby / Plex**. Features **0.3s cold start on 100,000+ tracks**, **sample-accurate gapless playback**, **Windows WASAPI bit-perfect exclusive mode**, **zero-API-key artwork & synced lyrics enrichment** (with CJK/ACG support), **Windows native floating desktop lyrics**, **LAN device remote control & streaming (Connect)**, and **serverless multi-device sync**.
+> **Lekis Music (月兔音乐)** is a privacy-first, open-source (MPL-2.0) music player powered by a **Rust audio & library core** and a **Flutter UI**. Play music directly from local folders or your NAS (**SMB / WebDAV / NFS / SFTP**) with **zero server setup**, or connect **Navidrome / OpenSubsonic / Jellyfin / Emby / Plex**. Features **0.3s cold start on 100,000+ tracks**, **sample-accurate gapless playback**, **Windows WASAPI bit-perfect exclusive mode**, **zero-API-key artwork & synced lyrics enrichment** (with CJK/ACG support), **Windows native floating desktop lyrics**, **LAN device remote control & streaming (Connect)**, and **unified-library low-quality duplicate cleanup**.
 >
-> **月兔音乐（Lekis Music）** 是一款开源（MPL-2.0）、隐私优先的本地与 NAS 无损音乐播放器（Rust 核心 + Flutter 界面）。**无需在 NAS 上部署任何服务端**，直接局域网自动发现并播放本机和 **SMB / WebDAV / NFS / SFTP** 曲库，也支持接入 **Navidrome / OpenSubsonic / Jellyfin / Emby / Plex**。具备 **10 万首曲库 0.3 秒冷启动**、**样本级无缝播放**、**Windows WASAPI 独占比特完美输出**、**免 API Key 多源封面与双语歌词自动补全**（含日区 / ACG 增强）、**Windows 原生桌面悬浮歌词**、**局域网跨设备遥控与接力串流（Connect）**、**统一资料库低音质去重**以及**无服务器多设备同步**。
+> **月兔音乐（Lekis Music）** 是一款开源（MPL-2.0）、隐私优先的本地与 NAS 无损音乐播放器（Rust 核心 + Flutter 界面）。**无需在 NAS 上部署任何服务端**，直接局域网自动发现并播放本机和 **SMB / WebDAV / NFS / SFTP** 曲库，也支持接入 **Navidrome / OpenSubsonic / Jellyfin / Emby / Plex**。具备 **10 万首曲库 0.3 秒冷启动**、**样本级无缝播放**、**Windows WASAPI 独占比特完美输出**、**免 API Key 多源封面与双语歌词自动补全**（含日区 / ACG 增强）、**Windows 原生桌面悬浮歌词**、**局域网跨设备遥控与接力串流（Connect）**以及**统一资料库低音质去重**。
 
 ---
 
@@ -32,20 +32,18 @@
 
 | Home & Album Wall · 首页与专辑墙 | Dual-Column Now Playing · 宽屏双栏歌词 |
 |---|---|
-| ![Desktop Home](docs/screenshots/desktop-home.png) | ![Desktop Now Playing Lyrics](docs/screenshots/desktop-now-playing-lyrics.png) |
+| ![Desktop Library](docs/screenshots/desktop-home.png) | ![Desktop Now Playing Lyrics](docs/screenshots/desktop-now-playing-lyrics.png) |
 
-| Vinyl Turntable + Lyrics · 黑胶唱盘与歌词 | Foldable / Tablet (Light) · 折叠屏 / 平板浅色液态玻璃 |
-|---|---|
-| ![Desktop Vinyl](docs/screenshots/desktop-now-playing-vinyl.png) | ![Foldable Light Mode](docs/screenshots/foldable-home-light.png) |
+| Vinyl Turntable · 黑胶唱盘 |
+|---|
+| ![Desktop Vinyl](docs/screenshots/desktop-now-playing-vinyl.png) |
 
 ### Mobile · 移动端（Liquid Glass & Atmospheric Now Playing）
 
 <p align="center">
-  <img src="docs/screenshots/mobile-home.png" alt="Mobile Home (Liquid Glass)" width="30%" />
+  <img src="docs/screenshots/mobile-now-playing.png" alt="Mobile Now Playing" width="42%" />
   &nbsp;&nbsp;
-  <img src="docs/screenshots/mobile-now-playing.png" alt="Mobile Now Playing" width="30%" />
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/mobile-vinyl.png" alt="Mobile Vinyl Style" width="30%" />
+  <img src="docs/screenshots/mobile-vinyl.png" alt="Mobile Vinyl Style" width="42%" />
 </p>
 
 ---
@@ -58,7 +56,7 @@
 | **Audiophile Rust Core** | **100,000+ tracks** cold start in ~0.3s at 120 fps; sample-accurate **gapless playback**, **Windows WASAPI bit-perfect exclusive mode**, ReplayGain, 10-band EQ & headphone presets. | **专业级 Rust 引擎**：10 万首大曲库 ~0.3 秒冷启动、120 fps 流畅滚动；样本级无缝播放、Windows WASAPI 独占逐位一致输出、ReplayGain、10 段均衡器与耳机预设。 |
 | **Zero-Key Cover & Lyrics** | Built-in artwork and lyrics sources, including QQ Music for lyrics, with word-by-word karaoke, CJK per-locale font fallback, and **Windows native floating desktop lyrics**. | **免 Key 封面与歌词补全**：内置封面与歌词来源，歌词可从 QQ 音乐等来源查找，支持逐字卡拉 OK、中日韩分语种字体回退与 **Windows 原生桌面悬浮歌词**。 |
 | **Unified Library & Dedup** | Automatically merges duplicate tracks across local storage, NAS, and media servers, picking the highest quality; one-click cleanup of lower-quality duplicates (index or disk/NAS). | **统一资料库与低音质去重**：同一首歌在本地 / NAS / 媒体服务器的多副本自动合并择优；重复歌曲支持一键删除低音质版本并释放磁盘 / NAS 空间。 |
-| **LAN Connect & Sync** | Discover and pair devices on your LAN to remote-control playback, transfer queues, and stream missing tracks; serverless multi-device sync for favorites, playlists, and history via any shared folder. | **局域网遥控与无服务器同步**：设备间局域网配对遥控、播放队列接力与缺失曲目串流；通过本地或 NAS 共享目录实现无服务器多设备同步。 |
+| **LAN Connect** | Discover and pair devices on your LAN to remote-control playback, transfer queues, and stream missing tracks. | **局域网遥控与接力**：设备间局域网配对遥控、播放队列接力与缺失曲目串流。 |
 | **Refined UI & Privacy** | Liquid Glass & flat styles, Vinyl / Cassette / Cover now-playing modes, full English & Chinese UI, JS plugin host, **no accounts, no telemetry, no ads, no Google Play Services**. | **精致界面与隐私优先**：液态玻璃 / 扁平风格、黑胶 / 磁带播放页、中英双语、本地 JS 插件宿主；**无账号、无遥测、无广告、无 Google 服务依赖**。 |
 
 ---
@@ -111,7 +109,6 @@
   - **Vinyl**, **Cassette**, and **Cover** Now Playing styles; **Liquid Glass** & **Flat** display styles; full **English / Simplified Chinese** live language switching.
 - **Multi-Device & Extensibility**
   - **Lekis Connect**: discover and pair devices on your LAN to remote-control playback, transfer queues, and stream local tracks between PC and mobile.
-  - **Serverless Multi-Device Sync**: operation-log + HLC sync for favorites, playlists, and play history over any local or NAS shared folder.
   - **Plugin Host**: install and manage local JavaScript plugins with explicit permissions (see [`plugin-sdk/`](plugin-sdk/)).
 
 ### Platforms
@@ -159,7 +156,6 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release history.
   - **多元视觉**：提供封面、**黑胶唱片**、**复古磁带**三种播放页样式，支持**液态玻璃 / 扁平**显示样式、可定制导航栏位置与中英双语实时切换。
 - **跨设备体验与插件生态**
   - **局域网遥控与接力（Connect）**：局域网设备互相发现并配对后，支持遥控播放/音量/进度/队列，并将当前队列一键转移至另一台设备（对方缺失的曲目自动从本机串流）。
-  - **无服务器多设备同步**：通过本地或 NAS 共享目录同步喜欢、歌单与播放历史（操作日志 + HLC，无需云服务器）。
   - **本地 JS 插件宿主**：支持社区插件安装、启用、权限管理与配置（协议见 [`plugin-sdk/`](plugin-sdk/)）。
 
 ---
@@ -189,7 +185,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release history.
 │   │   ├── lekis-providers    OpenSubsonic / Jellyfin / Plex / Emby clients
 │   │   ├── lekis-enrich       Artwork / lyrics / metadata enrichment & scrobbling
 │   │   ├── lekis-playback     Audio engine: decode → DSP → output
-│   │   ├── lekis-sync         Serverless multi-device sync (op-log + HLC)
+│   │   ├── lekis-sync         Sync op-log & HLC primitives (internal)
 │   │   ├── lekis-plugin-host  Plugin manifest, permissions, JS runtime
 │   │   ├── lekis-desktop-lyrics  Windows native layered floating lyrics
 │   │   ├── lekis-core         Facade assembling all services
@@ -273,9 +269,9 @@ Windows packaging: `tools/package-windows.ps1` (portable ZIP) and `tools/lekis-i
 <details>
 <summary><strong>Where is my data stored? / 我的数据存在哪里？</strong></summary>
 
-All library metadata, playlists, and settings stay **100% on your device** (Windows: `%APPDATA%\dev.lekis\lekis\`; Android: app private storage `dev.lekis.music`). Credentials are encrypted using your OS keystore. Optional multi-device sync writes only to the local/NAS folder you choose.
+All library metadata, playlists, and settings stay **100% on your device** (Windows: `%APPDATA%\dev.lekis\lekis\`; Android: app private storage `dev.lekis.music`). Credentials are encrypted using your OS keystore.
 
-所有曲库索引、歌单与设置均**完全保存在本地**，凭据使用系统钥匙串加密；可选的多设备同步仅写入你指定的本地或 NAS 目录，不经过任何第三方云服务器。
+所有曲库索引、歌单与设置均**完全保存在本地**，凭据使用系统钥匙串加密，不经过任何第三方云服务器。
 
 </details>
 

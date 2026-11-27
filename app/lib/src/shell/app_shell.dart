@@ -1,8 +1,11 @@
 // Adaptive navigation shell.
 //
-//  * compact / medium width   → floating glass tab bar + MiniPlayer above it
-//    (phones, unfolded foldables, small tablets)
-//  * expanded width and up    → sidebar + desktop PlayerBar along the bottom
+//  * mobile (phones, foldables, tablets) at any width, and desktop windows
+//    below 840 dp → floating glass tab bar + MiniPlayer above it (or the
+//    side tabs, per the nav bar position setting); on wide screens both
+//    capsules grow a little and stay centred
+//  * desktop windows 840 dp and wider → sidebar + desktop PlayerBar along
+//    the bottom (see [shellChromeModeFor])
 //  * compact height (any width, e.g. phone landscape) → NavigationRail
 //
 // Every size has the same destinations; each tab owns a nested Navigator
@@ -45,20 +48,11 @@ export 'routes.dart'
         openPlugins,
         NowPlayingRoute;
 
-ShellChromeMode _chromeModeOf(BuildContext context, NavBarPosition navPos) {
-  if (context.heightClass == WindowHeightClass.compact) {
-    return ShellChromeMode.rail;
-  }
-  return switch (context.widthClass) {
-    // 手机与折叠屏展开态 / 小平板（< 840 dp）默认采用底部悬浮玻璃栏（参考 Apple Music /
-    // Spotify 折叠屏），用户也可在「外观 → 导航栏位置」切到左侧或右侧全宽穿透悬浮玻璃。
-    WindowWidthClass.compact || WindowWidthClass.medium =>
-      navPos == NavBarPosition.bottom
-          ? ShellChromeMode.bottomBar
-          : ShellChromeMode.sideTabs,
-    _ => ShellChromeMode.sidebar,
-  };
-}
+// 手机、折叠屏展开态与平板（任意宽度）默认采用底部悬浮玻璃栏（参考 Apple Music /
+// Spotify），用户也可在「外观 → 导航栏位置」切到左侧或右侧全宽穿透悬浮玻璃；
+// 侧边栏 + 桌面播放栏只属于桌面端的宽窗口（见 [shellChromeModeFor]）。
+ShellChromeMode _chromeModeOf(BuildContext context, NavBarPosition navPos) =>
+    shellChromeModeFor(size: MediaQuery.sizeOf(context), navPosition: navPos);
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
@@ -315,9 +309,7 @@ class _BottomBarLayout extends ConsumerWidget {
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                     maxWidth:
-                        LekisTabBarTokens.maxSlotWidth *
-                            LekisDestination.values.length +
-                        LekisTabBarTokens.innerInset * 2 +
+                        LekisTabBar.horizontalMaxWidth(context) +
                         LekisSizes.miniPlayerMargin * 2,
                   ),
                   child: const _OpensNowPlaying(child: MiniPlayer()),

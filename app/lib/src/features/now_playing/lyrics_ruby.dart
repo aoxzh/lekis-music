@@ -10,7 +10,10 @@
 //      每个汉字的字框（`getBoxesForSelection`），把拼音居中画在字框上方。
 //
 // 两层的排版参数必须严格一致（width / style / textScaler / locale /
-// textDirection），否则拼音会和字错位——`_RubyArt.matches` 就是用来兜这个的。
+// textDirection / textHeightBehavior），否则拼音会和字错位——带注音的行
+// 一律从 [rubyLineLayoutFor] 拿正文样式。
+
+import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -131,27 +134,134 @@ List<rust.RubySpanDto> rubySpansFor(String text, LyricsRubyMode mode) {
 @visibleForTesting
 void debugClearRubyCache() => _rubyCache.clear();
 
+/// 测试用：测试环境没有 Rust 核心，直接把一行的注音结果塞进缓存。
+@visibleForTesting
+void debugSeedRubySpans(
+  String text,
+  LyricsRubyMode mode,
+  List<rust.RubySpanDto> spans,
+) => _rubyCache[(mode, text)] = spans;
+
 // ---------------------------------------------------------------------------
 // 排版
 // ---------------------------------------------------------------------------
+//
+// 注音带要留在**每一个折行**的上方，而不只是整段最上面：
+//
+//   * 正文行高 = 原行高 + 注音带（[rubyBandFor]），折行之间也空出一条注音带，
+//     第二行的拼音不会压到第一行的字上；
+//   * [RubyLineLayout.heightBehavior] 关掉首行上沿和末行下沿的行高：首行上方
+//     由 [RubyLineLayout.inset] 的 padding 留出注音带，末行下方保持字体自然
+//     下沿，带注音的行底部不会平白多出半条带；
+//   * 注音摆在每个字自然字框（不含行距）的顶上，字体自报 ascent 过高时
+//     按该折行基线以上 0.92em 封顶；
+//   * 同一行里比字宽的注音（`zhuang`、`itadaki`）成簇向两侧推开，不互相压。
+//
+// 所有尺寸都按 `TextScaler` 放大后的字号算：系统字号 / 歌词字号调大时，
+// 留白一起变大。
 
-/// 注音占用的上方高度（相对正文字号）。
-///
-/// 拼音音节最多 6 个字母（`zhuang`），日语振假名 / 罗马音也按 0.42× 字号、
-/// 行高 1.15 画，0.52 倍字号的高度足够且不显得空。
-double rubyInsetFor(TextStyle base) => (base.fontSize ?? 16) * 0.52;
+/// 注音字号相对正文字号。
+const double _rubyFontFactor = 0.42;
+
+/// 注音文字的行高倍数。
+const double _rubyLineHeight = 1.15;
+
+/// 注音和正文之间的缝（相对正文字号）。
+const double _rubyGapFactor = 0.037;
+
+/// 正文字形顶边距基线的上限（相对字号）。CJK 字体的表意字框顶在 0.88em
+/// 左右，而字体自报的 ascent 常常更高（Noto CJK 约 1.16em），直接贴着
+/// ascent 注音会飘得离字很远、也更费行距。
+const double _rubyInkAscent = 0.92;
+
+/// 带注音时正文行高（不含注音带）的下限 / 缺省值：保证上一折行的下伸部
+/// 碰不到下一折行的注音。
+const double _rubyMinBodyHeight = 1.15;
+const double _rubyDefaultBodyHeight = 1.2;
+
+/// 带注音时正文额外加的字距（相对字号），给比字宽的注音一点横向余地。
+const double _rubyTracking = 0.04;
+
+/// 相邻两条注音之间至少留的空（相对注音字号）。
+const double _rubyLabelSpacing = 0.25;
+
+double _fontSizeOf(TextStyle style) => style.fontSize ?? 16;
+
+/// 一条注音带的高度：注音文字本身 + 与正文之间的缝，已按 [scaler] 放大。
+double rubyBandFor(
+  TextStyle base, [
+  TextScaler scaler = TextScaler.noScaling,
+]) {
+  final size = _fontSizeOf(base);
+  return scaler.scale(size * _rubyFontFactor) * _rubyLineHeight +
+      scaler.scale(size) * _rubyGapFactor;
+}
+
+/// 注音占用的上方高度（首行上方的留白），等于一条 [rubyBandFor]。
+double rubyInsetFor(
+  TextStyle base, [
+  TextScaler scaler = TextScaler.noScaling,
+]) => rubyBandFor(base, scaler);
 
 /// 注音字号。
 TextStyle rubyStyleFor(TextStyle base, Color color) => base.copyWith(
-  fontSize: (base.fontSize ?? 16) * 0.42,
-  height: 1.15,
+  fontSize: _fontSizeOf(base) * _rubyFontFactor,
+  height: _rubyLineHeight,
   fontWeight: FontWeight.w500,
   letterSpacing: 0,
   color: color,
 );
 
+/// 一行带注音的歌词怎么排。
+///
+/// 正文 `Text`、卡拉 OK 的 `TextPainter` 和 [RubyOverlay] 必须用同一份
+/// [style] + [heightBehavior]，否则注音会和字错位。
+@immutable
+class RubyLineLayout {
+  const RubyLineLayout({required this.style, required this.inset});
+
+  /// 正文样式：行高加上一条注音带，字距略放宽。
+  final TextStyle style;
+
+  /// 首行上方为注音留的高度。
+  final double inset;
+
+  /// 首行上沿、末行下沿不吃行高：首行的注音带由 [inset] 给，末行下方
+  /// 不多留。
+  static const TextHeightBehavior heightBehavior = TextHeightBehavior(
+    applyHeightToFirstAscent: false,
+    applyHeightToLastDescent: false,
+  );
+
+  @override
+  bool operator ==(Object other) =>
+      other is RubyLineLayout && other.style == style && other.inset == inset;
+
+  @override
+  int get hashCode => Object.hash(style, inset);
+}
+
+/// [base] 是不带注音时的正文样式；[scaler] 是正文实际用的 `TextScaler`。
+RubyLineLayout rubyLineLayoutFor(TextStyle base, TextScaler scaler) {
+  final scaled = scaler.scale(_fontSizeOf(base));
+  final band = rubyBandFor(base, scaler);
+  final body = math.max(
+    base.height ?? _rubyDefaultBodyHeight,
+    _rubyMinBodyHeight,
+  );
+  return RubyLineLayout(
+    style: base.copyWith(
+      height: body + (scaled > 0 ? band / scaled : 0),
+      letterSpacing: (base.letterSpacing ?? 0) + scaled * _rubyTracking,
+    ),
+    inset: band,
+  );
+}
+
 /// 只画注音、不画正文的图层。放进 `Stack` 里用 `Positioned.fill` 包住，
-/// 正文由调用方自己的 `Text` 负责（并且要留出 [topInset] 的上边距）。
+/// 正文由调用方自己的 `Text` 负责：正文要留出 [topInset] 的上边距，并且
+/// 和 [baseStyle] / [textHeightBehavior] / [textAlign] / [maxLines] 完全一致
+/// （带注音时用 [rubyLineLayoutFor] 的结果）。
 class RubyOverlay extends ConsumerWidget {
   const RubyOverlay({
     super.key,
@@ -159,6 +269,9 @@ class RubyOverlay extends ConsumerWidget {
     required this.baseStyle,
     required this.opacity,
     this.topInset = 0,
+    this.textHeightBehavior = RubyLineLayout.heightBehavior,
+    this.textAlign = TextAlign.start,
+    this.maxLines,
   });
 
   final String text;
@@ -170,6 +283,10 @@ class RubyOverlay extends ConsumerWidget {
   /// 正文上方为注音留出的高度，见 [rubyInsetFor]。
   final double topInset;
 
+  final TextHeightBehavior textHeightBehavior;
+  final TextAlign textAlign;
+  final int? maxLines;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(lyricsRubyProvider);
@@ -179,7 +296,7 @@ class RubyOverlay extends ConsumerWidget {
     return IgnorePointer(
       child: RepaintBoundary(
         child: CustomPaint(
-          painter: _RubyPainter(
+          painter: RubyPainter(
             text: text,
             spans: spans,
             baseStyle: baseStyle,
@@ -191,6 +308,9 @@ class RubyOverlay extends ConsumerWidget {
             textScaler: MediaQuery.textScalerOf(context),
             locale: Localizations.maybeLocaleOf(context),
             textDirection: Directionality.of(context),
+            textHeightBehavior: textHeightBehavior,
+            textAlign: textAlign,
+            maxLines: maxLines,
           ),
         ),
       ),
@@ -198,7 +318,8 @@ class RubyOverlay extends ConsumerWidget {
   }
 }
 
-/// 带注音的歌词正文：自动在上方为注音留出高度。
+/// 带注音的歌词正文：有注音的行在每个折行上方都留出注音带；没有注音的行
+/// （注音关闭、语言不匹配、核心未就绪）就是普通 `Text`，和以前完全一样。
 ///
 /// [opacity] 跟随经典歌词的淡入淡出（颜色透明），不会触发 saveLayer。
 class RubyLyricText extends ConsumerWidget {
@@ -219,17 +340,19 @@ class RubyLyricText extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (!ref.watch(lyricsRubyProvider).enabled) {
+    final spans = rubySpansFor(text, ref.watch(lyricsRubyProvider));
+    if (spans.isEmpty) {
       return Text(text, style: style, maxLines: maxLines, textAlign: textAlign);
     }
-    final inset = rubyInsetFor(style);
+    final layout = rubyLineLayoutFor(style, MediaQuery.textScalerOf(context));
     return Stack(
       children: [
         Padding(
-          padding: EdgeInsets.only(top: inset),
+          padding: EdgeInsets.only(top: layout.inset),
           child: Text(
             text,
-            style: style,
+            style: layout.style,
+            textHeightBehavior: RubyLineLayout.heightBehavior,
             maxLines: maxLines,
             textAlign: textAlign,
           ),
@@ -237,9 +360,11 @@ class RubyLyricText extends ConsumerWidget {
         Positioned.fill(
           child: RubyOverlay(
             text: text,
-            baseStyle: style,
+            baseStyle: layout.style,
             opacity: opacity,
-            topInset: inset,
+            topInset: layout.inset,
+            textAlign: textAlign,
+            maxLines: maxLines,
           ),
         ),
       ],
@@ -292,8 +417,99 @@ List<RubyAnchor> rubyAnchorRects(
   return out;
 }
 
-class _RubyPainter extends CustomPainter {
-  _RubyPainter({
+/// 一条摆好位置的注音（画布坐标，已含 topInset）。
+@immutable
+class RubyLabel {
+  const RubyLabel(this.rect, this.ruby, this.line);
+
+  final Rect rect;
+  final String ruby;
+
+  /// 所在的折行（从 0 开始）。
+  final int line;
+
+  @override
+  String toString() => 'RubyLabel($rect, $ruby, line $line)';
+}
+
+/// 摆放过程中的一条注音。
+class _Placed {
+  _Placed(this.painter, this.ruby, this.line, this.center, this.bottom);
+
+  final TextPainter painter;
+  final String ruby;
+  final int line;
+
+  /// 理想的水平中心（字框中心）。
+  final double center;
+  final double bottom;
+  late double left = center - width / 2;
+
+  double get width => painter.width;
+  Rect get rect =>
+      Rect.fromLTWH(left, bottom - painter.height, width, painter.height);
+}
+
+/// 一簇挨着的注音：整体居中在各自理想位置的平均处（位移平方和最小）。
+class _Cluster {
+  _Cluster(_Placed p)
+    : items = [p],
+      width = p.width,
+      _sum = p.center - p.width / 2,
+      _count = 1 {
+    left = math.max(0, _sum);
+  }
+
+  final List<_Placed> items;
+  double width;
+
+  /// Σ（每条注音的理想左边 − 它在簇里的偏移）。
+  double _sum;
+  int _count;
+  late double left;
+
+  double get right => left + width;
+
+  _Cluster absorb(_Cluster next, double spacing) {
+    final shift = width + spacing;
+    _sum += next._sum - next._count * shift;
+    _count += next._count;
+    items.addAll(next.items);
+    width += spacing + next.width;
+    left = math.max(0, _sum / _count);
+    return this;
+  }
+}
+
+/// 同一折行里的注音从左到右排，重叠的并成一簇推开，再夹进 `[0, width]`。
+void _spreadRow(List<_Placed> row, double spacing, double width) {
+  row.sort((a, b) => a.center.compareTo(b.center));
+  final clusters = <_Cluster>[];
+  for (final p in row) {
+    var c = _Cluster(p);
+    while (clusters.isNotEmpty && clusters.last.right + spacing > c.left) {
+      c = clusters.removeLast().absorb(c, spacing);
+    }
+    clusters.add(c);
+  }
+  var limit = width;
+  for (var i = clusters.length - 1; i >= 0; i--) {
+    final c = clusters[i];
+    if (c.right > limit) c.left = math.max(0, limit - c.width);
+    limit = c.left - spacing;
+  }
+  for (final c in clusters) {
+    var x = c.left;
+    for (final p in c.items) {
+      p.left = x;
+      x += p.width + spacing;
+    }
+  }
+}
+
+/// 画注音的 painter。公开只是为了测试能拿到 [labels] 检查摆放。
+class RubyPainter extends CustomPainter {
+  RubyPainter({
     required this.text,
     required this.spans,
     required this.baseStyle,
@@ -302,6 +518,9 @@ class _RubyPainter extends CustomPainter {
     required this.textScaler,
     required this.locale,
     required this.textDirection,
+    this.textHeightBehavior = RubyLineLayout.heightBehavior,
+    this.textAlign = TextAlign.start,
+    this.maxLines,
   });
 
   final String text;
@@ -312,40 +531,97 @@ class _RubyPainter extends CustomPainter {
   final TextScaler textScaler;
   final Locale? locale;
   final TextDirection textDirection;
+  final TextHeightBehavior textHeightBehavior;
+  final TextAlign textAlign;
+  final int? maxLines;
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (spans.isEmpty || size.width <= 0) return;
-    // 和正文完全相同的排版参数，只为了拿字框。
+  List<_Placed> _place(double width) {
+    if (spans.isEmpty || width <= 0) return const [];
+    // 和正文完全相同的排版参数，只为了拿字框和每个折行的基线。
     final base = TextPainter(
       text: TextSpan(text: text, style: baseStyle),
       textDirection: textDirection,
       textScaler: textScaler,
       locale: locale,
-    )..layout(maxWidth: size.width);
-    final anchors = rubyAnchorRects(base, spans, text, topInset: topInset);
-    for (final rect in anchors) {
+      textAlign: textAlign,
+      maxLines: maxLines,
+      textHeightBehavior: textHeightBehavior,
+    )..layout(maxWidth: width);
+    final anchors = rubyAnchorRects(base, spans, text);
+    final lines = base.computeLineMetrics();
+    base.dispose();
+    if (anchors.isEmpty || lines.isEmpty) return const [];
+
+    final size = _fontSizeOf(baseStyle);
+    final scaled = textScaler.scale(size);
+    final gap = scaled * _rubyGapFactor;
+    final spacing =
+        textScaler.scale(size * _rubyFontFactor) * _rubyLabelSpacing;
+    final rows = <int, List<_Placed>>{};
+    for (final anchor in anchors) {
+      final y = anchor.box.center.dy;
+      var row = lines.length - 1;
+      for (var i = 0; i < lines.length; i++) {
+        if (y <= lines[i].baseline + lines[i].descent) {
+          row = i;
+          break;
+        }
+      }
+      // 默认（tight）字框就是字体自然的 ascent / descent，不含行高带来的
+      // 行距（`LineMetrics.ascent / unscaledAscent` 都含行距，不能用）；字体
+      // 自报的 ascent 太高时按 0.92em 封顶，注音贴近字形。
+      final ink = math.max(
+        anchor.box.top,
+        lines[row].baseline - scaled * _rubyInkAscent,
+      );
       final label = TextPainter(
-        text: TextSpan(text: rect.ruby, style: rubyStyle),
+        text: TextSpan(text: anchor.ruby, style: rubyStyle),
         textDirection: textDirection,
         textScaler: textScaler,
         locale: locale,
         maxLines: 1,
       )..layout();
-      label.paint(
-        canvas,
-        Offset(
-          rect.box.center.dx - label.width / 2,
-          rect.box.top - label.height,
-        ),
-      );
-      label.dispose();
+      rows
+          .putIfAbsent(row, () => [])
+          .add(
+            _Placed(
+              label,
+              anchor.ruby,
+              row,
+              anchor.box.center.dx,
+              topInset + ink - gap / 2,
+            ),
+          );
     }
-    base.dispose();
+    final out = <_Placed>[];
+    for (final row in rows.values) {
+      _spreadRow(row, spacing, width);
+      out.addAll(row);
+    }
+    return out;
+  }
+
+  /// 注音在画布上的位置。测试用它检查注音不压字、不互压。
+  @visibleForTesting
+  List<RubyLabel> labels(Size size) {
+    final placed = _place(size.width);
+    final out = [for (final p in placed) RubyLabel(p.rect, p.ruby, p.line)];
+    for (final p in placed) {
+      p.painter.dispose();
+    }
+    return out;
   }
 
   @override
-  bool shouldRepaint(_RubyPainter old) =>
+  void paint(Canvas canvas, Size size) {
+    for (final p in _place(size.width)) {
+      p.painter.paint(canvas, p.rect.topLeft);
+      p.painter.dispose();
+    }
+  }
+
+  @override
+  bool shouldRepaint(RubyPainter old) =>
       !identical(old.spans, spans) ||
       old.text != text ||
       old.baseStyle != baseStyle ||
@@ -353,5 +629,8 @@ class _RubyPainter extends CustomPainter {
       old.topInset != topInset ||
       old.textScaler != textScaler ||
       old.locale != locale ||
-      old.textDirection != textDirection;
+      old.textDirection != textDirection ||
+      old.textHeightBehavior != textHeightBehavior ||
+      old.textAlign != textAlign ||
+      old.maxLines != maxLines;
 }

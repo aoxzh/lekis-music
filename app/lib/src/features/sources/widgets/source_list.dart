@@ -37,6 +37,7 @@ class SourceList extends ConsumerWidget {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => _Message(
         icon: Icons.error_outline,
+        mascot: LekisMascotPose.thinking,
         title: SourcesStrings.loadFailed,
         body: describeCoreError(e),
         actionLabel: SourcesStrings.retry,
@@ -47,6 +48,7 @@ class SourceList extends ConsumerWidget {
         if (list.isEmpty) {
           return _Message(
             icon: Icons.library_music_outlined,
+            mascot: LekisMascotPose.jumping,
             title: SourcesStrings.emptyTitle,
             body: SourcesStrings.emptyBody,
             actionLabel: SourcesStrings.addSource,
@@ -190,9 +192,11 @@ class _Message extends StatelessWidget {
     required this.actionLabel,
     required this.actionIcon,
     required this.onAction,
+    required this.mascot,
   });
 
   final IconData icon;
+  final LekisMascotPose mascot;
   final String title;
   final String body;
   final String actionLabel;
@@ -202,6 +206,7 @@ class _Message extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LekisEmptyState(
+      mascot: mascot,
       eyebrow: context.l10n.pick('音源', 'Sources'),
       title: title,
       message: body,

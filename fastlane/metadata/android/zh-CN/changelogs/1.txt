@@ -2,5 +2,5 @@
 - 支持本地、SMB、WebDAV、NFS、SFTP 及 OpenSubsonic / Jellyfin / Emby / Plex 直连播放
 - Rust 样本级无缝播放引擎、ReplayGain、10 段均衡器与耳机预设
 - 免 API Key 多源封面与歌词自动补全（含日区 / ACG 增强）
-- 统一资料库去重、局域网设备遥控（Connect）与无服务器多设备同步
+- 统一资料库去重、局域网设备遥控（Connect）
 - 全量中英双语界面、黑胶与磁带播放页样式

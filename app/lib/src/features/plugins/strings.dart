@@ -15,6 +15,12 @@ abstract final class PluginStrings {
   static String get catalogTitle => L10n.tr('可安装插件', 'Plugin catalog');
   static String get defaultSource =>
       L10n.tr('默认社区目录', 'Default community catalog');
+  static String get builtinSourceToggle =>
+      L10n.tr('使用默认社区目录', 'Use the default community catalog');
+  static String get builtinSourceHint => L10n.tr(
+    '关闭后不再读取和显示内置的社区插件目录；自己添加的插件源和已安装的插件不受影响。',
+    'When off, the built-in community catalog is not loaded or shown. Your own plugin sources and installed plugins keep working.',
+  );
   static String get addSource => L10n.tr('添加插件源', 'Add plugin source');
   static String get sourceUrlLabel =>
       L10n.tr('插件目录 HTTPS 地址', 'Plugin catalog HTTPS URL');

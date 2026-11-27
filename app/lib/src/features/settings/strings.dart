@@ -27,8 +27,12 @@ abstract final class SettingsStrings {
       L10n.tr('资料库检查和待确认的补全', 'Library health checks and metadata review');
   static String get advanced => L10n.tr('高级', 'Advanced');
   static String get advancedHint => L10n.tr(
-    '独占输出、ReplayGain、听歌记录、插件、备份、日志',
-    'Exclusive audio, ReplayGain, scrobbling, plugins, backup & logs',
+    '独占输出、ReplayGain、听歌记录、备份、日志',
+    'Exclusive audio, ReplayGain, scrobbling, backup & logs',
+  );
+  static String get pluginsHint => L10n.tr(
+    '管理插件、默认社区目录与插件源',
+    'Manage plugins, community catalog & sources',
   );
   static String get aboutHint =>
       L10n.tr('版本、作者、问题反馈与项目信息', 'Version, author, bug reports & project info');
@@ -415,6 +419,7 @@ abstract final class SettingsStrings {
   );
 
   static String get plugins => L10n.tr('插件', 'Plugins');
+  static String get pluginsManage => L10n.tr('管理插件', 'Manage Plugins');
   static String get pluginsEmpty => L10n.tr('未安装插件', 'No plugins installed');
   static String get pluginLoadFailed =>
       L10n.tr('读取插件列表失败', 'Failed to load plugins');
@@ -480,9 +485,48 @@ abstract final class SettingsStrings {
   static String get githubRepo => L10n.tr('GitHub 仓库', 'GitHub Repository');
   static String get reportBug => L10n.tr('提交 Bug / 反馈建议', 'Report a Bug');
   static String get reportBugHint => L10n.tr(
-    '前往 GitHub Issues 提交问题或功能建议',
-    'Open GitHub Issues to report bugs or request features',
+    '附带诊断包，一键在 GitHub 提交问题或建议',
+    'Attach diagnostics and open a prefilled GitHub issue',
   );
+  static String get reportProblem => L10n.tr('反馈问题', 'Report a Problem');
+  static String get reportProblemIntro => L10n.tr(
+    '诊断包只包含版本、界面配置和已脱敏的最近日志；不会自动上传。你可以先保存查看，再决定是否提交。',
+    'The bundle only contains versions, UI settings and redacted recent logs. Nothing is uploaded automatically; save and inspect it before you decide to submit.',
+  );
+  static String get reportProblemDescription =>
+      L10n.tr('问题描述（可选）', 'What happened? (optional)');
+  static String get reportProblemDescriptionHint => L10n.tr(
+    '例如：播放某一首歌时歌词不显示。这里的内容会写进诊断包和 Issue。',
+    'For example: lyrics do not appear for a track. This text goes into the bundle and the issue.',
+  );
+  static String get reportProblemIncludeDeviceId =>
+      L10n.tr('附带设备 ID', 'Include device ID');
+  static String get reportProblemIncludeDeviceIdHint => L10n.tr(
+    '默认关闭。设备 ID 只用于把同一台设备的多次反馈关联起来。',
+    'Off by default. The device ID only links reports from the same device.',
+  );
+  static String get reportProblemEnvironment =>
+      L10n.tr('将附带的环境信息', 'Environment included');
+  static String get reportProblemSaveBundle =>
+      L10n.tr('保存诊断包', 'Save diagnostics bundle');
+  static String get reportProblemOpenIssue =>
+      L10n.tr('在 GitHub 提交 Issue', 'Open a GitHub issue');
+  static String get reportProblemSaveHint => L10n.tr(
+    '保存后把 zip 拖进 GitHub Issue 的附件框即可。',
+    'Save the zip, then drag it into the GitHub issue attachment box.',
+  );
+  static String get reportProblemSaved =>
+      L10n.tr('诊断包已保存', 'Diagnostics bundle saved');
+  static String get reportProblemSaveFailed =>
+      L10n.tr('保存诊断包失败', 'Could not save the diagnostics bundle');
+  static String get reportProblemIssueFallback => L10n.tr(
+    '无法打开浏览器，Issue 链接已复制',
+    'Could not open the browser; the issue link was copied',
+  );
+  static String get reportProblemCopyEnvironment =>
+      L10n.tr('复制环境信息', 'Copy environment');
+  static String get reportProblemCopied =>
+      L10n.tr('环境信息已复制', 'Environment copied');
   static String get checkUpdates => L10n.tr('检查更新', 'Check for Updates');
   static String get checkUpdatesHint => L10n.tr(
     '从 GitHub Releases 检测新版本并获取安装包',

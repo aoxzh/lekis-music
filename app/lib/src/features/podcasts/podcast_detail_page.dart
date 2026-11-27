@@ -130,6 +130,7 @@ class _PodcastDetailPageState extends ConsumerState<PodcastDetailPage> {
       return const Center(child: CircularProgressIndicator());
     }
     return LekisEmptyState(
+      mascot: LekisMascotPose.thinking,
       eyebrow: PodcastStrings.eyebrow,
       title: PodcastStrings.loadFailed,
       message: '${describeCoreError(error)}\n${PodcastStrings.networkHint}',

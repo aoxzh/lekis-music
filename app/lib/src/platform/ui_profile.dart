@@ -101,6 +101,12 @@ class UiProfile {
   /// and labelled toggles.
   bool get desktopSettings => isDesktop;
 
+  /// Wide windows get the desktop shell: sidebar navigation, the full-width
+  /// player bar and the lyrics / queue context panel. Mobile keeps the
+  /// floating tab bar + mini player at every width (tablets, unfolded
+  /// foldables); only the content inside adapts to the extra room.
+  bool get desktopShell => isDesktop;
+
   /// Default density for controls: compact for a mouse, standard for touch.
   VisualDensity get visualDensity =>
       isDesktop ? VisualDensity.compact : VisualDensity.standard;

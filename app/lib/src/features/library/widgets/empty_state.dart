@@ -6,7 +6,11 @@ import 'package:lekis/src/rust/api/error.dart';
 import 'package:lekis/src/shell/app_shell.dart';
 import 'package:lekis/src/theme/tokens.dart';
 import 'package:lekis/src/widgets/brand_mark.dart';
+import 'package:lekis/src/widgets/mascot.dart';
 import 'package:material_ui/material_ui.dart';
+
+export 'package:lekis/src/widgets/mascot.dart'
+    show LekisMascot, LekisMascotPose;
 
 /// Shared empty / first-run state: a quiet moonrise instead of a bare icon.
 class LekisEmptyState extends StatelessWidget {
@@ -17,6 +21,8 @@ class LekisEmptyState extends StatelessWidget {
     this.eyebrow,
     this.action,
     this.maxWidth = 420,
+    this.mascot,
+    this.mascotSize = 128,
   });
 
   final String title;
@@ -24,6 +30,11 @@ class LekisEmptyState extends StatelessWidget {
   final String? eyebrow;
   final Widget? action;
   final double maxWidth;
+
+  /// Shows this mascot pose instead of the brand mark. See [LekisMascotPose]
+  /// for which pose fits which mood.
+  final LekisMascotPose? mascot;
+  final double mascotSize;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +48,14 @@ class LekisEmptyState extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const _Moonrise(),
+              if (mascot case final pose?)
+                LekisMascot(
+                  key: const ValueKey('empty-state.mascot'),
+                  pose: pose,
+                  size: mascotSize,
+                )
+              else
+                const _Moonrise(),
               if (eyebrow != null) ...[
                 const SizedBox(height: LekisSpacing.xl),
                 Text(
@@ -96,15 +114,24 @@ class _Moonrise extends StatelessWidget {
 }
 
 class LibraryEmptyState extends StatelessWidget {
-  const LibraryEmptyState({super.key, this.title, this.message});
+  const LibraryEmptyState({
+    super.key,
+    this.title,
+    this.message,
+    this.mascot = LekisMascotPose.jumping,
+  });
 
   final String? title;
   final String? message;
+
+  /// Defaults to the waving jump: this is the "welcome, let's start" state.
+  final LekisMascotPose mascot;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     return LekisEmptyState(
+      mascot: mascot,
       eyebrow: l10n.pick('开始使用', 'Get Started'),
       title: title ?? l10n.pick('资料库还是空的', 'Your Library Is Empty'),
       message:
@@ -159,8 +186,12 @@ class LoadErrorView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline_rounded, color: colors.danger),
-            const SizedBox(height: LekisSpacing.sm),
+            const LekisMascot(
+              key: ValueKey('load-error.mascot'),
+              pose: LekisMascotPose.thinking,
+              size: 96,
+            ),
+            const SizedBox(height: LekisSpacing.md),
             Text(
               l10n.pick('加载失败', 'Load Failed'),
               style: Theme.of(context).textTheme.titleMedium,

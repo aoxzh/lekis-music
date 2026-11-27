@@ -4249,12 +4249,15 @@ mod tests {
             rt.block_on(async {
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                 assert!(core.playback_snapshot().gapless);
+                assert!(core.services.crossfade.gapless(), "默认开启无缝播放");
                 core.set_setting(settings::GAPLESS.into(), "false".into())
                     .await?;
                 core.set_setting(settings::REPLAYGAIN.into(), "album".into())
                     .await?;
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                 assert!(!core.playback_snapshot().gapless);
+                // 解码线程读的共享开关也要跟着变（正在播的会话不用重开就生效）。
+                assert!(!core.services.crossfade.gapless());
                 assert_eq!(
                     core.services.resolver.replaygain_mode(),
                     resolver::ReplayGainMode::Album
@@ -4278,6 +4281,7 @@ mod tests {
             }
         });
         assert!(!core.playback_snapshot().gapless);
+        assert!(!core.services.crossfade.gapless());
         assert_eq!(
             core.services.resolver.replaygain_mode(),
             resolver::ReplayGainMode::Album

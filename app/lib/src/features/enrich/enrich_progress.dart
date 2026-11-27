@@ -8,9 +8,11 @@ import 'package:lekis/src/rust/api/core.dart' as core;
 import 'package:lekis/src/rust/api/error.dart' show CoreError, ErrorKind;
 import 'package:lekis/src/shell/routes.dart';
 import 'package:lekis/src/theme/tokens.dart';
+import 'package:lekis/src/widgets/mascot.dart';
 import 'package:material_ui/material_ui.dart';
 
-import 'enrich_actions.dart' show EnrichActionStrings, EnrichScope, enrichScopeSettingKey;
+import 'enrich_actions.dart'
+    show EnrichActionStrings, EnrichScope, enrichScopeSettingKey;
 
 /// 每处理这么多首停一下，给各音源自己的 RateLimiter / 429 退避留点余量。
 const int _enrichBurst = 50;
@@ -256,7 +258,10 @@ class EnrichProgressBanner extends ConsumerWidget {
             progress.currentTitle!.trim().isNotEmpty)
           progress.currentTitle!.trim(),
         if (progress.autoApplied > 0)
-          l10n.pick('已应用 ${progress.autoApplied}', 'Applied ${progress.autoApplied}'),
+          l10n.pick(
+            '已应用 ${progress.autoApplied}',
+            'Applied ${progress.autoApplied}',
+          ),
         if (progress.queued > 0)
           l10n.pick('待确认 ${progress.queued}', 'Review ${progress.queued}'),
       ];
@@ -289,18 +294,23 @@ class EnrichProgressBanner extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  Icon(
-                    progress.running
-                        ? progress.scope.icon
-                        : (progress.error != null
-                              ? Icons.error_outline_rounded
-                              : Icons.check_circle_outline_rounded),
-                    size: 18,
-                    color: progress.error != null
-                        ? colors.danger
-                        : colors.accent,
-                  ),
-                  const SizedBox(width: LekisSpacing.sm),
+                  // Running rabbit while fetching, thumbs-up when it finished
+                  // cleanly; plain icons for errors and cancellation.
+                  if (progress.running)
+                    const LekisMascot(pose: LekisMascotPose.running, size: 40)
+                  else if (progress.error == null && !progress.cancelled)
+                    const LekisMascot(pose: LekisMascotPose.thumbsUp, size: 40)
+                  else
+                    Icon(
+                      progress.error != null
+                          ? Icons.error_outline_rounded
+                          : Icons.check_circle_outline_rounded,
+                      size: 18,
+                      color: progress.error != null
+                          ? colors.danger
+                          : colors.accent,
+                    ),
+                  const SizedBox(width: LekisSpacing.md),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

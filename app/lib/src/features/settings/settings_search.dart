@@ -17,8 +17,10 @@ enum _Group {
   overlay(SettingsCategory.appearance, '桌面歌词 悬浮 desktop lyrics overlay'),
   playback(SettingsCategory.playback, '音频输出 audio output'),
   audio(SettingsCategory.advanced, '音频输出 audio output'),
-  extensions(SettingsCategory.advanced, '插件 plugins extensions'),
-  plugins(SettingsCategory.advanced, '插件 plugins extensions');
+  storage(SettingsCategory.advanced, '存储 storage'),
+  pluginSettings(SettingsCategory.plugins, '插件 扩展 plugins extensions'),
+  // Rows on the Plugins page itself (opened as a pushed page).
+  plugins(SettingsCategory.plugins, '插件 扩展 plugins extensions');
 
   const _Group(this.category, this.aliases);
   final SettingsCategory category;
@@ -28,7 +30,6 @@ enum _Group {
     _Group.lyrics => SettingsStrings.lyrics,
     _Group.overlay => DesktopLyricsStrings.title,
     _Group.audio => SettingsStrings.audioOutput,
-    _Group.plugins => SettingsStrings.plugins,
     _ => null,
   };
 
@@ -141,7 +142,7 @@ List<SettingsSearchItem> searchSettings(WidgetRef ref, String query) {
       SettingsStrings.normalize,
       '音量平衡 volume normalization ReplayGain',
     ),
-    _Group.extensions.item(
+    _Group.storage.item(
       'settings.storage',
       SettingsStrings.storage,
       '存储管理 缓存 清理 流媒体缓存 NAS cache storage clear',
@@ -163,10 +164,16 @@ List<SettingsSearchItem> searchSettings(WidgetRef ref, String query) {
       SettingsStrings.replayGain,
       'ReplayGain 模式 响度 音量增益 mode album track',
     ),
-    _Group.extensions.item(
+    _Group.pluginSettings.item(
       'plugins.entry',
-      SettingsStrings.plugins,
+      SettingsStrings.pluginsManage,
       '管理 manager',
+    ),
+    _Group.pluginSettings.item(
+      'plugins.builtin-source',
+      PluginStrings.builtinSourceToggle,
+      '默认社区目录 内置 社区 插件目录 插件源 default community catalog '
+          'registry built-in source',
     ),
     plugin(
       'plugins.install',

@@ -1,4 +1,4 @@
-// 设置的二级页面：整理资料库、多设备同步、在其他设备上播放、播放、外观（含歌词）、高级、关于。
+// 设置的二级页面：整理资料库、多设备同步、在其他设备上播放、播放、外观（含歌词）、插件、高级、关于。
 //
 // 每个分类只给出若干 [SettingsSection]；手机上包成推入的子页面，
 // 宽窗口里直接放进右栏（见 settings_page.dart）。
@@ -20,13 +20,16 @@ import '../../shell/nav_bar_position.dart';
 import '../../shell/tab_bar_style.dart';
 import '../../theme/theme_settings.dart';
 import '../../theme/tokens.dart';
+import '../../widgets/mascot.dart';
 import '../enrich/enrich_providers.dart';
 import '../library/library_health_page.dart';
 import '../now_playing/lyrics_ruby.dart';
 import '../now_playing/lyrics_stage_settings.dart';
 import '../now_playing/now_playing_style.dart';
 import '../player/sleep_timer.dart';
+import '../plugins/plugin_builtin_source_tile.dart';
 import '../plugins/plugins_providers.dart';
+import '../plugins/strings.dart';
 import '../sources/common.dart';
 import 'app_updater_provider.dart';
 import 'update_dialog.dart';
@@ -36,6 +39,7 @@ import 'home_widget_tile.dart';
 import 'logs_page.dart';
 import 'lyrics_presets.dart';
 import 'scrobble_page.dart';
+import 'report_problem_page.dart';
 import 'settings_backup.dart';
 import 'settings_guard.dart';
 import 'settings_providers.dart';
@@ -99,6 +103,11 @@ enum SettingsCategory {
     SettingsCategoryGroup.general,
     _appearanceSections,
   ),
+  plugins(
+    Icons.extension_outlined,
+    SettingsCategoryGroup.general,
+    _pluginsSections,
+  ),
   advanced(Icons.tune_rounded, SettingsCategoryGroup.more, _advancedSections),
   about(Icons.info_outline_rounded, SettingsCategoryGroup.more, _aboutSections);
 
@@ -114,6 +123,7 @@ enum SettingsCategory {
     SettingsCategory.connect => ConnectStrings.title,
     SettingsCategory.playback => SettingsStrings.playback,
     SettingsCategory.appearance => SettingsStrings.appearance,
+    SettingsCategory.plugins => SettingsStrings.plugins,
     SettingsCategory.advanced => SettingsStrings.advanced,
     SettingsCategory.about => SettingsStrings.about,
   };
@@ -127,6 +137,7 @@ enum SettingsCategory {
       UiProfile.current.isDesktop
           ? SettingsStrings.appearanceHintDesktop
           : SettingsStrings.appearanceHint,
+    SettingsCategory.plugins => SettingsStrings.pluginsHint,
     SettingsCategory.advanced => SettingsStrings.advancedHint,
     SettingsCategory.about => SettingsStrings.aboutHint,
   };
@@ -176,12 +187,22 @@ enum SettingsCategory {
       SettingsStrings.lyricsSparks,
       DesktopLyricsStrings.title,
     ],
+    SettingsCategory.plugins => [
+      SettingsStrings.pluginsManage,
+      PluginStrings.defaultSource,
+      PluginStrings.builtinSourceToggle,
+      PluginStrings.browse,
+      PluginStrings.install,
+      PluginStrings.addSource,
+      'plugin',
+      'extension',
+      '扩展',
+    ],
     SettingsCategory.advanced => [
       SettingsStrings.outputMode,
       SettingsStrings.usbBitPerfect,
       SettingsStrings.replayGain,
       SettingsStrings.scrobbling,
-      SettingsStrings.plugins,
       SettingsStrings.desktopTrayEnabled,
       SettingsStrings.backup,
       SettingsStrings.storage,
@@ -245,6 +266,7 @@ List<Widget> _appearanceSections() => const [
   _LyricsSection(),
   DesktopLyricsSettingsSection(),
 ];
+List<Widget> _pluginsSections() => const [_PluginsSection()];
 List<Widget> _advancedSections() => [
   const _AudioOutputSection(),
   const _ServicesSection(),
@@ -1294,9 +1316,21 @@ class _ServicesSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SettingsSection(
     title: SettingsStrings.servicesGroup,
-    children: [
-      ScrobbleSettingsTile(),
+    children: [ScrobbleSettingsTile()],
+  );
+}
+
+/// 设置 › 插件：进入插件管理页的入口和默认社区目录开关。
+/// 标题与页面标题相同，桌面详情里不会重复显示。
+class _PluginsSection extends StatelessWidget {
+  const _PluginsSection();
+
+  @override
+  Widget build(BuildContext context) => SettingsSection(
+    title: SettingsStrings.plugins,
+    children: const [
       PluginsSettingsTile(key: ValueKey('plugins.entry')),
+      PluginBuiltinSourceTile(key: ValueKey('plugins.builtin-source')),
     ],
   );
 }
@@ -1318,7 +1352,7 @@ class PluginsSettingsTile extends ConsumerWidget {
         : SettingsStrings.pluginsInstalled(count);
     return SettingsTile(
       icon: Icons.extension_outlined,
-      title: SettingsStrings.plugins,
+      title: SettingsStrings.pluginsManage,
       subtitle: Text(subtitle),
       chevron: true,
       onTap: () => openPlugins(context),
@@ -1447,7 +1481,6 @@ class _DiagnosticsSection extends StatelessWidget {
 const String _kAuthorHandle = '@aoxzh';
 const String _kAuthorUrl = 'https://x.com/aoxzh';
 const String _kRepoUrl = 'https://github.com/aoxzh/lekis-music';
-const String _kIssuesUrl = 'https://github.com/aoxzh/lekis-music/issues';
 
 class _AboutSection extends ConsumerStatefulWidget {
   const _AboutSection();
@@ -1566,20 +1599,38 @@ class _AboutSectionState extends ConsumerState<_AboutSection> {
                   ],
                 ),
                 const SizedBox(height: LekisSpacing.md),
-                Text(
-                  SettingsStrings.nameOriginTitle,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: scheme.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  SettingsStrings.nameOriginBody,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    height: 1.5,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            SettingsStrings.nameOriginTitle,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: scheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            SettingsStrings.nameOriginBody,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: LekisSpacing.md),
+                    const LekisMascot(
+                      key: ValueKey('about.mascot'),
+                      pose: LekisMascotPose.standing,
+                      size: 96,
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1600,8 +1651,12 @@ class _AboutSectionState extends ConsumerState<_AboutSection> {
               icon: Icons.bug_report_outlined,
               title: SettingsStrings.reportBug,
               subtitle: Text(SettingsStrings.reportBugHint),
-              trailing: const Icon(Icons.open_in_new_rounded, size: 18),
-              onTap: () => _openLink(context, _kIssuesUrl),
+              chevron: true,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const ReportProblemPage(),
+                ),
+              ),
             ),
             SettingsTile(
               icon: Icons.code_rounded,
