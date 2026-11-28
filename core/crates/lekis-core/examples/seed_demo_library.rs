@@ -1,6 +1,6 @@
 //! Seed a clean Lekis profile from the generated demo library.
 //!
-//! This is a developer tool for promo screenshots: it creates the same SQLite
+//! This is a developer tool for demo screenshots: it creates the same SQLite
 //! library the app would create after "add folder → scan", so the app can be
 //! launched with `--dart-define=LEKIS_DATA_DIR=<dir>` and immediately show the
 //! fictional catalogue without touching the real library.

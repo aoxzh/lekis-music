@@ -46,6 +46,16 @@
   <img src="docs/screenshots/mobile-vinyl.png" alt="Mobile Vinyl Style" width="42%" />
 </p>
 
+### 宣传片 · 60 秒 16:9 / Video
+
+<p align="center">
+  <a href="https://lekis.aoxzh.org/assets/video/lekis-60s-16x9.mp4">
+    <img src="website/assets/video/lekis-60s-16x9-poster.webp" alt="Lekis Music 60 秒 16:9 宣传片" width="100%" />
+  </a>
+</p>
+
+[▶ 观看 60 秒 16:9 成片 / Watch the 60s video](https://lekis.aoxzh.org/assets/video/lekis-60s-16x9.mp4)
+
 ---
 
 ## Why Lekis Music? · 核心亮点
